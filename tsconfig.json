@@ -4,6 +4,9 @@
     // File Layout
     "rootDir": "./src",
     "outDir": "./dist",
+    "paths": {
+      "browsers/*": "./browsers"
+    },
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
@@ -12,7 +15,6 @@
     "types": ["node"],
     // For nodejs:
     // "lib": ["esnext"],
-    "types": ["node"],
 
     // Other Outputs
     "sourceMap": false,
