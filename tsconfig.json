@@ -5,7 +5,7 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "paths": {
-      "browsers/*": "./browsers"
+      "browsers/*": ["./browsers"]
     },
 
     // Environment Settings
