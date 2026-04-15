@@ -1,24 +1,59 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
 import { findBrowser } from "./browser-finder.js";
-import { existsSync, mkdirSync, writeFile, writeFileSync } from "node:fs";
-import { profile } from "node:console";
-
-const browserLaunchFlags: Record<SupportedBrowser, string[]> = {
-  chrome: ["--remote-debugging-port=9222", "--headless", "--no-sandbox"],
-  firefox: [
-    "--remote-debugging-port=9222",
-    "--headless",
-    "--no-sandbox",
-    "--no-remote",
-    "--profile=/tmp/samurai-firefox",
-  ],
-};
+import path from "node:path";
 
 const browserProfilePath: Record<SupportedBrowser, string> = {
-  chrome: "/tmp/samurai-chrome",
-  firefox: "/tmp/samurai-firefox",
+  chrome: path.resolve("browsers/profiles/chrome/user.js"),
+  firefox: path.resolve("browsers/profiles/firefox/user.js"),
 };
+
+const baseBrowserLaunchFlags: Record<SupportedBrowser, string[]> = {
+  chrome: ["--headless", "--no-sandbox"],
+  firefox: ["--headless", "--no-sandbox", "--no-remote"],
+};
+
+const defaultLaunchOptions: Record<SupportedBrowser, BrowserLaunchOptions> = {
+  firefox: {
+    port: 9222,
+    profileDir: path.dirname(browserProfilePath.firefox),
+  },
+  chrome: {
+    port: 9222,
+    profileDir: path.dirname(browserProfilePath.chrome),
+  },
+};
+
+const browserLaunchFlag = (
+  browserName: SupportedBrowser,
+  launchOptions: BrowserLaunchOptions,
+) => {
+  const { port = 9222, profileDir = path.dirname(browserProfilePath.firefox) } =
+    launchOptions;
+  const baseLaunchFlags = baseBrowserLaunchFlags[browserName];
+  baseLaunchFlags.push(
+    "--remote-debugging-port",
+    port.toString(),
+    "--profile",
+    path.dirname(browserProfilePath.firefox),
+  );
+  return baseLaunchFlags;
+};
+
+const browserProfiles: Record<SupportedBrowser, string> = {
+  chrome: "",
+  firefox: `
+    user_pref("devtools.debugger.remote-enabled", true);
+    user_pref("devtools.debugger.prompt-connection", false);
+    user_pref("devtools.chrome.enabled", true);
+  `,
+};
+
+export interface BrowserLaunchOptions {
+  port?: number;
+  profileDir?: string;
+}
 
 export class Browser {
   private browserProc: ChildProcessWithoutNullStreams;
@@ -27,57 +62,85 @@ export class Browser {
     this.browserProc = browserProc;
   }
 
-  public connect() {
-    this.tryConnectToWebsocket();
-  }
-
-  private async tryConnectToWebsocket() {}
-
-  private waitForWebsocketConnection() {}
-
-  static async launch(browserName: SupportedBrowser) {
+  static async launch(
+    browserName: SupportedBrowser,
+    launchOptions: BrowserLaunchOptions = defaultLaunchOptions[browserName],
+  ) {
     const browserLocation = findBrowser(browserName);
     checkBrowserProfile(browserName);
-    const browserProc = spawn(browserLocation, browserLaunchFlags[browserName]);
 
-    browserProc.stdout.on("data", (data) => {
-      console.log(`stdout: ${data}`);
+    const browserProc = spawn(
+      browserLocation,
+      browserLaunchFlag(browserName, launchOptions),
+    );
+
+    return new Promise((resolve, reject) => {
+      browserProc.stdout.on("data", (data) => {
+        console.log(`stdout: ${data}`);
+        if (
+          String(data).match(
+            /!!!\scould\snot\sstart\sserver\son\sport\s(\d){4}/g,
+          )
+        ) {
+          browserProc.kill();
+          reject(`PORT ${launchOptions.port} is already in use!`);
+        }
+      });
+
+      browserProc.stderr.on("data", (data) => {
+        console.error(`stderr: ${data}`);
+
+        if (browserName === "firefox") {
+          const matches = String(data).match(
+            /WebDriver\sBiDi\slistening\son\sws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}/g,
+          );
+          if (Array.isArray(matches) && matches?.length > 0) {
+            resolve(true);
+          }
+        } else if (browserName === "chrome") {
+          const matches = String(data).match(
+            /DevTools\slistening\son\sws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}/g,
+          );
+          if (Array.isArray(matches) && matches.length > 0) {
+            resolve(true);
+          }
+        }
+      });
+
+      browserProc.on("close", (code) => {
+        console.log(`child process exited with code ${code}`);
+      });
+
+      setTimeout(() => {
+        // If the promise didn't resovle after 10 seconds,
+        // throw an error
+        throw new Error(
+          "We were unable to connect to the browser after 10 seconds.",
+        );
+      }, 10000);
     });
-
-    browserProc.stderr.on("data", (data) => {
-      console.error(`stderr: ${data}`);
-    });
-
-    browserProc.on("close", (code) => {
-      console.log(`child process exited with code ${code}`);
-    });
-
-    return new Browser(browserProc);
   }
 
   public close() {
-    this.browserProc?.disconnect();
+    this.browserProc?.kill();
   }
 }
-
-const FIREFOX_PROFILE = `
-  user_pref("devtools.debugger.remote-enabled", true);
-  user_pref("devtools.debugger.prompt-connection", false);
-  user_pref("devtools.chrome.enabled", true);
-`;
 
 function checkBrowserProfile(browserName: SupportedBrowser) {
   const profilePath = browserProfilePath[browserName];
   if (existsSync(profilePath)) {
     return;
   }
-  createBrowserProfile(profilePath);
+  createBrowserProfile(browserName, profilePath);
 }
 
-function createBrowserProfile(profilePath: string) {
-  mkdirSync(profilePath, { recursive: true });
+function createBrowserProfile(
+  browserName: SupportedBrowser,
+  profilePath: string,
+) {
+  mkdirSync(path.dirname(profilePath), { recursive: true });
 
-  writeFileSync(`${profilePath}/user.js`, FIREFOX_PROFILE, {
+  writeFileSync(profilePath, browserProfiles[browserName], {
     encoding: "utf8",
   });
 }
