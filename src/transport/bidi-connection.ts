@@ -1,22 +1,49 @@
+import EventEmitter from "node:events";
+import type { BiDiCommands, BiDiEvents } from "../types/bidi.js";
+
 interface BiDiMessage {
   id: number;
   method: string;
-  params: object;
+  params?: object | undefined;
 }
 
 export class BiDiConnector {
   private resolveMap: Map<
     number,
-    { resolve: (value: unknown) => void; reject: (reason: unknown) => void }
+    {
+      resolve: <M extends keyof BiDiCommands>(
+        value: BiDiCommands[M]["result"],
+      ) => void;
+      reject: (reason: unknown) => void;
+    }
   > = new Map();
   private currentId: number = 0;
   private webSocket: WebSocket;
+  private eventEmitter: EventEmitter;
 
-  constructor({ url }: { url: string }) {
-    this.webSocket = new WebSocket(url);
+  constructor(ws: WebSocket) {
+    this.webSocket = ws;
     this.webSocket.addEventListener("message", this.messageListener);
     this.webSocket.addEventListener("close", this.onWebsocketClose);
     this.webSocket.addEventListener("error", this.onWebsocketError);
+    this.eventEmitter = new EventEmitter();
+    console.info("BiDiConnector: Websocket handshake finished");
+  }
+
+  public static async connect(url: string) {
+    console.log("Connecting to WebSocket");
+    const ws = new WebSocket(url);
+    return new Promise<BiDiConnector>((resolve, reject) => {
+      console.log("Waiting for WebSocket handshake");
+      ws.addEventListener("open", (ev) => {
+        console.log("WebSocket handshake finished");
+        resolve(new BiDiConnector(ws));
+      });
+      ws.addEventListener("error", (err) => {
+        console.error(err);
+        reject(new Error("WebSocket connection failed"));
+      });
+    });
   }
 
   private onWebsocketClose = () => {
@@ -36,7 +63,10 @@ export class BiDiConnector {
     return this.currentId++;
   }
 
-  public send(method: string, params: object): Promise<unknown> {
+  public send<M extends keyof BiDiCommands>(
+    method: M,
+    params?: BiDiCommands[M]["params"],
+  ): Promise<BiDiCommands[M]["result"]> {
     return new Promise((resolve, reject) => {
       try {
         const id = this.getId();
@@ -53,12 +83,34 @@ export class BiDiConnector {
     });
   }
 
+  /** Register an event listener */
+  public onEvent<E extends keyof BiDiEvents>(
+    event: E,
+    listener: (params: BiDiEvents[E]["params"]) => void,
+  ): void {
+    this.eventEmitter.on(event, listener);
+  }
+
+  /** Remove an event listener */
+  public offEvent<E extends keyof BiDiEvents>(
+    event: E,
+    listener: (params: BiDiEvents[E]["params"]) => void,
+  ): void {
+    this.eventEmitter.off(event, listener);
+  }
+
   private messageListener = (ev: MessageEvent) => {
-    const { id, result } = JSON.parse(ev.data);
-    const targetToResolve = this.resolveMap.get(id);
-    if (targetToResolve) {
-      targetToResolve.resolve(result);
-      this.resolveMap.delete(id);
+    console.log("RAW MESSAGE", ev.data);
+
+    const message = JSON.parse(ev.data);
+    if (message.type === "success" && message.id !== undefined) {
+      const targetToResolve = this.resolveMap.get(message.id);
+      if (targetToResolve) {
+        targetToResolve.resolve(message.result);
+        this.resolveMap.delete(message.id);
+      }
+    } else if (message.type === "event") {
+      this.eventEmitter.emit(message.method, message.params);
     }
   };
 }
