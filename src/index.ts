@@ -1,3 +1,25 @@
 import { Browser } from "./browser/browser.js";
 
-const b = Browser.launch("firefox");
+const { browser, page } = await Browser.launch("firefox", {
+  port: 9223,
+  headless: false,
+});
+
+await page.navigateTo("https://itmetsam.nl");
+const link = page.locator("a[text()='Start een project']");
+await link.click();
+await page.waitForNetworkIdle();
+const nameField = page.locator("input[@id='contact-name']");
+await nameField.fill("test");
+const emailField = page.locator("input[@id='contact-email']");
+await emailField.fill("sammiedegroot@gmail.com");
+const subjectField = page.locator("input[@id='contact-subject']");
+await subjectField.fill("Test subject");
+const messageField = page.locator("textarea[@id='contact-message']");
+await messageField.fill(
+  "This is a very long message which describes what I would like",
+);
+const submitButton = page.locator("button[@type='submit']");
+await submitButton.click();
+await page.waitForNetworkIdle();
+const successAlert = page.locator("div[@class='alert-description']");
