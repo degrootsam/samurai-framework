@@ -18,11 +18,10 @@ interface TestResultBase {
   name: string;
   duration: number;
   startTime: number;
-  file: string;
 }
 
 interface TestError {
   message: string;
   type: "timeout" | "error";
-  location?: string;
+  location?: string | undefined;
 }
