@@ -1,11 +1,12 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
 import { findBrowser } from "./browser-finder.js";
 import path from "node:path";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import Page from "./page.js";
-import { type BiDiCommands } from "../types/bidi.js";
+import type { BiDiCommands } from "../types/bidi.js";
 import logger from "../logger/index.js";
 import type {
   CookieFilter,
