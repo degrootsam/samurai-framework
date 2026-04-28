@@ -60,6 +60,6 @@ export default class Page {
         origin,
       },
     );
-    // TODO: Store screenshot
+    // TODO: Store screenshot according to config specs
   }
 }
