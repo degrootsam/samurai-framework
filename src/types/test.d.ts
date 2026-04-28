@@ -1,6 +1,5 @@
 export interface TestCase {
   name: string;
-  file: string;
   function: () => Promise<void>;
 }
 
