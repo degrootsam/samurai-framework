@@ -6,6 +6,7 @@ import path from "node:path";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import Page from "./page.js";
 import { type BiDiCommands } from "../types/bidi.js";
+import logger from "../logger/index.js";
 
 const browserProfilePath: Record<SupportedBrowser, string> = {
   chrome: "",
@@ -13,7 +14,7 @@ const browserProfilePath: Record<SupportedBrowser, string> = {
 };
 
 const baseBrowserLaunchFlags: Record<SupportedBrowser, string[]> = {
-  chrome: ["--no-sandbox"],
+  chrome: [],
   firefox: ["--no-sandbox", "--no-remote"],
 };
 
@@ -50,9 +51,14 @@ const browserLaunchFlag = (
     baseLaunchFlags.push("--headless");
   }
   baseLaunchFlags.push("--remote-debugging-port", port.toString());
+
   if (browserName === "firefox") {
     baseLaunchFlags.push("--profile", profileDir);
   }
+
+  logger.verbose("Launch flags for browser %s: ", browserName, {
+    baseLaunchFlags,
+  });
   return baseLaunchFlags;
 };
 
@@ -79,18 +85,6 @@ export interface BrowserLaunchOptions {
   headless: boolean;
 }
 
-interface NewPageOptions {
-  type: "tab" | "window";
-  /** Run this page in the background */
-  background?: boolean;
-  /** A user context represents a collection of zero or more top-level traversables within a remote end.
-   * Each user context has an associated storage partition, so that remote end data is not shared between different user contexts.
-   *
-   * See more: https://w3c.github.io/webdriver-bidi/#user-context
-   */
-  userContext?: string;
-}
-
 export class Browser {
   private browserProc: ChildProcessWithoutNullStreams;
   private biDiConnector: BiDiConnector;
@@ -112,8 +106,12 @@ export class Browser {
       browserName
     ],
   ) {
+    logger.verbose("Trying to launch browser %s", browserName);
     const browserLocation = findBrowser(browserName);
+    logger.debug("Found browser install location at: %s", browserLocation);
     checkBrowserProfile(browserName);
+
+    logger.verbose("Trying to spawn %s process", browserName);
 
     const browserProc = spawn(
       browserLocation,
@@ -121,8 +119,8 @@ export class Browser {
     );
 
     return new Promise<{ browser: Browser; page: Page }>((resolve, reject) => {
-      browserProc.stdout.on("data", (data) => {
-        console.log(`stdout: ${data}`);
+      browserProc.stdout.on("data", (data: any) => {
+        logger.debug(`${browserName} stdout: ${data}`);
         if (
           String(data).match(
             /!!!\scould\snot\sstart\sserver\son\sport\s(\d){4}/g,
@@ -133,13 +131,14 @@ export class Browser {
         }
       });
 
-      browserProc.stderr.on("data", async (data) => {
-        console.error(`stderr: ${data}`);
+      browserProc.stderr.on("data", async (data: any) => {
+        logger.error(`${browserName} stderr: ${data}`);
 
         const urlMatch = String(data).match(
           /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}/g,
         );
         const prefixMatch = String(data).match(regexPrefix[browserName]);
+
         if (
           Array.isArray(urlMatch) &&
           Array.isArray(prefixMatch) &&
@@ -148,20 +147,29 @@ export class Browser {
         ) {
           let url = urlMatch[0] + browserWsPath[browserName];
           const biDiConnector = await BiDiConnector.connect(url);
-
+          logger.verbose("Websocket URL match: %s", url);
+          logger.verbose("Starting new session");
           await biDiConnector.send("session.new", {
             capabilities: {},
           });
+          logger.verbose("Session started successfully");
 
+          const sessionEvents = ["browsingContext.load"];
+          logger.verbose("Subscribing to session events");
+          logger.debug("Session events: ", { sessionEvents });
           await biDiConnector.send("session.subscribe", {
-            events: ["browsingContext.load"],
+            events: sessionEvents,
           });
+          logger.verbose("Successfully subscribed to session events");
 
           const browser = new Browser({ browserProc, biDiConnector });
+          logger.verbose("Requesting current browser tree");
           const browserTree = await biDiConnector.send(
             "browsingContext.getTree",
             {},
           );
+          logger.verbose("Received current browser tree");
+          logger.debug("Browser tree: ", { browserTree });
 
           const pageContext = browserTree.contexts[0];
 
@@ -210,9 +218,17 @@ export class Browser {
 }
 
 function checkBrowserProfile(browserName: SupportedBrowser) {
+  logger.verbose("Checking browser profile for: %s", browserName);
   const profilePath = browserProfilePath[browserName];
-  if (!profilePath) return;
-  if (existsSync(profilePath)) return;
+  if (!profilePath) {
+    logger.verbose("No browser profile path declared, skipping...");
+    return;
+  }
+  if (existsSync(profilePath)) {
+    logger.verbose("Browser profile already exists at: %s", profilePath);
+    return;
+  }
+  logger.verbose("No browser profile created yet for %s", browserName);
 
   createBrowserProfile(browserName, profilePath);
 }
@@ -221,9 +237,15 @@ function createBrowserProfile(
   browserName: SupportedBrowser,
   profilePath: string,
 ) {
+  logger.verbose(
+    "Creating browser profile for %s at %s",
+    browserName,
+    profilePath,
+  );
   mkdirSync(path.dirname(profilePath), { recursive: true });
 
   writeFileSync(profilePath, browserProfiles[browserName], {
     encoding: "utf8",
   });
+  logger.verbose("Browser profile created");
 }

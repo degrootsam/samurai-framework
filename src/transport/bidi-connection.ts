@@ -1,5 +1,6 @@
 import EventEmitter from "node:events";
 import type { BiDiCommands, BiDiEvents } from "../types/bidi.js";
+import logger from "../logger/index.js";
 
 interface BiDiMessage {
   id: number;
@@ -76,6 +77,8 @@ export class BiDiConnector {
           method,
           params,
         };
+        logger.verbose("Sending message to BiDi Websocket");
+        logger.debug("Message: ", commandBody);
         this.webSocket.send(JSON.stringify(commandBody));
       } catch (err: unknown) {
         reject(err);

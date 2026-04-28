@@ -5,6 +5,10 @@ import type { SupportedBrowser } from "../types/browser.js";
 import logger from "../logger/index.js";
 
 const supportedBrowsers: SupportedBrowser[] = ["chrome", "firefox"];
+const macBrowserPaths: Record<SupportedBrowser, string> = {
+  chrome: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  firefox: "/Applications/Firefox.app/Contents/MacOS/Firefox",
+};
 
 export function findBrowser(browserName: SupportedBrowser) {
   logger.verbose("Finding installed browser location");
@@ -80,10 +84,6 @@ function findBrowserWindows(browserName: SupportedBrowser): string {
 
 function findBrowserMac(browserName: SupportedBrowser): string {
   logger.verbose("Searching for %s on Mac", browserName);
-  const macBrowserPaths: Record<SupportedBrowser, string> = {
-    chrome: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    firefox: "/Applications/Firefox.app/Contents/MacOS/Firefox",
-  };
 
   const checkPathExists = (path: string) => {
     logger.debug("Checking if path exists: %s", path);

@@ -1,6 +1,6 @@
 import { Browser } from "./browser/browser.js";
 
-const { browser, page } = await Browser.launch("firefox", {
+const { browser, page } = await Browser.launch("chrome", {
   port: 9223,
   headless: false,
 });
