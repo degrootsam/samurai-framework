@@ -1,15 +1,16 @@
 import assert from "assert";
-import { readConfig } from "../config/config.js";
-import type { TestCase } from "../types/test.js";
-import path from "path";
-import logger from "../logger/index.js";
-import { pathToFileURL } from "url";
 import { glob } from "node:fs/promises";
+import path from "path";
+import { pathToFileURL } from "url";
+import { readConfig } from "../config/config.js";
+import logger from "../logger/index.js";
+import type { TestCase, TestResult, TestResultBase } from "../types/test.js";
 
 const registeredTestcases: TestCase[] = [];
 
 export default class TestRunner {
   private testFiles: string[];
+  private results: TestResult[] = [];
 
   constructor(testFiles: string[]) {
     this.testFiles = testFiles;
@@ -49,19 +50,48 @@ export default class TestRunner {
   }
 
   private async executeTestCase(test: TestCase) {
-    Promise.race([
-      new Promise((resolve) => {
-        setTimeout(resolve, 3000);
+    const startTime = performance.now();
+
+    const result = await Promise.race([
+      new Promise<TestResult>((resolve) => {
+        setTimeout(() => {
+          resolve({
+            status: "failed",
+            name: test.name,
+            error: {
+              message: "Test timed out after 30 seconds",
+              type: "timeout",
+            },
+            duration: performance.now() - startTime,
+            startTime,
+          });
+        }, 30000);
       }),
-      new Promise(async (resolve, reject) => {
+      new Promise<TestResult>(async (resolve, reject) => {
         try {
           await test?.function();
-          resolve;
+          resolve({
+            status: "success",
+            startTime,
+            duration: performance.now() - startTime,
+            name: test.name,
+          });
         } catch (err) {
-          reject(err);
+          resolve({
+            status: "failed",
+            error: {
+              message: err instanceof Error ? err.message : (err as string),
+              location: err instanceof Error ? err.stack : undefined,
+              type: "error",
+            },
+            startTime,
+            duration: performance.now() - startTime,
+            name: test.name,
+          });
         }
       }),
     ]);
+    this.results.push(result);
   }
 }
 
