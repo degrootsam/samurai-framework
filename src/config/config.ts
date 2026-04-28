@@ -4,7 +4,6 @@ import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
 
 export async function readConfig(key: keyof SamuraiTestConfig) {
-  logger.verbose("Reading config value: %s", key);
   const configUrl = path.join(process.cwd(), "samurai.config.ts");
   logger.debug("Reading config from: %s", configUrl);
 
@@ -17,7 +16,10 @@ export async function readConfig(key: keyof SamuraiTestConfig) {
       "samurai.config.ts does not export defineConfig as default!",
     );
   }
-  return config.default[key];
+  const value = config.default[key];
+  logger.debug("Resolved config value: ", { value });
+
+  return value;
 }
 
 export function defineConfig(config: SamuraiTestConfig) {
