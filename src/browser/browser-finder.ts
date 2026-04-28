@@ -2,10 +2,12 @@ import assert from "node:assert";
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
+import logger from "../logger/index.js";
 
 const supportedBrowsers: SupportedBrowser[] = ["chrome", "firefox"];
 
 export function findBrowser(browserName: SupportedBrowser) {
+  logger.verbose("Finding installed browser location");
   if (!supportedBrowsers.includes(browserName)) {
     throw new Error(
       "This browser is not supported. Supported browsers include: " +
@@ -27,6 +29,7 @@ export function findBrowser(browserName: SupportedBrowser) {
 }
 
 function tryFindBrowser(browserName: SupportedBrowser): string {
+  logger.debug("Current platform: %s", process.platform);
   switch (process.platform) {
     case "win32":
       return findBrowserWindows(browserName);
@@ -40,25 +43,31 @@ function tryFindBrowser(browserName: SupportedBrowser): string {
 }
 
 function findBrowserWindows(browserName: SupportedBrowser): string {
+  logger.verbose("Searching for %s on Windows", browserName);
   // Function to prevent search the entire file system
   // We'll only try the most common paths
   const possibleDirs = ["Program\ Files", "Program\ Files (x86)"];
 
   const where = (dirPath: string) => {
+    const command: string = `where /r ${dirPath} ${browserName}.exe`;
     try {
-      const whereResults = execSync(`where /r ${dirPath} ${browserName}.exe`, {
+      logger.verbose("Running command: %s", command);
+
+      const whereResults = execSync(command, {
         encoding: "utf8",
       });
-
+      logger.debug("Command results: \n", whereResults);
       const results = whereResults.split(/\n/g);
-
       return results[0];
-    } catch (err) {}
+    } catch (error) {
+      logger.verbose("Error while executing %s", command, { error });
+    }
   };
 
   let result = undefined;
 
   for (const possibleDir of possibleDirs) {
+    logger.debug("Checking directory: %s", possibleDir);
     result = where(possibleDir);
     if (result) break;
   }
@@ -69,14 +78,17 @@ function findBrowserWindows(browserName: SupportedBrowser): string {
   return result;
 }
 
-const macBrowserPaths: Record<SupportedBrowser, string> = {
-  chrome: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  firefox: "/Applications/Firefox.app/Contents/MacOS/Firefox",
-};
-
 function findBrowserMac(browserName: SupportedBrowser): string {
+  logger.verbose("Searching for %s on Mac", browserName);
+  const macBrowserPaths: Record<SupportedBrowser, string> = {
+    chrome: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    firefox: "/Applications/Firefox.app/Contents/MacOS/Firefox",
+  };
+
   const checkPathExists = (path: string) => {
+    logger.debug("Checking if path exists: %s", path);
     const exists = existsSync(path);
+    logger.verbose("Result: %s", exists);
     if (!exists) {
       throw new Error(`Did not find ${browserName} at ${path}`);
     }
@@ -91,7 +103,10 @@ const linuxBinaryNames: Record<SupportedBrowser, string> = {
 };
 
 function findBrowserLinux(browserName: SupportedBrowser): string {
-  const result = execSync(`which ${linuxBinaryNames[browserName]}`, {
+  logger.verbose("Searching for %s on Linux", browserName);
+  const command = `which ${linuxBinaryNames[browserName]}`;
+  logger.debug("Running command: %s", command);
+  const result = execSync(command, {
     encoding: "utf8",
     stdio: "pipe",
   });
