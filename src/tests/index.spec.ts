@@ -1,5 +1,5 @@
-import { Browser } from "./browser/browser.js";
-import { test } from "./runner/test-runner.js";
+import { Browser } from "../browser/browser.js";
+import { test } from "../runner/test-runner.js";
 
 test("My first test", async () => {
   const { browser, page } = await Browser.launch("firefox", {
