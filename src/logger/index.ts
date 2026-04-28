@@ -8,7 +8,8 @@ const logger = createLogger({
     }),
     format.errors({ stack: true }),
     format.splat(),
-    format.json(),
+    format.metadata({ key: "meta" }),
+    format.json({ space: 2 }),
   ),
   defaultMeta: { service: "samurai-framework" },
   transports: [
@@ -17,10 +18,10 @@ const logger = createLogger({
     // - Write all logs error (and below) to `quick-start-error.log`.
     //
     new transports.File({
-      filename: `logs/${Date.now()}-error.log`,
+      filename: `logs/error.log`,
       level: "error",
     }),
-    new transports.File({ filename: `logs/${Date.now()}-combined.log` }),
+    new transports.File({ filename: `logs/combined.log` }),
   ],
 });
 
