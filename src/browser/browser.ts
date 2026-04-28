@@ -7,6 +7,11 @@ import { BiDiConnector } from "../transport/bidi-connection.js";
 import Page from "./page.js";
 import { type BiDiCommands } from "../types/bidi.js";
 import logger from "../logger/index.js";
+import type {
+  CookieFilter,
+  PartialCookie,
+  PartitionDescriptor,
+} from "../types/bidi-modules/storage.js";
 
 const browserProfilePath: Record<SupportedBrowser, string> = {
   chrome: "",
@@ -214,6 +219,23 @@ export class Browser {
     );
     console.log({ createBrowserContext });
     return new Page(this.biDiConnector, "");
+  }
+
+  public async getCookie(filter: CookieFilter, partition: PartitionDescriptor) {
+    return await this.biDiConnector.send("storage.getCookies", {
+      filter,
+      partition,
+    });
+  }
+
+  public async setCookie(
+    cookie: PartialCookie,
+    partition?: PartitionDescriptor,
+  ) {
+    return await this.biDiConnector.send("storage.setCookie", {
+      partition,
+      cookie,
+    });
   }
 }
 
