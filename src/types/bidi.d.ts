@@ -1,28 +1,28 @@
-import type { BrowserResult } from "./bidi-modules/browser.ts";
+import type { BrowserResult } from "./bidi-modules/browser.js";
 import type {
   BrowsingContextEvents,
   BrowsingContextModule as BrowsingContextCommands,
   BrowsingContextResult,
-} from "./bidi-modules/browsing-context.ts";
-import type { EmulationResult } from "./bidi-modules/emulation.ts";
+} from "./bidi-modules/browsing-context.js";
+import type { EmulationResult } from "./bidi-modules/emulation.js";
 import type {
   InputCommands,
   InputEvents,
   InputResult,
-} from "./bidi-modules/input.ts";
-import type { LogEvents } from "./bidi-modules/log.ts";
-import type { NetworkEvents, NetworkResult } from "./bidi-modules/network.ts";
+} from "./bidi-modules/input.js";
+import type { LogEvents } from "./bidi-modules/log.js";
+import type { NetworkEvents, NetworkResult } from "./bidi-modules/network.js";
 import type {
   ScriptCommands,
   ScriptEvents,
   ScriptResult,
-} from "./bidi-modules/script.ts";
-import type { SessionModule, SessionResult } from "./bidi-modules/session.ts";
-import type { StorageCommands, StorageResult } from "./bidi-modules/storage.ts";
-import type { WebExtensionResult } from "./bidi-modules/web-extensions.ts";
-import type { CommandResponse } from "./bidi-protocols/command.ts";
-import type { ErrorResponse } from "./bidi-protocols/error.ts";
-import type { BiDiEvent } from "./bidi-protocols/event.ts";
+} from "./bidi-modules/script.js";
+import type { SessionModule, SessionResult } from "./bidi-modules/session.js";
+import type { StorageCommands, StorageResult } from "./bidi-modules/storage.js";
+import type { WebExtensionResult } from "./bidi-modules/web-extensions.js";
+import type { CommandResponse } from "./bidi-protocols/command.js";
+import type { ErrorResponse } from "./bidi-protocols/error.js";
+import type { BiDiEvent } from "./bidi-protocols/event.js";
 
 export type BiDiCommands = SessionModule &
   BrowsingContextCommands &
