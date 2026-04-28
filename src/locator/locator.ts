@@ -2,13 +2,11 @@ import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type {
   BrowsingContext,
   ElementRectangle,
-  SharedReference,
 } from "../types/bidi-modules/browsing-context.js";
 import type {
   KeyDownAction,
   KeyUpAction,
 } from "../types/bidi-modules/input.js";
-import type { RemoveDataCollectorResult } from "../types/bidi-modules/network.js";
 import type { RemoteValue } from "../types/bidi-modules/script.js";
 
 export interface LocatorOptions {
