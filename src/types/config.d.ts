@@ -1,5 +1,6 @@
 export interface SamuraiTestConfig {
-  /** In which directory the tests are stored
+  /**
+   * directory containing all the test files
    * @default "./src"
    */
   srcDir: string;
