@@ -1,11 +1,6 @@
-import { Browser } from "../browser/browser.js";
 import { test } from "../runner/test-runner.js";
 
-test("My first test", async () => {
-  const { browser, page } = await Browser.launch("firefox", {
-    port: 9223,
-    headless: false,
-  });
+test("My first test", async (page) => {
   await page.navigateTo("https://itmetsam.nl");
   const link = page.locator("a[text()='Start een project']");
   await link.click();
