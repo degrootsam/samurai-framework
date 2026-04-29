@@ -2,15 +2,17 @@ import assert from "assert";
 import { glob } from "node:fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
+import { Browser } from "../browser/browser.js";
 import { readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
-import type { TestCase, TestResult, TestResultBase } from "../types/test.js";
+import type { SupportedBrowser } from "../types/browser.js";
+import type { RegisteredTestCase, TestResult } from "../types/test.js";
+import TestReporter from "./reporter.js";
 
-const registeredTestcases: TestCase[] = [];
+const registeredTestcases: RegisteredTestCase[] = [];
 
 export default class TestRunner {
   private testFiles: string[];
-  private results: TestResult[] = [];
 
   constructor(testFiles: string[]) {
     this.testFiles = testFiles;
@@ -35,6 +37,7 @@ export default class TestRunner {
 
   public async run() {
     logger.verbose("Registering test files");
+    const reporter = new TestReporter();
     for (let i = 0; i < this.testFiles.length; i++) {
       const file = this.testFiles[i] as string;
       logger.verbose("Trying to register file: %s", file);
@@ -43,59 +46,67 @@ export default class TestRunner {
     }
 
     logger.verbose("Running test files");
+
+    // TODO: Implement test grouping
+    reporter.onStart({ name: "test", function: async () => {} });
     for (let i = 0; i < registeredTestcases.length; i++) {
-      const test = registeredTestcases[i] as TestCase;
-      await this.executeTestCase(test);
+      const test = registeredTestcases[i];
+      if (!test) continue;
+      await this.executeTestCase(test, reporter);
     }
+    reporter.onEnd({ name: "test", function: async () => {} });
   }
 
-  private async executeTestCase(test: TestCase) {
+  private async executeTestCase(
+    test: RegisteredTestCase,
+    reporter: TestReporter,
+  ) {
+    logger.verbose("Starting test: %s", test.name);
+    reporter.onTestStart(test);
     const startTime = performance.now();
+    const selectedBrowser = (await readConfig("browser")) as SupportedBrowser;
+    assert(selectedBrowser, "'browser' is missing from config");
+    const timeout = Number(await readConfig("timeout"));
 
     const result = await Promise.race([
-      new Promise<TestResult>((resolve) => {
-        setTimeout(() => {
-          resolve({
-            status: "failed",
-            name: test.name,
-            error: {
+      new Promise<void>((resolve) => {
+        setTimeout(
+          () => {
+            reporter.onTestEnd(test, {
               message: "Test timed out after 30 seconds",
               type: "timeout",
-            },
-            duration: performance.now() - startTime,
-            startTime,
-          });
-        }, 30000);
+            });
+            resolve();
+          },
+          isNaN(timeout) ? 30000 : timeout,
+        );
       }),
-      new Promise<TestResult>(async (resolve, reject) => {
+      new Promise<void>(async (resolve, reject) => {
         try {
-          await test?.function();
-          resolve({
-            status: "success",
-            startTime,
-            duration: performance.now() - startTime,
-            name: test.name,
+          const { browser, page } = await Browser.launch(selectedBrowser, {
+            port: 9223,
+            headless: false,
           });
+          await test?.function(page, browser);
+          reporter.onTestEnd(test);
+          resolve();
         } catch (err) {
-          resolve({
-            status: "failed",
-            error: {
-              message: err instanceof Error ? err.message : (err as string),
-              location: err instanceof Error ? err.stack : undefined,
-              type: "error",
-            },
-            startTime,
-            duration: performance.now() - startTime,
-            name: test.name,
+          reporter.onTestEnd(test, {
+            message: err instanceof Error ? err.message : (err as string),
+            stack: err instanceof Error ? err.stack : undefined,
+            type: "error",
           });
+          resolve();
         }
       }),
     ]);
-    this.results.push(result);
   }
 }
 
 export function test(name: string, fn: () => Promise<void>) {
   logger.debug("Registered test %s", name);
-  registeredTestcases.push({ name, function: fn });
+  const callerLine = new Error().stack;
+  const match = callerLine?.match(/\((.+)\)/);
+  const location = match?.[1] || "";
+  registeredTestcases.push({ name, function: fn, file: location });
 }
