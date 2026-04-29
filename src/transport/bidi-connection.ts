@@ -77,8 +77,7 @@ export class BiDiConnector {
           method,
           params,
         };
-        logger.verbose("Sending message to BiDi Websocket");
-        logger.debug("Message: ", commandBody);
+        logger.debug("Sending message to BiDi Websocket", commandBody);
         this.webSocket.send(JSON.stringify(commandBody));
       } catch (err: unknown) {
         reject(err);
@@ -103,9 +102,8 @@ export class BiDiConnector {
   }
 
   private messageListener = (ev: MessageEvent) => {
-    console.log("RAW MESSAGE", ev.data);
-
     const message = JSON.parse(ev.data);
+    logger.debug("Received message from BiDi Websocket: ", message);
     if (message.type === "success" && message.id !== undefined) {
       const targetToResolve = this.resolveMap.get(message.id);
       if (targetToResolve) {
