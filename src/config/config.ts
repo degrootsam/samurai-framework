@@ -3,7 +3,9 @@ import path from "path";
 import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
 
-export async function readConfig(key: keyof SamuraiTestConfig) {
+export async function readConfig<K extends keyof SamuraiTestConfig>(
+  key: K,
+): Promise<SamuraiTestConfig[K]> {
   const configUrl = path.join(process.cwd(), "samurai.config.ts");
   logger.debug("Reading config from: %s", configUrl);
 
