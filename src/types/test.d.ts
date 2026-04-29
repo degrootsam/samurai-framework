@@ -1,27 +1,61 @@
-export interface TestCase {
+import type { Browser } from "../browser/browser.ts";
+import type Page from "../browser/page.ts";
+
+export type TestCase = TestCaseBase;
+
+export interface RegisteredTestCase extends TestCaseBase {
+  file: string;
+}
+
+export interface TestCaseBase {
   name: string;
-  function: () => Promise<void>;
+  function: (page: Page, browser: Browser) => Promise<void>;
 }
 
-export type TestResult = TestResultSuccess | TestResultFailed;
+export interface PartialTestResult extends TestResultBase {
+  name: string;
+  file: string;
+}
 
-interface TestResultSuccess extends TestResultBase {
+export type TestResult = TestResultSuccess | TestResultFailed | TestResultBase;
+
+interface TestResultSuccess {
   status: "success";
+  duration: number;
 }
 
-interface TestResultFailed extends TestResultBase {
+interface TestResultFailed {
   status: "failed";
   error: TestError;
+  duration: number;
 }
 
 interface TestResultBase {
   name: string;
-  duration: number;
+  file: string;
   startTime: number;
+  status: "started";
 }
 
 interface TestError {
   message: string;
   type: "timeout" | "error";
-  location?: string | undefined;
+  stack?: string | undefined;
+}
+
+export type TestSummary = TestSummarySuccess | TestSummaryFailed;
+
+interface TestSummarySuccess extends TestSummaryBase {
+  status: "success";
+}
+
+interface TestSummaryFailed extends TestSummaryBase {
+  status: "failed";
+}
+
+interface TestSummaryBase {
+  name: string;
+  duration: number;
+  startTime: number;
+  tests: TestResult[];
 }
