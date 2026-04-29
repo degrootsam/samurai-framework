@@ -17,6 +17,16 @@ const logger = createLogger({
     // - Write to all logs with level `info` and below to `quick-start-combined.log`.
     // - Write all logs error (and below) to `quick-start-error.log`.
     //
+    new transports.Console({
+      level: "debug",
+      format: format.combine(
+        format.timestamp(),
+        format.errors({ stack: true }),
+        format.printf(({ level, message, meta }) => {
+          return `${level.toUpperCase()}: ${message}${meta ? `\n${JSON.stringify(meta)}` : null}`;
+        }),
+      ),
+    }),
     new transports.File({
       filename: `logs/error.log`,
       level: "error",
