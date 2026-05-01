@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import type {
   PartialTestResult,
   RegisteredTestCase,
@@ -11,10 +13,9 @@ export default class TestReporter {
   private testResults: Map<string, TestResult> = new Map();
   private summary: TestSummary | undefined;
 
-  public onStart(test: TestCase) {
-    const t = performance.mark(`group-${test.name}-start`);
+  public onStart() {
+    const t = performance.mark(`group-start`);
     this.summary = {
-      name: test.name,
       duration: 0,
       status: "failed",
       startTime: t.startTime,
@@ -22,12 +23,12 @@ export default class TestReporter {
     };
   }
 
-  public onEnd(test: TestCase) {
-    performance.mark(`group-${test.name}-finish`);
+  public async onEnd() {
+    performance.mark(`group-finish`);
     const duration = performance.measure(
       "test-duration",
-      `group-${test.name}-start`,
-      `group-${test.name}-finish`,
+      `group-start`,
+      `group-finish`,
     ).duration;
 
     this.summary = {
@@ -41,7 +42,11 @@ export default class TestReporter {
         : "failed",
     } as TestSummary;
 
-    console.log({ summary: this.summary });
+    const output = path.join(process.cwd(), "result/report.json");
+    await mkdir(path.dirname(output), { recursive: true });
+    await writeFile(output, JSON.stringify(this.summary, null, 2), {
+      encoding: "utf8",
+    });
   }
 
   public onTestStart(test: RegisteredTestCase) {
