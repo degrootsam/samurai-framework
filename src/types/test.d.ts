@@ -54,7 +54,6 @@ interface TestSummaryFailed extends TestSummaryBase {
 }
 
 interface TestSummaryBase {
-  name: string;
   duration: number;
   startTime: number;
   tests: TestResult[];
