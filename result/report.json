@@ -1,0 +1,14 @@
+{
+  "duration": 2523.67093,
+  "status": "success",
+  "startTime": 101.061895,
+  "tests": [
+    {
+      "name": "My first test",
+      "file": "/home/sam/dev/itmetsam/projects/samurai-framework/src/runner/test-runner.ts:125:22",
+      "status": "success",
+      "startTime": 101.260946,
+      "duration": 2523.2566380000003
+    }
+  ]
+}
