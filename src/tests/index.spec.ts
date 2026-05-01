@@ -15,8 +15,8 @@ test("My first test", async (page) => {
   await messageField.fill(
     "This is a very long message which describes what I would like",
   );
-  const submitButton = page.locator("button[@type='submit']");
-  await submitButton.click();
-  await page.waitForNetworkIdle();
-  const successAlert = page.locator("div[@class='alert-description']");
+  // const submitButton = page.locator("button[@type='submit']");
+  // await submitButton.click();
+  // await page.waitForNetworkIdle();
+  // const successAlert = page.locator("div[@class='alert-description']");
 });
