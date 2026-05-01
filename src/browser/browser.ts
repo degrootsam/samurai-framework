@@ -15,7 +15,7 @@ import type {
 } from "../types/bidi-modules/storage.js";
 
 const browserProfilePath: Record<SupportedBrowser, string> = {
-  chrome: "",
+  chrome: path.resolve("browsers/profiles/chrome"),
   firefox: path.resolve("browsers/profiles/firefox/user.js"),
 };
 
@@ -56,12 +56,16 @@ const browserLaunchFlag = (
   if (headless) {
     baseLaunchFlags.push("--headless");
   }
-  baseLaunchFlags.push("--remote-debugging-port", port.toString());
+  baseLaunchFlags.push(`--remote-debugging-port=${port}`);
 
-  if (browserName === "firefox") {
-    baseLaunchFlags.push("--profile", profileDir);
+  switch (browserName) {
+    case "chrome":
+      baseLaunchFlags.push(`--user-data-dir=${profileDir}`);
+      break;
+    case "firefox":
+      baseLaunchFlags.push("--profile", profileDir);
+      break;
   }
-
   logger.verbose("Launch flags for browser %s: ", browserName, {
     baseLaunchFlags,
   });
@@ -266,6 +270,11 @@ function createBrowserProfile(
     profilePath,
   );
   mkdirSync(path.dirname(profilePath), { recursive: true });
+
+  if (browserName === "chrome") {
+    logger.verbose("Skipping  browser profile creation for %s", browserName);
+    return;
+  }
 
   writeFileSync(profilePath, browserProfiles[browserName], {
     encoding: "utf8",
