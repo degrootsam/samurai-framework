@@ -8,35 +8,45 @@ import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { RegisteredTestCase, TestResult } from "../types/test.js";
 import TestReporter from "./reporter.js";
+import type { SamuraiGroup } from "../types/config.js";
+import Page from "../browser/page.js";
 
 const registeredTestcases: RegisteredTestCase[] = [];
 
 export default class TestRunner {
   private testFiles: string[];
+  private group?: SamuraiGroup;
 
-  constructor(testFiles: string[]) {
+  constructor(testFiles: string[], group?: SamuraiGroup) {
     this.testFiles = testFiles;
+    this.group = group;
   }
 
-  static async init() {
+  static async init(group?: SamuraiGroup) {
     logger.verbose("Initializing test runner");
-    const srcDir = await readConfig("srcDir");
-    assert(srcDir, "No srcDir present in config");
+    let srcDir = "";
+
+    if (group && group.src) {
+      srcDir = group.src;
+    } else {
+      srcDir = await readConfig("srcDir");
+    }
+
+    assert(srcDir, "No srcDir declared!");
 
     const cwd = path.resolve(srcDir);
     logger.verbose("Reading test files from: %s", cwd);
-    const matches: string[] = [];
+    const testFiles: string[] = [];
     for await (const entry of glob("**/*.spec.ts", {
       cwd,
     })) {
-      matches.push(entry);
+      testFiles.push(entry);
     }
-    logger.debug("Found %d tests in srcDir", matches.length);
-    return new TestRunner(matches);
+    logger.debug("Found %d tests in srcDir", testFiles.length);
+    return new TestRunner(testFiles);
   }
 
   public async run() {
-    logger.verbose("Registering test files");
     const reporter = new TestReporter();
     for (let i = 0; i < this.testFiles.length; i++) {
       const file = this.testFiles[i] as string;
@@ -48,13 +58,13 @@ export default class TestRunner {
     logger.verbose("Running test files");
 
     // TODO: Implement test grouping
-    reporter.onStart({ name: "test", function: async () => {} });
+    reporter.onStart();
     for (let i = 0; i < registeredTestcases.length; i++) {
       const test = registeredTestcases[i];
       if (!test) continue;
       await this.executeTestCase(test, reporter);
     }
-    reporter.onEnd({ name: "test", function: async () => {} });
+    await reporter.onEnd();
   }
 
   private async executeTestCase(
@@ -63,17 +73,21 @@ export default class TestRunner {
   ) {
     logger.verbose("Starting test: %s", test.name);
     reporter.onTestStart(test);
-    const startTime = performance.now();
-    const selectedBrowser = (await readConfig("browser")) as SupportedBrowser;
+    let selectedBrowser: SupportedBrowser = "firefox";
+    if (this.group && this.group?.browser) {
+      selectedBrowser = this.group.browser;
+    } else {
+      selectedBrowser = await readConfig("browser");
+    }
     assert(selectedBrowser, "'browser' is missing from config");
     const timeout = Number(await readConfig("timeout"));
 
-    const result = await Promise.race([
+    await Promise.race([
       new Promise<void>((resolve) => {
         setTimeout(
           () => {
             reporter.onTestEnd(test, {
-              message: "Test timed out after 30 seconds",
+              message: `Test timed out after ${(timeout || 30000) / 1000} seconds`,
               type: "timeout",
             });
             resolve();
@@ -103,7 +117,10 @@ export default class TestRunner {
   }
 }
 
-export function test(name: string, fn: () => Promise<void>) {
+export function test(
+  name: string,
+  fn: (page: Page, browser: Browser) => Promise<void>,
+) {
   logger.debug("Registered test %s", name);
   const callerLine = new Error().stack;
   const match = callerLine?.match(/\((.+)\)/);
