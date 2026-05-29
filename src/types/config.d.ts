@@ -1,7 +1,7 @@
 import type { SupportedBrowser } from "./browser.js";
 
 export interface SamuraiGroup {
-  browser: SupportedBrowser;
+  browser?: SupportedBrowser;
   /**
    * Directory to search for tests for this group.
    * If empty, it uses the 'srcDir'
@@ -31,5 +31,5 @@ export interface SamuraiTestConfig {
   /**
    * Define a group of test's you want to have executed with a certain configuration
    **/
-  groups: SamuraiGroup;
+  groups?: SamuraiGroup;
 }

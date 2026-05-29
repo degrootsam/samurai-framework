@@ -2,6 +2,6 @@ import { defineConfig } from "./src/config/config.js";
 
 export default defineConfig({
   srcDir: "./src/tests",
-  browser: "chrome",
+  browser: "firefox",
   timeout: 30000,
 });

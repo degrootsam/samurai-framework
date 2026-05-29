@@ -36,7 +36,7 @@ export class BiDiConnector {
     const ws = new WebSocket(url);
     return new Promise<BiDiConnector>((resolve, reject) => {
       console.log("Waiting for WebSocket handshake");
-      ws.addEventListener("open", (ev) => {
+      ws.addEventListener("open", () => {
         console.log("WebSocket handshake finished");
         resolve(new BiDiConnector(ws));
       });
@@ -114,4 +114,13 @@ export class BiDiConnector {
       this.eventEmitter.emit(message.method, message.params);
     }
   };
+
+  public kill() {
+    this.webSocket.removeEventListener("message", this.messageListener);
+    this.webSocket.removeEventListener("close", this.onWebsocketClose);
+    this.webSocket.removeEventListener("error", this.onWebsocketError);
+    this.rejectAll(new Error("BiDiConnector killed"));
+    this.eventEmitter.removeAllListeners();
+    this.webSocket.close();
+  }
 }

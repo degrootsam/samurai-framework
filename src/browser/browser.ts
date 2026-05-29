@@ -129,6 +129,14 @@ export class Browser {
     );
 
     return new Promise<{ browser: Browser; page: Page }>((resolve, reject) => {
+      const onUnexpectedClose = (code: number | null) => {
+        reject(
+          new Error(`Browser process exited unexpectedly with code ${code}`),
+        );
+      };
+
+      browserProc.on("close", onUnexpectedClose);
+
       browserProc.stdout.on("data", (data: any) => {
         logger.debug(`${browserName} stdout: ${data}`);
         if (
@@ -190,22 +198,24 @@ export class Browser {
           } else {
             page = await browser.newPage({ type: "tab" });
           }
+
+          browserProc.off("close", onUnexpectedClose);
           resolve({
             browser,
             page,
           });
         }
       });
-
-      browserProc.on("close", (code) => {
-        reject(
-          new Error(`Browser process exited unexpectedly with code ${code}`),
-        );
-      });
     });
   }
 
-  public close() {
+  public async kill() {
+    try {
+      await this.biDiConnector.send("browser.close", {});
+    } catch {
+      // browser may already be shutting down
+    }
+    this.biDiConnector.kill();
     this.browserProc?.kill();
   }
 

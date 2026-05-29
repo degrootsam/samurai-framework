@@ -1,4 +1,4 @@
-import type { BrowserResult } from "./bidi-modules/browser.js";
+import type { BrowserCommands, BrowserResult } from "./bidi-modules/browser.js";
 import type {
   BrowsingContextEvents,
   BrowsingContextModule as BrowsingContextCommands,
@@ -24,7 +24,8 @@ import type { CommandResponse } from "./bidi-protocols/command.js";
 import type { ErrorResponse } from "./bidi-protocols/error.js";
 import type { BiDiEvent } from "./bidi-protocols/event.js";
 
-export type BiDiCommands = SessionModule &
+export type BiDiCommands = BrowserCommands &
+  SessionModule &
   BrowsingContextCommands &
   ScriptCommands &
   InputCommands &

@@ -5,6 +5,15 @@ import type { EmptyResult } from "../bidi.js";
  * so that remote end data is not shared between different user contexts. */
 export type UserContext = string;
 
+/** Commands available in the WebDriver BiDi browser module. */
+export interface BrowserCommands {
+  /** Closes the browser and terminates the session. */
+  "browser.close": {
+    params: Record<string, never>;
+    result: CloseResult;
+  };
+}
+
 /** Union of all possible result types returned by browser module commands. */
 export type BrowserResult =
   | CloseResult

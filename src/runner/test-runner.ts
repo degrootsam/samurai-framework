@@ -16,6 +16,7 @@ const registeredTestcases: RegisteredTestCase[] = [];
 export default class TestRunner {
   private testFiles: string[];
   private group?: SamuraiGroup;
+  private browser?: Browser;
 
   constructor(testFiles: string[], group?: SamuraiGroup) {
     this.testFiles = testFiles;
@@ -65,6 +66,7 @@ export default class TestRunner {
       await this.executeTestCase(test, reporter);
     }
     await reporter.onEnd();
+    this.browser?.kill();
   }
 
   private async executeTestCase(
@@ -101,6 +103,7 @@ export default class TestRunner {
             port: 9223,
             headless: false,
           });
+          this.browser = browser;
           await test?.function(page, browser);
           reporter.onTestEnd(test);
           resolve();
