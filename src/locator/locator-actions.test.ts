@@ -123,6 +123,27 @@ test("click() timeout names a covering element", async () => {
   );
 });
 
+test("click() with timeout 0 probes once and skips the stability check", async () => {
+  const { locator, sent, expressions } = locatorWith("button", state());
+  assert.equal(await locator.click({ timeout: 0 }), undefined);
+  assert.equal(expressions.length, 1);
+  assert.deepEqual(pointerClicks(sent), [[60, 40]]);
+});
+
+test("click() with timeout 0 on a disabled element reports no stable entry", async () => {
+  const { locator, sent } = locatorWith("button", state({ enabled: false }));
+  await assert.rejects(locator.click({ timeout: 0 }), (err) => {
+    assert.ok(err instanceof ActionTimeoutError);
+    assert.equal(
+      err.message,
+      "click(): //button was not actionable within 0ms\n" +
+        "  attached ✓  visible ✓  enabled ✗  hit target —",
+    );
+    return true;
+  });
+  assert.deepEqual(pointerClicks(sent), []);
+});
+
 test("click() on an element that never appears reports it was not attached", async () => {
   const { locator } = locatorWith("button", detached);
   await assert.rejects(

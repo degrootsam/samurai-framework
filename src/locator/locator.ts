@@ -25,7 +25,10 @@ import {
 export type { WaitForState } from "./element-state.js";
 
 export interface ActionOptions {
-  /** Time (ms) to wait for the element to become actionable. Defaults to config `expect.timeout`, then 5000 */
+  /**
+   * Time (ms) to wait for the element to become actionable. Defaults to config `expect.timeout`, then 5000.
+   * 0 checks once without waiting; the stability check is skipped because it needs two probes
+   */
   timeout?: number;
   /** Skip every actionability check except "attached" */
   force?: boolean;
@@ -122,8 +125,13 @@ export default class Locator {
     probe: ProbeOptions,
     options: ActionOptions | undefined,
   ): Promise<ElementState> {
-    const required = options?.force ? ATTACHED_ONLY : checks;
     const timeout = await resolveTimeout(options?.timeout);
+    // Stability compares two probes; with timeout 0 there is only one
+    const required = options?.force
+      ? ATTACHED_ONLY
+      : timeout === 0
+        ? checks.filter((check) => check !== "stable")
+        : checks;
     let lastChecks: CheckResults | undefined;
     try {
       return await waitUntil(
