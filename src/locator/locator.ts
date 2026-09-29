@@ -8,6 +8,31 @@ import type {
   KeyUpAction,
 } from "../types/bidi-modules/input.js";
 import type { RemoteValue } from "../types/bidi-modules/script.js";
+import { resolveTimeout, waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
+import { ActionTimeoutError } from "./action-timeout-error.js";
+import {
+  allPass,
+  elementStateScript,
+  evaluateChecks,
+  parseElementState,
+  type CheckName,
+  type CheckResults,
+  type ElementState,
+  type ProbeOptions,
+} from "./element-state.js";
+
+export type { WaitForState } from "./element-state.js";
+
+export interface ActionOptions {
+  /** Time (ms) to wait for the element to become actionable. Defaults to config `expect.timeout`, then 5000 */
+  timeout?: number;
+  /** Skip every actionability check except "attached" */
+  force?: boolean;
+}
+
+const CLICK_CHECKS: readonly CheckName[] = ["attached", "visible", "stable", "enabled", "hit target"];
+const FILL_CHECKS: readonly CheckName[] = ["attached", "visible", "enabled", "editable", "hit target"];
+const ATTACHED_ONLY: readonly CheckName[] = ["attached"];
 
 /** Unicode code point WebDriver uses for the Backspace key */
 const BACKSPACE = "";
@@ -79,9 +104,59 @@ export default class Locator {
     );
   }
 
-  /** Simulate a 'Click' event on the element */
-  public async click() {
-    return await this.evaluate(this.buildExpression("click()"));
+  /** Reads the element's actionability state in one round trip */
+  private async probeState(options: ProbeOptions): Promise<ElementState> {
+    return parseElementState(
+      await this.evaluate(elementStateScript(this.elementExpression(), options)),
+    );
+  }
+
+  /**
+   * Probes until every required check passes and returns that state.
+   * Throws ActionTimeoutError describing the last probe on timeout.
+   */
+  private async waitForActionable(
+    action: string,
+    checks: readonly CheckName[],
+    probe: ProbeOptions,
+    options: ActionOptions | undefined,
+  ): Promise<ElementState> {
+    const required = options?.force ? ATTACHED_ONLY : checks;
+    const timeout = await resolveTimeout(options?.timeout);
+    let lastChecks: CheckResults | undefined;
+    try {
+      return await waitUntil(
+        () => this.probeState(probe),
+        (current, previous) => {
+          lastChecks = evaluateChecks(required, current, previous);
+          return allPass(lastChecks);
+        },
+        { timeout },
+      );
+    } catch (err) {
+      if (!(err instanceof WaitTimeoutError)) throw err;
+      const last = err.last as ElementState | undefined;
+      throw new ActionTimeoutError({
+        action,
+        selector: this.selector,
+        timeout,
+        reason: !last ? "unreadable" : last.attached ? "not-actionable" : "not-attached",
+        checks: lastChecks,
+        coveredBy: last?.hitTarget && last.hitTarget !== "self" ? last.hitTarget : undefined,
+      });
+    }
+  }
+
+  /** Waits until the element is attached, visible, stable, enabled and not covered, then clicks its centre with real pointer input */
+  public async click(options?: ActionOptions): Promise<void> {
+    const state = await this.waitForActionable(
+      "click",
+      CLICK_CHECKS,
+      { scroll: true, hitTest: true },
+      options,
+    );
+    // "attached" is always required, so the box is present
+    await this.clickRect(state.box!);
   }
 
   /** Simulate a click event on the center off a page element.
@@ -91,7 +166,7 @@ export default class Locator {
    *  const rect = await container.getBoundingClientRect();
    *  await container.clickRect(rect);
    */
-  public async clickRect(rect: ElementRectangle) {
+  public async clickRect(rect: Pick<ElementRectangle, "x" | "y" | "width" | "height">) {
     await this.biDiConnector.send("input.performActions", {
       context: this.contextId,
       actions: [
@@ -118,9 +193,10 @@ export default class Locator {
     });
   }
 
-  /** Simulates focusing an element */
-  public async focus() {
-    return await this.evaluate(this.buildExpression("focus()"));
+  /** Waits until the element is attached, then focuses it */
+  public async focus(options?: ActionOptions): Promise<void> {
+    await this.waitForActionable("focus", ATTACHED_ONLY, { scroll: false, hitTest: false }, options);
+    await this.evaluate(this.buildExpression("focus()"));
   }
 
   /** Returns the browser's getBoundingClientRect result for the given element */
@@ -194,6 +270,18 @@ export default class Locator {
     return result.value;
   }
 
+  /** Whether the element exists and is not disabled; does not wait */
+  public async isEnabled(): Promise<boolean> {
+    const state = await this.probeState({ scroll: false, hitTest: false });
+    return state.attached && state.enabled;
+  }
+
+  /** Whether the element exists and accepts typing (enabled, not readonly, a text field); does not wait */
+  public async isEditable(): Promise<boolean> {
+    const state = await this.probeState({ scroll: false, hitTest: false });
+    return state.attached && state.editable;
+  }
+
   /** Wait for certain time (ms). Default: 300ms  */
   public async wait(duration: number = 300) {
     await this.biDiConnector.send("input.performActions", {
@@ -213,9 +301,14 @@ export default class Locator {
     });
   }
 
-  /** Replaces the value of an input or textarea by typing `value`; an empty string clears it */
-  public async fill(value: string) {
-    const rect = await this.getBoundingClientRect();
+  /** Waits until the field is editable and not covered, then replaces its value by typing `value`; an empty string clears it */
+  public async fill(value: string, options?: ActionOptions): Promise<void> {
+    const state = await this.waitForActionable(
+      "fill",
+      FILL_CHECKS,
+      { scroll: true, hitTest: true },
+      options,
+    );
 
     // Typing over the selected existing value replaces it; Backspace clears it for an empty value
     const keys = value === "" ? BACKSPACE : value;
@@ -232,7 +325,7 @@ export default class Locator {
       },
     ]);
 
-    await this.clickRect(rect);
+    await this.clickRect(state.box!);
 
     await this.wait();
 
