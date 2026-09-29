@@ -1,7 +1,14 @@
 import type { SupportedBrowser } from "./browser.js";
 
+interface SamuraiTest {
+  /** Path relative to srcDir, e.g. 'checkout/coupons.spec.ts' */
+  file: string;
+  /** Full title, including describe blocks: 'Guest checkout > applies coupon' */
+  title: string;
+}
+
 export interface SamuraiGroup {
-  browser?: SupportedBrowser;
+  name: string;
   /**
    * Directory to search for tests for this group.
    * If empty, it uses the 'srcDir'
@@ -11,6 +18,19 @@ export interface SamuraiGroup {
    *  @default "**\/*.spec.ts"
    **/
   testMatch?: string;
+  /**
+   * Explicitly define the tests inside the group.
+   * Overrides 'src' and 'testMatch'  options.
+   */
+  tests?: SamuraiTest[];
+}
+
+export interface SamuraiEnvironment {
+  /** Overrides the project timeout (ms) for this environment */
+  timeout?: number;
+  expect?: { timeout?: number };
+  /** Test data, used in steps as ${name}. Never put secrets here. */
+  variables?: Record<string, string | number | boolean>;
 }
 
 export interface SamuraiTestConfig {
@@ -18,20 +38,26 @@ export interface SamuraiTestConfig {
    * directory containing all the test files
    * @default "./src"
    */
-  srcDir: string;
+  srcDir?: string;
   /**
    * The browser to use for all tests.
    * Is overwritten by the 'browser' in a group's config
    */
-  browser: SupportedBrowser;
+  browser?: SupportedBrowser;
   /**
    * The timeout (in ms) to use for all tests
+   * @default 30000
    */
   timeout: number;
   /**
    * Define a group of test's you want to have executed with a certain configuration
    **/
   groups?: SamuraiGroup[];
+  /**
+   * The base URL to use when navigating the browser.
+   * When recording starts, the browser will start at this URL.
+   */
+  baseUrl?: string;
   /** Options for `expect` assertions */
   expect?: {
     /**
@@ -122,4 +148,8 @@ export interface SamuraiTestConfig {
      */
     maxBodySize?: number;
   };
+  /** Keyed by name: 'dev', 'staging', 'production' */
+  environments: Record<string, SamuraiEnvironment>;
+  /** Used when no environment is chosen */
+  defaultEnvironment: string;
 }
