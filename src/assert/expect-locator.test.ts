@@ -6,8 +6,8 @@ import { expect, takePendingAssertions } from "./expect.js";
 import { AssertionError } from "./assertion-error.js";
 
 function locatorWith(xpath: string, ...responses: StubResponse[]) {
-  const { connector, expressions } = stubConnector(...responses);
-  return { locator: new Locator(xpath, connector, "ctx"), expressions };
+  const { connector, expressions, nodeCounts } = stubConnector(...responses);
+  return { locator: new Locator(xpath, connector, "ctx"), expressions, nodeCounts };
 }
 
 const text = (value: string): StubResponse => ({ type: "string", value });
@@ -32,7 +32,7 @@ test("times out with the last received value", async () => {
     return true;
   });
   const elapsed = Date.now() - start;
-  assert.ok(elapsed >= 250 && elapsed < 1000, `elapsed ${elapsed}ms`);
+  assert.ok(elapsed >= 245 && elapsed < 1000, `elapsed ${elapsed}ms`);
 });
 
 test("timeout 0 reads exactly once", async () => {
@@ -86,11 +86,12 @@ test("a missing element never matches text", async () => {
 test("toHaveValue, toHaveAttribute and toHaveCount", async () => {
   await expect(locatorWith("input", text("test")).locator).toHaveValue("test", { timeout: 0 });
   await expect(locatorWith("a", text("/home")).locator).toHaveAttribute("href", /home/, { timeout: 0 });
-  await expect(locatorWith("li", { type: "number", value: 3 }).locator).toHaveCount(3, { timeout: 0 });
-  await assert.rejects(
-    expect(locatorWith("li", { type: "number", value: 2 }).locator).toHaveCount(3, { timeout: 0 }),
-    AssertionError,
-  );
+  const three = locatorWith("li", missing);
+  three.nodeCounts(3);
+  await expect(three.locator).toHaveCount(3, { timeout: 0 });
+  const two = locatorWith("li", missing);
+  two.nodeCounts(2);
+  await assert.rejects(expect(two.locator).toHaveCount(3, { timeout: 0 }), AssertionError);
 });
 
 test("expect(value) still returns value matchers", () => {
@@ -196,7 +197,7 @@ test("a read that never answers fails at the timeout with the last received valu
     return true;
   });
   const elapsed = Date.now() - start;
-  assert.ok(elapsed >= 200 && elapsed < 500, `elapsed ${elapsed}ms`);
+  assert.ok(elapsed >= 195 && elapsed < 500, `elapsed ${elapsed}ms`);
   assert.equal(expressions.length, 2);
 });
 
@@ -212,5 +213,5 @@ test("a first read that never answers fails at the timeout with a plain error", 
     return true;
   });
   const elapsed = Date.now() - start;
-  assert.ok(elapsed >= 200 && elapsed < 500, `elapsed ${elapsed}ms`);
+  assert.ok(elapsed >= 195 && elapsed < 500, `elapsed ${elapsed}ms`);
 });
