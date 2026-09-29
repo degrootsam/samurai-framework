@@ -39,9 +39,83 @@ export interface BrowsingContextModule {
       format?: ImageFormat | undefined;
       clip?: ClipRectangle | undefined;
     };
+    /** `data` is the image, Base64-encoded */
+    result: { data: string };
+  };
+  /** Finds nodes with a CSS, XPath, text or accessibility locator. */
+  "browsingContext.locateNodes": {
+    params: {
+      context: BrowsingContext;
+      locator: NodeLocator;
+      maxNodeCount?: number | undefined;
+      serializationOptions?: SerializationOptions | undefined;
+      startNodes?: SharedReference[] | undefined;
+    };
+    result: { nodes: NodeRemoteValue[] };
+  };
+  /** Accepts or dismisses the open user prompt. */
+  "browsingContext.handleUserPrompt": {
+    params: { context: BrowsingContext; accept?: boolean | undefined; userText?: string | undefined };
     result: {};
   };
+  /** Sets or resets (null) the viewport size and device pixel ratio. */
+  "browsingContext.setViewport": {
+    params: {
+      context?: BrowsingContext | undefined;
+      viewport?: { width: number; height: number } | null | undefined;
+      devicePixelRatio?: number | null | undefined;
+      userContexts?: UserContext[] | undefined;
+    };
+    result: {};
+  };
+  /** Reloads the document. */
+  "browsingContext.reload": {
+    params: {
+      context: BrowsingContext;
+      ignoreCache?: boolean | undefined;
+      wait?: ReadinessState | undefined;
+    };
+    result: { navigation: Navigation | null; url: string };
+  };
+  /** Moves through the session history by `delta` entries. */
+  "browsingContext.traverseHistory": {
+    params: { context: BrowsingContext; delta: number };
+    result: {};
+  };
+  /** Closes a top-level browsing context. */
+  "browsingContext.close": {
+    params: { context: BrowsingContext; promptUnload?: boolean | undefined };
+    result: {};
+  };
+  /** Renders the document as a PDF; `data` is Base64. */
+  "browsingContext.print": {
+    params: {
+      context: BrowsingContext;
+      background?: boolean | undefined;
+      margin?: { top?: number; bottom?: number; left?: number; right?: number } | undefined;
+      orientation?: "portrait" | "landscape" | undefined;
+      page?: { width?: number; height?: number } | undefined;
+      pageRanges?: (number | string)[] | undefined;
+      scale?: number | undefined;
+      shrinkToFit?: boolean | undefined;
+    };
+    result: { data: string };
+  };
 }
+
+/** Locators understood by `browsingContext.locateNodes`. */
+export type NodeLocator =
+  | { type: "css"; value: string }
+  | { type: "xpath"; value: string }
+  | {
+      type: "innerText";
+      value: string;
+      ignoreCase?: boolean;
+      matchType?: "full" | "partial";
+      maxDepth?: number;
+    }
+  | { type: "accessibility"; value: { name?: string; role?: string } }
+  | { type: "context"; value: { context: BrowsingContext } };
 
 /** A navigable presents a Document to the user via its active session history entry. */
 export type BrowsingContext = string;
@@ -52,8 +126,10 @@ export type SharedId = string;
 /** Represents a handle to an object owned by the ECMAScript runtime. The handle is only valid in a specific Realm. */
 export type Handle = string;
 export type ImageFormat = {
+  /** A MIME type: "image/png" or "image/jpeg". Anything else is silently treated as PNG */
   type: string;
-  quality?: 0.0 | 0.25 | 0.5 | 0.75 | 1.0 | undefined;
+  /** 0 to 1, for "image/jpeg" */
+  quality?: number | undefined;
 };
 export type ElementRectangle = {
   x: number;
@@ -87,13 +163,15 @@ export type InfoList = Info[];
 
 /** Represents the properties of a navigable. */
 export type Info = {
-  children: InfoList[];
+  /** null when the tree was not requested this deep */
+  children: InfoList | null;
   clientWindow: ClientWindow;
   context: BrowsingContext;
-  originalOpener: BrowsingContext;
+  originalOpener: BrowsingContext | null;
   url: string;
   userContext: UserContext;
-  parent?: BrowsingContext;
+  /** Absent or null for top-level contexts */
+  parent?: BrowsingContext | null;
 };
 
 /** Unique identifier for a navigation within a browsing context. */
@@ -137,7 +215,7 @@ export interface DownloadCanceledParams extends BaseNavigationInfo {
 /** Parameters for a download that completed successfully. */
 export interface DownloadCompleteParams extends BaseNavigationInfo {
   status: "complete";
-  filePath: string;
+  filepath: string;
 }
 
 /** Parameters for the `browsingContext.downloadEnd` event — either canceled or complete. */

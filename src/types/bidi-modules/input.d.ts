@@ -12,6 +12,15 @@ export interface InputCommands {
     };
     result: {};
   };
+  /** Sets the files of an `<input type=file>` element; `[]` clears them. */
+  "input.setFiles": {
+    params: {
+      context: BrowsingContext;
+      element: SharedReference;
+      files: string[];
+    };
+    result: {};
+  };
 }
 
 /** A set of actions for a single input source — none, key, pointer, or wheel. */

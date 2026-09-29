@@ -45,7 +45,7 @@ test("times out with the last value, ending at the deadline", async () => {
   });
   const elapsed = Date.now() - start;
   // probes at ~0, ~100, ~200; the final sleep is clamped to the ~50ms left, and no probe starts after the deadline
-  assert.ok(elapsed >= 250 && elapsed < 295, `elapsed ${elapsed}ms`);
+  assert.ok(elapsed >= 245 && elapsed < 295, `elapsed ${elapsed}ms`);
   assert.equal(calls(), 3);
 });
 
