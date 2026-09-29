@@ -49,7 +49,7 @@ Behaviour (carries over the `expect` loop semantics after fix F3, plus the clamp
 1. Always probes at least once.
 2. `timeout === 0`: the single probe is awaited un-raced; `isDone` false → `WaitTimeoutError` with that result.
 3. `timeout > 0`: each probe races the time remaining to the deadline. If the deadline wins, throw `WaitTimeoutError` with `last` = the last completed result (or `undefined`).
-4. After a completed probe: `isDone(current, previous)` true → resolve with `current`. Otherwise, if the deadline has passed → `WaitTimeoutError`; else sleep `min(interval, remaining)` and probe again.
+4. After a completed probe: `isDone(current, previous)` true → resolve with `current`. Otherwise, if the deadline has passed → `WaitTimeoutError`; else sleep `min(interval, remaining)`. A probe is only started while time remains, so after the final clamped sleep the wait ends at the deadline instead of starting a probe that could only lose the race (resolves the open concern from expect fix F3).
 5. Errors thrown by `probe` are rethrown immediately.
 6. Race timers are cleared when the probe wins; no timer outlives the call.
 
@@ -176,6 +176,7 @@ Probe errors (invalid xpath, navigation destroying the execution context) are re
     - `isEnabled()` / `isEditable()`.
   - Existing `expect` tests pass unchanged (regression net for the `waitUntil` refactor).
 - Browser (opt-in, `npm run test:browser` → `tsx --test "src/**/*.browser-test.ts"`, headless Firefox; not matched by `npm test`'s `src/**/*.test.ts` glob because the suffix is `-test.ts`, not `.test.ts`):
-  - Fixtures injected into a blank page via `script.evaluate` (no external site, no real form submissions): button enabled after 300 ms; overlay removed after 300 ms; element sliding for 300 ms; button below the fold; readonly input; hidden element for `force` and `waitFor({ state: "hidden" })`; disabled button for the timeout error.
+  - Fixtures injected into a blank page via `script.evaluate` (no external site, no real form submissions): button enabled after 300 ms; overlay removed after 300 ms; element sliding for 300 ms; button below the fold; readonly input; an `opacity:0` button for `force` (not "visible" by our rule, yet still hit-testable — a truly hidden or covered element cannot receive a real pointer click, with or without `force`); an element removed after 300 ms for `waitFor({ state: "hidden" })`; disabled and covered buttons for the timeout errors.
+  - The fixtures load `about:blank`, which needs `Page.navigateTo` to keep URLs that already have a scheme (today it turns any non-`http` URL into the literal `https://url`); the plan fixes that as part of the browser-test task.
   - Each asserts the action succeeds or fails with the specified message.
 - TDD: each test before its implementation.
