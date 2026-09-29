@@ -113,3 +113,35 @@ test("only the required checks are evaluated, in the given order", () => {
     "enabled",
   ]);
 });
+
+test("editable is a boolean even for non-HTML elements without isContentEditable", () => {
+  const script = elementStateScript(EL, { scroll: true, hitTest: true });
+  const svg = {
+    tagName: "svg",
+    id: "",
+    classList: [],
+    matches: () => false,
+    getAttribute: () => null,
+    contains: () => false,
+    getBoundingClientRect: () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }),
+  };
+  const fakeDocument = {
+    evaluate: () => ({ singleNodeValue: svg }),
+    elementFromPoint: () => svg,
+  };
+  const fakeWindow = { innerWidth: 1000, innerHeight: 800 };
+  const fakeComputeStyle = () => ({ display: "block", visibility: "visible", opacity: "1" });
+
+  const result = new Function(
+    "document",
+    "XPathResult",
+    "getComputedStyle",
+    "window",
+    `return ${script}`,
+  )(fakeDocument, { FIRST_ORDERED_NODE_TYPE: 9 }, fakeComputeStyle, fakeWindow) as string;
+
+  const state = parseElementState({ type: "string", value: result });
+  assert.equal(state.attached, true);
+  assert.equal(state.editable, false);
+  assert.equal(typeof state.editable, "boolean");
+});

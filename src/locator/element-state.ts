@@ -65,10 +65,10 @@ export function elementStateScript(
     style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
   const enabled = !el.matches(":disabled") && el.getAttribute("aria-disabled") !== "true";
   const tag = el.tagName.toLowerCase();
-  const typeable =
+  const typeable = Boolean(
     (tag === "input" && ${JSON.stringify(TEXT_INPUT_TYPES)}.includes((el.getAttribute("type") || "text").toLowerCase())) ||
-    tag === "textarea" || el.isContentEditable;
-  const editable = enabled && !el.readOnly && typeable;
+    tag === "textarea" || el.isContentEditable);
+  const editable = Boolean(enabled && !el.readOnly && typeable);
   let hitTarget = null;${hitTest ? HIT_TEST : ""}
   return JSON.stringify({
     attached: true, visible, enabled, editable,
