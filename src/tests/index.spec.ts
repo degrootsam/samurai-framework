@@ -1,3 +1,4 @@
+import { expect } from "../assert/expect.js";
 import { test } from "../runner/test-runner.js";
 
 test("My first test", async (page) => {
@@ -15,8 +16,12 @@ test("My first test", async (page) => {
   await messageField.fill(
     "This is a very long message which describes what I would like",
   );
-  // const submitButton = page.locator("button[@type='submit']");
-  // await submitButton.click();
-  // await page.waitForNetworkIdle();
-  // const successAlert = page.locator("div[@class='alert-description']");
+
+  const submitButton = page.locator("button[@type='submit']");
+  await submitButton.click();
+  await page.waitForNetworkIdle();
+  const successAlert = page.locator("div[@class='alert-description']");
+  expect(successAlert).toContainText(
+    "Je aanvraag is ontvangen! Je ontvangt automatisch een kopie van de aanvraag op het opgegeven E-mailadres. Ik neem binnen 3 werkdagen contact met je op over je aanvraag.",
+  );
 });
