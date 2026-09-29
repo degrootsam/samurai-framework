@@ -16,7 +16,6 @@ const registeredTestcases: RegisteredTestCase[] = [];
 export default class TestRunner {
   private testFiles: string[];
   private group?: SamuraiGroup;
-  private browser?: Browser;
 
   constructor(testFiles: string[], group?: SamuraiGroup) {
     this.testFiles = testFiles;
@@ -66,7 +65,6 @@ export default class TestRunner {
       await this.executeTestCase(test, reporter);
     }
     await reporter.onEnd();
-    this.browser?.kill();
   }
 
   private async executeTestCase(
@@ -84,14 +82,19 @@ export default class TestRunner {
     assert(selectedBrowser, "'browser' is missing from config");
     const timeout = Number(await readConfig("timeout"));
 
+    let browser: Browser | undefined;
+    let timeoutTimer: NodeJS.Timeout | undefined;
+    const timeoutController = new AbortController();
+
     await Promise.race([
       new Promise<void>((resolve) => {
-        setTimeout(
+        timeoutTimer = setTimeout(
           () => {
             reporter.onTestEnd(test, {
               message: `Test timed out after ${(timeout || 30000) / 1000} seconds`,
               type: "timeout",
             });
+            timeoutController.abort(new Error("Test timed out"));
             resolve();
           },
           isNaN(timeout) ? 30000 : timeout,
@@ -99,15 +102,22 @@ export default class TestRunner {
       }),
       new Promise<void>(async (resolve, reject) => {
         try {
-          const { browser, page } = await Browser.launch(selectedBrowser, {
-            port: 9223,
-            headless: false,
-          });
-          this.browser = browser;
-          await test?.function(page, browser);
+          const launched = await Browser.launch(
+            selectedBrowser,
+            {
+              port: 9223,
+              headless: false,
+            },
+            timeoutController.signal,
+          );
+          browser = launched.browser;
+          await test?.function(launched.page, launched.browser);
+          // Already reported as timed out
+          if (timeoutController.signal.aborted) return resolve();
           reporter.onTestEnd(test);
           resolve();
         } catch (err) {
+          if (timeoutController.signal.aborted) return resolve();
           reporter.onTestEnd(test, {
             message: err instanceof Error ? err.message : (err as string),
             stack: err instanceof Error ? err.stack : undefined,
@@ -117,6 +127,10 @@ export default class TestRunner {
         }
       }),
     ]);
+
+    clearTimeout(timeoutTimer);
+    logger.verbose("Closing browser for test: %s", test.name);
+    await browser?.close();
   }
 }
 

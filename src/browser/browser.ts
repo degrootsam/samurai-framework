@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { setTimeout as sleep } from "node:timers/promises";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
@@ -13,6 +14,9 @@ import type {
   PartialCookie,
   PartitionDescriptor,
 } from "../types/bidi-modules/storage.js";
+
+/** Time (ms) to wait for Firefox to answer browser.close before killing the process */
+const BROWSER_CLOSE_GRACE = 2000;
 
 const browserProfilePath: Record<SupportedBrowser, string> = {
   // chrome: path.resolve("browsers/profiles/chrome"),
@@ -72,6 +76,23 @@ const browserLaunchFlag = (
   return baseLaunchFlags;
 };
 
+// On macOS a spawned browser is attributed to the terminal, which is denied access to
+// ~/Library/Application Support/Firefox (profiles.ini). Point Firefox at a local app data dir instead.
+const browserAppDataPath: Record<SupportedBrowser, string> = {
+  firefox: path.resolve("browsers/app-data/firefox"),
+};
+
+const browserLaunchEnv = (browserName: SupportedBrowser) => {
+  const appDataPath = browserAppDataPath[browserName];
+  mkdirSync(appDataPath, { recursive: true });
+  logger.debug("Using app data dir for %s: %s", browserName, appDataPath);
+
+  switch (browserName) {
+    case "firefox":
+      return { MOZ_APP_DATA: appDataPath };
+  }
+};
+
 const browserProfiles: Record<SupportedBrowser, string> = {
   // chrome: "",
   firefox: `
@@ -81,8 +102,13 @@ const browserProfiles: Record<SupportedBrowser, string> = {
   `,
 };
 
+// Firefox logs "WebDriver BiDi listening on ws://<host>:<port>" without the endpoint path
+const browserWsPath: Record<SupportedBrowser, string> = {
+  firefox: "/session",
+};
+
 const browserWsRegex: Record<SupportedBrowser, RegExp> = {
-  firefox: /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}\/session/g,
+  firefox: /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}/g,
   // chrome:
   //   /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}\/devtools\/browser\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
 };
@@ -116,7 +142,10 @@ export class Browser {
     launchOptions: Partial<BrowserLaunchOptions> = defaultLaunchOptions[
       browserName
     ],
+    /** Aborting kills the browser process and rejects the launch */
+    signal?: AbortSignal,
   ) {
+    signal?.throwIfAborted();
     logger.verbose("Trying to launch browser %s", browserName);
     const browserLocation = findBrowser(browserName);
     logger.debug("Found browser install location at: %s", browserLocation);
@@ -127,6 +156,7 @@ export class Browser {
     const browserProc = spawn(
       browserLocation,
       browserLaunchFlag(browserName, launchOptions),
+      { env: { ...process.env, ...browserLaunchEnv(browserName) } },
     );
 
     return new Promise<{ browser: Browser; page: Page }>((resolve, reject) => {
@@ -137,6 +167,13 @@ export class Browser {
       };
 
       browserProc.on("close", onUnexpectedClose);
+
+      const onAbort = () => {
+        logger.verbose("Launch of %s aborted, killing process", browserName);
+        browserProc.kill();
+        reject(signal?.reason);
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       browserProc.stdout.on("data", (data: any) => {
         logger.debug(`${browserName} stdout: ${data}`);
@@ -155,8 +192,13 @@ export class Browser {
 
         const urlMatch = String(data).match(browserWsRegex[browserName]);
         console.log({ urlMatch });
-        if (Array.isArray(urlMatch) && urlMatch.length > 0) {
-          let url = urlMatch[0];
+        if (!Array.isArray(urlMatch) || urlMatch.length === 0) {
+          return;
+        }
+        // Killing the process mid-handshake rejects pending BiDi calls; surface that via reject
+        // instead of an unhandled rejection from this async listener
+        try {
+          let url = urlMatch[0] + browserWsPath[browserName];
           logger.verbose("Websocket URL match: %s", url);
           const biDiConnector = await BiDiConnector.connect(url);
           logger.verbose("Starting new session");
@@ -193,25 +235,45 @@ export class Browser {
           } else {
             page = await browser.newPage({ type: "tab" });
           }
-
           browserProc.off("close", onUnexpectedClose);
+          signal?.removeEventListener("abort", onAbort);
           resolve({
             browser,
             page,
           });
+        } catch (err) {
+          reject(err);
         }
       });
     });
   }
 
-  public async kill() {
+  /** Closes the browser via BiDi browser.close, then makes sure the process has exited */
+  public async close() {
+    if (this.browserProc.exitCode !== null || this.browserProc.signalCode) {
+      this.biDiConnector.kill();
+      return;
+    }
+    const exited = new Promise((resolve) =>
+      this.browserProc.once("exit", resolve),
+    );
     try {
-      await this.biDiConnector.send("browser.close", {});
+      // Firefox may exit without answering; a lost reply must not hold up teardown
+      await Promise.race([
+        this.biDiConnector.send("browser.close", {}),
+        sleep(BROWSER_CLOSE_GRACE, undefined, { ref: false }),
+      ]);
     } catch {
       // browser may already be shutting down
     }
     this.biDiConnector.kill();
-    this.browserProc?.kill();
+    this.browserProc.kill();
+    await exited;
+  }
+
+  /** Alias of close() */
+  public async kill() {
+    await this.close();
   }
 
   public async newPage({
