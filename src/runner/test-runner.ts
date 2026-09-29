@@ -10,6 +10,8 @@ import type { RegisteredTestCase, TestResult } from "../types/test.js";
 import TestReporter from "./reporter.js";
 import type { SamuraiGroup } from "../types/config.js";
 import Page from "../browser/page.js";
+import { takePendingAssertions } from "../assert/expect.js";
+import { toTestError } from "./test-error.js";
 
 const registeredTestcases: RegisteredTestCase[] = [];
 
@@ -114,21 +116,28 @@ export default class TestRunner {
           await test?.function(launched.page, launched.browser);
           // Already reported as timed out
           if (timeoutController.signal.aborted) return resolve();
+          const unawaited = takePendingAssertions();
+          if (unawaited.length > 0) {
+            reporter.onTestEnd(test, {
+              message: unawaited
+                .map((matcher) => `expect(locator).${matcher}() was not awaited`)
+                .join("\n"),
+              type: "assertion",
+            });
+            return resolve();
+          }
           reporter.onTestEnd(test);
           resolve();
         } catch (err) {
           if (timeoutController.signal.aborted) return resolve();
-          reporter.onTestEnd(test, {
-            message: err instanceof Error ? err.message : (err as string),
-            stack: err instanceof Error ? err.stack : undefined,
-            type: "error",
-          });
+          reporter.onTestEnd(test, toTestError(err));
           resolve();
         }
       }),
     ]);
 
     clearTimeout(timeoutTimer);
+    takePendingAssertions();
     logger.verbose("Closing browser for test: %s", test.name);
     await browser?.close();
   }

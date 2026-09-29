@@ -39,8 +39,12 @@ interface TestResultBase {
 
 interface TestError {
   message: string;
-  type: "timeout" | "error";
+  type: "timeout" | "error" | "assertion";
   stack?: string | undefined;
+  /** Only for `type: "assertion"` */
+  expected?: unknown;
+  /** Only for `type: "assertion"` */
+  actual?: unknown;
 }
 
 export type TestSummary = TestSummarySuccess | TestSummaryFailed;
