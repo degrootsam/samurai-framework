@@ -31,5 +31,5 @@ export interface SamuraiTestConfig {
   /**
    * Define a group of test's you want to have executed with a certain configuration
    **/
-  groups?: SamuraiGroup;
+  groups?: SamuraiGroup[];
 }

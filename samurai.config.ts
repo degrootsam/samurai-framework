@@ -4,4 +4,5 @@ export default defineConfig({
   srcDir: "./src/tests",
   browser: "firefox",
   timeout: 30000,
+  groups: [{ browser: "firefox" }],
 });

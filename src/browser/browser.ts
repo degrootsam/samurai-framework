@@ -15,12 +15,12 @@ import type {
 } from "../types/bidi-modules/storage.js";
 
 const browserProfilePath: Record<SupportedBrowser, string> = {
-  chrome: path.resolve("browsers/profiles/chrome"),
+  // chrome: path.resolve("browsers/profiles/chrome"),
   firefox: path.resolve("browsers/profiles/firefox/user.js"),
 };
 
 const baseBrowserLaunchFlags: Record<SupportedBrowser, string[]> = {
-  chrome: [],
+  // chrome: [],
   firefox: ["--no-sandbox", "--no-remote"],
 };
 
@@ -30,16 +30,16 @@ const defaultLaunchOptions: Record<SupportedBrowser, BrowserLaunchOptions> = {
     profileDir: path.dirname(browserProfilePath.firefox),
     headless: true,
   },
-  chrome: {
-    port: 9222,
-    profileDir: path.dirname(browserProfilePath.chrome),
-    headless: true,
-  },
+  // chrome: {
+  //   port: 9222,
+  //   profileDir: path.dirname(browserProfilePath.chrome),
+  //   headless: true,
+  // },
 };
 
 const regexPrefix: Record<SupportedBrowser, RegExp> = {
   firefox: /WebDriver\sBiDi\slistening\son\s/,
-  chrome: /DevTools\slistening\son/,
+  // chrome: /DevTools\slistening\son/,
 };
 
 const browserLaunchFlag = (
@@ -59,9 +59,9 @@ const browserLaunchFlag = (
   baseLaunchFlags.push(`--remote-debugging-port=${port}`);
 
   switch (browserName) {
-    case "chrome":
-      baseLaunchFlags.push(`--user-data-dir=${profileDir}`);
-      break;
+    // case "chrome":
+    //   baseLaunchFlags.push(`--user-data-dir=${profileDir}`);
+    // break;
     case "firefox":
       baseLaunchFlags.push("--profile", profileDir);
       break;
@@ -73,7 +73,7 @@ const browserLaunchFlag = (
 };
 
 const browserProfiles: Record<SupportedBrowser, string> = {
-  chrome: "",
+  // chrome: "",
   firefox: `
     user_pref("devtools.debugger.remote-enabled", true);
     user_pref("devtools.debugger.prompt-connection", false);
@@ -81,9 +81,10 @@ const browserProfiles: Record<SupportedBrowser, string> = {
   `,
 };
 
-const browserWsPath: Record<SupportedBrowser, string> = {
-  firefox: "/session",
-  chrome: "",
+const browserWsRegex: Record<SupportedBrowser, RegExp> = {
+  firefox: /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}\/session/g,
+  // chrome:
+  //   /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}\/devtools\/browser\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
 };
 
 export interface BrowserLaunchOptions {
@@ -152,21 +153,15 @@ export class Browser {
       browserProc.stderr.on("data", async (data: any) => {
         logger.error(`${browserName} stderr: ${data}`);
 
-        const urlMatch = String(data).match(
-          /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}/g,
-        );
-        const prefixMatch = String(data).match(regexPrefix[browserName]);
-
-        if (
-          Array.isArray(urlMatch) &&
-          Array.isArray(prefixMatch) &&
-          urlMatch.length > 0 &&
-          prefixMatch.length > 0
-        ) {
-          let url = urlMatch[0] + browserWsPath[browserName];
-          const biDiConnector = await BiDiConnector.connect(url);
+        const urlMatch = String(data).match(browserWsRegex[browserName]);
+        console.log({ urlMatch });
+        if (Array.isArray(urlMatch) && urlMatch.length > 0) {
+          let url = urlMatch[0];
           logger.verbose("Websocket URL match: %s", url);
+          const biDiConnector = await BiDiConnector.connect(url);
           logger.verbose("Starting new session");
+          const status = await biDiConnector.send("session.status", {});
+          logger.verbose("Session status", status);
           await biDiConnector.send("session.new", {
             capabilities: {},
           });
@@ -280,11 +275,6 @@ function createBrowserProfile(
     profilePath,
   );
   mkdirSync(path.dirname(profilePath), { recursive: true });
-
-  if (browserName === "chrome") {
-    logger.verbose("Skipping  browser profile creation for %s", browserName);
-    return;
-  }
 
   writeFileSync(profilePath, browserProfiles[browserName], {
     encoding: "utf8",
