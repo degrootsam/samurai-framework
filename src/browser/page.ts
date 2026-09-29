@@ -22,7 +22,9 @@ export default class Page {
     wait?: BiDiCommands["browsingContext.navigate"]["params"]["wait"],
     protocol: "http" | "https" = "https",
   ) {
-    const parsedURL = url.startsWith("http") ? url : `${protocol}://url`;
+    // A scheme is letters followed by ":" not directly followed by a digit, so "localhost:3000" is a host
+    const hasScheme = /^[a-z][a-z\d+.-]*:(?!\d)/i.test(url);
+    const parsedURL = hasScheme ? url : `${protocol}://${url}`;
     const result = await this.biDiConnector.send("browsingContext.navigate", {
       context: this.contextId,
       url: parsedURL,

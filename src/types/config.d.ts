@@ -31,5 +31,13 @@ export interface SamuraiTestConfig {
   /**
    * Define a group of test's you want to have executed with a certain configuration
    **/
-  groups?: SamuraiGroup;
+  groups?: SamuraiGroup[];
+  /** Options for `expect` assertions */
+  expect?: {
+    /**
+     * Time (ms) locator assertions, actions (click, fill, focus) and waitFor keep retrying before failing
+     * @default 5000
+     */
+    timeout?: number;
+  };
 }
