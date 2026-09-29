@@ -151,7 +151,7 @@ export default class Locator {
         timeout,
         reason: !last ? "unreadable" : last.attached ? "not-actionable" : "not-attached",
         checks: lastChecks,
-        coveredBy: last?.hitTarget && last.hitTarget !== "self" ? last.hitTarget : undefined,
+        coveredBy: lastChecks?.["hit target"] === "fail" ? (last?.hitTarget ?? undefined) : undefined,
       });
     }
   }

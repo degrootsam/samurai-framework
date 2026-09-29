@@ -144,6 +144,15 @@ test("click() with timeout 0 on a disabled element reports no stable entry", asy
   assert.deepEqual(pointerClicks(sent), []);
 });
 
+test("click() timeout on a hidden element does not report a covering element", async () => {
+  const { locator } = locatorWith("button", state({ visible: false, hitTarget: "html" }));
+  await assert.rejects(locator.click({ timeout: 250 }), (err) => {
+    assert.ok(err instanceof ActionTimeoutError);
+    assert.equal(err.coveredBy, undefined);
+    return true;
+  });
+});
+
 test("click() on an element that never appears reports it was not attached", async () => {
   const { locator } = locatorWith("button", detached);
   await assert.rejects(
