@@ -6,7 +6,7 @@ export type StubResponse = RemoteValue | { exception: string } | { hang: true };
 /**
  * Fake BiDiConnector for unit tests. Every `script.evaluate` answers with the next
  * queued response; the last response repeats. `{ hang: true }` never answers.
- * `input.performActions` resolves empty. Evaluated expressions and all sent commands are recorded.
+ * `input.performActions` and `browsingContext.navigate` resolve empty. Evaluated expressions and all sent commands are recorded.
  */
 export function stubConnector(...responses: StubResponse[]) {
   if (responses.length === 0) {
@@ -20,7 +20,7 @@ export function stubConnector(...responses: StubResponse[]) {
   const connector = {
     async send(method: string, params: { expression: string }) {
       sent.push({ method, params });
-      if (method === "input.performActions") {
+      if (method === "input.performActions" || method === "browsingContext.navigate") {
         return {};
       }
       if (method !== "script.evaluate") {
