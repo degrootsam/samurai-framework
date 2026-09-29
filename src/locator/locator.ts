@@ -48,12 +48,20 @@ export default class Locator {
     return locatorResult.result;
   }
 
+  /** Normalises the xpath: always starts with `//` and uses double quotes */
+  private parsedXpath() {
+    const xpath = this.xpath.startsWith("//") ? this.xpath : "//" + this.xpath;
+    return xpath.replaceAll("'", '"');
+  }
+
+  /** The normalised xpath this locator evaluates */
+  public get selector(): string {
+    return this.parsedXpath();
+  }
+
   /** Builds the expression to evaluate on */
   private buildExpression(action?: string) {
-    let parsedXpath = this.xpath.startsWith("//")
-      ? this.xpath
-      : "//" + this.xpath;
-    parsedXpath = parsedXpath.replaceAll("'", '"');
+    const parsedXpath = this.parsedXpath();
 
     const xpathResultType = this.useMultiple
       ? "XPathResult.ORDERED_NODE_ITERATOR_TYPE"
@@ -136,6 +144,70 @@ export default class Locator {
       );
 
     return JSON.parse(rect.value);
+  }
+
+  /** Evaluates `body` with `el` bound to the first matching element, or null when nothing matches */
+  private readElement(body: string) {
+    return this.evaluate(`(() => {
+      const el = document.evaluate(
+        '${this.parsedXpath()}',
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+      ).singleNodeValue;
+      ${body}
+    })()`);
+  }
+
+  private stringOrNull(value: RemoteValue): string | null {
+    if (value.type === "string") return value.value;
+    if (value.type === "null") return null;
+    throw new Error(`Expected a string or null but received "${value.type}"`);
+  }
+
+  /** Whether the element exists, has a non-empty box and is not hidden by CSS */
+  public async isVisible(): Promise<boolean> {
+    const result = await this.readElement(`
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 &&
+        style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+    `);
+    return result.type === "boolean" && result.value;
+  }
+
+  /** Trimmed text content, or null when the element is missing */
+  public async textContent(): Promise<string | null> {
+    return this.stringOrNull(
+      await this.readElement(`return el ? el.textContent.trim() : null;`),
+    );
+  }
+
+  /** Value of an input/textarea/select, or null when missing */
+  public async inputValue(): Promise<string | null> {
+    return this.stringOrNull(
+      await this.readElement(`return el && typeof el.value === "string" ? el.value : null;`),
+    );
+  }
+
+  /** Attribute value, or null when the element or attribute is missing */
+  public async getAttribute(name: string): Promise<string | null> {
+    return this.stringOrNull(
+      await this.readElement(`return el ? el.getAttribute(${JSON.stringify(name)}) : null;`),
+    );
+  }
+
+  /** Number of elements matching the xpath */
+  public async count(): Promise<number> {
+    const result = await this.evaluate(
+      `document.evaluate('count(${this.parsedXpath()})', document, null, XPathResult.NUMBER_TYPE, null).numberValue`,
+    );
+    if (result.type !== "number") {
+      throw new Error(`Expected a number but received "${result.type}"`);
+    }
+    return result.value;
   }
 
   /** Wait for certain time (ms). Default: 300ms  */
