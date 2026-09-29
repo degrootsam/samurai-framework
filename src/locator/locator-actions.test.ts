@@ -207,3 +207,50 @@ test("isEnabled() and isEditable() read the state without waiting", async () => 
   assert.equal(await locatorWith("input", state({ editable: false })).locator.isEditable(), false);
   assert.equal(await locatorWith("input", detached).locator.isEditable(), false);
 });
+
+test("waitFor() waits for visible by default, without scrolling", async () => {
+  const { locator, expressions } = locatorWith("div", state({ visible: false }), state());
+  await locator.waitFor({ timeout: 3000 });
+  assert.equal(expressions.length, 2);
+  assert.ok(!expressions[0]!.includes("scrollIntoView"));
+  assert.ok(!expressions[0]!.includes("elementFromPoint"));
+});
+
+test("waitFor({ state: \"hidden\" }) resolves once the element is gone or invisible", async () => {
+  const gone = locatorWith("div", state(), detached);
+  await gone.locator.waitFor({ state: "hidden", timeout: 3000 });
+  assert.equal(gone.expressions.length, 2);
+
+  const invisible = locatorWith("div", state(), state({ visible: false }));
+  await invisible.locator.waitFor({ state: "hidden", timeout: 3000 });
+  assert.equal(invisible.expressions.length, 2);
+});
+
+test("waitFor() for attached and detached", async () => {
+  const appears = locatorWith("div", detached, state({ visible: false }));
+  await appears.locator.waitFor({ state: "attached", timeout: 3000 });
+  assert.equal(appears.expressions.length, 2);
+
+  const disappears = locatorWith("div", state(), detached);
+  await disappears.locator.waitFor({ state: "detached", timeout: 3000 });
+  assert.equal(disappears.expressions.length, 2);
+});
+
+test("waitFor() timeout names the state it waited for", async () => {
+  const { locator } = locatorWith("div", state({ visible: false }));
+  await assert.rejects(locator.waitFor({ timeout: 250 }), (err) => {
+    assert.ok(err instanceof ActionTimeoutError);
+    assert.equal(err.reason, "wrong-state");
+    assert.equal(err.state, "visible");
+    assert.equal(err.message, "waitFor(): //div did not become visible within 250ms");
+    return true;
+  });
+});
+
+test("waitFor() when no probe completes reports it could not read the element", async () => {
+  const { locator } = locatorWith("div", { hang: true });
+  await assert.rejects(
+    locator.waitFor({ state: "hidden", timeout: 250 }),
+    /^ActionTimeoutError: waitFor\(\): could not read \/\/div within 250ms$/,
+  );
+});

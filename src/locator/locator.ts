@@ -19,6 +19,7 @@ import {
   type CheckResults,
   type ElementState,
   type ProbeOptions,
+  type WaitForState,
 } from "./element-state.js";
 
 export type { WaitForState } from "./element-state.js";
@@ -197,6 +198,34 @@ export default class Locator {
   public async focus(options?: ActionOptions): Promise<void> {
     await this.waitForActionable("focus", ATTACHED_ONLY, { scroll: false, hitTest: false }, options);
     await this.evaluate(this.buildExpression("focus()"));
+  }
+
+  /** Waits until the element reaches `state` (default "visible"); does not scroll */
+  public async waitFor({
+    state = "visible",
+    timeout,
+  }: { state?: WaitForState; timeout?: number } = {}): Promise<void> {
+    const resolved = await resolveTimeout(timeout);
+    const reached: Record<WaitForState, (current: ElementState) => boolean> = {
+      attached: (current) => current.attached,
+      detached: (current) => !current.attached,
+      visible: (current) => current.attached && current.visible,
+      hidden: (current) => !current.attached || !current.visible,
+    };
+    try {
+      await waitUntil(() => this.probeState({ scroll: false, hitTest: false }), reached[state], {
+        timeout: resolved,
+      });
+    } catch (err) {
+      if (!(err instanceof WaitTimeoutError)) throw err;
+      throw new ActionTimeoutError({
+        action: "waitFor",
+        selector: this.selector,
+        timeout: resolved,
+        reason: err.last === undefined ? "unreadable" : "wrong-state",
+        state,
+      });
+    }
   }
 
   /** Returns the browser's getBoundingClientRect result for the given element */
