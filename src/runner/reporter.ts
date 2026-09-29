@@ -5,6 +5,7 @@ import type {
   RegisteredTestCase,
   TestCase,
   TestError,
+  TestLogEntry,
   TestResult,
   TestSummary,
 } from "../types/test.js";
@@ -59,7 +60,11 @@ export default class TestReporter {
     });
   }
 
-  public onTestEnd(test: TestCase, error?: TestError) {
+  public onTestEnd(
+    test: TestCase,
+    error?: TestError,
+    logs?: { logs?: TestLogEntry[]; logsDropped?: number },
+  ) {
     performance.mark(`${test.name}-finish`);
     const duration = performance.measure(
       "test-duration",
@@ -72,6 +77,8 @@ export default class TestReporter {
       duration,
       status: error ? "failed" : "success",
       ...(error ? error : undefined),
+      ...(logs?.logs && { logs: logs.logs }),
+      ...(logs?.logsDropped && { logsDropped: logs.logsDropped }),
     } as TestResult);
   }
 }
