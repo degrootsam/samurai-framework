@@ -18,6 +18,11 @@ export interface SessionModule {
     };
     result: { subscription: Subscription };
   };
+  /** Removes event subscriptions, by subscription id or by event name. */
+  "session.unsubscribe": {
+    params: { subscriptions: Subscription[] } | { events: string[] };
+    result: UnsubscribeResult;
+  };
   "session.status": {
     params: {};
     result: {

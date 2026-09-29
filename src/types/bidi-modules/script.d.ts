@@ -16,7 +16,53 @@ export interface ScriptCommands {
     };
     result: EvaluateResult;
   };
+  /** Calls a function declaration in the target realm with serialized arguments. */
+  "script.callFunction": {
+    params: {
+      functionDeclaration: string;
+      awaitPromise: boolean;
+      target: Target;
+      arguments?: ArgumentValue[] | undefined;
+      resultOwnership?: ResultOwnership | undefined;
+      serializationOptions?: SerializationOptions | undefined;
+      this?: ArgumentValue | undefined;
+      userActivation?: boolean | undefined;
+    };
+    result: CallFunctionResult;
+  };
+  /** Releases remote object handles in the target realm. */
+  "script.disown": {
+    params: { handles: Handle[]; target: Target };
+    result: DisownResult;
+  };
+  /** Registers a function to run before any page script in every matching new document. */
+  "script.addPreloadScript": {
+    params: {
+      functionDeclaration: string;
+      arguments?: ChannelValue[] | undefined;
+      contexts?: BrowsingContext[] | undefined;
+      userContexts?: UserContext[] | undefined;
+      sandbox?: string | undefined;
+    };
+    result: AddPreloadScriptResult;
+  };
+  /** Removes a preload script. */
+  "script.removePreloadScript": {
+    params: { script: PreloadScript };
+    result: RemovePreloadScriptResult;
+  };
 }
+
+/** A serialized value sent to the browser as a function argument or `this`. */
+export type LocalValue = { type: string; value?: unknown; [key: string]: unknown };
+/** A reference to a node or object that already lives in the browser. */
+export type RemoteReference = { sharedId: string; handle?: string | undefined } | { handle: string };
+/** A channel the browser can use to send messages back through `script.message`. */
+export interface ChannelValue {
+  type: "channel";
+  value: { channel: Channel; serializationOptions?: SerializationOptions; ownership?: ResultOwnership };
+}
+export type ArgumentValue = LocalValue | RemoteReference | ChannelValue;
 
 /** Events emitted by the script module, keyed by method name. */
 export interface ScriptEvents {

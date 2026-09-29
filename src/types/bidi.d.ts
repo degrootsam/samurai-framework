@@ -4,14 +4,19 @@ import type {
   BrowsingContextModule as BrowsingContextCommands,
   BrowsingContextResult,
 } from "./bidi-modules/browsing-context.js";
-import type { EmulationResult } from "./bidi-modules/emulation.js";
+import type { EmulationCommands, EmulationResult } from "./bidi-modules/emulation.js";
 import type {
   InputCommands,
   InputEvents,
   InputResult,
 } from "./bidi-modules/input.js";
 import type { LogEvents } from "./bidi-modules/log.js";
-import type { NetworkEvents, NetworkResult } from "./bidi-modules/network.js";
+import type { PermissionsCommands } from "./bidi-modules/permissions.js";
+import type {
+  NetworkCommands,
+  NetworkEvents,
+  NetworkResult,
+} from "./bidi-modules/network.js";
 import type {
   ScriptCommands,
   ScriptEvents,
@@ -29,7 +34,10 @@ export type BiDiCommands = BrowserCommands &
   BrowsingContextCommands &
   ScriptCommands &
   InputCommands &
-  StorageCommands;
+  StorageCommands &
+  NetworkCommands &
+  EmulationCommands &
+  PermissionsCommands;
 
 export type BiDiEvents = BrowsingContextEvents &
   InputEvents &
