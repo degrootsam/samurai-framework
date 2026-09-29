@@ -1,4 +1,5 @@
 import type { BiDiConnector } from "../transport/bidi-connection.js";
+import { BiDiError } from "../transport/bidi-error.js";
 import type {
   BrowsingContext,
   ElementRectangle,
@@ -7,14 +8,25 @@ import type {
   KeyDownAction,
   KeyUpAction,
 } from "../types/bidi-modules/input.js";
-import type { RemoteValue } from "../types/bidi-modules/script.js";
+import { callFunction, ScriptError } from "../script/call-function.js";
+import {
+  CALL_PROBE,
+  HELPER_SANDBOX,
+  HELPERS_MISSING,
+  type HelperInstaller,
+} from "../script/helpers.js";
+import { ElementHandle } from "../script/element-handle.js";
+import { takeScreenshot, type ElementScreenshotOptions } from "../browser/screenshot.js";
+import { assertIsFile, resolveFiles } from "../browser/file-paths.js";
+import type { Arg } from "../script/serialize.js";
 import { resolveTimeout, waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
 import {
   allPass,
-  elementStateScript,
+  DETACHED_STATE,
   evaluateChecks,
   parseElementState,
+  PROBE_ELEMENT,
   type CheckName,
   type CheckResults,
   type ElementState,
@@ -22,7 +34,23 @@ import {
   type WaitForState,
 } from "./element-state.js";
 
+import { InvalidSelectorError, UnsupportedOperationError } from "./selector-errors.js";
+import { TEXT_LOCATE } from "./text-locator.js";
+import {
+  cssSelector,
+  describeChain,
+  describeSelector,
+  roleSelector,
+  textSelector,
+  toBiDiLocator,
+  xpathSelector,
+  type Selector,
+  type TextOptions,
+} from "./selector.js";
+
 export type { WaitForState } from "./element-state.js";
+export { InvalidSelectorError, UnsupportedOperationError } from "./selector-errors.js";
+export type { TextOptions } from "./selector.js";
 
 export interface ActionOptions {
   /**
@@ -34,6 +62,25 @@ export interface ActionOptions {
   force?: boolean;
 }
 
+/** Locator types a connection's browser rejected, so they are not tried again on every poll */
+const unsupportedByConnector = new WeakMap<BiDiConnector, Set<string>>();
+
+function unsupportedTypes(connector: BiDiConnector): Set<string> {
+  let types = unsupportedByConnector.get(connector);
+  if (!types) unsupportedByConnector.set(connector, (types = new Set()));
+  return types;
+}
+
+/** What `setInputFiles` needs to know about the element before it sends files */
+const FILE_INPUT_INFO = `(el) => ({
+  tag: el.tagName.toLowerCase(),
+  type: (el.getAttribute("type") || "").toLowerCase(),
+  multiple: Boolean(el.multiple),
+})`;
+
+const FILE_INPUT_CHECKS: readonly CheckName[] = ["attached", "enabled"];
+const SCREENSHOT_CHECKS: readonly CheckName[] = ["attached", "visible"];
+
 const CLICK_CHECKS: readonly CheckName[] = ["attached", "visible", "stable", "enabled", "hit target"];
 const FILL_CHECKS: readonly CheckName[] = ["attached", "visible", "enabled", "editable", "hit target"];
 const ATTACHED_ONLY: readonly CheckName[] = ["attached"];
@@ -44,75 +91,242 @@ const BACKSPACE = "";
 export default class Locator {
   private biDiConnector: BiDiConnector;
   private contextId: BrowsingContext;
-  private xpath: string;
+  private chain: readonly Selector[];
+  private helpers: HelperInstaller | undefined;
 
+  /**
+   * `selector` is an xpath, or a chain of selector steps that each search inside the previous step's matches.
+   * `helpers` is the page's helper realm. With it the actionability probe is installed once per
+   * document and called by name; without it (a locator built by hand) the probe source is sent on every poll.
+   */
   constructor(
-    xpath: string,
+    selector: string | readonly Selector[],
     biDiConnector: BiDiConnector,
     contextId: BrowsingContext,
+    helpers?: HelperInstaller,
   ) {
-    this.xpath = xpath;
+    this.chain = typeof selector === "string" ? [xpathSelector(selector)] : selector;
     this.biDiConnector = biDiConnector;
     this.contextId = contextId;
+    this.helpers = helpers;
   }
 
-  private async evaluate(expression: string): Promise<RemoteValue> {
-    const locatorResult = await this.biDiConnector.send("script.evaluate", {
-      expression,
-      awaitPromise: false,
-      target: {
-        context: this.contextId,
-      },
-    });
-
-    if (locatorResult.type === "exception") {
-      throw new Error(
-        `Failed to locate element ${this.xpath}. Details: ${locatorResult.exceptionDetails.text}`,
-      );
-    }
-
-    return locatorResult.result;
-  }
-
-  /** Normalises the xpath: relative xpaths get a leading `//`; absolute, grouped and context paths are kept */
-  private parsedXpath() {
-    return /^[/(.]/.test(this.xpath) ? this.xpath : "//" + this.xpath;
-  }
-
-  /** The normalised xpath this locator evaluates */
+  /** The description of this locator used in error messages, e.g. `//form >> role=button[name="Save"]` */
   public get selector(): string {
-    return this.parsedXpath();
+    return describeChain(this.chain);
   }
 
-  /** JS expression for the first element matching the xpath, or null. The xpath is embedded as a JSON string so any quotes survive */
-  private elementExpression() {
-    return `document.evaluate(${JSON.stringify(this.parsedXpath())}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue`;
+  private child(step: Selector): Locator {
+    return new Locator([...this.chain, step], this.biDiConnector, this.contextId, this.helpers);
   }
 
-  /** Builds the expression calling `action` on the first matching element */
-  private buildExpression(action: string) {
-    return `${this.elementExpression()}.${action}`;
+  /** Elements matching `xpath` inside this locator's matches (relative and `//` paths search inside them) */
+  public locator(xpath: string): Locator {
+    return this.child(xpathSelector(xpath));
   }
 
-  /** One locator per element currently matching the xpath, in document order */
+  /** Elements matching the CSS selector inside this locator's matches */
+  public getByCss(css: string): Locator {
+    return this.child(cssSelector(css));
+  }
+
+  /** Elements whose text matches, inside this locator's matches. Exact match unless `match: "partial"` */
+  public getByText(text: string, options?: TextOptions): Locator {
+    return this.child(textSelector(text, options));
+  }
+
+  /** Elements with the ARIA role (and accessible name, when given), inside this locator's matches */
+  public getByRole(role: string, options?: { name?: string }): Locator {
+    return this.child(roleSelector(role, options));
+  }
+
+  /** One locator per element currently matching, in document order */
   public async all(): Promise<Locator[]> {
     const count = await this.count();
-    return Array.from(
-      { length: count },
-      (_, index) =>
-        new Locator(
-          `(${this.parsedXpath()})[${index + 1}]`,
-          this.biDiConnector,
-          this.contextId,
-        ),
+    const only = this.chain.length === 1 ? this.chain[0]! : undefined;
+    return Array.from({ length: count }, (_, index) =>
+      only?.kind === "xpath"
+        ? // A positional xpath keeps working without a second search for the whole chain
+          new Locator(
+            `(${describeSelector(only, false)})[${index + 1}]`,
+            this.biDiConnector,
+            this.contextId,
+            this.helpers,
+          )
+        : this.child({ kind: "nth", index }),
     );
   }
 
-  /** Reads the element's actionability state in one round trip */
+  /**
+   * Finds the elements the chain matches, in document order. Every step searches inside the previous
+   * step's matches; `max` limits the final result. Nothing is cached: the element that matches "first"
+   * can change between polls, and a removed node stays resolvable in the browser.
+   */
+  private async resolve(max?: number): Promise<ElementHandle[]> {
+    let nodes: ElementHandle[] | undefined;
+    for (const [index, selector] of this.chain.entries()) {
+      if (selector.kind === "nth") {
+        const picked = nodes?.[selector.index];
+        nodes = picked ? [picked] : [];
+      } else {
+        nodes = await this.locateStep(selector, index > 0, nodes, index === this.chain.length - 1 ? max : undefined);
+      }
+      if (nodes.length === 0) return [];
+    }
+    return nodes ?? [];
+  }
+
+  private async resolveOne(): Promise<ElementHandle | null> {
+    return (await this.resolve(1))[0] ?? null;
+  }
+
+  private async locateStep(
+    selector: Selector,
+    scoped: boolean,
+    startNodes: ElementHandle[] | undefined,
+    max: number | undefined,
+  ): Promise<ElementHandle[]> {
+    if (selector.kind === "text" && unsupportedTypes(this.biDiConnector).has("innerText")) {
+      return this.locateByText(selector, startNodes, max);
+    }
+    try {
+      return await this.locateNatively(selector, scoped, startNodes, max);
+    } catch (err) {
+      if (err instanceof BiDiError && err.code === "invalid selector") {
+        throw new InvalidSelectorError(describeSelector(selector, scoped), err.message);
+      }
+      if (err instanceof BiDiError && err.code === "unsupported operation") {
+        if (selector.kind === "text") {
+          // The browser has no innerText locator (Firefox): remember that and search in the page instead
+          unsupportedTypes(this.biDiConnector).add("innerText");
+          return this.locateByText(selector, startNodes, max);
+        }
+        throw new UnsupportedOperationError(
+          `${describeSelector(selector, scoped)}: this kind of locator is not supported by the browser (${err.message})`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  private async locateNatively(
+    selector: Selector,
+    scoped: boolean,
+    startNodes: ElementHandle[] | undefined,
+    max: number | undefined,
+  ): Promise<ElementHandle[]> {
+    const { nodes } = await this.biDiConnector.send("browsingContext.locateNodes", {
+      context: this.contextId,
+      locator: toBiDiLocator(selector, scoped),
+      ...(max !== undefined && { maxNodeCount: max }),
+      // Only the references are needed; skip serializing the matched subtrees
+      serializationOptions: { maxDomDepth: 0 },
+      ...(startNodes && {
+        startNodes: startNodes.map(({ sharedId }) => ({ sharedId })),
+      }),
+    });
+    const found = new Map<string, ElementHandle>();
+    for (const node of nodes) {
+      if (node.sharedId !== undefined && !found.has(node.sharedId)) {
+        found.set(node.sharedId, new ElementHandle(node.sharedId, node.handle));
+      }
+    }
+    return [...found.values()];
+  }
+
+  /** Text search done in the page, for browsers without BiDi's innerText locator */
+  private async locateByText(
+    selector: Extract<Selector, { kind: "text" }>,
+    startNodes: ElementHandle[] | undefined,
+    max: number | undefined,
+  ): Promise<ElementHandle[]> {
+    const found = await this.call<ElementHandle[]>(TEXT_LOCATE, [
+      startNodes ?? [],
+      selector.value,
+      selector.match,
+      selector.ignoreCase,
+    ]);
+    return max === undefined ? found : found.slice(0, max);
+  }
+
+  /** Calls `fn` in the page; a throwing function becomes a "Failed to locate element" error */
+  private async call<T>(fn: string, args: Arg[], sandbox?: string): Promise<T> {
+    try {
+      return await callFunction<T>(this.biDiConnector, this.contextId, fn, args, {
+        awaitPromise: false,
+        ...(sandbox !== undefined && { sandbox }),
+      });
+    } catch (err) {
+      if (err instanceof ScriptError) {
+        throw new Error(
+          `Failed to locate element ${this.selector}. Details: ${err.text}`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Calls a function on the first matching element: `body` sees it as `el`, followed by `params`.
+   * Answers `whenMissing` when nothing matches, or the element disappeared meanwhile.
+   */
+  private async callOnElement<T>(
+    whenMissing: T,
+    body: string,
+    params: string[] = [],
+    args: Arg[] = [],
+  ): Promise<T> {
+    const el = await this.resolveOne();
+    if (!el) return whenMissing;
+    try {
+      return await this.call<T>(
+        `(el${params.map((param) => `, ${param}`).join("")}) => { ${body} }`,
+        [el, ...args],
+      );
+    } catch (err) {
+      if (err instanceof BiDiError && err.code === "no such node") return whenMissing;
+      throw err;
+    }
+  }
+
+  /** Like `callOnElement`, for operations that cannot go on without the element */
+  private async callOnExistingElement<T>(body: string): Promise<T> {
+    const missing = Symbol("missing");
+    const result = await this.callOnElement<T | typeof missing>(missing, body);
+    if (result === missing) {
+      throw new Error(`Failed to locate element ${this.selector}. Details: no element matches`);
+    }
+    return result;
+  }
+
+  /** Reads the element's actionability state: one search, one probe */
   private async probeState(options: ProbeOptions): Promise<ElementState> {
-    return parseElementState(
-      await this.evaluate(elementStateScript(this.elementExpression(), options)),
-    );
+    const el = await this.resolveOne();
+    if (!el) return DETACHED_STATE;
+    try {
+      return parseElementState(await this.callProbe(el, options));
+    } catch (err) {
+      // The document changed between the search and the probe
+      if (err instanceof BiDiError && err.code === "no such node") return DETACHED_STATE;
+      throw err;
+    }
+  }
+
+  private async callProbe(el: ElementHandle, options: ProbeOptions): Promise<unknown> {
+    const args = [el, { ...options }];
+    if (!this.helpers) return this.call(PROBE_ELEMENT, args);
+
+    await this.helpers.ensureInstalled();
+    let result = await this.call(CALL_PROBE, args, HELPER_SANDBOX);
+    if (result === HELPERS_MISSING) {
+      // A document got past the registration (e.g. created while it was being set up): install again once
+      await this.helpers.reinstall();
+      result = await this.call(CALL_PROBE, args, HELPER_SANDBOX);
+      if (result === HELPERS_MISSING) {
+        throw new ScriptError("the samurai helpers are missing in the page after reinstalling", "probeElement");
+      }
+    }
+    return result;
   }
 
   /**
@@ -202,10 +416,77 @@ export default class Locator {
     });
   }
 
+  /**
+   * Sets the files of an `<input type=file>` (an empty list clears them); the browser fires `input` and `change`.
+   * Paths are resolved against the working directory and must exist on the machine the browser runs on.
+   * Waits for the input to be attached and enabled; it need not be visible, file inputs are often hidden behind a label.
+   * @example
+   *  await page.locator("input[@type='file']").setInputFiles("./fixtures/avatar.png");
+   *  await page.locator("input[@type='file']").setInputFiles([]);
+   */
+  public async setInputFiles(files: string | string[], options?: { timeout?: number }): Promise<void> {
+    const paths = resolveFiles(files);
+    for (const file of paths) await assertIsFile(file, "setInputFiles");
+
+    await this.waitForActionable(
+      "setInputFiles",
+      FILE_INPUT_CHECKS,
+      { scroll: false, hitTest: false },
+      options?.timeout === undefined ? undefined : { timeout: options.timeout },
+    );
+
+    const missing = () =>
+      new Error(`Failed to locate element ${this.selector}. Details: no element matches`);
+    const el = await this.resolveOne();
+    if (!el) throw missing();
+    let info: { tag: string; type: string; multiple: boolean };
+    try {
+      info = await this.call(FILE_INPUT_INFO, [el]);
+    } catch (err) {
+      if (err instanceof BiDiError && err.code === "no such node") throw missing();
+      throw err;
+    }
+
+    if (info.tag !== "input" || info.type !== "file") {
+      const found = info.tag === "input" ? `<input type="${info.type || "text"}">` : `<${info.tag}>`;
+      throw new Error(`setInputFiles(): ${this.selector} is not an <input type=file> (found ${found})`);
+    }
+    if (paths.length > 1 && !info.multiple) {
+      throw new Error(`setInputFiles(): ${this.selector} does not accept multiple files`);
+    }
+
+    await this.biDiConnector.send("input.setFiles", {
+      context: this.contextId,
+      element: { sharedId: el.sharedId },
+      files: paths,
+    });
+  }
+
+  /**
+   * Takes a screenshot of just this element, after scrolling it into view and waiting until it is attached and
+   * visible. Returns the image (also written to `options.path`).
+   * @example
+   *  await page.locator("div[@id='chart']").screenshot({ path: "out/chart.png" });
+   */
+  public async screenshot(options: ElementScreenshotOptions & { timeout?: number } = {}): Promise<Buffer> {
+    const { timeout, ...capture } = options;
+    await this.waitForActionable(
+      "screenshot",
+      SCREENSHOT_CHECKS,
+      { scroll: true, hitTest: false },
+      timeout === undefined ? undefined : { timeout },
+    );
+    const el = await this.resolveOne();
+    if (!el) {
+      throw new Error(`Failed to locate element ${this.selector}. Details: no element matches`);
+    }
+    return takeScreenshot(this.biDiConnector, this.contextId, capture, { sharedId: el.sharedId });
+  }
+
   /** Waits until the element is attached, then focuses it */
   public async focus(options?: ActionOptions): Promise<void> {
     await this.waitForActionable("focus", ATTACHED_ONLY, { scroll: false, hitTest: false }, options);
-    await this.evaluate(this.buildExpression("focus()"));
+    await this.callOnExistingElement(`el.focus();`);
   }
 
   /** Waits until the element reaches `state` (default "visible"); does not scroll */
@@ -238,73 +519,62 @@ export default class Locator {
 
   /** Returns the browser's getBoundingClientRect result for the given element */
   public async getBoundingClientRect(): Promise<ElementRectangle> {
-    let expression = this.buildExpression("getBoundingClientRect()");
-    expression = `var rect = ${expression}; (JSON.stringify(rect));`;
-    const rect = await this.evaluate(expression);
-    if (rect.type !== "string")
+    const rect = await this.callOnExistingElement<unknown>(`
+      const { x, y, width, height, top, right, bottom, left } = el.getBoundingClientRect();
+      return { x, y, width, height, top, right, bottom, left };
+    `);
+    if (typeof rect !== "object" || rect === null) {
       throw new Error(
-        `Expected to receive an object but instead received "${rect.type}"`,
+        `Expected to receive an object but instead received "${describeType(rect)}"`,
       );
-
-    return JSON.parse(rect.value);
+    }
+    return rect as ElementRectangle;
   }
 
-  /** Evaluates `body` with `el` bound to the first matching element, or null when nothing matches */
-  private readElement(body: string) {
-    return this.evaluate(`(() => {
-      const el = ${this.elementExpression()};
-      ${body}
-    })()`);
-  }
-
-  private stringOrNull(value: RemoteValue): string | null {
-    if (value.type === "string") return value.value;
-    if (value.type === "null") return null;
-    throw new Error(`Expected a string or null but received "${value.type}"`);
+  private stringOrNull(value: unknown): string | null {
+    if (typeof value === "string") return value;
+    if (value === null) return null;
+    throw new Error(`Expected a string or null but received "${describeType(value)}"`);
   }
 
   /** Whether the element exists, has a non-empty box and is not hidden by CSS */
   public async isVisible(): Promise<boolean> {
-    const result = await this.readElement(`
-      if (!el) return false;
+    const result = await this.callOnElement<unknown>(
+      false,
+      `
       const rect = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       return rect.width > 0 && rect.height > 0 &&
         style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
-    `);
-    return result.type === "boolean" && result.value;
+    `,
+    );
+    return result === true;
   }
 
   /** Trimmed text content, or null when the element is missing */
   public async textContent(): Promise<string | null> {
     return this.stringOrNull(
-      await this.readElement(`return el ? el.textContent.trim() : null;`),
+      await this.callOnElement<unknown>(null, `return el.textContent.trim();`),
     );
   }
 
   /** Value of an input/textarea/select, or null when missing */
   public async inputValue(): Promise<string | null> {
     return this.stringOrNull(
-      await this.readElement(`return el && typeof el.value === "string" ? el.value : null;`),
+      await this.callOnElement<unknown>(null, `return typeof el.value === "string" ? el.value : null;`),
     );
   }
 
   /** Attribute value, or null when the element or attribute is missing */
   public async getAttribute(name: string): Promise<string | null> {
     return this.stringOrNull(
-      await this.readElement(`return el ? el.getAttribute(${JSON.stringify(name)}) : null;`),
+      await this.callOnElement<unknown>(null, `return el.getAttribute(name);`, ["name"], [name]),
     );
   }
 
-  /** Number of elements matching the xpath */
+  /** Number of elements currently matching */
   public async count(): Promise<number> {
-    const result = await this.evaluate(
-      `document.evaluate(${JSON.stringify(`count(${this.parsedXpath()})`)}, document, null, XPathResult.NUMBER_TYPE, null).numberValue`,
-    );
-    if (result.type !== "number") {
-      throw new Error(`Expected a number but received "${result.type}"`);
-    }
-    return result.value;
+    return (await this.resolve()).length;
   }
 
   /** Whether the element exists and is not disabled; does not wait */
@@ -366,7 +636,7 @@ export default class Locator {
 
     await this.wait();
 
-    await this.readElement(`if (el && typeof el.select === "function") el.select();`);
+    await this.callOnElement(undefined, `if (typeof el.select === "function") el.select();`);
 
     await this.biDiConnector.send("input.performActions", {
       context: this.contextId,
@@ -379,4 +649,8 @@ export default class Locator {
       ],
     });
   }
+}
+
+function describeType(value: unknown): string {
+  return value === null ? "null" : typeof value;
 }
