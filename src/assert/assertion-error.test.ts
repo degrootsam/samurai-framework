@@ -16,6 +16,19 @@ test("toReportValue stringifies regexps and keeps other values", () => {
   assert.deepEqual(toReportValue({ a: 1 }), { a: 1 });
 });
 
+test("toReportValue formats values JSON cannot store", () => {
+  assert.equal(toReportValue(4n), "4n");
+  assert.equal(toReportValue(Symbol("id")), "Symbol(id)");
+  assert.equal(typeof toReportValue(() => 1), "string");
+  const circular: Record<string, unknown> = { a: 1 };
+  circular.self = circular;
+  const stored = toReportValue(circular);
+  assert.equal(typeof stored, "string");
+  assert.doesNotThrow(() => JSON.stringify(stored));
+  assert.deepEqual(toReportValue({ a: [1, "x"] }), { a: [1, "x"] });
+  assert.equal(toReportValue(null), null);
+});
+
 test("locator assertion message includes the locator line", () => {
   const err = new AssertionError({
     matcher: "toHaveText",

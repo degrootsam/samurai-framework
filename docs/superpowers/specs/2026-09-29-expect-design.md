@@ -98,7 +98,7 @@ None of these throw when the element is missing; an evaluate exception (e.g. inv
 
 ## Failure reporting
 
-- `TestError.type` becomes `"timeout" | "error" | "assertion"`, with optional `expected?: unknown` and `actual?: unknown`. The reporter stores them as-is (JSON-serialisable values; a RegExp is stored as its `format()` string).
+- `TestError.type` becomes `"timeout" | "error" | "assertion"`, with optional `expected?: unknown` and `actual?: unknown`. The reporter stores them as-is (JSON-serialisable values); a RegExp, bigint, symbol or function, or any value `JSON.stringify` rejects (e.g. a circular object), is stored as its `format()` string.
 - `test-runner.ts`: in the test's `catch`, `err instanceof AssertionError` → `type: "assertion"` with `expected` / `actual`; everything else stays `"error"`.
 
 ### Missing-`await` guard

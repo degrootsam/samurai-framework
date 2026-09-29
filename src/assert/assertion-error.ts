@@ -7,9 +7,26 @@ export function format(value: unknown): string {
   return inspect(value, { depth: 2 });
 }
 
-/** Converts a value into something JSON can store in the report */
+/**
+ * Converts a value into something JSON can store in the report: regexps, bigints,
+ * symbols, functions and anything else JSON.stringify rejects (e.g. circular objects)
+ * become their `format()` string; other values are kept as-is.
+ */
 export function toReportValue(value: unknown): unknown {
-  return value instanceof RegExp ? format(value) : value;
+  if (
+    value instanceof RegExp ||
+    typeof value === "bigint" ||
+    typeof value === "symbol" ||
+    typeof value === "function"
+  ) {
+    return format(value);
+  }
+  try {
+    JSON.stringify(value);
+    return value;
+  } catch {
+    return format(value);
+  }
 }
 
 export interface AssertionErrorDetails {
