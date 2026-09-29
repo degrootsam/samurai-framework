@@ -7,13 +7,26 @@ import { findBrowser } from "./browser-finder.js";
 import path from "node:path";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import Page from "./page.js";
+import { BrowserContext, type ContextHost } from "./browser-context.js";
+import type { UserPromptHandler } from "../types/bidi-modules/session.js";
+import { validateEmulation, type EmulationOptions } from "./emulation.js";
+import { prepareDownloadsDir, removeIfEmpty } from "./downloads-dir.js";
 import type { BiDiCommands } from "../types/bidi.js";
 import logger from "../logger/index.js";
+import { readConfig } from "../config/config.js";
 import type {
   CookieFilter,
   PartialCookie,
   PartitionDescriptor,
 } from "../types/bidi-modules/storage.js";
+
+/**
+ * Sent with session.new. With "ignore" the browser leaves a JavaScript dialog open and reports it
+ * (`browsingContext.userPromptOpened`), so the framework decides how to answer instead of the browser.
+ */
+export const SESSION_CAPABILITIES = {
+  alwaysMatch: { unhandledPromptBehavior: { default: "ignore" } },
+};
 
 /** Time (ms) to wait for Firefox to answer browser.close before killing the process */
 const BROWSER_CLOSE_GRACE = 2000;
@@ -122,19 +135,41 @@ export interface BrowserLaunchOptions {
   headless: boolean;
 }
 
+/** Options of `browser.newContext()` */
+export interface ContextOptions extends EmulationOptions {
+  acceptInsecureCerts?: boolean;
+  /** How this context's pages answer JavaScript dialogs; the session default is to leave them for the framework */
+  unhandledPromptBehavior?: UserPromptHandler;
+}
+
 export class Browser {
   private browserProc: ChildProcessWithoutNullStreams;
   private biDiConnector: BiDiConnector;
+  private userContexts = new Map<string, BrowserContext>();
+  private host: ContextHost;
+  /** The browser's own context, the one `Browser.launch`'s page lives in */
+  public readonly defaultContext: BrowserContext;
+  /** Where downloads are saved; undefined when the browser could not be told (it then uses its own folder) */
+  public readonly downloadsDir: string | undefined;
 
   constructor({
     browserProc,
     biDiConnector,
+    downloadsDir,
   }: {
     browserProc: ChildProcessWithoutNullStreams;
     biDiConnector: BiDiConnector;
+    downloadsDir?: string | undefined;
   }) {
     this.browserProc = browserProc;
     this.biDiConnector = biDiConnector;
+    this.downloadsDir = downloadsDir;
+    this.host = {
+      connector: biDiConnector,
+      newPage: (options) => this.newPage(options),
+      forget: (context) => void this.userContexts.delete(context.id),
+    };
+    this.defaultContext = new BrowserContext(this.host, "default", true);
   }
 
   static async launch(
@@ -200,24 +235,22 @@ export class Browser {
         try {
           let url = urlMatch[0] + browserWsPath[browserName];
           logger.verbose("Websocket URL match: %s", url);
-          const biDiConnector = await BiDiConnector.connect(url);
+          const biDiConnector = await BiDiConnector.connect(url, {
+            commandTimeout: await readCommandTimeout(),
+          });
           logger.verbose("Starting new session");
           const status = await biDiConnector.send("session.status", {});
           logger.verbose("Session status", status);
           await biDiConnector.send("session.new", {
-            capabilities: {},
+            capabilities: SESSION_CAPABILITIES,
           });
           logger.verbose("Session started successfully");
 
-          const sessionEvents = ["browsingContext.load"];
-          logger.verbose("Subscribing to session events");
-          logger.debug("Session events: ", { sessionEvents });
-          await biDiConnector.send("session.subscribe", {
-            events: sessionEvents,
-          });
-          logger.verbose("Successfully subscribed to session events");
-
-          const browser = new Browser({ browserProc, biDiConnector });
+          const downloadsDir = await prepareDownloadsDir(
+            biDiConnector,
+            (await readOptionalConfig("downloadsDir")) ?? "result/downloads",
+          );
+          const browser = new Browser({ browserProc, biDiConnector, downloadsDir });
           logger.verbose("Requesting current browser tree");
           const browserTree = await biDiConnector.send(
             "browsingContext.getTree",
@@ -232,9 +265,17 @@ export class Browser {
 
           if (pageContext) {
             page = new Page(biDiConnector, pageContext.context);
+            browser.defaultContext.register(page);
           } else {
             page = await browser.newPage({ type: "tab" });
           }
+          await page.applyDefaultViewport();
+          // Requests made before tracking starts are invisible to it, and a dialog nobody watches would hang the page
+          await page.startNetworkTracking();
+          await page.startDialogHandling();
+          await page.startLogging();
+          await page.startDownloadTracking();
+          await page.startFileChooserTracking();
           browserProc.off("close", onUnexpectedClose);
           signal?.removeEventListener("abort", onAbort);
           resolve({
@@ -252,11 +293,14 @@ export class Browser {
   public async close() {
     if (this.browserProc.exitCode !== null || this.browserProc.signalCode) {
       this.biDiConnector.kill();
+      removeIfEmpty(this.downloadsDir);
       return;
     }
     const exited = new Promise((resolve) =>
       this.browserProc.once("exit", resolve),
     );
+    // User contexts outlive the browser in its profile unless they are removed
+    await Promise.allSettled([...this.userContexts.values()].map((context) => context.close()));
     try {
       // Firefox may exit without answering; a lost reply must not hold up teardown
       await Promise.race([
@@ -269,6 +313,8 @@ export class Browser {
     this.biDiConnector.kill();
     this.browserProc.kill();
     await exited;
+    // A folder nothing was downloaded into would only pile up
+    removeIfEmpty(this.downloadsDir);
   }
 
   /** Alias of close() */
@@ -289,8 +335,62 @@ export class Browser {
         userContext,
       },
     );
-    console.log({ createBrowserContext });
-    return new Page(this.biDiConnector, "");
+    logger.debug("Created browsing context", { createBrowserContext });
+    const page = new Page(this.biDiConnector, createBrowserContext.context);
+    this.contextFor(userContext).register(page);
+    await page.applyDefaultViewport();
+    await page.startNetworkTracking();
+    await page.startDialogHandling();
+    await page.startLogging();
+    await page.startDownloadTracking();
+    await page.startFileChooserTracking();
+    return page;
+  }
+
+  /**
+   * Creates an isolated context: its own cookies, storage and cache. `browser.close()` removes the contexts
+   * that are still open, as Firefox would otherwise keep them in its profile.
+   * @example
+   *  const alice = await browser.newContext();
+   *  const page = await alice.newPage();
+   */
+  public async newContext(options: ContextOptions = {}): Promise<BrowserContext> {
+    const { acceptInsecureCerts, unhandledPromptBehavior, ...emulation } = options;
+    // A wrong value must not leave a context behind, so it is refused before one is created
+    validateEmulation(emulation);
+    const { userContext } = await this.biDiConnector.send("browser.createUserContext", {
+      ...(acceptInsecureCerts !== undefined && { acceptInsecureCerts }),
+      ...(unhandledPromptBehavior && { unhandledPromptBehavior }),
+    });
+    const context = new BrowserContext(this.host, userContext, false);
+    this.userContexts.set(userContext, context);
+    if (Object.keys(emulation).length > 0) {
+      try {
+        await context.emulate(emulation);
+      } catch (err) {
+        // Firefox keeps a context in its profile until it is removed
+        await context.close().catch((closeErr) => logger.debug("Could not remove a context whose emulation failed", { closeErr }));
+        throw err;
+      }
+    }
+    return context;
+  }
+
+  /** The default context, then the contexts this browser created that are still open */
+  public contexts(): BrowserContext[] {
+    return [this.defaultContext, ...this.userContexts.values()];
+  }
+
+  private contextFor(userContext: string | undefined): BrowserContext {
+    if (userContext === undefined || userContext === "default") return this.defaultContext;
+    return this.userContexts.get(userContext) ?? this.adopt(userContext);
+  }
+
+  /** A user context this browser did not create (Firefox keeps them in its profile): usable, never closed by `close()` */
+  private adopt(userContext: string): BrowserContext {
+    const context = new BrowserContext(this.host, userContext, false);
+    this.userContexts.set(userContext, context);
+    return context;
   }
 
   public async getCookie(filter: CookieFilter, partition: PartitionDescriptor) {
@@ -308,6 +408,26 @@ export class Browser {
       partition,
       cookie,
     });
+  }
+}
+
+/** A config value, or undefined when it is not set or the config cannot be read */
+async function readOptionalConfig<K extends "downloadsDir">(key: K) {
+  try {
+    return await readConfig(key);
+  } catch (err) {
+    logger.debug("Could not read %s from config, using the default", key, { err });
+    return undefined;
+  }
+}
+
+/** The configured BiDi command timeout; a missing or unreadable config falls back to the connector default */
+async function readCommandTimeout() {
+  try {
+    return (await readConfig("bidi"))?.commandTimeout;
+  } catch (err) {
+    logger.debug("Could not read bidi config, using defaults", { err });
+    return undefined;
   }
 }
 
