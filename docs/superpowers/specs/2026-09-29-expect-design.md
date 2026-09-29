@@ -103,10 +103,11 @@ None of these throw when the element is missing; an evaluate exception (e.g. inv
 
 ### Missing-`await` guard
 
-- Every running locator assertion is added to a module-level `pendingAssertions` set in `expect.ts` and removed when it settles.
-- `expect.ts` exports `takePendingAssertions(): string[]`, which returns the matcher names of assertions still running and clears the set.
+- Every locator assertion is added to a module-level `pendingAssertions` registry in `expect.ts`. It is removed as soon as anyone subscribes to it (`await`, `.then`, `.catch`, `.finally`, `Promise.all`, `assert.rejects`) or when it passes. An un-awaited assertion that fails stays in the registry: a failure nobody observed is the same silent-pass trap as one still running.
+- To detect `await`, matchers return a `Promise` subclass (still typed `Promise<void>`) whose overridden `then` removes it from the registry; `await` calls that `then` because the constructor is not the native `Promise`. Promises derived from it are plain promises.
+- `expect.ts` exports `takePendingAssertions(): string[]`, which returns the matcher names of un-awaited assertions that are still running or already failed, and clears the registry.
 - After the test function resolves, the runner calls it; if the result is non-empty, the test fails with `type: "assertion"` and message `expect(locator).<matcher>() was not awaited`.
-- The pending promise itself gets a no-op `.catch` after the check so a late rejection is not an unhandled rejection.
+- Each assertion gets an internal rejection handler (which does not count as awaiting), so an un-awaited failure is never an unhandled rejection.
 
 ## Testing
 
@@ -119,7 +120,7 @@ None of these throw when the element is missing; an evaluate exception (e.g. inv
     - rethrows on an evaluate exception without retrying,
     - `.not` variants,
     - per-call `timeout` overrides the default.
-  - Missing-`await` guard: an un-awaited locator assertion shows up in `takePendingAssertions()`.
+  - Missing-`await` guard: an un-awaited locator assertion shows up in `takePendingAssertions()`, also when it already failed; an awaited one never does, pass or fail.
 - End-to-end: `src/tests/index.spec.ts` asserts `toHaveValue` on the filled fields and `toBeVisible` on the name field; verified with `bun run dev` against Firefox.
 - TDD: write each test before its implementation.
 
