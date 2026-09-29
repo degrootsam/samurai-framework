@@ -9,25 +9,22 @@ import type {
 } from "../types/bidi-modules/input.js";
 import type { RemoteValue } from "../types/bidi-modules/script.js";
 
-export interface LocatorOptions {
-  useMultiple: boolean;
-}
+/** Unicode code point WebDriver uses for the Backspace key */
+const BACKSPACE = "";
+
 export default class Locator {
   private biDiConnector: BiDiConnector;
   private contextId: BrowsingContext;
   private xpath: string;
-  private useMultiple: boolean | undefined = false;
 
   constructor(
     xpath: string,
     biDiConnector: BiDiConnector,
     contextId: BrowsingContext,
-    options?: LocatorOptions,
   ) {
     this.xpath = xpath;
     this.biDiConnector = biDiConnector;
     this.contextId = contextId;
-    this.useMultiple = options?.useMultiple;
   }
 
   private async evaluate(expression: string): Promise<RemoteValue> {
@@ -48,10 +45,9 @@ export default class Locator {
     return locatorResult.result;
   }
 
-  /** Normalises the xpath: always starts with `//` and uses double quotes */
+  /** Normalises the xpath: relative xpaths get a leading `//`; absolute, grouped and context paths are kept */
   private parsedXpath() {
-    const xpath = this.xpath.startsWith("//") ? this.xpath : "//" + this.xpath;
-    return xpath.replaceAll("'", '"');
+    return /^[/(.]/.test(this.xpath) ? this.xpath : "//" + this.xpath;
   }
 
   /** The normalised xpath this locator evaluates */
@@ -59,34 +55,28 @@ export default class Locator {
     return this.parsedXpath();
   }
 
-  /** Builds the expression to evaluate on */
-  private buildExpression(action?: string) {
-    const parsedXpath = this.parsedXpath();
-
-    const xpathResultType = this.useMultiple
-      ? "XPathResult.ORDERED_NODE_ITERATOR_TYPE"
-      : "XPathResult.FIRST_ORDERED_NODE_TYPE";
-
-    return [
-      `document.evaluate(
-        '${parsedXpath}', 
-        document,  
-        null,
-        ${xpathResultType},
-        null
-      )`,
-      !this.useMultiple && "singleNodeValue",
-      action,
-    ]
-      .filter(Boolean)
-      .join(".");
+  /** JS expression for the first element matching the xpath, or null. The xpath is embedded as a JSON string so any quotes survive */
+  private elementExpression() {
+    return `document.evaluate(${JSON.stringify(this.parsedXpath())}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue`;
   }
 
-  public async all() {
-    if (this.useMultiple) return this;
-    return new Locator(this.xpath, this.biDiConnector, this.contextId, {
-      useMultiple: true,
-    });
+  /** Builds the expression calling `action` on the first matching element */
+  private buildExpression(action: string) {
+    return `${this.elementExpression()}.${action}`;
+  }
+
+  /** One locator per element currently matching the xpath, in document order */
+  public async all(): Promise<Locator[]> {
+    const count = await this.count();
+    return Array.from(
+      { length: count },
+      (_, index) =>
+        new Locator(
+          `(${this.parsedXpath()})[${index + 1}]`,
+          this.biDiConnector,
+          this.contextId,
+        ),
+    );
   }
 
   /** Simulate a 'Click' event on the element */
@@ -149,13 +139,7 @@ export default class Locator {
   /** Evaluates `body` with `el` bound to the first matching element, or null when nothing matches */
   private readElement(body: string) {
     return this.evaluate(`(() => {
-      const el = document.evaluate(
-        '${this.parsedXpath()}',
-        document,
-        null,
-        XPathResult.FIRST_ORDERED_NODE_TYPE,
-        null
-      ).singleNodeValue;
+      const el = ${this.elementExpression()};
       ${body}
     })()`);
   }
@@ -202,7 +186,7 @@ export default class Locator {
   /** Number of elements matching the xpath */
   public async count(): Promise<number> {
     const result = await this.evaluate(
-      `document.evaluate('count(${this.parsedXpath()})', document, null, XPathResult.NUMBER_TYPE, null).numberValue`,
+      `document.evaluate(${JSON.stringify(`count(${this.parsedXpath()})`)}, document, null, XPathResult.NUMBER_TYPE, null).numberValue`,
     );
     if (result.type !== "number") {
       throw new Error(`Expected a number but received "${result.type}"`);
@@ -229,12 +213,14 @@ export default class Locator {
     });
   }
 
-  /** Simulates keystrokes on any form of input or textarea element*/
+  /** Replaces the value of an input or textarea by typing `value`; an empty string clears it */
   public async fill(value: string) {
     const rect = await this.getBoundingClientRect();
 
+    // Typing over the selected existing value replaces it; Backspace clears it for an empty value
+    const keys = value === "" ? BACKSPACE : value;
     const actions: Array<KeyDownAction | KeyUpAction> = Array.from(
-      value,
+      keys,
     ).flatMap((char) => [
       {
         type: "keyDown",
@@ -249,6 +235,8 @@ export default class Locator {
     await this.clickRect(rect);
 
     await this.wait();
+
+    await this.readElement(`if (el && typeof el.select === "function") el.select();`);
 
     await this.biDiConnector.send("input.performActions", {
       context: this.contextId,
