@@ -179,3 +179,38 @@ test("assertions handled with await, .then, .finally and Promise.all are not rep
   await assert.rejects(Promise.all([pass(), fail()]), AssertionError);
   assert.deepEqual(takePendingAssertions(), []);
 });
+
+const hang: StubResponse = { hang: true };
+/** Fails a regression instead of hanging the suite */
+const bounded = { timeout: 3000 };
+
+test("a read that never answers fails at the timeout with the last received value", bounded, async () => {
+  const { locator, expressions } = locatorWith("h1", text("Home"), hang);
+  const start = Date.now();
+  await assert.rejects(expect(locator).toHaveText("Contact", { timeout: 200 }), (err) => {
+    assert.ok(err instanceof AssertionError);
+    assert.equal(err.matcher, "toHaveText");
+    assert.equal(err.expected, "Contact");
+    assert.equal(err.actual, "Home");
+    assert.equal(err.locator, "//h1");
+    return true;
+  });
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed >= 200 && elapsed < 500, `elapsed ${elapsed}ms`);
+  assert.equal(expressions.length, 2);
+});
+
+test("a first read that never answers fails at the timeout with a plain error", bounded, async () => {
+  const { locator } = locatorWith("h1", hang);
+  const start = Date.now();
+  await assert.rejects(expect(locator).not.toBeVisible({ timeout: 200 }), (err) => {
+    assert.ok(!(err instanceof AssertionError));
+    assert.equal(
+      (err as Error).message,
+      "expect(locator).not.toBeVisible: could not read //h1 within 200ms",
+    );
+    return true;
+  });
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed >= 200 && elapsed < 500, `elapsed ${elapsed}ms`);
+});

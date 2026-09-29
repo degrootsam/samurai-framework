@@ -1,12 +1,12 @@
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { RemoteValue } from "../types/bidi-modules/script.js";
 
-export type StubResponse = RemoteValue | { exception: string };
+export type StubResponse = RemoteValue | { exception: string } | { hang: true };
 
 /**
  * Fake BiDiConnector for unit tests. Every `script.evaluate` answers with the next
- * queued response; the last response repeats. `input.performActions` resolves empty.
- * Evaluated expressions and all sent commands are recorded.
+ * queued response; the last response repeats. `{ hang: true }` never answers.
+ * `input.performActions` resolves empty. Evaluated expressions and all sent commands are recorded.
  */
 export function stubConnector(...responses: StubResponse[]) {
   if (responses.length === 0) {
@@ -28,6 +28,9 @@ export function stubConnector(...responses: StubResponse[]) {
       }
       expressions.push(params.expression);
       const response = responses[Math.min(calls++, responses.length - 1)]!;
+      if ("hang" in response) {
+        return new Promise(() => {});
+      }
       if ("exception" in response) {
         return {
           type: "exception",

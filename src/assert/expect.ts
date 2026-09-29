@@ -181,6 +181,28 @@ export class ValueAssertions<T> {
   }
 }
 
+const DEADLINE = Symbol("deadline");
+
+/**
+ * Races `read()` against the time left until the deadline. Resolves `{ actual }` when the
+ * read wins, DEADLINE when the time runs out first; read errors reject as-is.
+ */
+function readBefore<V>(
+  read: () => Promise<V>,
+  remaining: number,
+): Promise<{ actual: V } | typeof DEADLINE> {
+  const reading = read();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<typeof DEADLINE>((resolve) => {
+    timer = setTimeout(() => resolve(DEADLINE), Math.max(remaining, 0));
+  });
+  // A read that loses the race may still fail later; nobody is waiting for it any more
+  reading.catch(() => {});
+  return Promise.race([reading.then((actual) => ({ actual })), expired]).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
 export class LocatorAssertions {
   private readonly locator: Locator;
   private readonly negated: boolean;
@@ -210,17 +232,29 @@ export class LocatorAssertions {
       (async () => {
         const timeout = await resolveTimeout(options);
         const start = Date.now();
+        const deadline = start + timeout;
+        let last: { actual: V } | undefined;
+        const fail = (actual: V) =>
+          new AssertionError({
+            matcher: name,
+            expected,
+            actual,
+            locator: this.locator.selector,
+          });
         while (true) {
-          const actual = await read();
-          if (check(actual) !== this.negated) return;
-          if (Date.now() - start >= timeout) {
-            throw new AssertionError({
-              matcher: name,
-              expected,
-              actual,
-              locator: this.locator.selector,
-            });
+          // timeout 0 keeps the single read un-raced so it always completes
+          const result =
+            timeout > 0 ? await readBefore(read, deadline - Date.now()) : { actual: await read() };
+          if (result === DEADLINE) {
+            if (last) throw fail(last.actual);
+            throw new Error(
+              `expect(locator).${name}: could not read ${this.locator.selector} within ${timeout}ms`,
+            );
           }
+          last = result;
+          const { actual } = result;
+          if (check(actual) !== this.negated) return;
+          if (Date.now() - start >= timeout) throw fail(actual);
           await sleep(POLL_INTERVAL);
         }
       })(),

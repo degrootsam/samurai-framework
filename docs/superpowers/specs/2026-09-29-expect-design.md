@@ -87,11 +87,12 @@ None of these throw when the element is missing; an evaluate exception (e.g. inv
 ## Retry behaviour (locator matchers only)
 
 - Internal `poll(read, check, timeout)`:
-  1. `actual = await read()`
+  1. `actual = await read()`; with `timeout > 0` the read is raced against the time left until the deadline (start + timeout), and the race timer is cleared when the read wins.
   2. If `check(actual) !== negated` → resolve.
   3. If elapsed ≥ timeout → throw `AssertionError` with the last `actual`.
   4. Otherwise wait 100 ms and repeat.
-- A matcher always reads at least once, even with `timeout: 0`.
+- The timeout is a hard bound: if the deadline expires while a read is still pending, the matcher throws `AssertionError` with the last completed `actual`, or, when no read ever completed, a plain `Error`: `expect(locator).<matcher>: could not read <selector> within <timeout>ms`.
+- A matcher always reads at least once, even with `timeout: 0`; with `timeout: 0` that single read is awaited without a race.
 - Errors thrown by `read()` (invalid XPath, BiDi socket closed after the browser was killed) are rethrown immediately, not retried.
 - Timeout resolution: per-call `{ timeout }` → config `expect.timeout` → default `5000` ms.
 - `SamuraiTestConfig` gains `expect?: { timeout?: number }`.
