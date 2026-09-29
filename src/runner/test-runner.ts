@@ -12,6 +12,8 @@ import type { SamuraiGroup } from "../types/config.js";
 import Page from "../browser/page.js";
 import { takePendingAssertions } from "../assert/expect.js";
 import { toTestError } from "./test-error.js";
+import { judgePageLogs } from "./page-logs-report.js";
+import type { LogsConfig } from "./page-logs-report.js";
 
 const registeredTestcases: RegisteredTestCase[] = [];
 
@@ -85,6 +87,7 @@ export default class TestRunner {
     const timeout = Number(await readConfig("timeout"));
 
     let browser: Browser | undefined;
+    let page: Page | undefined;
     let timeoutTimer: NodeJS.Timeout | undefined;
     const timeoutController = new AbortController();
 
@@ -113,24 +116,30 @@ export default class TestRunner {
             timeoutController.signal,
           );
           browser = launched.browser;
+          page = launched.page;
           await test?.function(launched.page, launched.browser);
           // Already reported as timed out
           if (timeoutController.signal.aborted) return resolve();
           const unawaited = takePendingAssertions();
           if (unawaited.length > 0) {
-            reporter.onTestEnd(test, {
-              message: unawaited
-                .map((matcher) => `expect(locator).${matcher}() was not awaited`)
-                .join("\n"),
-              type: "assertion",
-            });
+            reporter.onTestEnd(
+              test,
+              {
+                message: unawaited
+                  .map((matcher) => `expect(locator).${matcher}() was not awaited`)
+                  .join("\n"),
+                type: "assertion",
+              },
+              await judgeLogs(page, true),
+            );
             return resolve();
           }
-          reporter.onTestEnd(test);
+          const verdict = await judgeLogs(page, false);
+          reporter.onTestEnd(test, verdict.error, verdict);
           resolve();
         } catch (err) {
           if (timeoutController.signal.aborted) return resolve();
-          reporter.onTestEnd(test, toTestError(err));
+          reporter.onTestEnd(test, toTestError(err), await judgeLogs(page, true));
           resolve();
         }
       }),
@@ -141,6 +150,32 @@ export default class TestRunner {
     logger.verbose("Closing browser for test: %s", test.name);
     await browser?.close();
   }
+}
+
+/** Reads the page's log once the test body is done and applies config `logs` (see judgePageLogs) */
+async function judgeLogs(page: Page | undefined, testFailed: boolean) {
+  if (!page) return {};
+  try {
+    // Events and command replies share one ordered connection: after this, everything logged so far is in
+    await page.syncLogs();
+  } catch (err) {
+    logger.debug("Could not sync the page's logs", { err });
+  }
+  let config: LogsConfig | undefined;
+  try {
+    config = await readConfig("logs");
+  } catch (err) {
+    logger.debug("Could not read logs config, using defaults", { err });
+  }
+  return judgePageLogs({
+    config,
+    entries: page.getLogs(),
+    errors: page.pageErrors(),
+    dropped: page.logsDropped,
+    testFailed,
+    allowPageErrors: page.pageErrorsAllowed,
+    routeErrors: page.routeErrors(),
+  });
 }
 
 export function test(
