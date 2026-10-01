@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { format } from "winston";
 
 export const MASK = "••••";
@@ -28,10 +29,16 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** A value plus its JSON-escaped, inspect-escaped and percent-encoded spellings */
+function variants(value: string): string[] {
+  const forms = [value, JSON.stringify(value).slice(1, -1), inspect(value).slice(1, -1), encodeURIComponent(value)];
+  return forms.filter((form) => form !== "");
+}
+
 function rebuild(): void {
   // Longest first, so a secret that contains another one is hidden whole
-  const values = [...new Set(secrets.values())].sort((a, b) => b.length - a.length);
-  patterns = values.map((value) =>
+  const forms = [...new Set([...secrets.values()].flatMap(variants))].sort((a, b) => b.length - a.length);
+  patterns = forms.map((value) =>
     isShortSecret(value)
       ? new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(value)}(?![\\p{L}\\p{N}])`, "gu")
       : new RegExp(escapeRegExp(value), "gu"),
@@ -44,24 +51,37 @@ export function maskText(text: string): string {
   return masked;
 }
 
-/** A copy of `value` with every string in it (plain objects and arrays, any depth) masked */
+/** A copy of `value` with every string in it masked, following JSON.stringify semantics for objects */
 export function maskDeep<T>(value: T): T {
   if (patterns.length === 0) return value;
-  return walk(value) as T;
+  return walk(value, new WeakSet()) as T;
 }
 
-function walk(value: unknown): unknown {
+function walk(value: unknown, path: WeakSet<object>): unknown {
   if (typeof value === "string") return maskText(value);
-  if (Array.isArray(value)) return value.map(walk);
-  if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, walk(item)]));
+  if (value === null || typeof value !== "object") return value;
+  if (path.has(value)) return "[Circular]";
+  path.add(value);
+  try {
+    if (Array.isArray(value)) return value.map((item) => walk(item, path));
+    const toJSON = (value as { toJSON?: unknown }).toJSON;
+    if (typeof toJSON === "function") return walk(toJSON.call(value), path);
+    const entries: Array<[string, unknown]> = Object.entries(value);
+    if (value instanceof Error) {
+      const own = new Set(entries.map(([key]) => key));
+      for (const key of ["name", "message", "stack"] as const) {
+        if (!own.has(key)) entries.unshift([key, value[key]]);
+      }
+    }
+    return Object.fromEntries(entries.map(([key, item]) => [key, walk(item, path)]));
+  } finally {
+    path.delete(value);
   }
-  return value;
 }
 
 /** Winston format that masks every string field of a log entry (message and metadata) */
 export const maskFormat = format((info) => {
   if (patterns.length === 0) return info;
-  for (const key of Object.keys(info)) info[key] = walk(info[key]);
+  for (const key of Object.keys(info)) info[key] = walk(info[key], new WeakSet());
   return info;
 });
