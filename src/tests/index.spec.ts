@@ -1,8 +1,7 @@
-import { expect } from "../assert/expect.js";
-import { test } from "../runner/test-runner.js";
+import { expect, test } from "../api.js";
 
-test("My first test", async (page) => {
-  await page.navigateTo("https://itmetsam.nl");
+test("My first test", async ({ page }) => {
+  await page.goto("https://itmetsam.nl");
   const link = page.locator("a[text()='Start een project']");
   await link.click();
   await page.waitForNetworkIdle();

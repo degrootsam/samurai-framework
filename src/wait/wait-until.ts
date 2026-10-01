@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { readConfig } from "../config/config.js";
+import { peekRunSettings } from "../config/run-settings.js";
 
 const DEFAULT_TIMEOUT = 5000;
 const DEFAULT_INTERVAL = 100;
@@ -24,9 +25,11 @@ export class WaitTimeoutError<T> extends Error {
   }
 }
 
-/** Per-call timeout, else config `expect.timeout`, else 5000 */
+/** Per-call timeout, else the active run's expect timeout, else config `expect.timeout`, else 5000 */
 export async function resolveTimeout(perCall?: number): Promise<number> {
   if (perCall !== undefined) return perCall;
+  const run = peekRunSettings();
+  if (run) return run.expectTimeout;
   return (await readConfig("expect"))?.timeout ?? DEFAULT_TIMEOUT;
 }
 
