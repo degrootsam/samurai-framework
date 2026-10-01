@@ -5,6 +5,7 @@ The package installs a `samurai` command. Run it in the project folder, the one 
 ```sh
 samurai init [folder]     # scaffold a project
 samurai list              # list the tests without running them
+samurai record <spec>     # open a browser and record what you do into a spec
 samurai run               # run the tests (the default: `samurai` alone does the same)
 ```
 
@@ -71,6 +72,45 @@ stdout carries only these lines; framework logging goes to stderr. That makes th
 ## `samurai list`
 
 Imports the specs and prints the tests that `--env`, `--file` and `--grep` select, without launching a browser. `--json` prints an array of `{ "name", "file" }`.
+
+## `samurai record <spec>`
+
+Opens a browser window on your environment's `baseURL`, and writes what you do into a spec file, step by step, as you do it. Stop with Ctrl+C or by closing the window.
+
+```sh
+samurai record tests/login.spec.ts --new "signs in" --env staging
+```
+
+```text
+  + await page.goto("/login");
+Recording. Alt+click an element to assert on it. Press Ctrl+C or close the window to stop.
+  + await page.getByRole("textbox", { name: "Email" }).withFallbacks(page.getByLabel("Email"), page.getByCss("#email")).fill("sam@example.com");
+  ~ await page.getByRole("textbox", { name: "Email" }).withFallbacks(...).fill("sam@example.com!");
+  + await page.getByRole("button", { name: "Sign in" }).click();
+  + await page.waitForNetworkIdle();
+  + await expect(page.getByTestId("welcome")).toHaveText("Welcome back");
+
+Recorded 5 steps into "signs in" in /work/shop/tests/login.spec.ts
+```
+
+`+` is a new step, `~` a step that was rewritten (typing grows one `fill`). What each action becomes, and what isn't recorded yet, is in [Steps and the recorder](recorder.md).
+
+| Option                 | Meaning                                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `--new <title>`        | Add a test with this title to the file, creating the file when it doesn't exist                                                    |
+| `--test <name\|index>` | Record into this test: its full name, a part of it that is unique, or its index in the file. Not needed when the file has one test |
+| `--at <n>`             | Insert from step `n`. Default: after the test's last step                                                                          |
+| `--url <url>`          | The page to start on. Default: the environment's `baseURL`; without one the window starts blank                                    |
+| `--env <name>`         | Environment (base URL, and where secrets are read from)                                                                            |
+| `--port <n>`           | The browser's debugging port (default 9223)                                                                                        |
+| `--json`               | One JSON event per line (`{ "op": "insert" \| "replace", "index", "step" }`) instead of the readable lines                         |
+
+Details:
+
+- The file is rewritten after every step, as a minimal edit: the rest of the file, comments included, is untouched. Without `--new`, the spec must already exist.
+- A password field is recorded as `secrets.<FIELD_NAME>`, and the value never leaves the page. The command ends by telling you which `SAMURAI_SECRET_*` to set.
+- With `--at n` the window starts on `--url` or the base URL, **not** where steps `0…n-1` would leave it. Get the page to that state yourself before you act.
+- Recording needs a window, so `--headless` has no effect here.
 
 ## `samurai init [folder]`
 
