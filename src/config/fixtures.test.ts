@@ -73,6 +73,21 @@ describe("loadSecrets", () => {
     assert.equal(secrets.has("PATH"), false);
   });
 
+  test("an empty value counts as unset and does not override a file value", () => {
+    const empty = mkdtempSync(path.join(tmpdir(), "samurai-secrets-empty-"));
+    try {
+      writeFileSync(path.join(empty, ".env.staging"), "SAMURAI_SECRET_A=\nSAMURAI_SECRET_B=fromfile\nSAMURAI_SECRET_C=\n");
+      const secrets = loadSecrets("staging", {
+        cwd: empty,
+        env: { SAMURAI_SECRET_B: "", SAMURAI_SECRET_C: "fromenv" } as unknown as NodeJS.ProcessEnv,
+      });
+      assert.deepEqual(Object.fromEntries(secrets), { B: "fromfile", C: "fromenv" });
+      assert.equal(secrets.has("A"), false);
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
+  });
+
   test("a missing file is fine", () => {
     assert.deepEqual(Object.fromEntries(loadSecrets("dev", { cwd: dir, env: { SAMURAI_SECRET_A: "1" } as unknown as NodeJS.ProcessEnv })), { A: "1" });
   });
