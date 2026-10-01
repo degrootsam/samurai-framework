@@ -1,7 +1,7 @@
 # Test API alignment — design
 
 Date: 2026-10-01
-Status: approved design, not implemented
+Status: implemented
 Roadmap: [recorder-roadmap.md](../recorder-roadmap.md), item 1
 Depends on: nothing new (builds on the existing runner, `Page` and config)
 

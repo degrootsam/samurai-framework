@@ -15,7 +15,7 @@ Each item gets its own spec in `docs/superpowers/specs/` and its own plan. Order
 ## Todo
 
 ### Phase 1 — framework prerequisites
-- [ ] **1. Test API alignment** — `describe`, `test(name, async ({ page, browser, env, secrets }) => …)` fixtures, `page.goto` resolving relative URLs against the environment's `baseURL`; environment selection, per-environment variables and timeout precedence (run > environment > project); a secrets provider interface (env-var/`.env` provider now, keychain/vault plugged in by the Electron app later) with masking in logs and reports.
+- [x] **1. Test API alignment** — `describe`, `test(name, async ({ page, browser, env, secrets }) => …)` fixtures, `page.goto` resolving relative URLs against the environment's `baseURL`; environment selection, per-environment variables and timeout precedence (run > environment > project); a secrets provider interface (env-var/`.env` provider now, keychain/vault plugged in by the Electron app later) with masking in logs and reports. — [spec](specs/2026-10-01-test-api-alignment-design.md)
 - [ ] **2. Semantic locators** — `getByRole`, `getByLabel`, `getByTestId`, `getByText`, plus an ordered fallback-locator list per step (input for self-healing).
 
 ### Phase 2 — recorder core
