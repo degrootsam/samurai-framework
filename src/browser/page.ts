@@ -2,6 +2,7 @@ import Locator, { type TextOptions } from "../locator/locator.js";
 import { cssSelector, roleSelector, textSelector } from "../locator/selector.js";
 import EventEmitter from "node:events";
 import { readConfig } from "../config/config.js";
+import { peekRunSettings } from "../config/run-settings.js";
 import logger from "../logger/index.js";
 import {
   NetworkTracker,
@@ -125,6 +126,8 @@ export default class Page {
   private pageEvents = new EventEmitter();
   /** The navigation started by the last navigateTo; failures of it fail a wait */
   private lastNavigation: string | undefined;
+  /** Base for relative page.goto URLs; falls back to the active run's baseURL */
+  private baseURL: string | undefined;
   /** How far navigations that did not wait for the load got, by navigation id (the latest few) */
   private navigationProgress = new Map<string, { domContentLoaded: boolean; load: boolean }>();
   private documentEvents: Promise<Subscription> | undefined;
@@ -271,6 +274,30 @@ export default class Page {
     );
     const failed = results.find((result) => result.status === "rejected");
     if (failed) throw (failed as PromiseRejectedResult).reason;
+  }
+
+  /** Sets the base that relative `goto` URLs resolve against; `undefined` falls back to the run's baseURL */
+  public setBaseURL(url: string | undefined): void {
+    this.baseURL = url;
+  }
+
+  /**
+   * Navigates like `navigateTo`, but a URL starting with "/", "./" or "../" resolves against the base URL
+   * (`setBaseURL`, else the environment's `baseURL`).
+   * @example
+   *  await page.goto("/products");
+   *  await page.goto("https://example.com", { wait: "interactive" });
+   */
+  public async goto(
+    url: string,
+    options?: NavigateOptions,
+  ): Promise<{ navigation: string | null; url: string }> {
+    if (!/^\.{0,2}\//.test(url)) return this.navigateTo(url, options);
+    const base = this.baseURL ?? peekRunSettings()?.baseURL;
+    if (!base) {
+      throw new Error(`page.goto("${url}") needs a baseURL; set one in samurai.config.ts or the environment`);
+    }
+    return this.navigateTo(new URL(url, base).href, options);
   }
 
   /**
