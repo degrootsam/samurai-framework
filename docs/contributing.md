@@ -15,6 +15,7 @@ src/
   network/               tracking, interception (route), response bodies, URL matching
   script/                script.callFunction, preload scripts, serialisation, in-page helpers
   transport/             BiDi WebSocket connection, errors, refcounted subscriptions
+  cli/                   the `samurai` command (see the rule below)
   steps/                 step model, parser, emitter, minimal-diff editor
   recorder/              capture script, locator ranking, normaliser, Recorder
   types/                 hand-written BiDi typings and public types
@@ -57,3 +58,9 @@ CI (`.github/workflows/ci.yml`) runs the typecheck, unit tests, browser tests an
 3. Write unit tests against the stub connector, then the implementation.
 4. Add a browser test for what only a real browser can show.
 5. Document it in the matching guide in `docs/` and tick the roadmap.
+
+## The command line stays separable
+
+`src/cli` and `bin/` use the framework only through its public entry points, the files behind the `exports` in `package.json` (`runner/run.ts`, `recorder/index.ts`, `steps/index.ts`, `browser/index.ts`). A unit test (`src/cli/boundary.test.ts`) fails when a file in `src/cli` imports anything else. If the command needs something more, export it from an entry point first. That keeps the command movable into a package of its own: a folder move, not a refactor. Command-line parsing lives in `src/cli/args.ts`, not in the framework's config code.
+
+`tsx` is an optional peer dependency of the package (and a dev dependency here): it is only needed by whoever loads spec files, such as `samurai` or an embedding app's child process.

@@ -15,6 +15,7 @@ export function scaffold(name: string): Record<string, string> {
           type: "module",
           scripts: { test: "samurai run" },
           dependencies: { [PACKAGE]: "^0.1.0" },
+          devDependencies: { tsx: "^4.21.0" },
         },
         null,
         2,

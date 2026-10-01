@@ -1,5 +1,4 @@
-import type { RunEvent } from "../runner/reporter.js";
-import type { TestResult, TestSummary } from "../types/test.js";
+import type { RunEvent, TestResult, TestSummary } from "../runner/run.js";
 
 export interface ConsoleReporterOptions {
   write: (text: string) => void;

@@ -9,7 +9,7 @@ samurai record <spec>     # open a browser and record what you do into a spec
 samurai run               # run the tests (the default: `samurai` alone does the same)
 ```
 
-Spec files are TypeScript; the command loads them itself (it ships with `tsx`), so no extra setup is needed. In the framework's own repository, `bun run dev` does the same as `samurai run` without needing a build.
+Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), an optional peer dependency of the package. Install it next to the framework (`npm install --save-dev tsx`); `samurai init` adds it to the project it creates. Without it the command stops with a message that says so. In the framework's own repository, `bun run dev` does the same as `samurai run` without needing a build.
 
 ## `samurai run`
 

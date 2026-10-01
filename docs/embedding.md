@@ -57,7 +57,7 @@ All options (besides the ones above): `config` (use this object instead of readi
 
 Things to know:
 
-- **Specs are TypeScript.** The process that calls `runTests` must be able to import `.ts` files: run it under `tsx` (`node --import tsx ...`), or use a process whose Node strips types. The Electron main process can't, so run the framework in a child process and talk to it with messages (below).
+- **Specs are TypeScript.** The process that calls `runTests` must be able to import `.ts` files (`tsx` is an optional peer dependency of the package: install it in the app): run it under `tsx` (`node --import tsx ...`), or use a process whose Node strips types. The Electron main process can't, so run the framework in a child process and talk to it with messages (below).
 - **Specs are ES modules.** The project needs `"type": "module"` in its `package.json`; otherwise `runTests` refuses with a message saying so. A CommonJS spec would get second copies of the framework's classes, and `expect(locator)` would stop recognising locators.
 - **One run at a time per process.** Config, secrets and the test registry are process-wide; a second concurrent call throws. Use one child process per run for parallel runs.
 - **Running again in the same process** imports ES-module specs afresh, so edits are seen.
