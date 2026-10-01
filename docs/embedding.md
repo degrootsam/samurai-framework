@@ -23,7 +23,7 @@ Rebuild after changes. The package is ESM only.
 | Import                                 | Gives you                                                                               |
 | -------------------------------------- | --------------------------------------------------------------------------------------- |
 | `@itmetsam/samurai-framework`          | What specs import: `test`, `describe`, `expect`, `defineConfig`                         |
-| `@itmetsam/samurai-framework/runner`   | `runTests` and the `RunEvent` / `RunnerOptions` types                                   |
+| `@itmetsam/samurai-framework/runner`   | `runTests`, `listTests` and the `RunEvent` / `RunnerOptions` types                      |
 | `@itmetsam/samurai-framework/steps`    | The step codec: `parseSpec`, `applyEdit`, `stepToSource`, `locatorFromSpec`, step types |
 | `@itmetsam/samurai-framework/recorder` | `Recorder`, `applyRecorderEvent`, `RecorderEvent`                                       |
 | `@itmetsam/samurai-framework/browser`  | `Browser` (launch Firefox), `BrowserContext`, `Page`, `findBrowser`                     |
@@ -65,6 +65,10 @@ Things to know:
 - **Where things are read and written** follows `projectDir`: the config, `.env.<environment>`, `srcDir`, `result/report.json` and `downloadsDir`. Framework logs (`logs/`) follow the process's working directory, so start a child process with `cwd` set to the project if you want them there.
 - **Browser profile files.** Firefox needs a generated profile and app-data folder. They go in `browsers/` in the project folder, or in `dataDir`, or in the folder `SAMURAI_DATA_DIR` points to (highest priority). An app should point it at a folder it may write to, such as its user-data folder.
 - **Firefox must be installed** on the machine; the framework launches the system browser.
+
+## Or use the command
+
+`samurai run --json` prints the same events as JSON lines on stdout (framework logs go to stderr), and `samurai list --json` lists the tests. An app that doesn't want to write its own child-process wrapper can spawn the command and read the lines. See [Command line](cli.md).
 
 ## Using the pieces directly
 

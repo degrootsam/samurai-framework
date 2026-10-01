@@ -84,6 +84,8 @@ bun run dev --env production   # another environment (or SAMURAI_ENV=production)
 bun run dev --timeout 60000    # per-test timeout in ms; also --expect-timeout
 ```
 
+Once the package is installed in a project, `samurai run` does the same with a readable summary and a proper exit code, and `samurai init` scaffolds a new project (see [Command line](docs/cli.md)).
+
 A browser window opens for each test and closes when the test ends. The result is written to `result/report.json` (status, duration and error per test); nothing summarises it on the console yet. The process exits with code 0 when every test passed and 1 otherwise (add `--headless` to hide the window). Framework logs go to the console and `logs/`.
 
 > `src/tests/index.spec.ts` is an example that submits a real contact form. Delete it or replace it before running everything.
@@ -108,6 +110,7 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 | [Network](docs/network.md)                                   | Waiting for traffic, mocking, blocking, response bodies                                               |
 | [Configuration](docs/configuration.md)                       | Every option in `samurai.config.ts`, CLI flags and precedence                                         |
 | [Environments and secrets](docs/environments-and-secrets.md) | Per-environment settings, variables, secrets and masking                                              |
+| [Command line](docs/cli.md)                                  | `samurai run`, `list` and `init`, options, output, exit codes, `--json`                               |
 | [Running tests and reports](docs/running-and-reports.md)     | What a run does, `report.json`, page logs, timeouts                                                   |
 | [Steps and the recorder](docs/recorder.md)                   | The step codec and the recording engine                                                               |
 | [Embedding the framework](docs/embedding.md)                 | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |

@@ -35,18 +35,19 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - **Mid-test abort is untested.** Aborting before a run starts and between tests is covered; aborting while a browser is running relies on the existing launch/close handling.
 - **Logs location.** Framework logs go to `logs/` of the process's working directory, not the project folder.
 - **Publishing.** Not on npm; consumers link the built package.
+- **Command extras.** No `samurai record`, no `--config` flag, no watch mode; `samurai --version` creates a `logs/` folder because the logger opens its files on import.
 
 ## Open: runner and CLI
 
 Gaps in the runner today, found while writing these docs:
 
-- **Console output.** Nothing summarises the run on the console; the only result is `result/report.json`. No HTML or JUnit report.
+- **Report formats.** Only `result/report.json` and the console output; no HTML or JUnit report.
 - **Parallel runs.** Tests run one at a time; running several at once is missing. (`--headless`, `--port`, `--grep` and `--file` exist.)
 - **Tags.** Tests can be selected by file and by name, but not by tag.
 - **`groups`.** The option exists in the config types but the runner doesn't use it (`TODO: Implement test grouping`).
 - **Hooks and modifiers.** No `beforeEach`, `afterEach`, `beforeAll`, `afterAll`, `test.skip`, `test.only`, `test.fixme`, or retries.
 - **Failure artefacts.** No automatic screenshot, video or trace when a test fails.
-- **Packaging.** The package builds to `dist/` with subpath exports (see [Embedding](embedding.md)) but isn't published and has no `bin`. A `samurai` command, publishing, and an `init` scaffold would make the Getting started shorter.
+- **Packaging.** The package builds to `dist/` with subpath exports (see [Embedding](embedding.md)) and has a `samurai` command (see [Command line](cli.md)), but isn't published to npm.
 - **Config loading.** `samurai.config.ts` is read from the working directory only; no `--config` flag.
 
 ## Open: framework API

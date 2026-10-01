@@ -37,15 +37,19 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "tsx": "^4.21.0"
+    "@types/node": "^25.6.0"
   },
   "dependencies": {
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "winston": "^3.19.0"
   },
   "types": "dist/api.d.ts",
   "files": [
-    "dist"
-  ]
+    "dist",
+    "bin"
+  ],
+  "bin": {
+    "samurai": "bin/samurai.mjs"
+  }
 }

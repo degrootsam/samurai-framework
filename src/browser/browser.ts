@@ -234,10 +234,10 @@ export class Browser {
       });
 
       browserProc.stderr.on("data", async (data: any) => {
-        logger.error(`${browserName} stderr: ${data}`);
+        logger.debug(`${browserName} stderr: ${data}`);
 
         const urlMatch = String(data).match(browserWsRegex[browserName]);
-        console.log({ urlMatch });
+        logger.debug("Browser announced its endpoint", { urlMatch });
         if (!Array.isArray(urlMatch) || urlMatch.length === 0) {
           return;
         }
