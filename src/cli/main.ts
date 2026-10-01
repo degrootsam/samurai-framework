@@ -3,10 +3,10 @@ import {
   parseCommandLine,
   parseRunnerFlags,
   parseRunOverrides,
-} from "../config/run-settings.js";
-import { recordSpec } from "../recorder/session.js";
+} from "./args.js";
+import { recordSpec } from "../recorder/index.js";
 import { listTests, runTests, type RunTestsOptions } from "../runner/run.js";
-import { stepToSource } from "../steps/emit.js";
+import { stepToSource } from "../steps/index.js";
 import { ConsoleReporter } from "./console-reporter.js";
 import { initProject } from "./init.js";
 
