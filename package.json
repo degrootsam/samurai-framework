@@ -38,10 +38,10 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
-    "@types/node": "^25.6.0"
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0"
   },
   "dependencies": {
-    "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "winston": "^3.19.0"
   },
@@ -52,5 +52,13 @@
   ],
   "bin": {
     "samurai": "bin/samurai.mjs"
+  },
+  "peerDependencies": {
+    "tsx": "^4.21.0"
+  },
+  "peerDependenciesMeta": {
+    "tsx": {
+      "optional": true
+    }
   }
 }

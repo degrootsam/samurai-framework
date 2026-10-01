@@ -75,5 +75,6 @@ export async function listTests(
 }
 
 export type { RunEvent } from "./reporter.js";
+export type { TestError, TestResult, TestSummary } from "../types/test.js";
 export type { RunnerOptions } from "./test-runner.js";
 export type { ProjectOptions } from "./project.js";

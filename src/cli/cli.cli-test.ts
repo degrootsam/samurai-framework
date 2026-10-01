@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { ConsoleReporter } from "./console-reporter.js";
 import { initProject, scaffold } from "./init.js";
 import { main, USAGE, type Io } from "./main.js";
-import type { TestSummary } from "../types/test.js";
+import type { TestSummary } from "../runner/run.js";
 
 function io() {
   const out: string[] = [];
