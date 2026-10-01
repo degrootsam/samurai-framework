@@ -1,7 +1,7 @@
 # Recorder — roadmap
 
 Date: 2026-10-01
-Status: phase 1 done; later phases not specced yet.
+Status: phases 1 and 2 done; phases 3 and 4 not specced yet.
 UI: the Electron app at `~/dev/itmetsam/projects/samurai` (designs: "SAMURAI" design canvas, boards "Test editor & recorder" and "Test editor · code view").
 
 Each item gets its own spec in `docs/superpowers/specs/` and its own plan. Order respects dependencies (`←`).
@@ -21,8 +21,8 @@ Each item gets its own spec in `docs/superpowers/specs/` and its own plan. Order
 
 ### Phase 2 — recorder core
 
-- [ ] **3. Step codec** ← 1, 2 — steps model, parser (TS AST → steps, unknown → "Custom code"), minimal-diff writer.
-- [ ] **4. Recorder engine** ← 2, 3 — preload capture over a `script.addPreloadScript` channel, locator ranking (verified to match exactly one element), step normalisation (merge typing into `fill`, drop focus clicks, navigation waits), record-from-line N, Alt+click assertions.
+- [x] **3. Step codec** ← 1, 2 — steps model, parser (TS AST → steps, unknown → "Custom code"), minimal-diff writer. — [spec](specs/2026-10-02-step-codec-design.md)
+- [x] **4. Recorder engine** ← 2, 3 — preload capture over a `script.addPreloadScript` channel, locator ranking (verified to match exactly one element), step normalisation (merge typing into `fill`, drop focus clicks, navigation waits), record-from-line N, Alt+click assertions. — [spec](specs/2026-10-02-recorder-engine-design.md)
 
 ### Phase 3 — UI
 

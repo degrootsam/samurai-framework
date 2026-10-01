@@ -785,6 +785,11 @@ export default class Locator {
     );
   }
 
+  /** References to the elements currently matching, in document order. Internal: for tooling that identifies elements */
+  public async elements(): Promise<ElementHandle[]> {
+    return this.resolve();
+  }
+
   /** Number of elements currently matching */
   public async count(): Promise<number> {
     return (await this.resolve()).length;

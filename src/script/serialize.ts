@@ -20,13 +20,26 @@ export class RemoteObject {
   ) {}
 }
 
+/**
+ * A channel the page function can call as `send(value)`; the browser delivers each value as a
+ * `script.message` event. Only meaningful as a preload script or function argument.
+ */
+export class ChannelArg {
+  constructor(public readonly channel: string) {}
+}
+
 /** Serializes `value` for `script.callFunction` arguments; throws TypeError for what cannot cross the wire */
 export function toLocalValue(value: Arg): ArgumentValue {
   return serialize(value, new Set(), 0);
 }
 
-function serialize(value: unknown, ancestors: Set<object>, depth: number): ArgumentValue {
-  if (depth > MAX_DEPTH) throw new TypeError("cannot serialize a value that is too deeply nested");
+function serialize(
+  value: unknown,
+  ancestors: Set<object>,
+  depth: number,
+): ArgumentValue {
+  if (depth > MAX_DEPTH)
+    throw new TypeError("cannot serialize a value that is too deeply nested");
 
   switch (typeof value) {
     case "undefined":
@@ -45,23 +58,41 @@ function serialize(value: unknown, ancestors: Set<object>, depth: number): Argum
   }
 
   if (value === null) return { type: "null" };
+  if (value instanceof ChannelArg) {
+    // Nodes arrive as references only, which is all the recorder needs
+    return {
+      type: "channel",
+      value: {
+        channel: value.channel,
+        serializationOptions: { maxDomDepth: 0, maxObjectDepth: 4 },
+        ownership: "none",
+      },
+    };
+  }
   if (value instanceof ElementHandle) {
     return value.handle === undefined
       ? { sharedId: value.sharedId }
       : { sharedId: value.sharedId, handle: value.handle };
   }
-  if (value instanceof Date) return { type: "date", value: value.toISOString() };
+  if (value instanceof Date)
+    return { type: "date", value: value.toISOString() };
   if (value instanceof RegExp) {
-    return { type: "regexp", value: { pattern: value.source, flags: value.flags } };
+    return {
+      type: "regexp",
+      value: { pattern: value.source, flags: value.flags },
+    };
   }
 
   const object = value as object;
-  if (ancestors.has(object)) throw new TypeError("cannot serialize a circular structure");
+  if (ancestors.has(object))
+    throw new TypeError("cannot serialize a circular structure");
   ancestors.add(object);
   try {
     const next = (item: unknown) => serialize(item, ancestors, depth + 1);
-    if (Array.isArray(object)) return { type: "array", value: object.map(next) };
-    if (object instanceof Set) return { type: "set", value: [...object].map(next) };
+    if (Array.isArray(object))
+      return { type: "array", value: object.map(next) };
+    if (object instanceof Set)
+      return { type: "set", value: [...object].map(next) };
     if (object instanceof Map) {
       return {
         type: "map",
@@ -73,7 +104,9 @@ function serialize(value: unknown, ancestors: Set<object>, depth: number): Argum
     }
     const prototype = Object.getPrototypeOf(object);
     if (prototype !== Object.prototype && prototype !== null) {
-      throw new TypeError(`cannot serialize ${prototype.constructor?.name ?? "object"}`);
+      throw new TypeError(
+        `cannot serialize ${prototype.constructor?.name ?? "object"}`,
+      );
     }
     return {
       type: "object",
@@ -98,7 +131,10 @@ export interface DeserializeOptions {
 }
 
 /** Converts a remote value to plain JS; what cannot be copied becomes a `RemoteObject` */
-export function fromRemoteValue(value: RemoteValue, options: DeserializeOptions = {}): unknown {
+export function fromRemoteValue(
+  value: RemoteValue,
+  options: DeserializeOptions = {},
+): unknown {
   return deserialize(value, new Map(), options);
 }
 
@@ -129,7 +165,10 @@ function deserialize(
     case "date":
       return new Date(value.value);
     case "regexp": {
-      const { pattern, flags } = loose.value as { pattern: string; flags?: string };
+      const { pattern, flags } = loose.value as {
+        pattern: string;
+        flags?: string;
+      };
       return new RegExp(pattern, flags);
     }
     case "node":
@@ -157,14 +196,18 @@ function deserialize(
       if (loose.value === undefined) break; // cut off by the serialization depth
       if (value.type === "array") {
         const list: unknown[] = remember([]);
-        (loose.value as RemoteValue[]).forEach((item) => list.push(nested(item)));
+        (loose.value as RemoteValue[]).forEach((item) =>
+          list.push(nested(item)),
+        );
         result = list;
       } else if (value.type === "set") {
         const set = remember(new Set<unknown>());
         (loose.value as RemoteValue[]).forEach((item) => set.add(nested(item)));
         result = set;
       } else {
-        const entries = loose.value as Array<[RemoteValue | string, RemoteValue]>;
+        const entries = loose.value as Array<
+          [RemoteValue | string, RemoteValue]
+        >;
         const key = (raw: RemoteValue | string) =>
           typeof raw === "string" ? raw : nested(raw);
         if (value.type === "map") {

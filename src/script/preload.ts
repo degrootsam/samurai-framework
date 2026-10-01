@@ -1,8 +1,10 @@
 import logger from "../logger/index.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
+import type { ChannelValue } from "../types/bidi-modules/script.js";
 import type { Info } from "../types/bidi-modules/browsing-context.js";
 import { callFunction, ScriptError } from "./call-function.js";
+import { toLocalValue, type ChannelArg } from "./serialize.js";
 
 export interface PreloadHandle {
   readonly id: string;
@@ -17,6 +19,8 @@ export interface RunOptions {
   contexts?: string[];
   /** Named sandbox realm; without it the script runs in the page's own realm */
   sandbox?: string;
+  /** Channels the function receives as arguments, in the preload registration and in the immediate run */
+  arguments?: ChannelArg[];
   /**
    * What to do when the immediate run in an already-loaded document throws.
    * "log" suits user init scripts (the browser reports such errors for later documents itself)
@@ -38,6 +42,11 @@ export async function addPreload(
     functionDeclaration: options.source,
     ...(options.contexts && { contexts: options.contexts }),
     ...(options.sandbox !== undefined && { sandbox: options.sandbox }),
+    ...(options.arguments && {
+      arguments: options.arguments.map(
+        (arg) => toLocalValue(arg) as ChannelValue,
+      ),
+    }),
   });
 
   let removed = false;
@@ -57,7 +66,9 @@ export async function addPreload(
     await runInLoadedContexts(connector, options);
   } catch (err) {
     await dispose().catch((disposeErr) =>
-      logger.debug("Could not remove preload script after a failed run", { disposeErr }),
+      logger.debug("Could not remove preload script after a failed run", {
+        disposeErr,
+      }),
     );
     throw err;
   }
@@ -67,18 +78,26 @@ export async function addPreload(
 /** Runs `source` once in every loaded context (iframes included) under `contexts` */
 export async function runInLoadedContexts(
   connector: BiDiConnector,
-  { source, contexts, sandbox, onRunError = "throw" }: RunOptions,
+  {
+    source,
+    contexts,
+    sandbox,
+    onRunError = "throw",
+    arguments: args = [],
+  }: RunOptions,
 ): Promise<void> {
   const trees = contexts
     ? await Promise.all(
-        contexts.map((root) => connector.send("browsingContext.getTree", { root })),
+        contexts.map((root) =>
+          connector.send("browsingContext.getTree", { root }),
+        ),
       )
     : [await connector.send("browsingContext.getTree", {})];
   const loaded = trees.flatMap((tree) => tree.contexts.flatMap(flatten));
 
   const outcomes = await Promise.allSettled(
     loaded.map((context) =>
-      callFunction(connector, context, source, [], {
+      callFunction(connector, context, source, args, {
         awaitPromise: false,
         ...(sandbox !== undefined && { sandbox }),
       }),
@@ -90,7 +109,10 @@ export async function runInLoadedContexts(
     // The context closed between listing and running: nothing left to cover
     if (err instanceof BiDiError && err.code === "no such frame") continue;
     if (err instanceof ScriptError && onRunError === "log") {
-      logger.warn("Script threw while running in a loaded document: %s", err.text);
+      logger.warn(
+        "Script threw while running in a loaded document: %s",
+        err.text,
+      );
       continue;
     }
     throw err;

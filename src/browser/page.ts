@@ -19,6 +19,7 @@ import type {
   NetworkResponse,
   FailedRequest,
 } from "../network/network-tracker.js";
+import { Recorder, type RecorderOptions } from "../recorder/recorder.js";
 import { ContextTree } from "./context-tree.js";
 import { Dialog } from "./dialog.js";
 import type { BrowserContext } from "./browser-context.js";
@@ -293,6 +294,18 @@ export default class Page {
     };
     this.initScripts.add(tracked);
     return tracked;
+  }
+
+  /**
+   * Starts recording what a person does in the page as steps (see `Recorder`). The page must be driven by
+   * a person; stop with `recorder.stop()`.
+   */
+  public record(options: RecorderOptions): Promise<Recorder> {
+    this.assertOpen();
+    return Recorder.start(
+      { page: this, connector: this.biDiConnector, context: this.id },
+      options,
+    );
   }
 
   /** Removes everything the page registered in the browser: init scripts, framework helpers and event subscriptions */
