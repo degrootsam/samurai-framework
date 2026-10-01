@@ -1,5 +1,11 @@
 import Locator, { type TextOptions } from "../locator/locator.js";
-import { cssSelector, labelSelector, roleSelector, testIdSelector, textSelector } from "../locator/selector.js";
+import {
+  cssSelector,
+  labelSelector,
+  roleSelector,
+  testIdSelector,
+  textSelector,
+} from "../locator/selector.js";
 import EventEmitter from "node:events";
 import { readConfig } from "../config/config.js";
 import { peekRunSettings } from "../config/run-settings.js";
@@ -8,7 +14,11 @@ import {
   NetworkTracker,
   type NetworkEventName,
 } from "../network/network-tracker.js";
-import type { NetworkRequest, NetworkResponse, FailedRequest } from "../network/network-tracker.js";
+import type {
+  NetworkRequest,
+  NetworkResponse,
+  FailedRequest,
+} from "../network/network-tracker.js";
 import { Recorder, type RecorderOptions } from "../recorder/recorder.js";
 import { ContextTree } from "./context-tree.js";
 import { Dialog } from "./dialog.js";
@@ -17,11 +27,22 @@ import { printPdf, type PdfOptions } from "./pdf.js";
 import { applyEmulation, type EmulationOptions } from "./emulation.js";
 import { Download, DownloadTracker } from "./download.js";
 import { FileChooser, FileChooserTracker } from "./file-chooser.js";
-import { DownloadWaitTimeoutError, FileChooserTimeoutError } from "./page-wait.js";
+import {
+  DownloadWaitTimeoutError,
+  FileChooserTimeoutError,
+} from "./page-wait.js";
 import { takeScreenshot, type ScreenshotOptions } from "./screenshot.js";
-import { PageLogs, type ConsoleMessage, type LogRecord, type PageError } from "./page-logs.js";
+import {
+  PageLogs,
+  type ConsoleMessage,
+  type LogRecord,
+  type PageError,
+} from "./page-logs.js";
 import { Router, type RouteHandler } from "../network/router.js";
-import { DataCollector, ResponseBodyUnavailableError } from "../network/data-collector.js";
+import {
+  DataCollector,
+  ResponseBodyUnavailableError,
+} from "../network/data-collector.js";
 import { Response } from "../network/response.js";
 import {
   RequestTimeoutError,
@@ -54,7 +75,10 @@ const DEFAULT_NAVIGATION_TIMEOUT = 30000;
 const DEFAULT_IDLE_TIME = 500;
 
 /** Options that otherwise come from `samurai.config.ts` */
-export type PageSettings = Pick<SamuraiTestConfig, "network" | "navigation" | "use">;
+export type PageSettings = Pick<
+  SamuraiTestConfig,
+  "network" | "navigation" | "use"
+>;
 
 /** The size a page gets unless config `use.viewport` says otherwise */
 const DEFAULT_VIEWPORT = { width: 1280, height: 720 };
@@ -94,7 +118,8 @@ const unsupportedEventsByConnector = new WeakMap<BiDiConnector, Set<string>>();
 
 function unsupportedEvents(connector: BiDiConnector): Set<string> {
   let events = unsupportedEventsByConnector.get(connector);
-  if (!events) unsupportedEventsByConnector.set(connector, (events = new Set()));
+  if (!events)
+    unsupportedEventsByConnector.set(connector, (events = new Set()));
   return events;
 }
 
@@ -130,7 +155,10 @@ export default class Page {
   /** Base for relative page.goto URLs; falls back to the active run's baseURL */
   private baseURL: string | undefined;
   /** How far navigations that did not wait for the load got, by navigation id (the latest few) */
-  private navigationProgress = new Map<string, { domContentLoaded: boolean; load: boolean }>();
+  private navigationProgress = new Map<
+    string,
+    { domContentLoaded: boolean; load: boolean }
+  >();
   private documentEvents: Promise<Subscription> | undefined;
   private dialogHandling: Promise<Subscription> | undefined;
   private pageLogs: Promise<PageLogs> | undefined;
@@ -149,7 +177,11 @@ export default class Page {
   private openDialogs = new Map<string, Dialog>();
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
-  constructor(biDiConnector: BiDiConnector, contextId: string, settings?: PageSettings) {
+  constructor(
+    biDiConnector: BiDiConnector,
+    contextId: string,
+    settings?: PageSettings,
+  ) {
     this.biDiConnector = biDiConnector;
     this.id = contextId;
     this.settings = settings;
@@ -181,31 +213,56 @@ export default class Page {
   /** Locates elements with a CSS selector */
   public getByCss(css: string) {
     this.assertOpen();
-    return new Locator([cssSelector(css)], this.biDiConnector, this.id, this.helperRealm);
+    return new Locator(
+      [cssSelector(css)],
+      this.biDiConnector,
+      this.id,
+      this.helperRealm,
+    );
   }
 
   /** Locates elements by their text: an exact match unless `match: "partial"` */
   public getByText(text: string, options?: TextOptions) {
     this.assertOpen();
-    return new Locator([textSelector(text, options)], this.biDiConnector, this.id, this.helperRealm);
+    return new Locator(
+      [textSelector(text, options)],
+      this.biDiConnector,
+      this.id,
+      this.helperRealm,
+    );
   }
 
   /** Locates form controls by their label text: an exact match unless `match: "partial"` */
   public getByLabel(text: string, options?: TextOptions) {
     this.assertOpen();
-    return new Locator([labelSelector(text, options)], this.biDiConnector, this.id, this.helperRealm);
+    return new Locator(
+      [labelSelector(text, options)],
+      this.biDiConnector,
+      this.id,
+      this.helperRealm,
+    );
   }
 
   /** Locates elements by their `data-testid` attribute */
   public getByTestId(testId: string) {
     this.assertOpen();
-    return new Locator([testIdSelector(testId)], this.biDiConnector, this.id, this.helperRealm);
+    return new Locator(
+      [testIdSelector(testId)],
+      this.biDiConnector,
+      this.id,
+      this.helperRealm,
+    );
   }
 
   /** Locates elements by ARIA role and, optionally, accessible name */
   public getByRole(role: string, options?: { name?: string }) {
     this.assertOpen();
-    return new Locator([roleSelector(role, options)], this.biDiConnector, this.id, this.helperRealm);
+    return new Locator(
+      [roleSelector(role, options)],
+      this.biDiConnector,
+      this.id,
+      this.helperRealm,
+    );
   }
 
   /**
@@ -245,7 +302,10 @@ export default class Page {
    */
   public record(options: RecorderOptions): Promise<Recorder> {
     this.assertOpen();
-    return Recorder.start({ page: this, connector: this.biDiConnector, context: this.id }, options);
+    return Recorder.start(
+      { page: this, connector: this.biDiConnector, context: this.id },
+      options,
+    );
   }
 
   /** Removes everything the page registered in the browser: init scripts, framework helpers and event subscriptions */
@@ -277,10 +337,19 @@ export default class Page {
     const router = this.routerPromise;
     this.routerPromise = undefined;
     this.loadedRouter = undefined;
-    this.biDiConnector.offEvent("browsingContext.userPromptOpened", this.onPromptOpened);
-    this.biDiConnector.offEvent("browsingContext.userPromptClosed", this.onPromptClosed);
+    this.biDiConnector.offEvent(
+      "browsingContext.userPromptOpened",
+      this.onPromptOpened,
+    );
+    this.biDiConnector.offEvent(
+      "browsingContext.userPromptClosed",
+      this.onPromptClosed,
+    );
     this.openDialogs.clear();
-    this.biDiConnector.offEvent("browsingContext.domContentLoaded", this.onDomContentLoaded);
+    this.biDiConnector.offEvent(
+      "browsingContext.domContentLoaded",
+      this.onDomContentLoaded,
+    );
     this.biDiConnector.offEvent("browsingContext.load", this.onLoad);
     results.push(
       ...(await Promise.allSettled([
@@ -317,7 +386,9 @@ export default class Page {
     if (!/^\.{0,2}\//.test(url)) return this.navigateTo(url, options);
     const base = this.baseURL ?? peekRunSettings()?.baseURL;
     if (!base) {
-      throw new Error(`page.goto("${url}") needs a baseURL; set one in samurai.config.ts or the environment`);
+      throw new Error(
+        `page.goto("${url}") needs a baseURL; set one in samurai.config.ts or the environment`,
+      );
     }
     return this.navigateTo(new URL(url, base).href, options);
   }
@@ -335,22 +406,35 @@ export default class Page {
     options?: NavigateOptions | ReadinessState,
     protocol?: "http" | "https",
   ): Promise<{ navigation: string | null; url: string }> {
-    const given: NavigateOptions = typeof options === "string" ? { wait: options } : (options ?? {});
+    const given: NavigateOptions =
+      typeof options === "string" ? { wait: options } : (options ?? {});
     const settings = await this.navigationSettings();
     const wait = given.wait ?? settings.waitUntil ?? "complete";
-    const timeout = given.timeout ?? settings.timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
+    const timeout =
+      given.timeout ?? settings.timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
     // A scheme is letters followed by ":" not directly followed by a digit, so "localhost:3000" is a host
     const hasScheme = /^[a-z][a-z\d+.-]*:(?!\d)/i.test(url);
-    const parsedURL = hasScheme ? url : `${given.protocol ?? protocol ?? "https"}://${url}`;
+    const parsedURL = hasScheme
+      ? url
+      : `${given.protocol ?? protocol ?? "https"}://${url}`;
     this.assertOpen();
-    return this.navigation("navigateTo", async () => parsedURL, wait, timeout, async (sendOptions) => {
-      const result = await this.biDiConnector.send(
-        "browsingContext.navigate",
-        { context: this.id, url: parsedURL, wait },
-        sendOptions,
-      );
-      return { navigation: result.navigation ?? null, url: result.url ?? parsedURL };
-    });
+    return this.navigation(
+      "navigateTo",
+      async () => parsedURL,
+      wait,
+      timeout,
+      async (sendOptions) => {
+        const result = await this.biDiConnector.send(
+          "browsingContext.navigate",
+          { context: this.id, url: parsedURL, wait },
+          sendOptions,
+        );
+        return {
+          navigation: result.navigation ?? null,
+          url: result.url ?? parsedURL,
+        };
+      },
+    );
   }
 
   /**
@@ -362,7 +446,9 @@ export default class Page {
     describe: () => Promise<string>,
     wait: ReadinessState,
     timeout: number,
-    send: (options: { timeout: number }) => Promise<{ navigation: string | null; url: string }>,
+    send: (options: {
+      timeout: number;
+    }) => Promise<{ navigation: string | null; url: string }>,
   ): Promise<{ navigation: string | null; url: string }> {
     // A navigation that does not wait for the load needs watching, or waitForLoadState cannot tell it from the old page
     if (wait !== "complete") await this.watchDocumentEvents();
@@ -377,8 +463,14 @@ export default class Page {
       return result;
     } catch (err) {
       if (err instanceof BiDiError) {
-        const reason = err.code === "timeout" ? `timeout after ${timeout}ms` : err.message;
-        throw new NavigationError(await describe(), reason, err.code, operation);
+        const reason =
+          err.code === "timeout" ? `timeout after ${timeout}ms` : err.message;
+        throw new NavigationError(
+          await describe(),
+          reason,
+          err.code,
+          operation,
+        );
       }
       throw err;
     }
@@ -389,27 +481,48 @@ export default class Page {
    * `ignoreCache`; asking for it throws UnsupportedOperationError.
    */
   public async reload(
-    options: { wait?: ReadinessState; timeout?: number; ignoreCache?: boolean } = {},
+    options: {
+      wait?: ReadinessState;
+      timeout?: number;
+      ignoreCache?: boolean;
+    } = {},
   ): Promise<{ navigation: string | null; url: string }> {
     this.assertOpen();
     const settings = await this.navigationSettings();
     const wait = options.wait ?? settings.waitUntil ?? "complete";
-    const timeout = options.timeout ?? settings.timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
-    return this.navigation("reload", () => this.url().catch(() => "the page"), wait, timeout, async (sendOptions) => {
-      try {
-        const result = await this.biDiConnector.send(
-          "browsingContext.reload",
-          { context: this.id, wait, ...(options.ignoreCache && { ignoreCache: true }) },
-          sendOptions,
-        );
-        return { navigation: result.navigation ?? null, url: result.url };
-      } catch (err) {
-        if (options.ignoreCache && err instanceof BiDiError && err.code === "unsupported operation") {
-          throw new UnsupportedOperationError("reload({ ignoreCache }) is not supported by the browser");
+    const timeout =
+      options.timeout ?? settings.timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
+    return this.navigation(
+      "reload",
+      () => this.url().catch(() => "the page"),
+      wait,
+      timeout,
+      async (sendOptions) => {
+        try {
+          const result = await this.biDiConnector.send(
+            "browsingContext.reload",
+            {
+              context: this.id,
+              wait,
+              ...(options.ignoreCache && { ignoreCache: true }),
+            },
+            sendOptions,
+          );
+          return { navigation: result.navigation ?? null, url: result.url };
+        } catch (err) {
+          if (
+            options.ignoreCache &&
+            err instanceof BiDiError &&
+            err.code === "unsupported operation"
+          ) {
+            throw new UnsupportedOperationError(
+              "reload({ ignoreCache }) is not supported by the browser",
+            );
+          }
+          throw err;
         }
-        throw err;
-      }
-    });
+      },
+    );
   }
 
   /** Goes back one entry in the history. False when there is none to go back to */
@@ -425,10 +538,14 @@ export default class Page {
   private async traverse(delta: -1 | 1): Promise<boolean> {
     this.assertOpen();
     try {
-      await this.biDiConnector.send("browsingContext.traverseHistory", { context: this.id, delta });
+      await this.biDiConnector.send("browsingContext.traverseHistory", {
+        context: this.id,
+        delta,
+      });
       return true;
     } catch (err) {
-      if (err instanceof BiDiError && err.code === "no such history entry") return false;
+      if (err instanceof BiDiError && err.code === "no such history entry")
+        return false;
       throw err;
     }
   }
@@ -436,13 +553,25 @@ export default class Page {
   /** The URL of the page now */
   public async url(): Promise<string> {
     this.assertOpen();
-    return callFunction<string>(this.biDiConnector, this.id, "() => location.href", [], { awaitPromise: false });
+    return callFunction<string>(
+      this.biDiConnector,
+      this.id,
+      "() => location.href",
+      [],
+      { awaitPromise: false },
+    );
   }
 
   /** The title of the document now */
   public async title(): Promise<string> {
     this.assertOpen();
-    return callFunction<string>(this.biDiConnector, this.id, "() => document.title", [], { awaitPromise: false });
+    return callFunction<string>(
+      this.biDiConnector,
+      this.id,
+      "() => document.title",
+      [],
+      { awaitPromise: false },
+    );
   }
 
   /**
@@ -451,7 +580,11 @@ export default class Page {
    *  await page.setViewport({ width: 390, height: 844, devicePixelRatio: 3 });
    */
   public async setViewport(
-    viewport: { width: number; height: number; devicePixelRatio?: number } | null,
+    viewport: {
+      width: number;
+      height: number;
+      devicePixelRatio?: number;
+    } | null,
   ): Promise<void> {
     this.assertOpen();
     if (viewport === null) {
@@ -463,13 +596,23 @@ export default class Page {
       return;
     }
     const { width, height, devicePixelRatio } = viewport;
-    for (const [name, value] of [["width", width], ["height", height]] as const) {
+    for (const [name, value] of [
+      ["width", width],
+      ["height", height],
+    ] as const) {
       if (!Number.isInteger(value) || value <= 0) {
-        throw new RangeError(`setViewport(): ${name} must be a positive integer, got ${value}`);
+        throw new RangeError(
+          `setViewport(): ${name} must be a positive integer, got ${value}`,
+        );
       }
     }
-    if (devicePixelRatio !== undefined && !(devicePixelRatio > 0 && Number.isFinite(devicePixelRatio))) {
-      throw new RangeError(`setViewport(): devicePixelRatio must be a positive number, got ${devicePixelRatio}`);
+    if (
+      devicePixelRatio !== undefined &&
+      !(devicePixelRatio > 0 && Number.isFinite(devicePixelRatio))
+    ) {
+      throw new RangeError(
+        `setViewport(): devicePixelRatio must be a positive number, got ${devicePixelRatio}`,
+      );
     }
     await this.biDiConnector.send("browsingContext.setViewport", {
       context: this.id,
@@ -503,7 +646,10 @@ export default class Page {
 
   /** The browser context (cookies, storage) this page belongs to */
   public context(): BrowserContext {
-    if (!this.browserContext) throw new Error("this page has no browser context: open it with browser.newPage() or context.newPage()");
+    if (!this.browserContext)
+      throw new Error(
+        "this page has no browser context: open it with browser.newPage() or context.newPage()",
+      );
     return this.browserContext;
   }
 
@@ -515,7 +661,9 @@ export default class Page {
   /** @internal Marks the page closed after its tab is gone (its context was removed) and releases what it registered */
   public async detach(): Promise<void> {
     this.isClosed = true;
-    await this.dispose().catch((err) => logger.debug("Releasing a detached page failed", { err }));
+    await this.dispose().catch((err) =>
+      logger.debug("Releasing a detached page failed", { err }),
+    );
   }
 
   /**
@@ -533,11 +681,17 @@ export default class Page {
    * Grants a browser permission ("geolocation", "notifications", "camera", …) to the origin this page is on,
    * or to `options.origin`. Geolocation emulation only answers once this is granted.
    */
-  public async grantPermission(name: string, options: { origin?: string } = {}): Promise<void> {
+  public async grantPermission(
+    name: string,
+    options: { origin?: string } = {},
+  ): Promise<void> {
     this.assertOpen();
     const origin = options.origin ?? new URL(await this.url()).origin;
     // about:blank and data: pages have no origin to grant to
-    if (origin === "null") throw new Error("grantPermission() needs a page on a web origin, or an explicit origin option");
+    if (origin === "null")
+      throw new Error(
+        "grantPermission() needs a page on a web origin, or an explicit origin option",
+      );
     const context = this.browserContext;
     await this.biDiConnector.send("permissions.setPermission", {
       descriptor: { name },
@@ -560,7 +714,9 @@ export default class Page {
    * Closes the tab and releases everything the page registered. Later calls on the page throw "page closed".
    * With `runBeforeUnload` the page's `beforeunload` handlers run first. Closing the browser's last tab may end the browser.
    */
-  public async close(options: { runBeforeUnload?: boolean } = {}): Promise<void> {
+  public async close(
+    options: { runBeforeUnload?: boolean } = {},
+  ): Promise<void> {
     if (this.isClosed) return;
     try {
       await this.biDiConnector.send("browsingContext.close", {
@@ -569,10 +725,13 @@ export default class Page {
       });
     } catch (err) {
       // Already gone (closed by the page, the browser or another call): the goal is met
-      if (!(err instanceof BiDiError && err.code === "no such frame")) throw err;
+      if (!(err instanceof BiDiError && err.code === "no such frame"))
+        throw err;
     }
     this.isClosed = true;
-    await this.dispose().catch((err) => logger.debug("Releasing a closed page failed", { err }));
+    await this.dispose().catch((err) =>
+      logger.debug("Releasing a closed page failed", { err }),
+    );
   }
 
   /**
@@ -589,16 +748,23 @@ export default class Page {
   ): Promise<void> {
     this.assertOpen();
     const timeout =
-      options.timeout ?? (await this.navigationSettings()).timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
+      options.timeout ??
+      (await this.navigationSettings()).timeout ??
+      DEFAULT_NAVIGATION_TIMEOUT;
     try {
-      await this.waitForDocumentState(state === "domcontentloaded" ? "domcontentloaded" : "load", timeout);
+      await this.waitForDocumentState(
+        state === "domcontentloaded" ? "domcontentloaded" : "load",
+        timeout,
+      );
     } catch (err) {
-      if (err instanceof WaitTimeoutError) throw new LoadStateTimeoutError(state, timeout);
+      if (err instanceof WaitTimeoutError)
+        throw new LoadStateTimeoutError(state, timeout);
       throw err;
     }
     if (state === "networkidle") {
       const tracker = await this.network();
-      const idleTime = (await this.networkSettings()).idleTime ?? DEFAULT_IDLE_TIME;
+      const idleTime =
+        (await this.networkSettings()).idleTime ?? DEFAULT_IDLE_TIME;
       await tracker.waitForIdle({ idleTime, timeout });
     }
   }
@@ -610,25 +776,32 @@ export default class Page {
       this.navigationProgress.set(navigation, progress);
       // Only the latest few navigations matter
       if (this.navigationProgress.size > 20) {
-        this.navigationProgress.delete(this.navigationProgress.keys().next().value as string);
+        this.navigationProgress.delete(
+          this.navigationProgress.keys().next().value as string,
+        );
       }
     }
     return progress;
   }
 
-  private onDocumentEvent = (kind: "domContentLoaded" | "load") => (info: { context: string; navigation: string | null }) => {
-    if (info.context !== this.id || info.navigation === null) return;
-    const progress = this.progressOf(info.navigation);
-    progress.domContentLoaded = true;
-    if (kind === "load") progress.load = true;
-  };
+  private onDocumentEvent =
+    (kind: "domContentLoaded" | "load") =>
+    (info: { context: string; navigation: string | null }) => {
+      if (info.context !== this.id || info.navigation === null) return;
+      const progress = this.progressOf(info.navigation);
+      progress.domContentLoaded = true;
+      if (kind === "load") progress.load = true;
+    };
   private onDomContentLoaded = this.onDocumentEvent("domContentLoaded");
   private onLoad = this.onDocumentEvent("load");
 
   /** Starts recording which navigations reached DOMContentLoaded and load; kept until dispose */
   private watchDocumentEvents(): Promise<Subscription> {
     this.documentEvents ??= (async () => {
-      this.biDiConnector.onEvent("browsingContext.domContentLoaded", this.onDomContentLoaded);
+      this.biDiConnector.onEvent(
+        "browsingContext.domContentLoaded",
+        this.onDomContentLoaded,
+      );
       this.biDiConnector.onEvent("browsingContext.load", this.onLoad);
       try {
         return await this.biDiConnector.subscribe([
@@ -636,7 +809,10 @@ export default class Page {
           "browsingContext.load",
         ]);
       } catch (err) {
-        this.biDiConnector.offEvent("browsingContext.domContentLoaded", this.onDomContentLoaded);
+        this.biDiConnector.offEvent(
+          "browsingContext.domContentLoaded",
+          this.onDomContentLoaded,
+        );
         this.biDiConnector.offEvent("browsingContext.load", this.onLoad);
         this.documentEvents = undefined;
         throw err;
@@ -646,25 +822,45 @@ export default class Page {
   }
 
   private canBeAborted(): boolean {
-    return !unsupportedEvents(this.biDiConnector).has("browsingContext.navigationAborted");
+    return !unsupportedEvents(this.biDiConnector).has(
+      "browsingContext.navigationAborted",
+    );
   }
 
   /** Subscribes to what a wait listens for; a browser that lacks the navigationAborted event (Firefox) is asked only once */
-  private async subscribeToDocumentEvents(reachedEvent: "browsingContext.load" | "browsingContext.domContentLoaded") {
-    const required = [reachedEvent, "browsingContext.navigationFailed"] as const;
-    if (!this.canBeAborted()) return this.biDiConnector.subscribe([...required]);
+  private async subscribeToDocumentEvents(
+    reachedEvent: "browsingContext.load" | "browsingContext.domContentLoaded",
+  ) {
+    const required = [
+      reachedEvent,
+      "browsingContext.navigationFailed",
+    ] as const;
+    if (!this.canBeAborted())
+      return this.biDiConnector.subscribe([...required]);
     try {
-      return await this.biDiConnector.subscribe([...required, "browsingContext.navigationAborted"]);
+      return await this.biDiConnector.subscribe([
+        ...required,
+        "browsingContext.navigationAborted",
+      ]);
     } catch (err) {
-      if (!(err instanceof BiDiError) || err.code !== "invalid argument") throw err;
-      unsupportedEvents(this.biDiConnector).add("browsingContext.navigationAborted");
+      if (!(err instanceof BiDiError) || err.code !== "invalid argument")
+        throw err;
+      unsupportedEvents(this.biDiConnector).add(
+        "browsingContext.navigationAborted",
+      );
       return this.biDiConnector.subscribe([...required]);
     }
   }
 
-  private async waitForDocumentState(target: "load" | "domcontentloaded", timeout: number) {
+  private async waitForDocumentState(
+    target: "load" | "domcontentloaded",
+    timeout: number,
+  ) {
     const connector = this.biDiConnector;
-    const reachedEvent = target === "load" ? "browsingContext.load" : "browsingContext.domContentLoaded";
+    const reachedEvent =
+      target === "load"
+        ? "browsingContext.load"
+        : "browsingContext.domContentLoaded";
     const subscription = await this.subscribeToDocumentEvents(reachedEvent);
     const abort = new AbortController();
     const last = this.lastNavigation;
@@ -675,11 +871,17 @@ export default class Page {
     try {
       // Registered before the state is read, so an event in between is not lost
       const events = Promise.race([
-        connector.waitForEvent(reachedEvent, (p) => p.context === this.id, listen),
+        connector.waitForEvent(
+          reachedEvent,
+          (p) => p.context === this.id,
+          listen,
+        ),
         connector
           .waitForEvent(
             "browsingContext.navigationFailed",
-            (p) => p.context === this.id && (last === undefined || p.navigation === last),
+            (p) =>
+              p.context === this.id &&
+              (last === undefined || p.navigation === last),
             listen,
           )
           .then((p) => failure(p, "navigation failed")),
@@ -688,7 +890,10 @@ export default class Page {
               connector
                 .waitForEvent(
                   "browsingContext.navigationAborted",
-                  (p) => p.context === this.id && last !== undefined && p.navigation === last,
+                  (p) =>
+                    p.context === this.id &&
+                    last !== undefined &&
+                    p.navigation === last,
                   listen,
                 )
                 .then((p) => failure(p, "navigation aborted")),
@@ -696,17 +901,26 @@ export default class Page {
           : []),
       ]);
       events.catch(() => {}); // settled below, or aborted in finally
-      const known = last === undefined ? undefined : this.navigationProgress.get(last);
+      const known =
+        last === undefined ? undefined : this.navigationProgress.get(last);
       // A navigation we started and saw fall short of the state beats the document that is showing
       let reached: boolean;
       if (known && !(target === "load" ? known.load : known.domContentLoaded)) {
         reached = false;
       } else {
-        const readyState = await callFunction<string>(connector, this.id, "() => document.readyState", [], {
-          awaitPromise: false,
-        });
+        const readyState = await callFunction<string>(
+          connector,
+          this.id,
+          "() => document.readyState",
+          [],
+          {
+            awaitPromise: false,
+          },
+        );
         reached =
-          target === "load" ? readyState === "complete" : readyState === "interactive" || readyState === "complete";
+          target === "load"
+            ? readyState === "complete"
+            : readyState === "interactive" || readyState === "complete";
       }
       if (!reached) await events;
     } finally {
@@ -716,7 +930,9 @@ export default class Page {
   }
 
   private networkSettings() {
-    return this.settings?.network ? Promise.resolve(this.settings.network) : readSection("network");
+    return this.settings?.network
+      ? Promise.resolve(this.settings.network)
+      : readSection("network");
   }
 
   private navigationSettings() {
@@ -730,14 +946,25 @@ export default class Page {
     this.networkTracker ??= (async () => {
       const settings = await this.networkSettings();
       if (settings.track === false) throw new NetworkTrackingDisabledError();
-      const tracker = await NetworkTracker.start(this.biDiConnector, await this.tree(), this.id);
-      tracker.on("request", (request) => this.pageEvents.emit("request", request));
-      tracker.on("response", (response) => this.pageEvents.emit("response", this.responseFor(response)));
-      tracker.on("requestfailed", (failed) => this.pageEvents.emit("requestfailed", failed));
+      const tracker = await NetworkTracker.start(
+        this.biDiConnector,
+        await this.tree(),
+        this.id,
+      );
+      tracker.on("request", (request) =>
+        this.pageEvents.emit("request", request),
+      );
+      tracker.on("response", (response) =>
+        this.pageEvents.emit("response", this.responseFor(response)),
+      );
+      tracker.on("requestfailed", (failed) =>
+        this.pageEvents.emit("requestfailed", failed),
+      );
       if (settings.collectBodies) await this.startBodyCollection();
       return tracker;
     })().catch((err) => {
-      if (!(err instanceof NetworkTrackingDisabledError)) this.networkTracker = undefined;
+      if (!(err instanceof NetworkTrackingDisabledError))
+        this.networkTracker = undefined;
       throw err;
     });
     return this.networkTracker;
@@ -760,11 +987,18 @@ export default class Page {
    * Waits until no request has been in flight for `idleTime` ms (default config `network.idleTime`, then 500).
    * Long-lived requests (server-sent events, long polling) keep the page busy until `timeout`.
    */
-  public async waitForNetworkIdle(options: { idleTime?: number; timeout?: number } = {}): Promise<void> {
+  public async waitForNetworkIdle(
+    options: { idleTime?: number; timeout?: number } = {},
+  ): Promise<void> {
     const tracker = await this.network();
-    const idleTime = options.idleTime ?? (await this.networkSettings()).idleTime ?? DEFAULT_IDLE_TIME;
+    const idleTime =
+      options.idleTime ??
+      (await this.networkSettings()).idleTime ??
+      DEFAULT_IDLE_TIME;
     const timeout =
-      options.timeout ?? (await this.navigationSettings()).timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
+      options.timeout ??
+      (await this.navigationSettings()).timeout ??
+      DEFAULT_NAVIGATION_TIMEOUT;
     await tracker.waitForIdle({ idleTime, timeout });
   }
 
@@ -776,19 +1010,28 @@ export default class Page {
    * @example
    *  page.on("dialog", (dialog) => dialog.accept());
    */
-  public on<E extends PageEventName>(event: E, listener: (...args: PageEvents[E]) => void): this {
+  public on<E extends PageEventName>(
+    event: E,
+    listener: (...args: PageEvents[E]) => void,
+  ): this {
     this.pageEvents.on(event, listener as (...args: unknown[]) => void);
     this.trackInBackground(event);
     return this;
   }
 
-  public once<E extends PageEventName>(event: E, listener: (...args: PageEvents[E]) => void): this {
+  public once<E extends PageEventName>(
+    event: E,
+    listener: (...args: PageEvents[E]) => void,
+  ): this {
     this.pageEvents.once(event, listener as (...args: unknown[]) => void);
     this.trackInBackground(event);
     return this;
   }
 
-  public off<E extends PageEventName>(event: E, listener: (...args: PageEvents[E]) => void): this {
+  public off<E extends PageEventName>(
+    event: E,
+    listener: (...args: PageEvents[E]) => void,
+  ): this {
     this.pageEvents.off(event, listener as (...args: unknown[]) => void);
     return this;
   }
@@ -802,19 +1045,32 @@ export default class Page {
           : event === "filechooser"
             ? this.startFileChooserTracking()
             : event === "console" || event === "pageerror"
-          ? this.startLogging()
-          : event === "response"
-            ? Promise.all([this.startNetworkTracking(), this.startBodyCollection()])
-            : this.startNetworkTracking();
-    started.catch((err) => logger.error("Could not start listening for %s", event, { err }));
+              ? this.startLogging()
+              : event === "response"
+                ? Promise.all([
+                    this.startNetworkTracking(),
+                    this.startBodyCollection(),
+                  ])
+                : this.startNetworkTracking();
+    started.catch((err) =>
+      logger.error("Could not start listening for %s", event, { err }),
+    );
   }
 
   /** Starts following downloads; the browser does this when it opens a page, `page.on("download")` and `waitForDownload` when needed */
   public async startDownloadTracking(): Promise<void> {
     this.downloadTracker ??= (async () => {
-      const timeout = (await this.navigationSettings()).timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
-      const tracker = await DownloadTracker.start(this.biDiConnector, await this.tree(), this.id, { timeout });
-      tracker.on("download", (download) => this.pageEvents.emit("download", download));
+      const timeout =
+        (await this.navigationSettings()).timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
+      const tracker = await DownloadTracker.start(
+        this.biDiConnector,
+        await this.tree(),
+        this.id,
+        { timeout },
+      );
+      tracker.on("download", (download) =>
+        this.pageEvents.emit("download", download),
+      );
       return tracker;
     })().catch((err) => {
       this.downloadTracker = undefined;
@@ -826,8 +1082,14 @@ export default class Page {
   /** Starts following file pickers; the browser does this when it opens a page, `page.on("filechooser")` and `waitForFileChooser` when needed */
   public async startFileChooserTracking(): Promise<void> {
     this.fileChooserTracker ??= (async () => {
-      const tracker = await FileChooserTracker.start(this.biDiConnector, await this.tree(), this.id);
-      tracker.on("filechooser", (chooser) => this.pageEvents.emit("filechooser", chooser));
+      const tracker = await FileChooserTracker.start(
+        this.biDiConnector,
+        await this.tree(),
+        this.id,
+      );
+      tracker.on("filechooser", (chooser) =>
+        this.pageEvents.emit("filechooser", chooser),
+      );
       return tracker;
     })().catch((err) => {
       this.fileChooserTracker = undefined;
@@ -843,10 +1105,17 @@ export default class Page {
    *  const download = await page.waitForDownload({ trigger: () => link.click() });
    *  const file = await download.path();
    */
-  public async waitForDownload(options: { timeout?: number; trigger?: () => Promise<unknown> } = {}): Promise<Download> {
+  public async waitForDownload(
+    options: { timeout?: number; trigger?: () => Promise<unknown> } = {},
+  ): Promise<Download> {
     this.assertOpen();
     await this.startDownloadTracking();
-    return this.waitForPageEvent("download", () => true, options, (timeout) => new DownloadWaitTimeoutError(timeout));
+    return this.waitForPageEvent(
+      "download",
+      () => true,
+      options,
+      (timeout) => new DownloadWaitTimeoutError(timeout),
+    );
   }
 
   /**
@@ -856,10 +1125,17 @@ export default class Page {
    *  const chooser = await page.waitForFileChooser({ trigger: () => page.locator("label[@for='avatar']").click() });
    *  await chooser.setFiles("./fixtures/avatar.png");
    */
-  public async waitForFileChooser(options: { timeout?: number; trigger?: () => Promise<unknown> } = {}): Promise<FileChooser> {
+  public async waitForFileChooser(
+    options: { timeout?: number; trigger?: () => Promise<unknown> } = {},
+  ): Promise<FileChooser> {
     this.assertOpen();
     await this.startFileChooserTracking();
-    return this.waitForPageEvent("filechooser", () => true, options, (timeout) => new FileChooserTimeoutError(timeout));
+    return this.waitForPageEvent(
+      "filechooser",
+      () => true,
+      options,
+      (timeout) => new FileChooserTimeoutError(timeout),
+    );
   }
 
   /**
@@ -932,10 +1208,21 @@ export default class Page {
     match: NetworkMatch<NetworkEvents[E][0]>,
     options: { timeout?: number; trigger?: () => Promise<unknown> },
   ): Promise<NetworkEvents[E][0]> {
-    const matches = toPredicate(match as NetworkMatch<{ url: string }>) as (item: NetworkEvents[E][0]) => boolean;
-    const Timeout = event === "request" ? RequestTimeoutError : ResponseTimeoutError;
-    return this.waitForPageEvent(event, matches, options, (timeout) =>
-      new Timeout(event === "request" ? "waitForRequest" : "waitForResponse", match as never, timeout),
+    const matches = toPredicate(match as NetworkMatch<{ url: string }>) as (
+      item: NetworkEvents[E][0],
+    ) => boolean;
+    const Timeout =
+      event === "request" ? RequestTimeoutError : ResponseTimeoutError;
+    return this.waitForPageEvent(
+      event,
+      matches,
+      options,
+      (timeout) =>
+        new Timeout(
+          event === "request" ? "waitForRequest" : "waitForResponse",
+          match as never,
+          timeout,
+        ),
     );
   }
 
@@ -950,7 +1237,9 @@ export default class Page {
     onTimeout: (timeout: number) => Error,
   ): Promise<PageEvents[E][0]> {
     const timeout =
-      options.timeout ?? (await this.navigationSettings()).timeout ?? DEFAULT_NAVIGATION_TIMEOUT;
+      options.timeout ??
+      (await this.navigationSettings()).timeout ??
+      DEFAULT_NAVIGATION_TIMEOUT;
     return new Promise((resolve, reject) => {
       const done = () => {
         clearTimeout(timer);
@@ -992,8 +1281,13 @@ export default class Page {
         contexts: [this.id],
       });
     } catch (err) {
-      if (err instanceof BiDiError && (err.code === "unsupported operation" || err.code === "unknown command")) {
-        throw new UnsupportedOperationError("page.setCacheDisabled() is not supported by the browser");
+      if (
+        err instanceof BiDiError &&
+        (err.code === "unsupported operation" || err.code === "unknown command")
+      ) {
+        throw new UnsupportedOperationError(
+          "page.setCacheDisabled() is not supported by the browser",
+        );
       }
       throw err;
     }
@@ -1002,9 +1296,14 @@ export default class Page {
   private router(): Promise<Router> {
     this.routerPromise ??= (async () => {
       const routeTimeout = (await this.networkSettings()).routeTimeout;
-      const router = new Router(this.biDiConnector, await this.tree(), this.id, {
-        ...(routeTimeout !== undefined && { routeTimeout }),
-      });
+      const router = new Router(
+        this.biDiConnector,
+        await this.tree(),
+        this.id,
+        {
+          ...(routeTimeout !== undefined && { routeTimeout }),
+        },
+      );
       this.loadedRouter = router;
       return router;
     })().catch((err) => {
@@ -1050,7 +1349,11 @@ export default class Page {
    */
   public async startLogging(): Promise<void> {
     this.pageLogs ??= (async () => {
-      const logs = await PageLogs.start(this.biDiConnector, await this.tree(), this.id);
+      const logs = await PageLogs.start(
+        this.biDiConnector,
+        await this.tree(),
+        this.id,
+      );
       logs.on("console", (message) => this.pageEvents.emit("console", message));
       logs.on("pageerror", (error) => this.pageEvents.emit("pageerror", error));
       this.loadedLogs = logs;
@@ -1099,16 +1402,28 @@ export default class Page {
   public async startDialogHandling(): Promise<void> {
     this.dialogHandling ??= (async () => {
       await this.tree();
-      this.biDiConnector.onEvent("browsingContext.userPromptOpened", this.onPromptOpened);
-      this.biDiConnector.onEvent("browsingContext.userPromptClosed", this.onPromptClosed);
+      this.biDiConnector.onEvent(
+        "browsingContext.userPromptOpened",
+        this.onPromptOpened,
+      );
+      this.biDiConnector.onEvent(
+        "browsingContext.userPromptClosed",
+        this.onPromptClosed,
+      );
       try {
         return await this.biDiConnector.subscribe([
           "browsingContext.userPromptOpened",
           "browsingContext.userPromptClosed",
         ]);
       } catch (err) {
-        this.biDiConnector.offEvent("browsingContext.userPromptOpened", this.onPromptOpened);
-        this.biDiConnector.offEvent("browsingContext.userPromptClosed", this.onPromptClosed);
+        this.biDiConnector.offEvent(
+          "browsingContext.userPromptOpened",
+          this.onPromptOpened,
+        );
+        this.biDiConnector.offEvent(
+          "browsingContext.userPromptClosed",
+          this.onPromptClosed,
+        );
         this.dialogHandling = undefined;
         throw err;
       }
@@ -1122,9 +1437,10 @@ export default class Page {
 
   private onPromptOpened = (params: UserPromptOpenedParameters) => {
     if (!this.ownsContext(params.context)) return;
-    this.dispatchDialog(new Dialog(this.biDiConnector, this.id, params), params).catch((err) =>
-      logger.error("Handling a dialog failed", { err }),
-    );
+    this.dispatchDialog(
+      new Dialog(this.biDiConnector, this.id, params),
+      params,
+    ).catch((err) => logger.error("Handling a dialog failed", { err }));
   };
 
   private onPromptClosed = (params: UserPromptClosedParameters) => {
@@ -1138,10 +1454,15 @@ export default class Page {
   };
 
   /** Lets the listeners answer; a dialog still open afterwards gets the default answer, so nothing hangs */
-  private async dispatchDialog(dialog: Dialog, params: UserPromptOpenedParameters) {
+  private async dispatchDialog(
+    dialog: Dialog,
+    params: UserPromptOpenedParameters,
+  ) {
     this.openDialogs.set(params.context, dialog);
     // rawListeners: the wrappers that make a `once` listener remove itself when called
-    const listeners = this.pageEvents.rawListeners("dialog") as Array<(dialog: Dialog) => unknown>;
+    const listeners = this.pageEvents.rawListeners("dialog") as Array<
+      (dialog: Dialog) => unknown
+    >;
     await Promise.all(
       listeners.map(async (listener) => {
         try {
@@ -1182,17 +1503,24 @@ export default class Page {
 }
 
 /** Wraps an init script as one function declaration; the argument is embedded as JSON because preload scripts take no arguments */
-function initScriptSource(script: string | ((arg?: any) => void), arg: unknown): string {
+function initScriptSource(
+  script: string | ((arg?: any) => void),
+  arg: unknown,
+): string {
   if (typeof script === "string") {
     if (arg !== undefined) {
-      throw new TypeError("addInitScript(): a string script does not take an argument; pass a function instead");
+      throw new TypeError(
+        "addInitScript(): a string script does not take an argument; pass a function instead",
+      );
     }
     return `() => {\n${script}\n}`;
   }
   const declaration = toFunctionDeclaration(script);
   const argument = arg === undefined ? "undefined" : JSON.stringify(arg);
   if (argument === undefined) {
-    throw new TypeError("addInitScript(): the argument must be JSON-serializable");
+    throw new TypeError(
+      "addInitScript(): the argument must be JSON-serializable",
+    );
   }
   return `() => (${declaration})(${argument})`;
 }

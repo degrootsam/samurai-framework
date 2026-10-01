@@ -1,9 +1,19 @@
-import type { Expectation, LocatorCall, LocatorSpec, Step, TextMatcher, TextValue } from "./model.js";
+import type {
+  Expectation,
+  LocatorCall,
+  LocatorSpec,
+  Step,
+  TextMatcher,
+  TextValue,
+} from "./model.js";
 
 const str = (value: string) => JSON.stringify(value);
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
-function textOptions(call: { match?: "full" | "partial"; ignoreCase?: boolean }): string {
+function textOptions(call: {
+  match?: "full" | "partial";
+  ignoreCase?: boolean;
+}): string {
   const parts = [
     call.match !== undefined && `match: ${str(call.match)}`,
     call.ignoreCase !== undefined && `ignoreCase: ${call.ignoreCase}`,
@@ -27,21 +37,28 @@ export function callToSource(call: LocatorCall): string {
   }
 }
 
-const chainToSource = (chain: readonly LocatorCall[]) => ["page", ...chain.map(callToSource)].join(".");
+const chainToSource = (chain: readonly LocatorCall[]) =>
+  ["page", ...chain.map(callToSource)].join(".");
 
 export function locatorToSource({ chain, fallbacks }: LocatorSpec): string {
   const primary = chainToSource(chain);
-  return fallbacks.length === 0 ? primary : `${primary}.withFallbacks(${fallbacks.map(chainToSource).join(", ")})`;
+  return fallbacks.length === 0
+    ? primary
+    : `${primary}.withFallbacks(${fallbacks.map(chainToSource).join(", ")})`;
 }
 
 export function valueToSource(value: TextValue): string {
   if (value.kind === "literal") return str(value.value);
   const object = value.kind === "env" ? "env" : "secrets";
-  return IDENTIFIER.test(value.name) ? `${object}.${value.name}` : `${object}[${str(value.name)}]`;
+  return IDENTIFIER.test(value.name)
+    ? `${object}.${value.name}`
+    : `${object}[${str(value.name)}]`;
 }
 
 function matcherToSource(expected: TextMatcher): string {
-  return typeof expected === "string" ? str(expected) : `/${expected.regex.source}/${expected.regex.flags}`;
+  return typeof expected === "string"
+    ? str(expected)
+    : `/${expected.regex.source}/${expected.regex.flags}`;
 }
 
 function expectationToSource(expectation: Expectation): string {

@@ -7,7 +7,11 @@ import { ElementHandle } from "../script/element-handle.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { LocatorCall, LocatorSpec } from "../steps/model.js";
 import { CAPTURE_OFF, CAPTURE_SOURCE } from "./capture.js";
-import { Normaliser, type Observation, type RecorderEvent } from "./normalise.js";
+import {
+  Normaliser,
+  type Observation,
+  type RecorderEvent,
+} from "./normalise.js";
 import { rankLocator } from "./ranking.js";
 
 export type { RecorderEvent } from "./normalise.js";
@@ -63,22 +67,47 @@ export class Recorder {
     options: RecorderOptions,
   ): Promise<Recorder> {
     const at = options.at ?? 0;
-    const normaliser = new Normaliser({ at, ...(options.baseURL !== undefined && { baseURL: options.baseURL }) });
-    const recorder = new Recorder(target.page, target.connector, target.context, normaliser, options, `samurai-recorder-${randomUUID()}`);
+    const normaliser = new Normaliser({
+      at,
+      ...(options.baseURL !== undefined && { baseURL: options.baseURL }),
+    });
+    const recorder = new Recorder(
+      target.page,
+      target.connector,
+      target.context,
+      normaliser,
+      options,
+      `samurai-recorder-${randomUUID()}`,
+    );
     await recorder.begin(options.initialGoto ?? true);
     return recorder;
   }
 
-  private readonly onMessage = (params: { channel: string; data: unknown; source: { context?: string } }) => {
-    if (params.channel !== this.channel || params.source.context !== this.context) return;
-    const message = fromRemoteValue(params.data as Parameters<typeof fromRemoteValue>[0]) as PageMessage;
+  private readonly onMessage = (params: {
+    channel: string;
+    data: unknown;
+    source: { context?: string };
+  }) => {
+    if (
+      params.channel !== this.channel ||
+      params.source.context !== this.context
+    )
+      return;
+    const message = fromRemoteValue(
+      params.data as Parameters<typeof fromRemoteValue>[0],
+    ) as PageMessage;
     this.enqueue(async () => this.handle(message));
   };
 
-  private readonly onNavigation = (params: { context: string; url: string }) => {
+  private readonly onNavigation = (params: {
+    context: string;
+    url: string;
+  }) => {
     if (params.context !== this.context || params.url === "about:blank") return;
     this.known.clear();
-    this.enqueue(async () => this.emit(this.normaliser.navigated(params.url, Date.now())));
+    this.enqueue(async () =>
+      this.emit(this.normaliser.navigated(params.url, Date.now())),
+    );
   };
 
   private subscription: { unsubscribe(): Promise<void> } | undefined;
@@ -86,9 +115,15 @@ export class Recorder {
 
   private async begin(initialGoto: boolean): Promise<void> {
     this.connector.onEvent("script.message", this.onMessage);
-    this.connector.onEvent("browsingContext.navigationStarted", this.onNavigation);
+    this.connector.onEvent(
+      "browsingContext.navigationStarted",
+      this.onNavigation,
+    );
     try {
-      this.subscription = await this.connector.subscribe(["script.message", "browsingContext.navigationStarted"]);
+      this.subscription = await this.connector.subscribe([
+        "script.message",
+        "browsingContext.navigationStarted",
+      ]);
       if (initialGoto) {
         const url = await this.page.url();
         if (url !== "about:blank") this.emit(this.normaliser.initialGoto(url));
@@ -116,10 +151,16 @@ export class Recorder {
     for (const event of events) this.options.onEvent(event);
   }
 
-  private async locatorFor(message: PageMessage): Promise<LocatorSpec | undefined> {
+  private async locatorFor(
+    message: PageMessage,
+  ): Promise<LocatorSpec | undefined> {
     const { sharedId } = message.target;
     if (this.known.has(sharedId)) return this.known.get(sharedId);
-    const spec = await rankLocator(this.page, message.target, message.candidates);
+    const spec = await rankLocator(
+      this.page,
+      message.target,
+      message.candidates,
+    );
     this.known.set(sharedId, spec);
     return spec;
   }
@@ -127,7 +168,10 @@ export class Recorder {
   private async handle(message: PageMessage): Promise<void> {
     const locator = await this.locatorFor(message);
     if (!locator) {
-      logger.warn("Recorder found no locator that matches only the element the tester used; the %s was skipped", message.type);
+      logger.warn(
+        "Recorder found no locator that matches only the element the tester used; the %s was skipped",
+        message.type,
+      );
       return;
     }
     const key = message.target.sharedId;
@@ -135,28 +179,46 @@ export class Recorder {
       message.type === "click"
         ? { type: "click", key, locator, textEntry: message.textEntry === true }
         : message.type === "assert"
-          ? { type: "assert", key, locator, text: message.text ?? "", ...(message.value !== undefined && { value: message.value }) }
+          ? {
+              type: "assert",
+              key,
+              locator,
+              text: message.text ?? "",
+              ...(message.value !== undefined && { value: message.value }),
+            }
           : {
               type: "input",
               key,
               locator,
               ...(message.value !== undefined && { value: message.value }),
               ...(message.secret && { secret: true }),
-              ...(message.secretName !== undefined && { secretName: message.secretName }),
+              ...(message.secretName !== undefined && {
+                secretName: message.secretName,
+              }),
             };
     this.emit(this.normaliser.observe(observation, Date.now()));
   }
 
   private async release(): Promise<void> {
     this.connector.offEvent("script.message", this.onMessage);
-    this.connector.offEvent("browsingContext.navigationStarted", this.onNavigation);
-    await Promise.allSettled([this.subscription?.unsubscribe(), this.preload?.dispose()]);
+    this.connector.offEvent(
+      "browsingContext.navigationStarted",
+      this.onNavigation,
+    );
+    await Promise.allSettled([
+      this.subscription?.unsubscribe(),
+      this.preload?.dispose(),
+    ]);
   }
 
   /** Stops recording. Events already received are still processed and reported first */
   public async stop(): Promise<void> {
     if (this.stopped) return;
-    await runInLoadedContexts(this.connector, { source: CAPTURE_OFF, contexts: [this.context], onRunError: "log" }).catch(() => undefined);
+    await runInLoadedContexts(this.connector, {
+      source: CAPTURE_OFF,
+      contexts: [this.context],
+      onRunError: "log",
+    }).catch(() => undefined);
     await this.queue.tail;
     this.stopped = true;
     await this.release();

@@ -17,9 +17,15 @@ export async function rankLocator(
   const verified: LocatorCall[] = [];
   for (const candidate of candidates) {
     if (verified.length > maxFallbacks) break;
-    const found = await locatorFromSpec(page, { chain: [candidate], fallbacks: [] }).elements();
-    if (found.length === 1 && found[0]!.sharedId === target.sharedId) verified.push(candidate);
+    const found = await locatorFromSpec(page, {
+      chain: [candidate],
+      fallbacks: [],
+    }).elements();
+    if (found.length === 1 && found[0]!.sharedId === target.sharedId)
+      verified.push(candidate);
   }
   const [primary, ...fallbacks] = verified;
-  return primary && { chain: [primary], fallbacks: fallbacks.map((call) => [call]) };
+  return (
+    primary && { chain: [primary], fallbacks: fallbacks.map((call) => [call]) }
+  );
 }

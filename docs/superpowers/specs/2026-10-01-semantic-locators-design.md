@@ -10,14 +10,16 @@ Depends on: locate-nodes
 Locators a recorder can emit and a tester can read, plus an ordered list of fallback locators per step (the input for self-healing).
 
 ```ts
-page.getByRole("button", { name: "Save" })   // existing
-page.getByText("Save")                        // existing
-page.getByLabel("Email address")              // new
-page.getByTestId("save")                      // new
-page.getByTestId("save").withFallbacks(
-  page.getByRole("button", { name: "Save" }),
-  page.getByText("Save"),
-);
+page.getByRole("button", { name: "Save" }); // existing
+page.getByText("Save"); // existing
+page.getByLabel("Email address"); // new
+page.getByTestId("save"); // new
+page
+  .getByTestId("save")
+  .withFallbacks(
+    page.getByRole("button", { name: "Save" }),
+    page.getByText("Save"),
+  );
 ```
 
 `getByLabel` and `getByTestId` also exist on `Locator` (chained, scoped to the parent's matches).

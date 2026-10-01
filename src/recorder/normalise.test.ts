@@ -1,20 +1,51 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { applyRecorderEvent } from "./apply.js";
-import { Normaliser, secretNameFor, type Observation, type RecorderEvent } from "./normalise.js";
+import {
+  Normaliser,
+  secretNameFor,
+  type Observation,
+  type RecorderEvent,
+} from "./normalise.js";
 import { parseSpec } from "../steps/parse.js";
 import type { LocatorSpec } from "../steps/model.js";
 
-const loc = (testId: string): LocatorSpec => ({ chain: [{ method: "getByTestId", testId }], fallbacks: [] });
-const click = (key: string, textEntry = false): Observation => ({ type: "click", key, locator: loc(key), textEntry });
-const input = (key: string, value: string): Observation => ({ type: "input", key, locator: loc(key), value });
+const loc = (testId: string): LocatorSpec => ({
+  chain: [{ method: "getByTestId", testId }],
+  fallbacks: [],
+});
+const click = (key: string, textEntry = false): Observation => ({
+  type: "click",
+  key,
+  locator: loc(key),
+  textEntry,
+});
+const input = (key: string, value: string): Observation => ({
+  type: "input",
+  key,
+  locator: loc(key),
+  value,
+});
 
 describe("Normaliser", () => {
   it("merges typing into one fill that is rewritten as the text grows", () => {
     const n = new Normaliser({ at: 0 });
-    const events = ["a", "ab", "abc"].flatMap((value, i) => n.observe(input("f", value), i * 100));
-    assert.deepEqual(events.map(({ op, index }) => [op, index]), [["insert", 0], ["replace", 0], ["replace", 0]]);
-    assert.deepEqual(events[2]!.step, { kind: "fill", locator: loc("f"), value: { kind: "literal", value: "abc" } });
+    const events = ["a", "ab", "abc"].flatMap((value, i) =>
+      n.observe(input("f", value), i * 100),
+    );
+    assert.deepEqual(
+      events.map(({ op, index }) => [op, index]),
+      [
+        ["insert", 0],
+        ["replace", 0],
+        ["replace", 0],
+      ],
+    );
+    assert.deepEqual(events[2]!.step, {
+      kind: "fill",
+      locator: loc("f"),
+      value: { kind: "literal", value: "abc" },
+    });
     assert.equal(n.nextIndex, 1);
   });
 
@@ -35,8 +66,20 @@ describe("Normaliser", () => {
 
   it("turns a password into a secret reference without the value", () => {
     const n = new Normaliser({ at: 0 });
-    const [event] = n.observe({ type: "input", key: "p", locator: loc("p"), secret: true, secretName: "userPassword" }, 0);
-    assert.deepEqual((event!.step as { value: unknown }).value, { kind: "secret", name: "USER_PASSWORD" });
+    const [event] = n.observe(
+      {
+        type: "input",
+        key: "p",
+        locator: loc("p"),
+        secret: true,
+        secretName: "userPassword",
+      },
+      0,
+    );
+    assert.deepEqual((event!.step as { value: unknown }).value, {
+      kind: "secret",
+      name: "USER_PASSWORD",
+    });
     assert.equal(secretNameFor(""), "PASSWORD");
     assert.equal(secretNameFor("9x"), "PASSWORD");
     assert.equal(secretNameFor("login-pass"), "LOGIN_PASS");
@@ -47,14 +90,20 @@ describe("Normaliser", () => {
     n.observe(click("b"), 1000);
     const [wait] = n.navigated("https://x.test/next", 1300);
     assert.deepEqual(wait!.step, { kind: "waitForNetworkIdle" });
-    assert.deepEqual(n.navigated("https://x.test/redirect", 1400)[0]!.step, { kind: "goto", url: "https://x.test/redirect" });
+    assert.deepEqual(n.navigated("https://x.test/redirect", 1400)[0]!.step, {
+      kind: "goto",
+      url: "https://x.test/redirect",
+    });
   });
 
   it("writes a navigation without a recent action as goto, relative to the base URL", () => {
     const n = new Normaliser({ at: 3, baseURL: "https://x.test/" });
     n.observe(click("b"), 0);
     const [goto] = n.navigated("https://x.test/a?b=1#c", 10_000);
-    assert.deepEqual([goto!.index, goto!.step], [4, { kind: "goto", url: "/a?b=1#c" }]);
+    assert.deepEqual(
+      [goto!.index, goto!.step],
+      [4, { kind: "goto", url: "/a?b=1#c" }],
+    );
     assert.equal(n.relative("https://x.test"), "/");
     assert.equal(n.relative("https://x.test.evil/a"), "https://x.test.evil/a");
     assert.equal(n.relative("https://other.test/"), "https://other.test/");
@@ -69,12 +118,32 @@ describe("Normaliser", () => {
   it("an Alt+click becomes an expectation by what the element holds", () => {
     const n = new Normaliser({ at: 0 });
     const expectation = (text: string, value?: string) =>
-      (n.observe({ type: "assert", key: "k", locator: loc("k"), text, ...(value !== undefined && { value }) }, 0)[0]!.step as {
-        expectation: unknown;
-      }).expectation;
-    assert.deepEqual(expectation("Hello", "typed"), { matcher: "toHaveValue", expected: "typed" });
-    assert.deepEqual(expectation("Hello"), { matcher: "toHaveText", expected: "Hello" });
-    assert.deepEqual(expectation("x".repeat(150)), { matcher: "toContainText", expected: "x".repeat(100) });
+      (
+        n.observe(
+          {
+            type: "assert",
+            key: "k",
+            locator: loc("k"),
+            text,
+            ...(value !== undefined && { value }),
+          },
+          0,
+        )[0]!.step as {
+          expectation: unknown;
+        }
+      ).expectation;
+    assert.deepEqual(expectation("Hello", "typed"), {
+      matcher: "toHaveValue",
+      expected: "typed",
+    });
+    assert.deepEqual(expectation("Hello"), {
+      matcher: "toHaveText",
+      expected: "Hello",
+    });
+    assert.deepEqual(expectation("x".repeat(150)), {
+      matcher: "toContainText",
+      expected: "x".repeat(100),
+    });
     assert.deepEqual(expectation(""), { matcher: "toBeVisible" });
   });
 });

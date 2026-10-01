@@ -39,8 +39,15 @@ class FakeElement {
 }
 let documentRoot: FakeElement;
 
-function run(starts: FakeElement[], value: string, match = "full", ignoreCase = false) {
-  const byId = (id: string) => [documentRoot, ...documentRoot.descendants()].find((el) => el.id === id) ?? null;
+function run(
+  starts: FakeElement[],
+  value: string,
+  match = "full",
+  ignoreCase = false,
+) {
+  const byId = (id: string) =>
+    [documentRoot, ...documentRoot.descendants()].find((el) => el.id === id) ??
+    null;
   const fn = new Function("document", `return (${LABEL_LOCATE})`)({
     querySelectorAll: () => documentRoot.descendants(),
     getElementById: byId,
@@ -56,7 +63,11 @@ describe("LABEL_LOCATE", () => {
   it("finds a control by its <label> (el.labels)", () => {
     const label = new FakeElement("LABEL", " Email   address ");
     const input = new FakeElement("INPUT").labelledBy(label);
-    documentRoot = new FakeElement("HTML").add(label, input, new FakeElement("INPUT"));
+    documentRoot = new FakeElement("HTML").add(
+      label,
+      input,
+      new FakeElement("INPUT"),
+    );
     assert.deepEqual(run([], "Email address"), [input]);
     assert.deepEqual(run([], "Email"), [], "full match needs the whole text");
     assert.deepEqual(run([], "mail", "partial"), [input]);
@@ -65,7 +76,9 @@ describe("LABEL_LOCATE", () => {
 
   it("finds a control by aria-labelledby and aria-label", () => {
     const heading = new FakeElement("H2", "Billing", {}, "h");
-    const group = new FakeElement("DIV", "", { "aria-labelledby": "missing h" });
+    const group = new FakeElement("DIV", "", {
+      "aria-labelledby": "missing h",
+    });
     const named = new FakeElement("BUTTON", "x", { "aria-label": "Close" });
     documentRoot = new FakeElement("HTML").add(heading, group, named);
     assert.deepEqual(run([], "Billing"), [group]);

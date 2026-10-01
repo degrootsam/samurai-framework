@@ -2,8 +2,18 @@
 export type LocatorCall =
   | { method: "locator"; xpath: string }
   | { method: "getByCss"; css: string }
-  | { method: "getByText"; text: string; match?: "full" | "partial"; ignoreCase?: boolean }
-  | { method: "getByLabel"; text: string; match?: "full" | "partial"; ignoreCase?: boolean }
+  | {
+      method: "getByText";
+      text: string;
+      match?: "full" | "partial";
+      ignoreCase?: boolean;
+    }
+  | {
+      method: "getByLabel";
+      text: string;
+      match?: "full" | "partial";
+      ignoreCase?: boolean;
+    }
   | { method: "getByRole"; role: string; name?: string }
   | { method: "getByTestId"; testId: string };
 
@@ -14,14 +24,20 @@ export interface LocatorSpec {
 }
 
 /** A text to type or compare with */
-export type TextValue = { kind: "literal"; value: string } | { kind: "env"; name: string } | { kind: "secret"; name: string };
+export type TextValue =
+  | { kind: "literal"; value: string }
+  | { kind: "env"; name: string }
+  | { kind: "secret"; name: string };
 
 /** What an assertion expects of text: a string or a regular expression */
 export type TextMatcher = string | { regex: { source: string; flags: string } };
 
 export type Expectation =
   | { matcher: "toBeVisible" }
-  | { matcher: "toHaveText" | "toContainText" | "toHaveValue"; expected: TextMatcher }
+  | {
+      matcher: "toHaveText" | "toContainText" | "toHaveValue";
+      expected: TextMatcher;
+    }
   | { matcher: "toHaveAttribute"; name: string; expected: TextMatcher }
   | { matcher: "toHaveCount"; expected: number };
 
@@ -30,7 +46,12 @@ export type Step =
   | { kind: "goto"; url: string }
   | { kind: "click"; locator: LocatorSpec }
   | { kind: "fill"; locator: LocatorSpec; value: TextValue }
-  | { kind: "expect"; locator: LocatorSpec; not: boolean; expectation: Expectation }
+  | {
+      kind: "expect";
+      locator: LocatorSpec;
+      not: boolean;
+      expectation: Expectation;
+    }
   | { kind: "waitForNetworkIdle" }
   /** A statement the codec does not understand, kept verbatim */
   | { kind: "custom"; code: string };
