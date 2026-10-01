@@ -1,14 +1,16 @@
 {
-  "duration": 2673.760873,
-  "status": "success",
-  "startTime": 100.630887,
+  "duration": 3030.2302910000003,
+  "status": "failed",
+  "startTime": 143.326542,
   "tests": [
     {
       "name": "My first test",
-      "file": "/home/sam/dev/itmetsam/projects/samurai-framework/src/runner/test-runner.ts:128:22",
-      "status": "success",
-      "startTime": 100.833105,
-      "duration": 2673.214561
+      "file": "/Users/samdegroot/dev/samurai-framework/src/runner/test-runner.ts:151:22",
+      "status": "failed",
+      "startTime": 143.488042,
+      "duration": 3012.477041,
+      "message": "expect(locator).toBeVisible() was not awaited",
+      "type": "assertion"
     }
   ]
 }

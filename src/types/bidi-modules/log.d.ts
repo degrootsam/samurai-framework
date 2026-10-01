@@ -11,7 +11,7 @@ export interface BaseLogEntry {
   level: Level;
   source: Source;
   /** Human-readable text representation of the log entry. */
-  string: string | null;
+  text: string | null;
   timestamp: number;
   stackTrace?: StackTrace;
 }

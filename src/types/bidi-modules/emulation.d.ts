@@ -2,6 +2,33 @@ import type { EmptyResult } from "../bidi.js";
 import type { UserContext } from "./browser.js";
 import type { BrowsingContext } from "./browsing-context.js";
 
+/** Commands available in the emulation module, keyed by method name. */
+export interface EmulationCommands {
+  "emulation.setForcedColorsModeThemeOverride": {
+    params: SetForcedColorsModeThemeOverrideParameters;
+    result: SetForcedColorsModeThemeOverrideResult;
+  };
+  "emulation.setGeolocationOverride": {
+    params: SetGeolocationOverrideParameters;
+    result: SetGeolocationOverrideResult;
+  };
+  "emulation.setLocaleOverride": { params: SetLocaleOverrideParameters; result: SetLocaleOverrideResult };
+  "emulation.setNetworkConditions": { params: SetNetworkConditionsParameters; result: EmptyResult };
+  "emulation.setScreenOrientationOverride": {
+    params: SetScreenOrientationOverrideParameters;
+    result: SetScreenOrientationOverrideResult;
+  };
+  "emulation.setScreenSettingsOverride": { params: SetScreenSettingsOverrideParameters; result: EmptyResult };
+  "emulation.setScriptingEnabled": { params: SetScriptingEnabledParameters; result: SetScriptingEnabledResult };
+  "emulation.setScrollbarTypeOverride": {
+    params: SetScrollbarTypeOverrideParameters;
+    result: SetScrollbarTypeOverrideResult;
+  };
+  "emulation.setTimezoneOverride": { params: SetTimezoneOverrideParameters; result: SetTimezoneOverrideResult };
+  "emulation.setTouchOverride": { params: SetTouchOverrideParameters; result: SetTouchOverrideResult };
+  "emulation.setUserAgentOverride": { params: SetUserAgentOverrideParameters; result: SetUserAgentOverrideResult };
+}
+
 /** Union of all possible result types returned by emulation module commands. */
 export type EmulationResult =
   | SetForcedColorsModeThemeOverrideResult
@@ -100,8 +127,8 @@ export interface SetGeolocationOverride {
 export interface SetLocaleOverrideParameters {
   /** BCP 47 locale tag to override with, or `null` to reset. */
   locale: string | null;
-  contexts: BrowsingContext[];
-  userContexts: UserContext[];
+  contexts?: BrowsingContext[];
+  userContexts?: UserContext[];
 }
 
 /** Overrides the locale reported to scripts (e.g. `Intl` APIs). */
@@ -226,8 +253,8 @@ export interface SetTimezoneOverride {
 
 /** Parameters for `emulation.setTouchOverride`. */
 export interface SetTouchOverrideParameters {
-  /** Maximum number of simultaneous touch points to emulate. */
-  maxTouchPoints: number;
+  /** Maximum number of simultaneous touch points to emulate, or `null` to reset. */
+  maxTouchPoints: number | null;
   contexts?: BrowsingContext[];
   userContexts?: UserContext[];
 }

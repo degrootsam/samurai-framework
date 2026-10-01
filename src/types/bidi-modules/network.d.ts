@@ -3,6 +3,106 @@ import type { UserContext } from "./browser.js";
 import type { BrowsingContext, Navigation } from "./browsing-context.js";
 import type { StackTrace } from "./script.js";
 
+/** Commands available in the WebDriver BiDi network module. */
+export interface NetworkCommands {
+  /** Blocks requests in the given phases until they are continued, answered or failed. */
+  "network.addIntercept": {
+    params: {
+      phases: InterceptPhase[];
+      contexts?: BrowsingContext[] | undefined;
+      urlPatterns?: UrlPattern[] | undefined;
+    };
+    result: AddInterceptResult;
+  };
+  "network.removeIntercept": { params: { intercept: Intercept }; result: RemoveInterceptResult };
+  /** Lets a blocked request go on, optionally modified. */
+  "network.continueRequest": {
+    params: {
+      request: Request;
+      body?: BytesValue | undefined;
+      cookies?: Cookie[] | undefined;
+      headers?: Header[] | undefined;
+      method?: string | undefined;
+      url?: string | undefined;
+    };
+    result: ContinueRequestResult;
+  };
+  /** Lets a blocked response go on, optionally modified. */
+  "network.continueResponse": {
+    params: {
+      request: Request;
+      cookies?: Cookie[] | undefined;
+      credentials?: AuthCredentials | undefined;
+      headers?: Header[] | undefined;
+      reasonPhrase?: string | undefined;
+      statusCode?: number | undefined;
+    };
+    result: ContinueResponseResult;
+  };
+  "network.continueWithAuth": {
+    params:
+      | { request: Request; action: "default" | "cancel" }
+      | { request: Request; action: "provideCredentials"; credentials: AuthCredentials };
+    result: ContinueWithAuthResult;
+  };
+  /** Answers a blocked request without contacting the server. */
+  "network.provideResponse": {
+    params: {
+      request: Request;
+      body?: BytesValue | undefined;
+      cookies?: Cookie[] | undefined;
+      headers?: Header[] | undefined;
+      reasonPhrase?: string | undefined;
+      statusCode?: number | undefined;
+    };
+    result: ProvideResponseResult;
+  };
+  "network.failRequest": { params: { request: Request }; result: FailRequestResult };
+  "network.setCacheBehavior": {
+    params: { cacheBehavior: "default" | "bypass"; contexts?: BrowsingContext[] | undefined };
+    result: SetCacheBehaviorResult;
+  };
+  /** Starts retaining response bodies for later `network.getData`. */
+  "network.addDataCollector": {
+    params: {
+      dataTypes: DataType[];
+      maxEncodedDataSize: number;
+      collectorType?: "blob" | undefined;
+      contexts?: BrowsingContext[] | undefined;
+      userContexts?: UserContext[] | undefined;
+    };
+    result: AddDataCollectorResult;
+  };
+  "network.removeDataCollector": { params: { collector: Collector }; result: RemoveDataCollectorResult };
+  "network.getData": {
+    params: {
+      dataType: DataType;
+      request: Request;
+      collector?: Collector | undefined;
+      disown?: boolean | undefined;
+    };
+    result: GetDataResult;
+  };
+  "network.disownData": {
+    params: { dataType: DataType; collector: Collector; request: Request };
+    result: DisownDataResult;
+  };
+}
+
+export type InterceptPhase = "beforeRequestSent" | "responseStarted" | "authRequired";
+export type DataType = "request" | "response";
+export type AuthCredentials = { type: "password"; username: string; password: string };
+export type UrlPattern =
+  | { type: "string"; pattern: string }
+  | {
+      type: "pattern";
+      protocol?: string;
+      hostname?: string;
+      port?: string;
+      pathname?: string;
+      search?: string;
+    };
+
 /** Events emitted by the network module, keyed by method name. */
 export interface NetworkEvents {
   "network.authRequired": { params: AuthRequiredParameters };

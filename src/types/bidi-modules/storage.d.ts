@@ -63,7 +63,7 @@ export interface BrowsingContextPartitionDescriptor {
 }
 
 export interface StorageKeyPartitionDescriptor extends Extensible {
-  type: "storagekey";
+  type: "storageKey";
   userContext?: UserContext;
   sourceOrigin?: string;
 }
