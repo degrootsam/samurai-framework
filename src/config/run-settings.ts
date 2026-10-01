@@ -46,7 +46,7 @@ export function resolveRunSettings(config: SamuraiTestConfig, overrides: RunOver
     else throw new UnknownEnvironmentError(`No environment chosen. ${available} (use --env or set defaultEnvironment)`);
   }
 
-  const environment = environments[name];
+  const environment = Object.prototype.hasOwnProperty.call(environments, name) ? environments[name] : undefined;
   if (!environment && !(names.length === 0 && name === IMPLICIT_ENVIRONMENT)) {
     throw new UnknownEnvironmentError(
       names.length === 0

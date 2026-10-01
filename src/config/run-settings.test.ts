@@ -150,3 +150,14 @@ describe("active run settings", () => {
     assert.equal(getRunSettings(), settings);
   });
 });
+
+test("prototype keys are not environments", () => {
+  for (const name of ["constructor", "toString", "__proto__"]) {
+    assert.throws(
+      () => resolveRunSettings(twoEnvironments, { environment: name }),
+      (err) =>
+        err instanceof UnknownEnvironmentError &&
+        err.message === `Unknown environment "${name}". Available: dev, staging`,
+    );
+  }
+});
