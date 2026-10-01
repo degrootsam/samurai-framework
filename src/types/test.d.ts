@@ -22,12 +22,27 @@ export type TestResult = TestResultSuccess | TestResultFailed | TestResultBase;
 interface TestResultSuccess {
   status: "success";
   duration: number;
+  logs?: TestLogEntry[];
+  /** Entries that fell out of the page's log buffer */
+  logsDropped?: number;
 }
 
 interface TestResultFailed {
   status: "failed";
   error: TestError;
   duration: number;
+  logs?: TestLogEntry[];
+  logsDropped?: number;
+}
+
+/** One line of the browser's log, as stored in the report */
+export interface TestLogEntry {
+  level: "debug" | "info" | "warn" | "error";
+  /** "console", "javascript" (an uncaught exception), or another type the browser reports */
+  type: string;
+  method?: string;
+  text: string;
+  timestamp: number;
 }
 
 interface TestResultBase {
@@ -39,8 +54,12 @@ interface TestResultBase {
 
 interface TestError {
   message: string;
-  type: "timeout" | "error";
+  type: "timeout" | "error" | "assertion";
   stack?: string | undefined;
+  /** Only for `type: "assertion"` */
+  expected?: unknown;
+  /** Only for `type: "assertion"` */
+  actual?: unknown;
 }
 
 export type TestSummary = TestSummarySuccess | TestSummaryFailed;

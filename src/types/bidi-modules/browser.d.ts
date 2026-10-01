@@ -1,4 +1,5 @@
 import type { EmptyResult } from "../bidi.js";
+import type { ProxyConfiguration, UserPromptHandler } from "./session.js";
 
 /** Represents a collection of zero or more top-level traversables within a remote end.
  * Each user context has an associated storage partition,
@@ -12,7 +13,39 @@ export interface BrowserCommands {
     params: Record<string, never>;
     result: CloseResult;
   };
+  /** Creates an isolated user context (own cookies, storage and cache). */
+  "browser.createUserContext": {
+    params: {
+      acceptInsecureCerts?: boolean | undefined;
+      proxy?: ProxyConfiguration | undefined;
+      unhandledPromptBehavior?: UserPromptHandler | undefined;
+    };
+    result: CreateUserContextResult;
+  };
+  /** Removes a user context and closes its browsing contexts. */
+  "browser.removeUserContext": {
+    params: { userContext: UserContext };
+    result: RemoveUserContextResult;
+  };
+  /** Lists all user contexts, including the default one. */
+  "browser.getUserContexts": {
+    params: Record<string, never>;
+    result: GetUserContextsResult;
+  };
+  /** Sets where downloads go, or denies them. `null` restores the browser default. */
+  "browser.setDownloadBehavior": {
+    params: {
+      downloadBehavior: DownloadBehavior | null;
+      userContexts?: UserContext[] | undefined;
+    };
+    result: SetDownloadBehaviorResult;
+  };
 }
+
+/** How downloads are handled. */
+export type DownloadBehavior =
+  | { type: "allowed"; destinationFolder: string }
+  | { type: "denied" };
 
 /** Union of all possible result types returned by browser module commands. */
 export type BrowserResult =
