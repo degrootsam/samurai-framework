@@ -1,5 +1,5 @@
 import Locator, { type TextOptions } from "../locator/locator.js";
-import { cssSelector, roleSelector, textSelector } from "../locator/selector.js";
+import { cssSelector, labelSelector, roleSelector, testIdSelector, textSelector } from "../locator/selector.js";
 import EventEmitter from "node:events";
 import { readConfig } from "../config/config.js";
 import { peekRunSettings } from "../config/run-settings.js";
@@ -187,6 +187,18 @@ export default class Page {
   public getByText(text: string, options?: TextOptions) {
     this.assertOpen();
     return new Locator([textSelector(text, options)], this.biDiConnector, this.id, this.helperRealm);
+  }
+
+  /** Locates form controls by their label text: an exact match unless `match: "partial"` */
+  public getByLabel(text: string, options?: TextOptions) {
+    this.assertOpen();
+    return new Locator([labelSelector(text, options)], this.biDiConnector, this.id, this.helperRealm);
+  }
+
+  /** Locates elements by their `data-testid` attribute */
+  public getByTestId(testId: string) {
+    this.assertOpen();
+    return new Locator([testIdSelector(testId)], this.biDiConnector, this.id, this.helperRealm);
   }
 
   /** Locates elements by ARIA role and, optionally, accessible name */

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  labelSelector,
+  testIdSelector,
   cssSelector,
   describeChain,
   describeSelector,
@@ -61,6 +63,8 @@ describe("selector constructors", () => {
     assert.throws(() => cssSelector("  "), TypeError);
     assert.throws(() => textSelector(""), TypeError);
     assert.throws(() => roleSelector(""), TypeError);
+    assert.throws(() => labelSelector(" "), TypeError);
+    assert.throws(() => testIdSelector(""), TypeError);
   });
 });
 
@@ -85,12 +89,27 @@ describe("toBiDiLocator", () => {
     });
   });
 
-  it("refuses nth, which the browser does not know", () => {
+  it("maps a test id to an attribute selector, escaping quotes and backslashes", () => {
+    assert.deepEqual(toBiDiLocator(testIdSelector("save"), false), { type: "css", value: '[data-testid="save"]' });
+    assert.deepEqual(toBiDiLocator(testIdSelector('a"b\\c'), true), {
+      type: "css",
+      value: '[data-testid="a\\"b\\\\c"]',
+    });
+  });
+
+  it("refuses nth and label, which the browser does not know", () => {
     assert.throws(() => toBiDiLocator({ kind: "nth", index: 0 }, false), /nth/);
+    assert.throws(() => toBiDiLocator(labelSelector("Email"), false), /label/);
   });
 });
 
 describe("describeSelector", () => {
+  it("prints labels and test ids", () => {
+    assert.equal(describeSelector(labelSelector("Email"), false), 'label="Email"');
+    assert.equal(describeSelector(labelSelector("Em", { match: "partial" }), false), 'label="Em" (partial)');
+    assert.equal(describeSelector(testIdSelector("save"), false), 'testid="save"');
+  });
+
   it("prints a name for every kind", () => {
     assert.equal(describeSelector(xpathSelector("h1"), false), "//h1");
     assert.equal(describeSelector(xpathSelector("h1"), true), ".//h1");

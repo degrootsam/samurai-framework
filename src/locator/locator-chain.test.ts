@@ -290,3 +290,84 @@ describe("text locators in a browser without the innerText locator", () => {
     await assert.rejects(locator.count(), /Failed to locate element text="x"\. Details: TypeError: boom/);
   });
 });
+
+describe("semantic locators", () => {
+  it("getByTestId searches by data-testid; chained, it is scoped", async () => {
+    const { locator, sent } = chainWith("//form");
+    const child = locator.getByTestId("save");
+    assert.equal(child.selector, '//form >> testid="save"');
+    await child.count();
+    assert.deepEqual(locateCommands(sent)[1]!.locator, { type: "css", value: '[data-testid="save"]' });
+  });
+
+  it("getByLabel searches in the page, inside the previous matches", async () => {
+    const { locator, calls } = chainWith("//form", remote([]));
+    assert.equal(await locator.getByLabel("Email", { match: "partial" }).count(), 0);
+    assert.equal(locator.getByLabel("Email").selector, '//form >> label="Email"');
+    assert.match(calls[calls.length - 1]!.functionDeclaration, /aria-labelledby/);
+  });
+});
+
+describe("fallback locators", () => {
+  function withStub(...responses: StubResponse[]) {
+    const stub = stubConnector(...(responses.length ? responses : [remote(null)]));
+    const make = (steps: ConstructorParameters<typeof Locator>[0]) => new Locator(steps, stub.connector, "ctx");
+    return { make, ...stub };
+  }
+
+  it("uses the primary when it matches, and says so", async () => {
+    const { make, sent, nodeCounts } = withStub();
+    nodeCounts(1);
+    const locator = make([cssSelector("#a")]).withFallbacks(make([cssSelector("#b")]));
+    assert.equal(await locator.count(), 1);
+    assert.equal(locateCommands(sent).length, 1);
+    assert.deepEqual(locator.matchedBy, { index: 0, selector: "css=#a" });
+  });
+
+  it("tries the fallbacks in order when the primary matches nothing", async () => {
+    const { make, sent, nodeCounts } = withStub();
+    nodeCounts(0, 0, 2);
+    const locator = make([cssSelector("#a")]).withFallbacks(make([cssSelector("#b")]), make([cssSelector("#c")]));
+    assert.equal(await locator.count(), 2);
+    assert.deepEqual(
+      locateCommands(sent).map(({ locator }) => locator),
+      [
+        { type: "css", value: "#a" },
+        { type: "css", value: "#b" },
+        { type: "css", value: "#c" },
+      ],
+    );
+    assert.deepEqual(locator.matchedBy, { index: 2, selector: "css=#c" });
+  });
+
+  it("matches nothing when no alternative does, and names every one in errors", async () => {
+    const { make, nodeCounts } = withStub();
+    nodeCounts(0);
+    const locator = make([cssSelector("#a")]).withFallbacks(make([cssSelector("#b")]));
+    assert.equal(await locator.count(), 0);
+    assert.equal(locator.matchedBy, undefined);
+    assert.equal(locator.selector, "css=#a or css=#b");
+    await assert.rejects(locator.click({ timeout: 0 }), /css=#a or css=#b/);
+  });
+
+  it("chained steps apply to every alternative", async () => {
+    const { make, sent, nodeCounts } = withStub();
+    nodeCounts(0, 1, 1);
+    const locator = make([cssSelector("#a")]).withFallbacks(make([cssSelector("#b")])).getByCss("input");
+    assert.equal(locator.selector, "css=#a >> css=input or css=#b >> css=input");
+    assert.equal(await locator.count(), 1);
+    assert.deepEqual(locator.matchedBy, { index: 1, selector: "css=#b >> css=input" });
+    assert.equal(locateCommands(sent).length, 3);
+  });
+
+  it("all() pins to the alternative that matches", async () => {
+    const { make, nodeCounts } = withStub();
+    nodeCounts(0, 2, 2, 2);
+    const locator = make([cssSelector("#a")]).withFallbacks(make([cssSelector("#b")]));
+    const all = await locator.all();
+    assert.deepEqual(
+      all.map((one) => one.selector),
+      ["css=#b >> nth=0", "css=#b >> nth=1"],
+    );
+  });
+});

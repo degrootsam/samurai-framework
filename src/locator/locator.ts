@@ -35,12 +35,15 @@ import {
 } from "./element-state.js";
 
 import { InvalidSelectorError, UnsupportedOperationError } from "./selector-errors.js";
+import { LABEL_LOCATE } from "./label-locator.js";
 import { TEXT_LOCATE } from "./text-locator.js";
 import {
   cssSelector,
   describeChain,
   describeSelector,
+  labelSelector,
   roleSelector,
+  testIdSelector,
   textSelector,
   toBiDiLocator,
   xpathSelector,
@@ -93,31 +96,79 @@ export default class Locator {
   private contextId: BrowsingContext;
   private chain: readonly Selector[];
   private helpers: HelperInstaller | undefined;
+  private alternatives: readonly Locator[];
+  private matched: { index: number; selector: string } | undefined;
 
   /**
    * `selector` is an xpath, or a chain of selector steps that each search inside the previous step's matches.
    * `helpers` is the page's helper realm. With it the actionability probe is installed once per
    * document and called by name; without it (a locator built by hand) the probe source is sent on every poll.
+   * `alternatives` are fallback locators tried in order whenever this chain matches nothing (see `withFallbacks`).
    */
   constructor(
     selector: string | readonly Selector[],
     biDiConnector: BiDiConnector,
     contextId: BrowsingContext,
     helpers?: HelperInstaller,
+    alternatives: readonly Locator[] = [],
   ) {
     this.chain = typeof selector === "string" ? [xpathSelector(selector)] : selector;
     this.biDiConnector = biDiConnector;
     this.contextId = contextId;
     this.helpers = helpers;
+    this.alternatives = alternatives;
   }
 
-  /** The description of this locator used in error messages, e.g. `//form >> role=button[name="Save"]` */
+  /**
+   * The description of this locator used in error messages, e.g. `//form >> role=button[name="Save"]`;
+   * fallbacks follow as `or …`
+   */
   public get selector(): string {
-    return describeChain(this.chain);
+    return [describeChain(this.chain), ...this.alternatives.map((alt) => alt.selector)].join(" or ");
   }
 
+  /** Steps that keep the fallbacks: each fallback gets the same step, so "inside A or B" stays meaningful */
   private child(step: Selector): Locator {
-    return new Locator([...this.chain, step], this.biDiConnector, this.contextId, this.helpers);
+    return new Locator(
+      [...this.chain, step],
+      this.biDiConnector,
+      this.contextId,
+      this.helpers,
+      this.alternatives.map((alt) => alt.child(step)),
+    );
+  }
+
+  /**
+   * A locator that tries this one first and, whenever it matches nothing, each of `fallbacks` in order;
+   * the first one with a match wins. For steps with several ways to find the same element (a test id,
+   * then role and name, then text), most stable first. `matchedBy` says which one matched last, so a
+   * self-healing layer can tell the primary locator has gone stale.
+   * @example
+   *  page.getByTestId("save").withFallbacks(page.getByRole("button", { name: "Save" }), page.getByText("Save"));
+   */
+  public withFallbacks(...fallbacks: Locator[]): Locator {
+    return new Locator(this.chain, this.biDiConnector, this.contextId, this.helpers, [
+      ...this.alternatives,
+      ...fallbacks,
+    ]);
+  }
+
+  /**
+   * Which locator found elements the last time this one searched: index 0 is the primary, 1 the first
+   * fallback, and so on. `undefined` before any search or when the last search found nothing.
+   */
+  public get matchedBy(): { index: number; selector: string } | undefined {
+    return this.matched;
+  }
+
+  /** Elements matching the label text (`<label>`, `aria-labelledby`, `aria-label`), inside this locator's matches */
+  public getByLabel(text: string, options?: TextOptions): Locator {
+    return this.child(labelSelector(text, options));
+  }
+
+  /** Elements whose `data-testid` attribute equals `testId`, inside this locator's matches */
+  public getByTestId(testId: string): Locator {
+    return this.child(testIdSelector(testId));
   }
 
   /** Elements matching `xpath` inside this locator's matches (relative and `//` paths search inside them) */
@@ -142,6 +193,11 @@ export default class Locator {
 
   /** One locator per element currently matching, in document order */
   public async all(): Promise<Locator[]> {
+    if (this.alternatives.length > 0) {
+      // Pin to whichever of the primary and the fallbacks matches, so each result is one element
+      const first = await this.firstMatching();
+      return first ? first.all() : [];
+    }
     const count = await this.count();
     const only = this.chain.length === 1 ? this.chain[0]! : undefined;
     return Array.from({ length: count }, (_, index) =>
@@ -163,6 +219,37 @@ export default class Locator {
    * can change between polls, and a removed node stays resolvable in the browser.
    */
   private async resolve(max?: number): Promise<ElementHandle[]> {
+    this.matched = undefined;
+    const own = await this.resolveChain(max);
+    if (own.length > 0) {
+      this.matched = { index: 0, selector: describeChain(this.chain) };
+      return own;
+    }
+    for (const [index, alternative] of this.alternatives.entries()) {
+      const found = await alternative.resolve(max);
+      if (found.length > 0) {
+        this.matched = { index: index + 1, selector: alternative.selector };
+        return found;
+      }
+    }
+    return [];
+  }
+
+  /** The primary or the first fallback that currently matches, without its own fallbacks */
+  private async firstMatching(): Promise<Locator | undefined> {
+    if ((await this.resolveChain(1)).length > 0) return this.withoutFallbacks();
+    for (const alternative of this.alternatives) {
+      const found = await alternative.firstMatching();
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  private withoutFallbacks(): Locator {
+    return new Locator(this.chain, this.biDiConnector, this.contextId, this.helpers);
+  }
+
+  private async resolveChain(max?: number): Promise<ElementHandle[]> {
     let nodes: ElementHandle[] | undefined;
     for (const [index, selector] of this.chain.entries()) {
       if (selector.kind === "nth") {
@@ -186,6 +273,7 @@ export default class Locator {
     startNodes: ElementHandle[] | undefined,
     max: number | undefined,
   ): Promise<ElementHandle[]> {
+    if (selector.kind === "label") return this.locateInPage(LABEL_LOCATE, selector, startNodes, max);
     if (selector.kind === "text" && unsupportedTypes(this.biDiConnector).has("innerText")) {
       return this.locateByText(selector, startNodes, max);
     }
@@ -235,12 +323,22 @@ export default class Locator {
   }
 
   /** Text search done in the page, for browsers without BiDi's innerText locator */
-  private async locateByText(
+  private locateByText(
     selector: Extract<Selector, { kind: "text" }>,
     startNodes: ElementHandle[] | undefined,
     max: number | undefined,
   ): Promise<ElementHandle[]> {
-    const found = await this.call<ElementHandle[]>(TEXT_LOCATE, [
+    return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
+  }
+
+  /** Runs a page-side search `(starts, value, match, ignoreCase) => elements` */
+  private async locateInPage(
+    fn: string,
+    selector: Extract<Selector, { kind: "text" | "label" }>,
+    startNodes: ElementHandle[] | undefined,
+    max: number | undefined,
+  ): Promise<ElementHandle[]> {
+    const found = await this.call<ElementHandle[]>(fn, [
       startNodes ?? [],
       selector.value,
       selector.match,

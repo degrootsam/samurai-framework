@@ -167,3 +167,33 @@ test("text locators are re-evaluated on every poll", OPTIONS, async () => {
   await done.waitFor({ state: "visible", timeout: 5000 });
   assert.equal(await done.getAttribute("id"), "b");
 });
+
+test("label locators find controls by <label>, aria-labelledby and aria-label", OPTIONS, async () => {
+  await setContent(
+    page,
+    `<label for="e">Email address</label><input id="e">
+     <label>Password <input id="p" type="password"></label>
+     <h2 id="h">Billing</h2><input id="b" aria-labelledby="h">
+     <input id="s" aria-label="Search">`,
+  );
+  assert.equal(await page.getByLabel("Email address").getAttribute("id"), "e");
+  assert.equal(await page.getByLabel("Password").getAttribute("id"), "p", "label wrapping its input");
+  assert.equal(await page.getByLabel("Billing").getAttribute("id"), "b");
+  assert.equal(await page.getByLabel("search", { ignoreCase: true }).getAttribute("id"), "s");
+  assert.equal(await page.getByLabel("Email").count(), 0, "full match");
+  assert.equal(await page.getByLabel("Email", { match: "partial" }).count(), 1);
+});
+
+test("test id locators match data-testid exactly", OPTIONS, async () => {
+  await setContent(page, `<button data-testid="save">Save</button><button data-testid="save-all">All</button>`);
+  assert.equal(await page.getByTestId("save").count(), 1);
+  assert.equal(await page.getByTestId("save").textContent(), "Save");
+  assert.equal(await page.getByTestId("nope").count(), 0);
+});
+
+test("a fallback locator takes over when the primary matches nothing", OPTIONS, async () => {
+  await setContent(page, `<button aria-label="Go">Go</button>`);
+  const go = page.getByTestId("go").withFallbacks(page.getByRole("button", { name: "Go" }), page.getByText("Go"));
+  await go.click({ timeout: 3000 });
+  assert.equal(go.matchedBy?.index, 1);
+});
