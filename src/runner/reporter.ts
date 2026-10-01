@@ -21,6 +21,7 @@ export default class TestReporter {
       status: "failed",
       startTime: t.startTime,
       tests: [],
+      environment: "default",
     };
   }
 
@@ -41,6 +42,7 @@ export default class TestReporter {
       )
         ? "success"
         : "failed",
+      environment: this.summary?.environment ?? "default",
     } as TestSummary;
 
     const output = path.join(process.cwd(), "result/report.json");
