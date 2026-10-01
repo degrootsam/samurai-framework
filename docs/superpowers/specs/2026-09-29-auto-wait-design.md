@@ -131,6 +131,8 @@ Every poll is one probe round trip. Checks are evaluated in the listed order; th
 | `focus()` | none | attached | `el.focus()` |
 | `waitFor({ state })` | none | attached: attached · detached: not attached · visible: attached and visible · hidden: not attached or not visible | resolve |
 
+With `timeout: 0` the *stable* check is dropped from `click()`'s required checks (it needs two probes); there is still exactly one probe.
+
 `force: true` (click, fill, focus): skip every check except *attached*; still scroll into view (click, fill) and use the real pointer.
 
 ## Errors
@@ -153,6 +155,7 @@ Probe errors (invalid xpath, navigation destroying the execution context) are re
 ## Timeouts
 
 - Resolution: per-call `{ timeout }` → config `expect.timeout` → `5000` (shared with `expect` via `resolveTimeout`).
+- `timeout: 0` checks once without waiting; the stability check is skipped because it needs two probes.
 - A test timeout closes the browser; the in-flight probe then fails or never settles, and `waitUntil`'s deadline race ends the action within its own timeout.
 
 ## Behaviour changes (intended, user-visible)

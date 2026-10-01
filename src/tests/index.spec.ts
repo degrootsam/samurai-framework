@@ -24,7 +24,6 @@ test("My first test", async (page) => {
 
   const submitButton = page.locator("button[@type='submit']");
   await submitButton.click();
-  await page.waitForNetworkIdle();
   const successAlert = page.locator("div[@class='alert-description']");
   await expect(successAlert).toContainText(
     "Je aanvraag is ontvangen! Je ontvangt automatisch een kopie van de aanvraag op het opgegeven E-mailadres. Ik neem binnen 3 werkdagen contact met je op over je aanvraag.",

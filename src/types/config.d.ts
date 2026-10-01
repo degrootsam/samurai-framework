@@ -35,7 +35,7 @@ export interface SamuraiTestConfig {
   /** Options for `expect` assertions */
   expect?: {
     /**
-     * Time (ms) locator assertions keep retrying before failing
+     * Time (ms) locator assertions, actions (click, fill, focus) and waitFor keep retrying before failing
      * @default 5000
      */
     timeout?: number;

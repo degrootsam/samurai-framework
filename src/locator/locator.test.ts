@@ -13,6 +13,19 @@ function assertCompiles(script: string) {
   assert.doesNotThrow(() => new Function(script), script);
 }
 
+/** Element state for an element that is ready for any action */
+const ready: StubResponse = {
+  type: "string",
+  value: JSON.stringify({
+    attached: true,
+    visible: true,
+    enabled: true,
+    editable: true,
+    box: { x: 0, y: 0, width: 100, height: 20 },
+    hitTarget: "self",
+  }),
+};
+
 test("selector prefixes relative xpaths with // and keeps quotes as written", () => {
   const selectorOf = (xpath: string) => locatorWith(xpath, { type: "null" }).locator.selector;
   assert.equal(selectorOf("h1"), "//h1");
@@ -29,10 +42,11 @@ test("xpaths with both quote styles produce valid JavaScript", async () => {
     xpath,
     { type: "string", value: "Don't stop" },
     { type: "number", value: 1 },
+    ready,
   );
   await locator.textContent();
   await locator.count();
-  await locator.click();
+  await locator.click({ timeout: 3000 });
   for (const expression of expressions) {
     assertCompiles(expression);
   }
@@ -56,19 +70,14 @@ test("all() returns an empty array when nothing matches", async () => {
 });
 
 test("actions on an all() item target that item", async () => {
-  const { connector, expressions } = stubConnector(
-    { type: "number", value: 2 },
-    { type: "undefined" },
-  );
+  const { connector, expressions, sent } = stubConnector({ type: "number", value: 2 }, ready);
   const items = await new Locator("li", connector, "ctx").all();
-  await items[1]!.click();
+  await items[1]!.click({ timeout: 3000 });
   assert.ok(expressions[1]!.includes(JSON.stringify("(//li)[2]")));
   assert.match(expressions[1]!, /FIRST_ORDERED_NODE_TYPE/);
-  assert.match(expressions[1]!, /\.click\(\)$/);
   assertCompiles(expressions[1]!);
+  assert.equal(sent.filter(({ method }) => method === "input.performActions").length, 1);
 });
-
-const rect = { type: "string", value: JSON.stringify({ x: 0, y: 0, width: 100, height: 20 }) } as const;
 
 /** Methods and key values sent by fill(), in order */
 function fillTrace(sent: Array<{ method: string; params: unknown }>, expressions: string[]) {
@@ -82,8 +91,8 @@ function fillTrace(sent: Array<{ method: string; params: unknown }>, expressions
 }
 
 test("fill() selects the existing value before typing so it is replaced", async () => {
-  const { locator, sent, expressions } = locatorWith("input", rect, { type: "undefined" });
-  await locator.fill("abc");
+  const { locator, sent, expressions } = locatorWith("input", ready, { type: "undefined" });
+  await locator.fill("abc", { timeout: 3000 });
   assert.deepEqual(fillTrace(sent, expressions), [
     "evaluate:other",
     "pointer",
@@ -95,8 +104,8 @@ test("fill() selects the existing value before typing so it is replaced", async 
 });
 
 test('fill("") clears the field with Backspace', async () => {
-  const { locator, sent, expressions } = locatorWith("input", rect, { type: "undefined" });
-  await locator.fill("");
+  const { locator, sent, expressions } = locatorWith("input", ready, { type: "undefined" });
+  await locator.fill("", { timeout: 3000 });
   assert.deepEqual(fillTrace(sent, expressions), [
     "evaluate:other",
     "pointer",
