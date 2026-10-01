@@ -3,7 +3,7 @@ dist
 browsers
 logs
 results
-result/downloads
+result/*
 .env
 .env.*
 !.env.example
