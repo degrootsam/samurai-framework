@@ -59,11 +59,12 @@ async function freshPage(options?: Parameters<Browser["newContext"]>[0]) {
 test("locale changes navigator.language and Intl formatting, and resets", OPTIONS, async () => {
   const { tab } = await freshPage();
   const read = () => evaluate<{ language: string; number: string }>(tab, `() => ({ language: navigator.language, number: new Intl.NumberFormat().format(1234.5) })`);
-  assert.deepEqual(await read(), { language: "en-US", number: "1,234.5" });
+  // The starting locale is the machine's own, so it is read rather than assumed
+  const before = await read();
   await tab.emulate({ locale: "nl-NL" });
   assert.deepEqual(await read(), { language: "nl-NL", number: "1.234,5" });
   await tab.emulate({ locale: null });
-  assert.equal((await read()).language, "en-US");
+  assert.deepEqual(await read(), before);
 });
 
 test("timezone changes what Date and Intl report, and resets", OPTIONS, async () => {
@@ -136,15 +137,16 @@ test("geolocation answers once the permission is granted", OPTIONS, async () => 
 });
 
 test("a context's emulation reaches its pages, also the ones opened later; other contexts are untouched", OPTIONS, async () => {
-  const { context, tab } = await freshPage({ locale: "de-DE" });
   const language = (p: Page) => evaluate<string>(p, "() => navigator.language");
+  const ownLanguage = await language(page);
+  const { context, tab } = await freshPage({ locale: "de-DE" });
   assert.equal(await language(tab), "de-DE", "options given to newContext are in place for its first page");
   await context.emulate({ locale: "es-ES" });
   assert.equal(await language(tab), "es-ES", "an open page follows a change");
   const later = await context.newPage();
   await later.navigateTo(`${base}/`);
   assert.equal(await language(later), "es-ES", "a page opened later is emulated too");
-  assert.equal(await language(page), "en-US", "the default context is not");
+  assert.equal(await language(page), ownLanguage, "the default context is not");
 });
 
 test("a page's own emulation wins over its context's, and null falls back to the context", OPTIONS, async () => {
