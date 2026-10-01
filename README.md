@@ -84,7 +84,9 @@ bun run dev --env production   # another environment (or SAMURAI_ENV=production)
 bun run dev --timeout 60000    # per-test timeout in ms; also --expect-timeout
 ```
 
-A browser window opens for each test and closes when the test ends. The result is written to `result/report.json` (status, duration and error per test); nothing summarises it on the console yet, and the process exits with code 0 either way. Framework logs go to the console and `logs/`.
+Once the package is installed in a project, `samurai run` does the same with a readable summary and a proper exit code, and `samurai init` scaffolds a new project (see [Command line](docs/cli.md)).
+
+A browser window opens for each test and closes when the test ends. The result is written to `result/report.json` (status, duration and error per test); nothing summarises it on the console yet. The process exits with code 0 when every test passed and 1 otherwise (add `--headless` to hide the window). Framework logs go to the console and `logs/`.
 
 > `src/tests/index.spec.ts` is an example that submits a real contact form. Delete it or replace it before running everything.
 
@@ -99,19 +101,21 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 
 ## Documentation
 
-| Guide                                                        | What it covers                                                                                  |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| [Writing tests](docs/writing-tests.md)                       | `test`, `describe`, fixtures, how a test passes or fails                                        |
-| [Locators](docs/locators.md)                                 | Finding elements, chaining, fallbacks, actions and their auto-waiting                           |
-| [Assertions](docs/assertions.md)                             | `expect` for elements and for plain values                                                      |
-| [Pages and browsers](docs/pages-and-browsers.md)             | Navigation, waits, screenshots, PDF, viewport, emulation, dialogs, downloads, contexts, cookies |
-| [Network](docs/network.md)                                   | Waiting for traffic, mocking, blocking, response bodies                                         |
-| [Configuration](docs/configuration.md)                       | Every option in `samurai.config.ts`, CLI flags and precedence                                   |
-| [Environments and secrets](docs/environments-and-secrets.md) | Per-environment settings, variables, secrets and masking                                        |
-| [Running tests and reports](docs/running-and-reports.md)     | What a run does, `report.json`, page logs, timeouts                                             |
-| [Steps and the recorder](docs/recorder.md)                   | The step codec and the recording engine                                                         |
-| [Contributing](docs/contributing.md)                         | Project layout, running the framework's own tests, conventions                                  |
-| [Roadmap](docs/roadmap.md)                                   | What is built and what is still open                                                            |
+| Guide                                                        | What it covers                                                                                        |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [Writing tests](docs/writing-tests.md)                       | `test`, `describe`, fixtures, how a test passes or fails                                              |
+| [Locators](docs/locators.md)                                 | Finding elements, chaining, fallbacks, actions and their auto-waiting                                 |
+| [Assertions](docs/assertions.md)                             | `expect` for elements and for plain values                                                            |
+| [Pages and browsers](docs/pages-and-browsers.md)             | Navigation, waits, screenshots, PDF, viewport, emulation, dialogs, downloads, contexts, cookies       |
+| [Network](docs/network.md)                                   | Waiting for traffic, mocking, blocking, response bodies                                               |
+| [Configuration](docs/configuration.md)                       | Every option in `samurai.config.ts`, CLI flags and precedence                                         |
+| [Environments and secrets](docs/environments-and-secrets.md) | Per-environment settings, variables, secrets and masking                                              |
+| [Command line](docs/cli.md)                                  | `samurai run`, `list` and `init`, options, output, exit codes, `--json`                               |
+| [Running tests and reports](docs/running-and-reports.md)     | What a run does, `report.json`, page logs, timeouts                                                   |
+| [Steps and the recorder](docs/recorder.md)                   | The step codec and the recording engine                                                               |
+| [Embedding the framework](docs/embedding.md)                 | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
+| [Contributing](docs/contributing.md)                         | Project layout, running the framework's own tests, conventions                                        |
+| [Roadmap](docs/roadmap.md)                                   | What is built and what is still open                                                                  |
 
 Design notes for every feature live in [`docs/superpowers/specs`](docs/superpowers/specs).
 

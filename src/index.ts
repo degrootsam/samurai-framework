@@ -1,10 +1,14 @@
-import { loadConfig } from "./config/config.js";
-import { parseRunOverrides } from "./config/run-settings.js";
-import { prepareRun } from "./runner/prepare-run.js";
-import TestRunner from "./runner/test-runner.js";
+import { parseRunnerFlags, parseRunOverrides } from "./config/run-settings.js";
+import { runTests } from "./runner/run.js";
 
-const run = prepareRun(await loadConfig(), parseRunOverrides(process.argv.slice(2), process.env));
-const runner = await TestRunner.init(run);
-await runner.start();
+const argv = process.argv.slice(2);
+const flags = parseRunnerFlags(argv);
+const summary = await runTests({
+  ...parseRunOverrides(argv, process.env),
+  ...(flags.headless !== undefined && { headless: flags.headless }),
+  ...(flags.port !== undefined && { port: flags.port }),
+  ...(flags.grep !== undefined && { grep: flags.grep }),
+  ...(flags.files && { files: flags.files }),
+});
 
-process.exit();
+process.exit(summary.status === "success" ? 0 : 1);

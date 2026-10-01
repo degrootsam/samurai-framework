@@ -2,13 +2,33 @@
   "name": "@itmetsam/samurai-framework",
   "version": "0.1.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/api.js",
   "exports": {
-    ".": "./src/api.ts"
+    ".": {
+      "types": "./dist/api.d.ts",
+      "default": "./dist/api.js"
+    },
+    "./runner": {
+      "types": "./dist/runner/run.d.ts",
+      "default": "./dist/runner/run.js"
+    },
+    "./steps": {
+      "types": "./dist/steps/index.d.ts",
+      "default": "./dist/steps/index.js"
+    },
+    "./recorder": {
+      "types": "./dist/recorder/index.d.ts",
+      "default": "./dist/recorder/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "default": "./dist/browser/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-types.mjs",
     "test": "tsx --test --test-timeout=10000 \"src/**/*.test.ts\"",
     "test:browser": "tsx --test --test-concurrency=1 \"src/**/*.browser-test.ts\""
   },
@@ -17,11 +37,19 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "tsx": "^4.21.0"
+    "@types/node": "^25.6.0"
   },
   "dependencies": {
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "winston": "^3.19.0"
+  },
+  "types": "dist/api.d.ts",
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "bin": {
+    "samurai": "bin/samurai.mjs"
   }
 }
