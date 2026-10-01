@@ -1,0 +1,54 @@
+# Roadmap: what is built and what is open
+
+Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-roadmap.md) and [`superpowers/bidi-roadmap.md`](superpowers/bidi-roadmap.md). This page is the overview.
+
+## Built
+
+- **Protocol layer.** WebDriver BiDi connection with typed commands, refcounted event subscriptions, script calls and preload scripts.
+- **Page API.** Navigation with real load waits, history, viewport, screenshots, PDF, emulation, dialogs, downloads and file pickers, init scripts, console and page-error capture, user contexts and cookies.
+- **Network.** Request tracking, real network-idle, waiting for requests and responses, mocking, blocking and modifying, response bodies, cache control.
+- **Locators and assertions.** Role, label, text, test id, CSS and XPath locators with chaining and fallbacks; auto-waiting actions; retrying `expect`.
+- **Test API.** `describe`, `test` with `page`, `browser`, `env` and `secrets` fixtures; environments with variables, timeouts and base URLs; secrets from env vars or `.env.<environment>` with masking in logs and reports.
+- **Recorder foundations.** Step codec (parse a spec into steps, minimal-diff edits) and a recording engine (clicks, typing, Alt+click assertions, locator ranking, record from step N).
+- **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request.
+
+## Open: recorder
+
+| #   | Item                                 | Notes                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done                                                                                                                                              |
+| 6   | **Chrome support**                   | Likely through the `chromium-bidi` mapper (BiDi over CDP). The recorder UI also needs it for item 7                                                                                                                                                                                                                        |
+| 7   | **Embedded recording browser**       | Render the page under test inside the editor panel (a `WebContentsView`), expose CDP, run the mapper in Electron's main process and add a framework transport for it. Needs a spike first: CDP port exposure, mapper needing browser-level CDP, user contexts and downloads in Electron. In-app recording is Chromium-only |
+| –   | **Record more interactions**         | `<select>` choices, key presses (Enter, Tab), hover, drag, file uploads, dialogs, contenteditable, iframes. Each needs a step kind in the codec first                                                                                                                                                                      |
+| –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                                                                                                                                                               |
+| –   | **Variables in steps**               | `${name}` references to environment variables in the steps view (specs use `env.name` today)                                                                                                                                                                                                                               |
+
+### Later, not scheduled
+
+- AI-suggested assertions, self-healing (rewriting a stale primary locator from `locator.matchedBy`), AI agent recording. All build on the recording engine.
+- `api.<name>` fixture: a per-environment HTTP client with authentication from a secret.
+- Masking secrets in screenshots, videos and traces (logs and reports are already masked).
+
+## Open: runner and CLI
+
+Gaps in the runner today, found while writing these docs:
+
+- **Exit code.** `bun run dev` exits with 0 even when tests fail, so CI can't gate on it.
+- **Console output.** Nothing summarises the run on the console; the only result is `result/report.json`. No HTML or JUnit report.
+- **Headless and parallel runs.** The runner starts a visible browser on a fixed debugging port (9223) and runs tests one at a time. Headless mode, a configurable port and running several tests at once are missing.
+- **Test selection.** No way to run one file, a title pattern (`--grep`), or a tagged subset from the command line.
+- **`groups`.** The option exists in the config types but the runner doesn't use it (`TODO: Implement test grouping`).
+- **Hooks and modifiers.** No `beforeEach`, `afterEach`, `beforeAll`, `afterAll`, `test.skip`, `test.only`, `test.fixme`, or retries.
+- **Failure artefacts.** No automatic screenshot, video or trace when a test fails.
+- **Packaging.** The package isn't published and has no `bin`; specs import from the repository's `src/api.ts`. A `samurai` command, a published package and an `init` scaffold would make the Getting started shorter.
+- **Config loading.** `samurai.config.ts` is read from the working directory only; no `--config` flag.
+
+## Open: framework API
+
+- **Browsers.** Firefox only (see Chrome above); only Firefox install locations are searched.
+- **Locators.** No `first()`, `last()`, `nth(i)` or `filter(...)` (use `all()`), no `getByPlaceholder` or `getByAltText`, and the test-id attribute is fixed to `data-testid`. No iframe or shadow-DOM piercing beyond the browser's own support.
+- **Actions.** No `hover`, `dblclick`, `check`/`uncheck`, `selectOption`, keyboard `press`/`type`, drag and drop, or scrolling helpers. `fill` replaces the whole value; there is no append.
+- **Assertions.** No `toBeHidden`, `toBeEnabled`, `toBeChecked`, `toHaveCSS`, `toHaveURL`, `toHaveTitle`, `toHaveClass`; no screenshot comparison. Use `expect(await page.url())` for the URL and title.
+- **Windows and tabs.** No `popup` event or API for tabs and windows the page opens itself; open extra pages with `context.newPage()`.
+- **HTTP authentication.** `network.continueWithAuth` (basic-auth challenges) was left out of the interception work.
+- **Not planned.** `webExtension.*` commands and `session.end` as public API.
