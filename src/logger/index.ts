@@ -1,4 +1,5 @@
 import { createLogger, format, transports } from "winston";
+import { maskFormat } from "../config/mask.js";
 
 const logger = createLogger({
   level: "debug",
@@ -9,6 +10,7 @@ const logger = createLogger({
     format.errors({ stack: true }),
     format.splat(),
     format.metadata({ key: "meta" }),
+    maskFormat(),
     format.json({ space: 2 }),
   ),
   defaultMeta: { service: "samurai-framework" },
