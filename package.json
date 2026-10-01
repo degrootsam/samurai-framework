@@ -20,6 +20,10 @@
       "types": "./dist/recorder/index.d.ts",
       "default": "./dist/recorder/index.js"
     },
+    "./init": {
+      "types": "./dist/cli/init.d.ts",
+      "default": "./dist/cli/init.js"
+    },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
       "default": "./dist/browser/index.js"
