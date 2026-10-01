@@ -21,14 +21,17 @@ before(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  ({ browser, page } = await Browser.launch("firefox", { port: 9251, headless: true }));
+  ({ browser, page } = await Browser.launch("firefox", { port: 9251, headless: true }, AbortSignal.timeout(30000)));
 });
 
 after(async () => {
-  await page.dispose();
-  await browser?.close();
-  sockets.forEach((socket) => socket.destroy());
-  await new Promise((resolve) => server.close(resolve));
+  try {
+    await page?.dispose().catch(() => {});
+    await browser?.close().catch(() => {});
+  } finally {
+    sockets.forEach((socket) => socket.destroy());
+    if (server) await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("goto resolves a path against the base URL", { timeout: 40000 }, async () => {
