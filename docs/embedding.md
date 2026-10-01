@@ -20,13 +20,13 @@ Rebuild after changes. The package is ESM only.
 
 ## Entry points
 
-| Import                                 | Gives you                                                                               |
-| -------------------------------------- | --------------------------------------------------------------------------------------- |
-| `@itmetsam/samurai-framework`          | What specs import: `test`, `describe`, `expect`, `defineConfig`                         |
-| `@itmetsam/samurai-framework/runner`   | `runTests`, `listTests` and the `RunEvent` / `RunnerOptions` types                      |
-| `@itmetsam/samurai-framework/steps`    | The step codec: `parseSpec`, `applyEdit`, `stepToSource`, `locatorFromSpec`, step types |
-| `@itmetsam/samurai-framework/recorder` | `Recorder`, `applyRecorderEvent`, `RecorderEvent`                                       |
-| `@itmetsam/samurai-framework/browser`  | `Browser` (launch Firefox), `BrowserContext`, `Page`, `findBrowser`                     |
+| Import                                 | Gives you                                                                                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `@itmetsam/samurai-framework`          | What specs import: `test`, `describe`, `expect`, `defineConfig`                                                        |
+| `@itmetsam/samurai-framework/runner`   | `runTests`, `listTests` and the `RunEvent` / `RunnerOptions` types                                                     |
+| `@itmetsam/samurai-framework/steps`    | The step codec: `parseSpec`, `applyEdit`, `stepToSource`, `locatorFromSpec`, step types                                |
+| `@itmetsam/samurai-framework/recorder` | `Recorder`, `recordSpec` (records into a spec file, what `samurai record` uses), `applyRecorderEvent`, `RecorderEvent` |
+| `@itmetsam/samurai-framework/browser`  | `Browser` (launch Firefox), `BrowserContext`, `Page`, `findBrowser`                                                    |
 
 Types ship with the package. Nothing else is importable: internals may move.
 

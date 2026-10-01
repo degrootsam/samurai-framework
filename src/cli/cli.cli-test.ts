@@ -64,6 +64,32 @@ describe("main", () => {
     }
   });
 
+  it("record needs a spec and a sensible --at", async () => {
+    const none = io();
+    assert.equal(await main(["record"], none.target), 2);
+    assert.match(none.err(), /Which spec/);
+    const bad = io();
+    assert.equal(
+      await main(["record", "a.spec.ts", "--at", "x"], bad.target),
+      2,
+    );
+    assert.match(bad.err(), /--at/);
+  });
+
+  it("record refuses a spec that does not exist unless --new is given", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
+    writeFileSync(path.join(dir, "samurai.config.ts"), "export default {};");
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      const { target, err } = io();
+      assert.equal(await main(["record", "tests/none.spec.ts"], target), 2);
+      assert.match(err(), /does not exist/);
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
   it("init scaffolds a project and never overwrites", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-init-"));
     writeFileSync(path.join(dir, "package.json"), '{"name":"mine"}');

@@ -4,7 +4,9 @@ import {
   parseRunnerFlags,
   parseRunOverrides,
 } from "../config/run-settings.js";
+import { recordSpec } from "../recorder/session.js";
 import { listTests, runTests, type RunTestsOptions } from "../runner/run.js";
+import { stepToSource } from "../steps/emit.js";
 import { ConsoleReporter } from "./console-reporter.js";
 import { initProject } from "./init.js";
 
@@ -13,6 +15,7 @@ export const USAGE = `samurai: browser tests over WebDriver BiDi
 Usage:
   samurai run [options]       Run the tests (the default command)
   samurai list [options]      List the tests without running them
+  samurai record <spec>       Open a browser and record what you do into a spec file
   samurai init [folder]       Scaffold a project: config, an example test, .env.example
 
 Options for run and list:
@@ -27,6 +30,13 @@ Options for run:
   --headless                  Run the browser without a window
   --port <n>                  Browser debugging port (default 9223)
 
+Options for record (also --env, --port, --json):
+  --new <title>               Add a test with this title (creates the spec file if needed)
+  --test <name|index>         Record into this test; not needed when the file has one
+  --at <n>                    Insert from step n (default: after the last step)
+  --url <url>                 Page to start on (default: the environment's baseURL)
+  Stop with Ctrl+C or by closing the browser window.
+
   -h, --help                  Show this help
   -v, --version               Show the version
 
@@ -40,6 +50,8 @@ export interface Io {
   /** Whether output goes to a terminal that shows colours */
   color: boolean;
   env: Partial<NodeJS.ProcessEnv>;
+  /** Aborts a recording (Ctrl+C) */
+  signal?: AbortSignal;
 }
 
 function version(): string {
@@ -74,6 +86,59 @@ export async function main(argv: string[], io: Io): Promise<number> {
       return 0;
     }
 
+    if (command === "record") {
+      const file = positionals[0];
+      if (!file)
+        throw new Error(
+          "Which spec? Usage: samurai record <spec> [--new <title>]",
+        );
+      const at = values.at === undefined ? undefined : Number(values.at);
+      if (at !== undefined && (!Number.isInteger(at) || at < 0))
+        throw new Error(`--at must be a step number, got "${values.at}"`);
+      const flags = parseRunnerFlags(rest);
+      const test =
+        values.test === undefined
+          ? undefined
+          : /^\d+$/.test(values.test)
+            ? Number(values.test)
+            : values.test;
+      let count = 0;
+      const result = await recordSpec({
+        ...parseRunOverrides(rest, io.env),
+        file,
+        ...(test !== undefined && { test }),
+        ...(values.new !== undefined && { create: values.new }),
+        ...(at !== undefined && { at }),
+        ...(values.url !== undefined && { url: values.url }),
+        ...(flags.port !== undefined && { port: flags.port }),
+        ...(io.signal && { signal: io.signal }),
+        onStarted: () => {
+          if (!values.json)
+            io.out(
+              "Recording. Alt+click an element to assert on it. Press Ctrl+C or close the window to stop.\n",
+            );
+        },
+        onEvent: (event) => {
+          if (values.json) return void io.out(`${JSON.stringify(event)}\n`);
+          if (event.op === "insert")
+            io.out(`  + ${stepToSource(event.step)}\n`);
+          else io.out(`  ~ ${stepToSource(event.step)}\n`);
+          if (event.op === "insert") count++;
+        },
+      });
+      if (!values.json) {
+        io.out(
+          `\nRecorded ${count} ${count === 1 ? "step" : "steps"} into "${result.test}" in ${result.file}\n`,
+        );
+        if (result.secrets.length > 0) {
+          io.out(
+            `Set ${result.secrets.map((name) => `SAMURAI_SECRET_${name}`).join(", ")} (environment variable or .env.<environment>) before running it.\n`,
+          );
+        }
+      }
+      return 0;
+    }
+
     if (command !== "run" && command !== "list") {
       io.err(`Unknown command "${command}"\n\n${USAGE}`);
       return 2;
@@ -101,6 +166,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       : new ConsoleReporter({ write: io.out, color: io.color });
     const summary = await runTests({
       ...options,
+      ...(io.signal && { signal: io.signal }),
       onEvent: (event) => {
         if (values.json) io.out(`${JSON.stringify(event)}\n`);
         else human?.handle(event);

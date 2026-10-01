@@ -30,7 +30,8 @@
     "dev": "tsx src/index.ts",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-types.mjs",
     "test": "tsx --test --test-timeout=10000 \"src/**/*.test.ts\"",
-    "test:browser": "tsx --test --test-concurrency=1 \"src/**/*.browser-test.ts\""
+    "test:browser": "tsx --test --test-concurrency=1 \"src/**/*.browser-test.ts\"",
+    "test:cli": "tsx --test --test-concurrency=1 \"src/**/*.cli-test.ts\""
   },
   "keywords": [],
   "author": "",

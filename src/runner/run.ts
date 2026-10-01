@@ -1,21 +1,8 @@
-import { loadConfig, projectDir, setActiveProject } from "../config/config.js";
-import { resetSecrets } from "../config/mask.js";
-import { setRunSettings, type RunOverrides } from "../config/run-settings.js";
-import type { SamuraiTestConfig } from "../types/config.js";
 import type { TestSummary } from "../types/test.js";
-import { prepareRun } from "./prepare-run.js";
+import { withProject, type ProjectOptions } from "./project.js";
 import TestRunner, { type RunnerOptions } from "./test-runner.js";
 
-export interface RunTestsOptions extends RunnerOptions, RunOverrides {
-  /** The project to run: its `samurai.config.ts`, `.env.<environment>`, specs and report. @default the working directory */
-  projectDir?: string;
-  /** Use this config instead of reading `samurai.config.ts` */
-  config?: SamuraiTestConfig;
-  /** Where the framework keeps browser profiles. @default `SAMURAI_DATA_DIR`, else `browsers/` in the project folder */
-  dataDir?: string;
-}
-
-let running = false;
+export interface RunTestsOptions extends RunnerOptions, ProjectOptions {}
 
 /**
  * Runs the project's tests, one after the other, and resolves with the summary (also written to the report).
@@ -29,7 +16,26 @@ let running = false;
 export async function runTests(
   options: RunTestsOptions = {},
 ): Promise<TestSummary> {
-  return inProject(options, (runner) => runner.start());
+  const {
+    projectDir,
+    config,
+    dataDir,
+    environment,
+    timeout,
+    expectTimeout,
+    ...runner
+  } = options;
+  return withProject(
+    {
+      projectDir,
+      config,
+      dataDir,
+      environment,
+      timeout,
+      expectTimeout,
+    } as ProjectOptions,
+    async (run) => (await TestRunner.init(run, undefined, runner)).start(),
+  );
 }
 
 /** A test found in a spec file */
@@ -43,20 +49,8 @@ export interface FoundTest {
 export async function listTests(
   options: RunTestsOptions = {},
 ): Promise<FoundTest[]> {
-  return inProject(options, async (runner) =>
-    (await runner.register()).map(({ name, file }) => ({ name, file })),
-  );
-}
-
-/** Runs `work` with the project active (config, folders), one run or listing at a time per process */
-async function inProject<T>(
-  options: RunTestsOptions,
-  work: (runner: TestRunner) => Promise<T>,
-): Promise<T> {
-  if (running) throw new Error("A test run is already active in this process");
-  running = true;
   const {
-    projectDir: dir,
+    projectDir,
     config,
     dataDir,
     environment,
@@ -64,24 +58,22 @@ async function inProject<T>(
     expectTimeout,
     ...runner
   } = options;
-  const previousDir = projectDir();
-  try {
-    setActiveProject({ dir: dir ?? previousDir, config, dataDir });
-    const loaded = config ?? (await loadConfig());
-    setActiveProject({ dir: dir ?? previousDir, config: loaded, dataDir });
-    resetSecrets();
-    const run = prepareRun(loaded, {
-      ...(environment !== undefined && { environment }),
-      ...(timeout !== undefined && { timeout }),
-      ...(expectTimeout !== undefined && { expectTimeout }),
-    });
-    return await work(await TestRunner.init(run, undefined, runner));
-  } finally {
-    setRunSettings(undefined);
-    setActiveProject(undefined);
-    running = false;
-  }
+  return withProject(
+    {
+      projectDir,
+      config,
+      dataDir,
+      environment,
+      timeout,
+      expectTimeout,
+    } as ProjectOptions,
+    async (run) =>
+      (await (await TestRunner.init(run, undefined, runner)).register()).map(
+        ({ name, file }) => ({ name, file }),
+      ),
+  );
 }
 
 export type { RunEvent } from "./reporter.js";
 export type { RunnerOptions } from "./test-runner.js";
+export type { ProjectOptions } from "./project.js";

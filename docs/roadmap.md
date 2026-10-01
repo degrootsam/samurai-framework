@@ -35,7 +35,7 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - **Mid-test abort is untested.** Aborting before a run starts and between tests is covered; aborting while a browser is running relies on the existing launch/close handling.
 - **Logs location.** Framework logs go to `logs/` of the process's working directory, not the project folder.
 - **Publishing.** Not on npm; consumers link the built package.
-- **Command extras.** No `samurai record`, no `--config` flag, no watch mode; `samurai --version` creates a `logs/` folder because the logger opens its files on import.
+- **Command extras.** No `--config` flag, no watch mode; `samurai record --at` doesn't replay the steps before it; `samurai --version` creates a `logs/` folder because the logger opens its files on import.
 
 ## Open: runner and CLI
 

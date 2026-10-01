@@ -90,6 +90,10 @@ const FLAGS = {
   grep: { type: "string" },
   file: { type: "string", multiple: true },
   json: { type: "boolean" },
+  test: { type: "string" },
+  at: { type: "string" },
+  new: { type: "string" },
+  url: { type: "string" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;

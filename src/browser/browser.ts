@@ -162,6 +162,7 @@ export class Browser {
   public readonly defaultContext: BrowserContext;
   /** Where downloads are saved; undefined when the browser could not be told (it then uses its own folder) */
   public readonly downloadsDir: string | undefined;
+  private exitedPromise: Promise<void> | undefined;
 
   constructor({
     browserProc,
@@ -181,6 +182,16 @@ export class Browser {
       forget: (context) => void this.userContexts.delete(context.id),
     };
     this.defaultContext = new BrowserContext(this.host, "default", true);
+  }
+
+  /** Resolves when the browser process has exited, whether `close()` or a person closed it */
+  public get exited(): Promise<void> {
+    this.exitedPromise ??= new Promise((resolve) => {
+      if (this.browserProc.exitCode !== null || this.browserProc.signalCode)
+        return resolve();
+      this.browserProc.once("exit", () => resolve());
+    });
+    return this.exitedPromise;
   }
 
   static async launch(

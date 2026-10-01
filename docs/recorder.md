@@ -60,6 +60,10 @@ Only the touched statement changes; formatting and comments elsewhere stay byte 
 
 `locatorFromSpec(page, spec)` (`src/steps/build.ts`) builds the real locator for a step's locator spec, which is what a step runner needs.
 
+## Recording from the command line
+
+`samurai record <spec>` records into a spec file in one go: see [Command line](cli.md#samurai-record-spec). From code, `recordSpec({ file, create?, test?, at?, url?, environment?, signal? })` (from `/recorder`) does the same and resolves when `signal` aborts or the window closes.
+
 ## Recording
 
 ```ts
