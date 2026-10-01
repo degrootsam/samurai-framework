@@ -20,6 +20,14 @@ export class RemoteObject {
   ) {}
 }
 
+/**
+ * A channel the page function can call as `send(value)`; the browser delivers each value as a
+ * `script.message` event. Only meaningful as a preload script or function argument.
+ */
+export class ChannelArg {
+  constructor(public readonly channel: string) {}
+}
+
 /** Serializes `value` for `script.callFunction` arguments; throws TypeError for what cannot cross the wire */
 export function toLocalValue(value: Arg): ArgumentValue {
   return serialize(value, new Set(), 0);
@@ -45,6 +53,13 @@ function serialize(value: unknown, ancestors: Set<object>, depth: number): Argum
   }
 
   if (value === null) return { type: "null" };
+  if (value instanceof ChannelArg) {
+    // Nodes arrive as references only, which is all the recorder needs
+    return {
+      type: "channel",
+      value: { channel: value.channel, serializationOptions: { maxDomDepth: 0, maxObjectDepth: 4 }, ownership: "none" },
+    };
+  }
   if (value instanceof ElementHandle) {
     return value.handle === undefined
       ? { sharedId: value.sharedId }
