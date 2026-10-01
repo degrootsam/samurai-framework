@@ -2,7 +2,7 @@
 
 ## Layout
 
-```
+```txt
 samurai.config.ts        project config (used by `bun run dev`)
 src/
   api.ts                 public entry: test, describe, expect, defineConfig
