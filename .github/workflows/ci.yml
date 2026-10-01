@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -43,6 +43,7 @@ jobs:
       - name: Firefox version
         run: firefox --version
       - name: Browser tests
+        timeout-minutes: 12
         run: bun run test:browser
       - name: Upload logs
         if: failure()
@@ -64,5 +65,7 @@ jobs:
       checks: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       # Checks only what the PR or push changed; linters come from .trunk/trunk.yaml
       - uses: trunk-io/trunk-action@v1
