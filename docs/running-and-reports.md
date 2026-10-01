@@ -4,14 +4,17 @@
 
 ```sh
 bun run dev [--env <name>] [--timeout <ms>] [--expect-timeout <ms>]
+        [--headless] [--port <n>] [--grep <text>] [--file <spec>]...
 ```
 
 1. Reads `samurai.config.ts`, picks the [environment](environments-and-secrets.md), loads its secrets and registers them for masking.
 2. Finds every `*.spec.ts` under `srcDir` (recursively) and imports each one, which registers its tests.
 3. Runs the tests **one at a time**, in registration order. For each test it launches a fresh browser (window visible), opens a page, runs the test function with the [fixtures](writing-tests.md#fixtures), judges the page's log, and closes the browser.
-4. Writes `result/report.json` and exits.
+4. Writes `result/report.json` and exits with the run's status.
 
-The browser window is visible and the debugging port is fixed (9223); see the [roadmap](roadmap.md) for headless and parallel runs. The process exits with code 0 whatever the outcome, so a CI job can't use the exit code yet; read the report instead.
+The browser window is visible unless you pass `--headless`. The browser's debugging port is 9223 unless you pass `--port`. `--grep <text>` runs only tests whose full name contains the text, and `--file <spec>` (repeatable, relative to the working directory) runs only those spec files. The process exits with code 0 when every test passed and 1 otherwise, so a CI job can gate on it. Tests still run one at a time.
+
+To run tests from your own code, see [Embedding the framework](embedding.md).
 
 ## The report
 
