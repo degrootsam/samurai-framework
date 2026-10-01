@@ -28,7 +28,7 @@ export function loadSecrets(
   const secrets = new Map<string, string>();
   for (const source of sources) {
     for (const [key, value] of Object.entries(source)) {
-      if (!key.startsWith(PREFIX) || value === undefined) continue;
+      if (!key.startsWith(PREFIX) || value === undefined || value === "") continue;
       const name = key.slice(PREFIX.length);
       if (!NAME.test(name)) {
         logger.warn(`Ignoring ${key}: secret names must be UPPER_SNAKE_CASE`);
