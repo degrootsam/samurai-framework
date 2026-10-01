@@ -1,13 +1,28 @@
 import type { Expectation, LocatorSpec, Step } from "../steps/model.js";
 
 /** What the recorder does to the step list: a new step at `index`, or a step rewritten in place */
-export type RecorderEvent = { op: "insert"; index: number; step: Step } | { op: "replace"; index: number; step: Step };
+export type RecorderEvent =
+  | { op: "insert"; index: number; step: Step }
+  | { op: "replace"; index: number; step: Step };
 
 /** A page event whose element already has its locators */
 export type Observation =
   | { type: "click"; key: string; locator: LocatorSpec; textEntry: boolean }
-  | { type: "input"; key: string; locator: LocatorSpec; value?: string; secret?: boolean; secretName?: string }
-  | { type: "assert"; key: string; locator: LocatorSpec; text: string; value?: string };
+  | {
+      type: "input";
+      key: string;
+      locator: LocatorSpec;
+      value?: string;
+      secret?: boolean;
+      secretName?: string;
+    }
+  | {
+      type: "assert";
+      key: string;
+      locator: LocatorSpec;
+      text: string;
+      value?: string;
+    };
 
 export interface NormaliserOptions {
   /** Index the first recorded step gets */
@@ -22,7 +37,11 @@ const TEXT_LIMIT = 100;
 
 /** The name a secret gets in `secrets.<NAME>`: the field's name or id, upper snake case */
 export function secretNameFor(hint: string | undefined): string {
-  const name = (hint ?? "").replace(/([a-z\d])([A-Z])/g, "$1_$2").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+  const name = (hint ?? "")
+    .replace(/([a-z\d])([A-Z])/g, "$1_$2")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
   return name === "" || /^\d/.test(name) ? "PASSWORD" : name;
 }
 
@@ -67,7 +86,13 @@ export class Normaliser {
   /** The path (and query) of `url` when it is inside the base URL, else `url` */
   public relative(url: string): string {
     const base = this.options.baseURL?.replace(/\/+$/, "");
-    if (base && (url === base || url.startsWith(`${base}/`) || url.startsWith(`${base}?`) || url.startsWith(`${base}#`))) {
+    if (
+      base &&
+      (url === base ||
+        url.startsWith(`${base}/`) ||
+        url.startsWith(`${base}?`) ||
+        url.startsWith(`${base}#`))
+    ) {
       return url.slice(base.length) || "/";
     }
     return url;
@@ -114,7 +139,9 @@ export class Normaliser {
     this.lastFill = undefined;
     if (at - this.lastAction <= this.window) {
       this.lastAction = -Infinity;
-      return this.lastStep?.kind === "waitForNetworkIdle" ? [] : [this.insert({ kind: "waitForNetworkIdle" })];
+      return this.lastStep?.kind === "waitForNetworkIdle"
+        ? []
+        : [this.insert({ kind: "waitForNetworkIdle" })];
     }
     return [this.insert({ kind: "goto", url: this.relative(url) })];
   }

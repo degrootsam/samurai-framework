@@ -11,10 +11,12 @@ Watch a person use the page in the (external) recording browser and report steps
 
 ```ts
 const recorder = await page.record({
-  at: 3,                // number of steps before the recording; default 0
-  initialGoto: false,   // the page is already where step 3 leaves it; default true
+  at: 3, // number of steps before the recording; default 0
+  initialGoto: false, // the page is already where step 3 leaves it; default true
   baseURL: "https://app.test",
-  onEvent: (event) => { /* { op: "insert" | "replace", index, step } */ },
+  onEvent: (event) => {
+    /* { op: "insert" | "replace", index, step } */
+  },
 });
 await recorder.stop();
 ```

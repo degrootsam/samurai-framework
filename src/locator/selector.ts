@@ -4,10 +4,20 @@ import type { NodeLocator } from "../types/bidi-modules/browsing-context.js";
 export type Selector =
   | { kind: "xpath"; value: string }
   | { kind: "css"; value: string }
-  | { kind: "text"; value: string; match: "full" | "partial"; ignoreCase: boolean }
+  | {
+      kind: "text";
+      value: string;
+      match: "full" | "partial";
+      ignoreCase: boolean;
+    }
   | { kind: "role"; role?: string; name?: string }
   /** Form controls named by a `<label>`, `aria-labelledby` or `aria-label` whose text matches */
-  | { kind: "label"; value: string; match: "full" | "partial"; ignoreCase: boolean }
+  | {
+      kind: "label";
+      value: string;
+      match: "full" | "partial";
+      ignoreCase: boolean;
+    }
   /** Elements whose `data-testid` attribute equals `value` */
   | { kind: "testid"; value: string }
   /** Picks the n-th (0-based) of everything the chain so far matches; `all()` builds these */
@@ -33,21 +43,42 @@ export function cssSelector(value: string): Selector {
   return { kind: "css", value: nonEmpty(value, "a css selector") };
 }
 
-export function textSelector(value: string, { match = "full", ignoreCase = false }: TextOptions = {}): Selector {
-  return { kind: "text", value: nonEmpty(value, "the text"), match, ignoreCase };
+export function textSelector(
+  value: string,
+  { match = "full", ignoreCase = false }: TextOptions = {},
+): Selector {
+  return {
+    kind: "text",
+    value: nonEmpty(value, "the text"),
+    match,
+    ignoreCase,
+  };
 }
 
-export function labelSelector(value: string, { match = "full", ignoreCase = false }: TextOptions = {}): Selector {
-  return { kind: "label", value: nonEmpty(value, "the label"), match, ignoreCase };
+export function labelSelector(
+  value: string,
+  { match = "full", ignoreCase = false }: TextOptions = {},
+): Selector {
+  return {
+    kind: "label",
+    value: nonEmpty(value, "the label"),
+    match,
+    ignoreCase,
+  };
 }
 
 export function testIdSelector(value: string): Selector {
   return { kind: "testid", value: nonEmpty(value, "the test id") };
 }
 
-export function roleSelector(role: string, { name }: { name?: string } = {}): Selector {
+export function roleSelector(
+  role: string,
+  { name }: { name?: string } = {},
+): Selector {
   nonEmpty(role, "the role");
-  return name === undefined ? { kind: "role", role } : { kind: "role", role, name };
+  return name === undefined
+    ? { kind: "role", role }
+    : { kind: "role", role, name };
 }
 
 /**
@@ -64,7 +95,10 @@ export function normalizeXpath(xpath: string, scoped: boolean): string {
 }
 
 /** The BiDi locator for a step. `scoped` is true for every step after the first */
-export function toBiDiLocator(selector: Selector, scoped: boolean): NodeLocator {
+export function toBiDiLocator(
+  selector: Selector,
+  scoped: boolean,
+): NodeLocator {
   switch (selector.kind) {
     case "xpath":
       return { type: "xpath", value: normalizeXpath(selector.value, scoped) };
@@ -86,7 +120,10 @@ export function toBiDiLocator(selector: Selector, scoped: boolean): NodeLocator 
         },
       };
     case "testid":
-      return { type: "css", value: `[data-testid="${selector.value.replace(/["\\]/g, "\\$&")}"]` };
+      return {
+        type: "css",
+        value: `[data-testid="${selector.value.replace(/["\\]/g, "\\$&")}"]`,
+      };
     case "label":
       throw new Error("label is resolved by the framework, not by the browser");
     case "nth":
@@ -114,7 +151,9 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
     case "role":
       return (
         `role=${selector.role ?? ""}` +
-        (selector.name === undefined ? "" : `[name=${JSON.stringify(selector.name)}]`)
+        (selector.name === undefined
+          ? ""
+          : `[name=${JSON.stringify(selector.name)}]`)
       );
     case "nth":
       return `nth=${selector.index}`;
@@ -122,5 +161,7 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
 }
 
 export function describeChain(chain: readonly Selector[]): string {
-  return chain.map((selector, index) => describeSelector(selector, index > 0)).join(" >> ");
+  return chain
+    .map((selector, index) => describeSelector(selector, index > 0))
+    .join(" >> ");
 }

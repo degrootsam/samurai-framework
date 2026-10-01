@@ -10,14 +10,16 @@ export type StepEdit =
   /** Moves a step so it ends up at position `to` */
   | { op: "move"; test: number; from: number; to: number };
 
-const lineStart = (source: string, offset: number) => source.lastIndexOf("\n", offset - 1) + 1;
+const lineStart = (source: string, offset: number) =>
+  source.lastIndexOf("\n", offset - 1) + 1;
 
 function lineEnd(source: string, offset: number): number {
   const newline = source.indexOf("\n", offset);
   return newline === -1 ? source.length : newline + 1;
 }
 
-const indentOf = (source: string, offset: number) => /^[ \t]*/.exec(source.slice(lineStart(source, offset)))![0];
+const indentOf = (source: string, offset: number) =>
+  /^[ \t]*/.exec(source.slice(lineStart(source, offset)))![0];
 
 function pickTest(source: string, test: number): ParsedTest {
   const found = parseSpec(source)[test];
@@ -31,14 +33,26 @@ function pickStep(parsed: ParsedTest, index: number) {
   return step;
 }
 
-function splice(source: string, from: number, to: number, text: string): string {
+function splice(
+  source: string,
+  from: number,
+  to: number,
+  text: string,
+): string {
   return source.slice(0, from) + text + source.slice(to);
 }
 
 /** Inserts statement text so it becomes step `index`, copying the indentation of the steps around it */
-function insertCode(source: string, parsed: ParsedTest, index: number, code: string): string {
+function insertCode(
+  source: string,
+  parsed: ParsedTest,
+  index: number,
+  code: string,
+): string {
   if (index < 0 || index > parsed.steps.length) {
-    throw new RangeError(`Cannot insert at step ${index}: test "${parsed.name}" has ${parsed.steps.length}`);
+    throw new RangeError(
+      `Cannot insert at step ${index}: test "${parsed.name}" has ${parsed.steps.length}`,
+    );
   }
   const before = parsed.steps[index];
   if (before) {
@@ -51,7 +65,8 @@ function insertCode(source: string, parsed: ParsedTest, index: number, code: str
     const indent = indentOf(source, last.start);
     const next = lineEnd(source, last.end);
     // After the last statement's line, so a trailing comment stays with it
-    if (next <= parsed.bodyEnd && source[next - 1] === "\n") return splice(source, next, next, `${indent}${code}\n`);
+    if (next <= parsed.bodyEnd && source[next - 1] === "\n")
+      return splice(source, next, next, `${indent}${code}\n`);
     return splice(source, last.end, last.end, `\n${indent}${code}`);
   }
 
@@ -59,7 +74,12 @@ function insertCode(source: string, parsed: ParsedTest, index: number, code: str
   const closing = indentOf(source, parsed.bodyEnd);
   const rest = source.slice(parsed.bodyStart, parsed.bodyEnd);
   const tail = rest.includes("\n") ? "" : `\n${closing}`;
-  return splice(source, parsed.bodyStart, parsed.bodyStart, `\n${closing}  ${code}${tail}`);
+  return splice(
+    source,
+    parsed.bodyStart,
+    parsed.bodyStart,
+    `\n${closing}  ${code}${tail}`,
+  );
 }
 
 function removeStep(source: string, parsed: ParsedTest, index: number): string {
@@ -84,7 +104,8 @@ export function applyEdit(source: string, edit: StepEdit): string {
       return removeStep(source, parsed, edit.index);
     case "move": {
       const { start, end } = pickStep(parsed, edit.from);
-      if (edit.to < 0 || edit.to >= parsed.steps.length) throw new RangeError(`Cannot move to step ${edit.to}`);
+      if (edit.to < 0 || edit.to >= parsed.steps.length)
+        throw new RangeError(`Cannot move to step ${edit.to}`);
       if (edit.to === edit.from) return source;
       const code = source.slice(start, end);
       const removed = removeStep(source, parsed, edit.from);
