@@ -29,18 +29,24 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - `api.<name>` fixture: a per-environment HTTP client with authentication from a secret.
 - Masking secrets in screenshots, videos and traces (logs and reports are already masked).
 
+## Open: embedding
+
+- **Engine process.** A ready-made entry point for a child process that takes `run` / `record` / `stop` / `abort` commands and answers with events over `process.send`, so the Electron app doesn't have to write it.
+- **Mid-test abort is untested.** Aborting before a run starts and between tests is covered; aborting while a browser is running relies on the existing launch/close handling.
+- **Logs location.** Framework logs go to `logs/` of the process's working directory, not the project folder.
+- **Publishing.** Not on npm; consumers link the built package.
+
 ## Open: runner and CLI
 
 Gaps in the runner today, found while writing these docs:
 
-- **Exit code.** `bun run dev` exits with 0 even when tests fail, so CI can't gate on it.
 - **Console output.** Nothing summarises the run on the console; the only result is `result/report.json`. No HTML or JUnit report.
-- **Headless and parallel runs.** The runner starts a visible browser on a fixed debugging port (9223) and runs tests one at a time. Headless mode, a configurable port and running several tests at once are missing.
-- **Test selection.** No way to run one file, a title pattern (`--grep`), or a tagged subset from the command line.
+- **Parallel runs.** Tests run one at a time; running several at once is missing. (`--headless`, `--port`, `--grep` and `--file` exist.)
+- **Tags.** Tests can be selected by file and by name, but not by tag.
 - **`groups`.** The option exists in the config types but the runner doesn't use it (`TODO: Implement test grouping`).
 - **Hooks and modifiers.** No `beforeEach`, `afterEach`, `beforeAll`, `afterAll`, `test.skip`, `test.only`, `test.fixme`, or retries.
 - **Failure artefacts.** No automatic screenshot, video or trace when a test fails.
-- **Packaging.** The package isn't published and has no `bin`; specs import from the repository's `src/api.ts`. A `samurai` command, a published package and an `init` scaffold would make the Getting started shorter.
+- **Packaging.** The package builds to `dist/` with subpath exports (see [Embedding](embedding.md)) but isn't published and has no `bin`. A `samurai` command, publishing, and an `init` scaffold would make the Getting started shorter.
 - **Config loading.** `samurai.config.ts` is read from the working directory only; no `--config` flag.
 
 ## Open: framework API

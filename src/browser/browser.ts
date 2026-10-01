@@ -13,7 +13,7 @@ import { validateEmulation, type EmulationOptions } from "./emulation.js";
 import { prepareDownloadsDir, removeIfEmpty } from "./downloads-dir.js";
 import type { BiDiCommands } from "../types/bidi.js";
 import logger from "../logger/index.js";
-import { readConfig } from "../config/config.js";
+import { browsersDir, projectDir, readConfig } from "../config/config.js";
 import type {
   CookieFilter,
   PartialCookie,
@@ -31,28 +31,22 @@ export const SESSION_CAPABILITIES = {
 /** Time (ms) to wait for Firefox to answer browser.close before killing the process */
 const BROWSER_CLOSE_GRACE = 2000;
 
-const browserProfilePath: Record<SupportedBrowser, string> = {
-  // chrome: path.resolve("browsers/profiles/chrome"),
-  firefox: path.resolve("browsers/profiles/firefox/user.js"),
-};
+const browserProfilePath = (browserName: SupportedBrowser): string =>
+  path.join(browsersDir(), "profiles", browserName, "user.js");
 
 const baseBrowserLaunchFlags: Record<SupportedBrowser, string[]> = {
   // chrome: [],
   firefox: ["--no-sandbox", "--no-remote"],
 };
 
-const defaultLaunchOptions: Record<SupportedBrowser, BrowserLaunchOptions> = {
-  firefox: {
-    port: 9222,
-    profileDir: path.dirname(browserProfilePath.firefox),
-    headless: true,
-  },
-  // chrome: {
-  //   port: 9222,
-  //   profileDir: path.dirname(browserProfilePath.chrome),
-  //   headless: true,
-  // },
-};
+/** Read when a browser launches, since the profile folder depends on the active project */
+const defaultLaunchOptions = (
+  browserName: SupportedBrowser,
+): BrowserLaunchOptions => ({
+  port: 9222,
+  profileDir: path.dirname(browserProfilePath(browserName)),
+  headless: true,
+});
 
 const regexPrefix: Record<SupportedBrowser, RegExp> = {
   firefox: /WebDriver\sBiDi\slistening\son\s/,
@@ -63,7 +57,7 @@ export const browserLaunchFlag = (
   browserName: SupportedBrowser,
   launchOptions: Partial<BrowserLaunchOptions>,
 ) => {
-  const defLaunchOpts = defaultLaunchOptions[browserName];
+  const defLaunchOpts = defaultLaunchOptions(browserName);
   const port = launchOptions.port || defLaunchOpts.port;
   const profileDir = launchOptions.profileDir || defLaunchOpts.profileDir;
   const headless = launchOptions.headless ?? defLaunchOpts.headless;
@@ -105,12 +99,11 @@ export function abandonLaunch(
 
 // On macOS a spawned browser is attributed to the terminal, which is denied access to
 // ~/Library/Application Support/Firefox (profiles.ini). Point Firefox at a local app data dir instead.
-const browserAppDataPath: Record<SupportedBrowser, string> = {
-  firefox: path.resolve("browsers/app-data/firefox"),
-};
+const browserAppDataPath = (browserName: SupportedBrowser): string =>
+  path.join(browsersDir(), "app-data", browserName);
 
 const browserLaunchEnv = (browserName: SupportedBrowser) => {
-  const appDataPath = browserAppDataPath[browserName];
+  const appDataPath = browserAppDataPath(browserName);
   mkdirSync(appDataPath, { recursive: true });
   logger.debug("Using app data dir for %s: %s", browserName, appDataPath);
 
@@ -192,9 +185,9 @@ export class Browser {
 
   static async launch(
     browserName: SupportedBrowser,
-    launchOptions: Partial<BrowserLaunchOptions> = defaultLaunchOptions[
-      browserName
-    ],
+    launchOptions: Partial<BrowserLaunchOptions> = defaultLaunchOptions(
+      browserName,
+    ),
     /** Aborting kills the browser process and rejects the launch */
     signal?: AbortSignal,
   ) {
@@ -267,7 +260,10 @@ export class Browser {
 
           const downloadsDir = await prepareDownloadsDir(
             biDiConnector,
-            (await readOptionalConfig("downloadsDir")) ?? "result/downloads",
+            path.resolve(
+              projectDir(),
+              (await readOptionalConfig("downloadsDir")) ?? "result/downloads",
+            ),
           );
           const browser = new Browser({
             browserProc,
@@ -403,13 +399,11 @@ export class Browser {
         await context.emulate(emulation);
       } catch (err) {
         // Firefox keeps a context in its profile until it is removed
-        await context
-          .close()
-          .catch((closeErr) =>
-            logger.debug("Could not remove a context whose emulation failed", {
-              closeErr,
-            }),
-          );
+        await context.close().catch((closeErr) =>
+          logger.debug("Could not remove a context whose emulation failed", {
+            closeErr,
+          }),
+        );
         throw err;
       }
     }
@@ -477,7 +471,7 @@ async function readCommandTimeout() {
 /** Writes the browser's user.js unless it already holds the current prefs; an outdated one is replaced */
 export function ensureBrowserProfile(
   browserName: SupportedBrowser,
-  profilePath: string | undefined = browserProfilePath[browserName],
+  profilePath: string | undefined = browserProfilePath(browserName),
 ) {
   logger.verbose("Checking browser profile for: %s", browserName);
   if (!profilePath) {
@@ -489,7 +483,10 @@ export function ensureBrowserProfile(
       logger.verbose("Browser profile is up to date at: %s", profilePath);
       return;
     }
-    logger.verbose("Browser profile at %s is outdated, rewriting it", profilePath);
+    logger.verbose(
+      "Browser profile at %s is outdated, rewriting it",
+      profilePath,
+    );
   } else {
     logger.verbose("No browser profile created yet for %s", browserName);
   }

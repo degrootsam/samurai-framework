@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { projectDir } from "../config/config.js";
 import { maskDeep } from "../config/mask.js";
 import type {
   PartialTestResult,
@@ -10,11 +11,20 @@ import type {
   TestSummary,
 } from "../types/test.js";
 
+/** What a run reports while it happens */
+export type RunEvent =
+  | { type: "run-start"; environment: string; total: number }
+  | { type: "test-start"; name: string; file: string }
+  | { type: "test-end"; name: string; file: string; result: TestResult }
+  | { type: "run-end"; summary: TestSummary };
+
 export interface ReporterOptions {
   /** The environment the run uses, recorded in the report */
   environment: string;
   /** Where the report is written. @default <cwd>/result/report.json */
-  output?: string;
+  output?: string | false;
+  /** Called with every event, in order. A throwing listener is ignored */
+  onEvent?: (event: RunEvent) => void;
 }
 
 /** Results are keyed by file and full title, so equal titles in different files or describe blocks stay apart */
@@ -26,14 +36,25 @@ export default class TestReporter {
   private testResults: Map<string, TestResult> = new Map();
   private summary: TestSummary | undefined;
   private environment: string;
-  private output: string;
+  private output: string | false;
+  private listener: ((event: RunEvent) => void) | undefined;
 
   constructor(options: ReporterOptions) {
     this.environment = options.environment;
-    this.output = options.output ?? path.join(process.cwd(), "result/report.json");
+    this.output =
+      options.output ?? path.join(projectDir(), "result/report.json");
+    this.listener = options.onEvent;
   }
 
-  public onStart() {
+  private emit(event: RunEvent): void {
+    try {
+      this.listener?.(event);
+    } catch {
+      // A listener must not break the run
+    }
+  }
+
+  public onStart(total = 0) {
     const t = performance.mark(`group-start`);
     this.summary = {
       duration: 0,
@@ -42,9 +63,10 @@ export default class TestReporter {
       environment: this.environment,
       tests: [],
     };
+    this.emit({ type: "run-start", environment: this.environment, total });
   }
 
-  public async onEnd() {
+  public async onEnd(): Promise<TestSummary> {
     performance.mark(`group-finish`);
     const duration = performance.measure(
       "test-duration",
@@ -64,10 +86,14 @@ export default class TestReporter {
         : "failed",
     } as TestSummary;
 
-    await mkdir(path.dirname(this.output), { recursive: true });
-    await writeFile(this.output, JSON.stringify(this.summary, null, 2), {
-      encoding: "utf8",
-    });
+    if (this.output !== false) {
+      await mkdir(path.dirname(this.output), { recursive: true });
+      await writeFile(this.output, JSON.stringify(this.summary, null, 2), {
+        encoding: "utf8",
+      });
+    }
+    this.emit({ type: "run-end", summary: this.summary });
+    return this.summary;
   }
 
   public onTestStart(test: RegisteredTestCase) {
@@ -79,6 +105,7 @@ export default class TestReporter {
       status: "started",
       startTime: t.startTime,
     });
+    this.emit({ type: "test-start", name: test.name, file: test.file });
   }
 
   public onTestEnd(
@@ -94,16 +121,15 @@ export default class TestReporter {
       `${key}-finish`,
     ).duration;
 
-    this.testResults.set(
-      key,
-      maskDeep({
-        ...(this.testResults.get(key) as PartialTestResult),
-        duration,
-        status: error ? "failed" : "success",
-        ...(error ? error : undefined),
-        ...(logs?.logs && { logs: logs.logs }),
-        ...(logs?.logsDropped && { logsDropped: logs.logsDropped }),
-      } as TestResult),
-    );
+    const result = maskDeep({
+      ...(this.testResults.get(key) as PartialTestResult),
+      duration,
+      status: error ? "failed" : "success",
+      ...(error ? error : undefined),
+      ...(logs?.logs && { logs: logs.logs }),
+      ...(logs?.logsDropped && { logsDropped: logs.logsDropped }),
+    } as TestResult);
+    this.testResults.set(key, result);
+    this.emit({ type: "test-end", name: test.name, file: test.file, result });
   }
 }

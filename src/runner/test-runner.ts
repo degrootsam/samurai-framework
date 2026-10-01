@@ -3,15 +3,16 @@ import { glob } from "node:fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
 import { Browser } from "../browser/browser.js";
-import { readConfig } from "../config/config.js";
+import { projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { RegisteredTestCase, TestFixtures } from "../types/test.js";
-import { registeredTests } from "./registry.js";
+import { assertModuleProject } from "./module-type.js";
+import { clearRegistry, registeredTests } from "./registry.js";
 import type { PreparedRun } from "./prepare-run.js";
 import { createEnvFixture } from "../config/variables.js";
 import { createSecretsFixture } from "../config/secrets.js";
-import TestReporter from "./reporter.js";
+import TestReporter, { type RunEvent } from "./reporter.js";
 import type { SamuraiGroup } from "../types/config.js";
 import Page from "../browser/page.js";
 import { takePendingAssertions } from "../assert/expect.js";
@@ -19,18 +20,61 @@ import { toTestError } from "./test-error.js";
 import { judgePageLogs } from "./page-logs-report.js";
 import type { LogsConfig } from "./page-logs-report.js";
 
+/** What decides which tests of the found files run, and how the browser starts */
+export interface RunnerOptions {
+  /** Spec files to run, absolute or relative to the project folder. Default: every `*.spec.ts` under `srcDir` */
+  files?: string[];
+  /** Only tests whose full name matches (a string must be contained in it) */
+  grep?: string | RegExp;
+  /** Only tests with exactly one of these full names (`describe` titles joined with " > ") */
+  testNames?: string[];
+  /** Run the browser without a window. @default false */
+  headless?: boolean;
+  /** Remote debugging port of the browser. @default 9223 */
+  port?: number;
+  /** Where the report is written; `false` writes none. @default `<project>/result/report.json` */
+  reportPath?: string | false;
+  /** Receives start and end of the run and of every test, as they happen */
+  onEvent?: (event: RunEvent) => void;
+  /** Aborting stops the running test (its browser is closed), skips the rest and reports the run as failed */
+  signal?: AbortSignal;
+}
+
+/** Whether a test with this full name is selected by the options */
+export function isSelected(
+  name: string,
+  { grep, testNames }: Pick<RunnerOptions, "grep" | "testNames">,
+): boolean {
+  if (testNames && !testNames.includes(name)) return false;
+  if (grep === undefined) return true;
+  if (typeof grep === "string") return name.includes(grep);
+  grep.lastIndex = 0;
+  return grep.test(name);
+}
+
 export default class TestRunner {
   private testFiles: string[];
   private run: PreparedRun;
   private group?: SamuraiGroup;
+  private options: RunnerOptions;
 
-  constructor(testFiles: string[], run: PreparedRun, group?: SamuraiGroup) {
+  constructor(
+    testFiles: string[],
+    run: PreparedRun,
+    group?: SamuraiGroup,
+    options: RunnerOptions = {},
+  ) {
     this.testFiles = testFiles;
     this.run = run;
     this.group = group;
+    this.options = options;
   }
 
-  static async init(run: PreparedRun, group?: SamuraiGroup) {
+  static async init(
+    run: PreparedRun,
+    group?: SamuraiGroup,
+    options: RunnerOptions = {},
+  ) {
     logger.verbose("Initializing test runner");
     let srcDir = "";
 
@@ -42,7 +86,15 @@ export default class TestRunner {
 
     assert(srcDir, "No srcDir declared!");
 
-    const cwd = path.resolve(srcDir);
+    const cwd = path.resolve(projectDir(), srcDir);
+    if (options.files) {
+      return new TestRunner(
+        options.files.map((file) => path.resolve(projectDir(), file)),
+        run,
+        group,
+        options,
+      );
+    }
     logger.verbose("Reading test files from: %s", cwd);
     const testFiles: string[] = [];
     for await (const entry of glob("**/*.spec.ts", {
@@ -51,26 +103,49 @@ export default class TestRunner {
       testFiles.push(entry);
     }
     logger.debug("Found %d tests in srcDir", testFiles.length);
-    return new TestRunner(testFiles, run, group);
+    return new TestRunner(
+      testFiles.map((file) => path.join(cwd, file)),
+      run,
+      group,
+      options,
+    );
   }
 
+  /** Runs the selected tests and returns the summary that was also written to the report */
   public async start() {
-    const reporter = new TestReporter({ environment: this.run.settings.environment });
-    for (let i = 0; i < this.testFiles.length; i++) {
-      const file = this.testFiles[i] as string;
+    const { reportPath, onEvent, signal } = this.options;
+    const reporter = new TestReporter({
+      environment: this.run.settings.environment,
+      ...(reportPath !== undefined && { output: reportPath }),
+      ...(onEvent && { onEvent }),
+    });
+
+    // A fresh registry, and a fresh import of each file so a second run in this process registers its tests again
+    // (and sees edited specs, for files loaded as ES modules; CommonJS files stay cached until the process ends)
+    clearRegistry();
+    const stamp = `?run=${Date.now().toString(36)}`;
+    for (const file of this.testFiles) assertModuleProject(file);
+    for (const file of this.testFiles) {
       logger.verbose("Trying to register file: %s", file);
-      const targetPath = path.resolve((await readConfig("srcDir")) ?? "./src", file);
-      await import(pathToFileURL(targetPath).href);
+      await import(pathToFileURL(file).href + stamp);
     }
 
     logger.verbose("Running test files");
 
     // TODO: Implement test grouping
-    reporter.onStart();
-    for (const test of registeredTests()) {
+    const selected = registeredTests().filter((test) =>
+      isSelected(test.name, this.options),
+    );
+    reporter.onStart(selected.length);
+    for (const test of selected) {
+      if (signal?.aborted) {
+        reporter.onTestStart(test);
+        reporter.onTestEnd(test, { message: "Run aborted", type: "error" });
+        continue;
+      }
       await this.executeTestCase(test, reporter);
     }
-    await reporter.onEnd();
+    return reporter.onEnd();
   }
 
   private async executeTestCase(
@@ -79,36 +154,44 @@ export default class TestRunner {
   ) {
     logger.verbose("Starting test: %s", test.name);
     reporter.onTestStart(test);
-    const selectedBrowser: SupportedBrowser = (await readConfig("browser")) ?? "firefox";
+    const selectedBrowser: SupportedBrowser =
+      (await readConfig("browser")) ?? "firefox";
     const { settings, secrets } = this.run;
     const timeout = settings.timeout;
 
     let browser: Browser | undefined;
     let page: Page | undefined;
     let timeoutTimer: NodeJS.Timeout | undefined;
+    let onRunAborted: (() => void) | undefined;
     const timeoutController = new AbortController();
 
     await Promise.race([
       new Promise<void>((resolve) => {
-        timeoutTimer = setTimeout(
-          () => {
-            reporter.onTestEnd(test, {
-              message: `Test timed out after ${timeout / 1000} seconds`,
-              type: "timeout",
-            });
-            timeoutController.abort(new Error("Test timed out"));
-            resolve();
-          },
-          timeout,
-        );
+        timeoutTimer = setTimeout(() => {
+          reporter.onTestEnd(test, {
+            message: `Test timed out after ${timeout / 1000} seconds`,
+            type: "timeout",
+          });
+          timeoutController.abort(new Error("Test timed out"));
+          resolve();
+        }, timeout);
+        onRunAborted = () => {
+          if (timeoutController.signal.aborted) return;
+          reporter.onTestEnd(test, { message: "Run aborted", type: "error" });
+          timeoutController.abort(new Error("Run aborted"));
+          resolve();
+        };
+        this.options.signal?.addEventListener("abort", onRunAborted, {
+          once: true,
+        });
       }),
       new Promise<void>(async (resolve, reject) => {
         try {
           const launched = await Browser.launch(
             selectedBrowser,
             {
-              port: 9223,
-              headless: false,
+              port: this.options.port ?? 9223,
+              headless: this.options.headless ?? false,
             },
             timeoutController.signal,
           );
@@ -129,7 +212,9 @@ export default class TestRunner {
               test,
               {
                 message: unawaited
-                  .map((matcher) => `expect(locator).${matcher}() was not awaited`)
+                  .map(
+                    (matcher) => `expect(locator).${matcher}() was not awaited`,
+                  )
                   .join("\n"),
                 type: "assertion",
               },
@@ -142,13 +227,19 @@ export default class TestRunner {
           resolve();
         } catch (err) {
           if (timeoutController.signal.aborted) return resolve();
-          reporter.onTestEnd(test, toTestError(err), await judgeLogs(page, true));
+          reporter.onTestEnd(
+            test,
+            toTestError(err),
+            await judgeLogs(page, true),
+          );
           resolve();
         }
       }),
     ]);
 
     clearTimeout(timeoutTimer);
+    if (onRunAborted)
+      this.options.signal?.removeEventListener("abort", onRunAborted);
     takePendingAssertions();
     logger.verbose("Closing browser for test: %s", test.name);
     await browser?.close();

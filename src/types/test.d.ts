@@ -33,7 +33,7 @@ export interface PartialTestResult extends TestResultBase {
 
 export type TestResult = TestResultSuccess | TestResultFailed | TestResultBase;
 
-interface TestResultSuccess {
+interface TestResultSuccess extends TestResultIdentity {
   status: "success";
   duration: number;
   logs?: TestLogEntry[];
@@ -41,9 +41,9 @@ interface TestResultSuccess {
   logsDropped?: number;
 }
 
-interface TestResultFailed {
+/** The error sits flat on the entry, as in the report: `message`, `type`, `stack`, and for assertions `expected` and `actual` */
+interface TestResultFailed extends TestResultIdentity, TestError {
   status: "failed";
-  error: TestError;
   duration: number;
   logs?: TestLogEntry[];
   logsDropped?: number;
@@ -59,6 +59,12 @@ export interface TestLogEntry {
   timestamp: number;
 }
 
+interface TestResultIdentity {
+  name: string;
+  file: string;
+  startTime: number;
+}
+
 interface TestResultBase {
   name: string;
   file: string;
@@ -66,7 +72,7 @@ interface TestResultBase {
   status: "started";
 }
 
-interface TestError {
+export interface TestError {
   message: string;
   type: "timeout" | "error" | "assertion";
   stack?: string | undefined;
