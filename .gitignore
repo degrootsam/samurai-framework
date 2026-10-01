@@ -4,3 +4,6 @@ browsers
 logs
 results
 result/downloads
+.env
+.env.*
+!.env.example

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
 import { findBrowser } from "./browser-finder.js";
 import path from "node:path";
@@ -59,7 +59,7 @@ const regexPrefix: Record<SupportedBrowser, RegExp> = {
   // chrome: /DevTools\slistening\son/,
 };
 
-const browserLaunchFlag = (
+export const browserLaunchFlag = (
   browserName: SupportedBrowser,
   launchOptions: Partial<BrowserLaunchOptions>,
 ) => {
@@ -81,6 +81,8 @@ const browserLaunchFlag = (
     // break;
     case "firefox":
       baseLaunchFlags.push("--profile", profileDir);
+      // The home page (about:home) is privileged: BiDi refuses commands such as setViewport on it
+      baseLaunchFlags.push("about:blank");
       break;
   }
   logger.verbose("Launch flags for browser %s: ", browserName, {
@@ -88,6 +90,18 @@ const browserLaunchFlag = (
   });
   return baseLaunchFlags;
 };
+
+/**
+ * Stops what a failed launch started. A browser left running holds the profile (the next launch
+ * fails with "already open") and keeps the test process alive.
+ */
+export function abandonLaunch(
+  browserProc: { kill(): boolean },
+  biDiConnector: { kill(): void } | undefined,
+): void {
+  biDiConnector?.kill();
+  browserProc.kill();
+}
 
 // On macOS a spawned browser is attributed to the terminal, which is denied access to
 // ~/Library/Application Support/Firefox (profiles.ini). Point Firefox at a local app data dir instead.
@@ -112,6 +126,10 @@ const browserProfiles: Record<SupportedBrowser, string> = {
     user_pref("devtools.debugger.remote-enabled", true);
     user_pref("devtools.debugger.prompt-connection", false);
     user_pref("devtools.chrome.enabled", true);
+    // The home page (about:home) is privileged: BiDi refuses commands such as setViewport on it
+    user_pref("browser.startup.page", 0);
+    user_pref("browser.startup.homepage", "about:blank");
+    user_pref("browser.newtabpage.enabled", false);
   `,
 };
 
@@ -184,7 +202,7 @@ export class Browser {
     logger.verbose("Trying to launch browser %s", browserName);
     const browserLocation = findBrowser(browserName);
     logger.debug("Found browser install location at: %s", browserLocation);
-    checkBrowserProfile(browserName);
+    ensureBrowserProfile(browserName);
 
     logger.verbose("Trying to spawn %s process", browserName);
 
@@ -232,10 +250,11 @@ export class Browser {
         }
         // Killing the process mid-handshake rejects pending BiDi calls; surface that via reject
         // instead of an unhandled rejection from this async listener
+        let biDiConnector: BiDiConnector | undefined;
         try {
           let url = urlMatch[0] + browserWsPath[browserName];
           logger.verbose("Websocket URL match: %s", url);
-          const biDiConnector = await BiDiConnector.connect(url, {
+          biDiConnector = await BiDiConnector.connect(url, {
             commandTimeout: await readCommandTimeout(),
           });
           logger.verbose("Starting new session");
@@ -250,7 +269,11 @@ export class Browser {
             biDiConnector,
             (await readOptionalConfig("downloadsDir")) ?? "result/downloads",
           );
-          const browser = new Browser({ browserProc, biDiConnector, downloadsDir });
+          const browser = new Browser({
+            browserProc,
+            biDiConnector,
+            downloadsDir,
+          });
           logger.verbose("Requesting current browser tree");
           const browserTree = await biDiConnector.send(
             "browsingContext.getTree",
@@ -283,6 +306,9 @@ export class Browser {
             page,
           });
         } catch (err) {
+          browserProc.off("close", onUnexpectedClose);
+          signal?.removeEventListener("abort", onAbort);
+          abandonLaunch(browserProc, biDiConnector);
           reject(err);
         }
       });
@@ -300,7 +326,9 @@ export class Browser {
       this.browserProc.once("exit", resolve),
     );
     // User contexts outlive the browser in its profile unless they are removed
-    await Promise.allSettled([...this.userContexts.values()].map((context) => context.close()));
+    await Promise.allSettled(
+      [...this.userContexts.values()].map((context) => context.close()),
+    );
     try {
       // Firefox may exit without answering; a lost reply must not hold up teardown
       await Promise.race([
@@ -354,14 +382,20 @@ export class Browser {
    *  const alice = await browser.newContext();
    *  const page = await alice.newPage();
    */
-  public async newContext(options: ContextOptions = {}): Promise<BrowserContext> {
-    const { acceptInsecureCerts, unhandledPromptBehavior, ...emulation } = options;
+  public async newContext(
+    options: ContextOptions = {},
+  ): Promise<BrowserContext> {
+    const { acceptInsecureCerts, unhandledPromptBehavior, ...emulation } =
+      options;
     // A wrong value must not leave a context behind, so it is refused before one is created
     validateEmulation(emulation);
-    const { userContext } = await this.biDiConnector.send("browser.createUserContext", {
-      ...(acceptInsecureCerts !== undefined && { acceptInsecureCerts }),
-      ...(unhandledPromptBehavior && { unhandledPromptBehavior }),
-    });
+    const { userContext } = await this.biDiConnector.send(
+      "browser.createUserContext",
+      {
+        ...(acceptInsecureCerts !== undefined && { acceptInsecureCerts }),
+        ...(unhandledPromptBehavior && { unhandledPromptBehavior }),
+      },
+    );
     const context = new BrowserContext(this.host, userContext, false);
     this.userContexts.set(userContext, context);
     if (Object.keys(emulation).length > 0) {
@@ -369,7 +403,13 @@ export class Browser {
         await context.emulate(emulation);
       } catch (err) {
         // Firefox keeps a context in its profile until it is removed
-        await context.close().catch((closeErr) => logger.debug("Could not remove a context whose emulation failed", { closeErr }));
+        await context
+          .close()
+          .catch((closeErr) =>
+            logger.debug("Could not remove a context whose emulation failed", {
+              closeErr,
+            }),
+          );
         throw err;
       }
     }
@@ -382,7 +422,8 @@ export class Browser {
   }
 
   private contextFor(userContext: string | undefined): BrowserContext {
-    if (userContext === undefined || userContext === "default") return this.defaultContext;
+    if (userContext === undefined || userContext === "default")
+      return this.defaultContext;
     return this.userContexts.get(userContext) ?? this.adopt(userContext);
   }
 
@@ -416,7 +457,9 @@ async function readOptionalConfig<K extends "downloadsDir">(key: K) {
   try {
     return await readConfig(key);
   } catch (err) {
-    logger.debug("Could not read %s from config, using the default", key, { err });
+    logger.debug("Could not read %s from config, using the default", key, {
+      err,
+    });
     return undefined;
   }
 }
@@ -431,18 +474,25 @@ async function readCommandTimeout() {
   }
 }
 
-function checkBrowserProfile(browserName: SupportedBrowser) {
+/** Writes the browser's user.js unless it already holds the current prefs; an outdated one is replaced */
+export function ensureBrowserProfile(
+  browserName: SupportedBrowser,
+  profilePath: string | undefined = browserProfilePath[browserName],
+) {
   logger.verbose("Checking browser profile for: %s", browserName);
-  const profilePath = browserProfilePath[browserName];
   if (!profilePath) {
     logger.verbose("No browser profile path declared, skipping...");
     return;
   }
   if (existsSync(profilePath)) {
-    logger.verbose("Browser profile already exists at: %s", profilePath);
-    return;
+    if (readFileSync(profilePath, "utf8") === browserProfiles[browserName]) {
+      logger.verbose("Browser profile is up to date at: %s", profilePath);
+      return;
+    }
+    logger.verbose("Browser profile at %s is outdated, rewriting it", profilePath);
+  } else {
+    logger.verbose("No browser profile created yet for %s", browserName);
   }
-  logger.verbose("No browser profile created yet for %s", browserName);
 
   createBrowserProfile(browserName, profilePath);
 }

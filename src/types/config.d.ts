@@ -26,6 +26,8 @@ export interface SamuraiGroup {
 }
 
 export interface SamuraiEnvironment {
+  /** Where page.goto('/…') resolves to in this environment, and where recordings start */
+  baseURL?: string;
   /** Overrides the project timeout (ms) for this environment */
   timeout?: number;
   expect?: { timeout?: number };
@@ -48,7 +50,7 @@ export interface SamuraiTestConfig {
    * The timeout (in ms) to use for all tests
    * @default 30000
    */
-  timeout: number;
+  timeout?: number;
   /**
    * Define a group of test's you want to have executed with a certain configuration
    **/
@@ -57,7 +59,7 @@ export interface SamuraiTestConfig {
    * The base URL to use when navigating the browser.
    * When recording starts, the browser will start at this URL.
    */
-  baseUrl?: string;
+  baseURL?: string;
   /** Options for `expect` assertions */
   expect?: {
     /**
@@ -149,7 +151,7 @@ export interface SamuraiTestConfig {
     maxBodySize?: number;
   };
   /** Keyed by name: 'dev', 'staging', 'production' */
-  environments: Record<string, SamuraiEnvironment>;
-  /** Used when no environment is chosen */
-  defaultEnvironment: string;
+  environments?: Record<string, SamuraiEnvironment>;
+  /** Used when no environment is chosen with --env or SAMURAI_ENV */
+  defaultEnvironment?: string;
 }

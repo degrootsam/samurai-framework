@@ -6,7 +6,11 @@ import { Browser } from "../browser/browser.js";
 import { readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
-import type { RegisteredTestCase, TestResult } from "../types/test.js";
+import type { RegisteredTestCase, TestFixtures } from "../types/test.js";
+import { registeredTests } from "./registry.js";
+import type { PreparedRun } from "./prepare-run.js";
+import { createEnvFixture } from "../config/variables.js";
+import { createSecretsFixture } from "../config/secrets.js";
 import TestReporter from "./reporter.js";
 import type { SamuraiGroup } from "../types/config.js";
 import Page from "../browser/page.js";
@@ -15,25 +19,25 @@ import { toTestError } from "./test-error.js";
 import { judgePageLogs } from "./page-logs-report.js";
 import type { LogsConfig } from "./page-logs-report.js";
 
-const registeredTestcases: RegisteredTestCase[] = [];
-
 export default class TestRunner {
   private testFiles: string[];
+  private run: PreparedRun;
   private group?: SamuraiGroup;
 
-  constructor(testFiles: string[], group?: SamuraiGroup) {
+  constructor(testFiles: string[], run: PreparedRun, group?: SamuraiGroup) {
     this.testFiles = testFiles;
+    this.run = run;
     this.group = group;
   }
 
-  static async init(group?: SamuraiGroup) {
+  static async init(run: PreparedRun, group?: SamuraiGroup) {
     logger.verbose("Initializing test runner");
     let srcDir = "";
 
     if (group && group.src) {
       srcDir = group.src;
     } else {
-      srcDir = await readConfig("srcDir");
+      srcDir = (await readConfig("srcDir")) ?? "./src";
     }
 
     assert(srcDir, "No srcDir declared!");
@@ -47,15 +51,15 @@ export default class TestRunner {
       testFiles.push(entry);
     }
     logger.debug("Found %d tests in srcDir", testFiles.length);
-    return new TestRunner(testFiles);
+    return new TestRunner(testFiles, run, group);
   }
 
-  public async run() {
-    const reporter = new TestReporter();
+  public async start() {
+    const reporter = new TestReporter({ environment: this.run.settings.environment });
     for (let i = 0; i < this.testFiles.length; i++) {
       const file = this.testFiles[i] as string;
       logger.verbose("Trying to register file: %s", file);
-      const targetPath = path.resolve(await readConfig("srcDir"), file);
+      const targetPath = path.resolve((await readConfig("srcDir")) ?? "./src", file);
       await import(pathToFileURL(targetPath).href);
     }
 
@@ -63,9 +67,7 @@ export default class TestRunner {
 
     // TODO: Implement test grouping
     reporter.onStart();
-    for (let i = 0; i < registeredTestcases.length; i++) {
-      const test = registeredTestcases[i];
-      if (!test) continue;
+    for (const test of registeredTests()) {
       await this.executeTestCase(test, reporter);
     }
     await reporter.onEnd();
@@ -77,14 +79,9 @@ export default class TestRunner {
   ) {
     logger.verbose("Starting test: %s", test.name);
     reporter.onTestStart(test);
-    let selectedBrowser: SupportedBrowser = "firefox";
-    if (this.group && this.group?.browser) {
-      selectedBrowser = this.group.browser;
-    } else {
-      selectedBrowser = await readConfig("browser");
-    }
-    assert(selectedBrowser, "'browser' is missing from config");
-    const timeout = Number(await readConfig("timeout"));
+    const selectedBrowser: SupportedBrowser = (await readConfig("browser")) ?? "firefox";
+    const { settings, secrets } = this.run;
+    const timeout = settings.timeout;
 
     let browser: Browser | undefined;
     let page: Page | undefined;
@@ -96,13 +93,13 @@ export default class TestRunner {
         timeoutTimer = setTimeout(
           () => {
             reporter.onTestEnd(test, {
-              message: `Test timed out after ${(timeout || 30000) / 1000} seconds`,
+              message: `Test timed out after ${timeout / 1000} seconds`,
               type: "timeout",
             });
             timeoutController.abort(new Error("Test timed out"));
             resolve();
           },
-          isNaN(timeout) ? 30000 : timeout,
+          timeout,
         );
       }),
       new Promise<void>(async (resolve, reject) => {
@@ -117,7 +114,13 @@ export default class TestRunner {
           );
           browser = launched.browser;
           page = launched.page;
-          await test?.function(launched.page, launched.browser);
+          const fixtures: TestFixtures = {
+            page: launched.page,
+            browser: launched.browser,
+            env: createEnvFixture(settings.environment, settings.variables),
+            secrets: createSecretsFixture(settings.environment, secrets),
+          };
+          await test.function(fixtures);
           // Already reported as timed out
           if (timeoutController.signal.aborted) return resolve();
           const unawaited = takePendingAssertions();
@@ -178,13 +181,4 @@ async function judgeLogs(page: Page | undefined, testFailed: boolean) {
   });
 }
 
-export function test(
-  name: string,
-  fn: (page: Page, browser: Browser) => Promise<void>,
-) {
-  logger.debug("Registered test %s", name);
-  const callerLine = new Error().stack;
-  const match = callerLine?.match(/\((.+)\)/);
-  const location = match?.[1] || "";
-  registeredTestcases.push({ name, function: fn, file: location });
-}
+export { describe, test } from "./registry.js";
