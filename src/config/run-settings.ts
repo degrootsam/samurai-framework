@@ -89,15 +89,23 @@ const FLAGS = {
   port: { type: "string" },
   grep: { type: "string" },
   file: { type: "string", multiple: true },
+  json: { type: "boolean" },
+  help: { type: "boolean", short: "h" },
+  version: { type: "boolean", short: "v" },
 } as const;
 
-function parseFlags(argv: string[]) {
+/** Flags and positional arguments of a command line; an unknown flag is an error */
+export function parseCommandLine(argv: string[]) {
   return parseArgs({
     args: argv,
     options: FLAGS,
     strict: true,
     allowPositionals: true,
-  }).values;
+  });
+}
+
+function parseFlags(argv: string[]) {
+  return parseCommandLine(argv).values;
 }
 
 /** How the command line says tests are selected and the browser starts */

@@ -112,6 +112,26 @@ export default class TestRunner {
   }
 
   /** Runs the selected tests and returns the summary that was also written to the report */
+  /**
+   * Imports the spec files and returns the tests the options select. A fresh registry and a fresh import of each
+   * file, so a second run in this process registers its tests again (and sees edited specs, for files loaded as
+   * ES modules; CommonJS files stay cached until the process ends)
+   */
+  public async register(): Promise<RegisteredTestCase[]> {
+    clearRegistry();
+    const stamp = `?run=${Date.now().toString(36)}`;
+    for (const file of this.testFiles) assertModuleProject(file);
+    for (const file of this.testFiles) {
+      logger.verbose("Trying to register file: %s", file);
+      await import(pathToFileURL(file).href + stamp);
+    }
+    // TODO: Implement test grouping
+    return registeredTests().filter((test) =>
+      isSelected(test.name, this.options),
+    );
+  }
+
+  /** Runs the selected tests and returns the summary that was also written to the report */
   public async start() {
     const { reportPath, onEvent, signal } = this.options;
     const reporter = new TestReporter({
@@ -120,22 +140,7 @@ export default class TestRunner {
       ...(onEvent && { onEvent }),
     });
 
-    // A fresh registry, and a fresh import of each file so a second run in this process registers its tests again
-    // (and sees edited specs, for files loaded as ES modules; CommonJS files stay cached until the process ends)
-    clearRegistry();
-    const stamp = `?run=${Date.now().toString(36)}`;
-    for (const file of this.testFiles) assertModuleProject(file);
-    for (const file of this.testFiles) {
-      logger.verbose("Trying to register file: %s", file);
-      await import(pathToFileURL(file).href + stamp);
-    }
-
-    logger.verbose("Running test files");
-
-    // TODO: Implement test grouping
-    const selected = registeredTests().filter((test) =>
-      isSelected(test.name, this.options),
-    );
+    const selected = await this.register();
     reporter.onStart(selected.length);
     for (const test of selected) {
       if (signal?.aborted) {

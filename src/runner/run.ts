@@ -29,6 +29,30 @@ let running = false;
 export async function runTests(
   options: RunTestsOptions = {},
 ): Promise<TestSummary> {
+  return inProject(options, (runner) => runner.start());
+}
+
+/** A test found in a spec file */
+export interface FoundTest {
+  /** Full name: `describe` titles and the test title joined with " > " */
+  name: string;
+  file: string;
+}
+
+/** Imports the project's specs without running anything and lists the tests the options select */
+export async function listTests(
+  options: RunTestsOptions = {},
+): Promise<FoundTest[]> {
+  return inProject(options, async (runner) =>
+    (await runner.register()).map(({ name, file }) => ({ name, file })),
+  );
+}
+
+/** Runs `work` with the project active (config, folders), one run or listing at a time per process */
+async function inProject<T>(
+  options: RunTestsOptions,
+  work: (runner: TestRunner) => Promise<T>,
+): Promise<T> {
   if (running) throw new Error("A test run is already active in this process");
   running = true;
   const {
@@ -51,7 +75,7 @@ export async function runTests(
       ...(timeout !== undefined && { timeout }),
       ...(expectTimeout !== undefined && { expectTimeout }),
     });
-    return await (await TestRunner.init(run, undefined, runner)).start();
+    return await work(await TestRunner.init(run, undefined, runner));
   } finally {
     setRunSettings(undefined);
     setActiveProject(undefined);

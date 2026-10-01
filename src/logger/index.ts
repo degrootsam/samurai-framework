@@ -20,7 +20,10 @@ const logger = createLogger({
     // - Write all logs error (and below) to `quick-start-error.log`.
     //
     new transports.Console({
-      level: "debug",
+      // The `samurai` command quiets this to "warn"; the log files keep everything
+      level: process.env.SAMURAI_LOG_LEVEL ?? "debug",
+      // stdout stays free for a command's own output (`samurai run --json`)
+      stderrLevels: ["error", "warn", "info", "verbose", "debug"],
       format: format.combine(
         format.timestamp(),
         format.errors({ stack: true }),

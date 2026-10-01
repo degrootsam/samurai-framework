@@ -57,20 +57,20 @@ export class BiDiConnector {
     this.webSocket.addEventListener("close", this.onWebsocketClose);
     this.webSocket.addEventListener("error", this.onWebsocketError);
     this.eventEmitter = new EventEmitter();
-    console.info("BiDiConnector: Websocket handshake finished");
+    logger.debug("BiDiConnector: Websocket handshake finished");
   }
 
   public static async connect(url: string, options?: ConnectorOptions) {
-    console.log("Connecting to WebSocket");
+    logger.debug("Connecting to WebSocket");
     const ws = new WebSocket(url);
     return new Promise<BiDiConnector>((resolve, reject) => {
-      console.log("Waiting for WebSocket handshake");
+      logger.debug("Waiting for WebSocket handshake");
       ws.addEventListener("open", () => {
-        console.log("WebSocket handshake finished");
+        logger.debug("WebSocket handshake finished");
         resolve(new BiDiConnector(ws, options));
       });
       ws.addEventListener("error", (err) => {
-        console.error(err);
+        logger.debug("WebSocket error", { err });
         reject(new Error("WebSocket connection failed"));
       });
     });

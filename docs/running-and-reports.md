@@ -14,7 +14,7 @@ bun run dev [--env <name>] [--timeout <ms>] [--expect-timeout <ms>]
 
 The browser window is visible unless you pass `--headless`. The browser's debugging port is 9223 unless you pass `--port`. `--grep <text>` runs only tests whose full name contains the text, and `--file <spec>` (repeatable, relative to the working directory) runs only those spec files. The process exits with code 0 when every test passed and 1 otherwise, so a CI job can gate on it. Tests still run one at a time.
 
-To run tests from your own code, see [Embedding the framework](embedding.md).
+The installed `samurai` command does the same with nicer output; see [Command line](cli.md). To run tests from your own code, see [Embedding the framework](embedding.md).
 
 ## The report
 
