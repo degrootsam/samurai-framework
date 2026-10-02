@@ -1,7 +1,14 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const PACKAGE = "@itmetsam/samurai-framework";
+
+/** The version of this package, so a new project asks for the release that scaffolded it */
+function frameworkVersion(): string {
+  const manifest = new URL("../../package.json", import.meta.url);
+  return (JSON.parse(readFileSync(manifest, "utf8")) as { version: string })
+    .version;
+}
 
 /** The files `samurai init` writes, by path relative to the project folder */
 export function scaffold(name: string): Record<string, string> {
@@ -14,7 +21,7 @@ export function scaffold(name: string): Record<string, string> {
           private: true,
           type: "module",
           scripts: { test: "samurai run" },
-          dependencies: { [PACKAGE]: "^0.1.0" },
+          dependencies: { [PACKAGE]: `^${frameworkVersion()}` },
           devDependencies: { tsx: "^4.21.0" },
         },
         null,

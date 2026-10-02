@@ -1,7 +1,7 @@
 {
   "name": "@itmetsam/samurai-framework",
   "version": "0.2.1",
-  "description": "",
+  "description": "Browser test framework over WebDriver BiDi: auto-waiting locators, environments and secrets, a recorder, and a command line.",
   "main": "dist/api.js",
   "exports": {
     ".": {
@@ -37,7 +37,14 @@
     "test:browser": "tsx --test --test-concurrency=1 \"src/**/*.browser-test.ts\"",
     "test:cli": "tsx --test --test-concurrency=1 \"src/**/*.cli-test.ts\""
   },
-  "keywords": [],
+  "keywords": [
+    "testing",
+    "browser",
+    "e2e",
+    "webdriver-bidi",
+    "firefox",
+    "recorder"
+  ],
   "author": "",
   "license": "ISC",
   "type": "module",
@@ -64,5 +71,19 @@
     "tsx": {
       "optional": true
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/degrootsam/samurai-framework.git"
+  },
+  "homepage": "https://github.com/degrootsam/samurai-framework#readme",
+  "bugs": {
+    "url": "https://github.com/degrootsam/samurai-framework/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
