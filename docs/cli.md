@@ -110,7 +110,7 @@ Details:
 - The file is rewritten after every step, as a minimal edit: the rest of the file, comments included, is untouched. Without `--new`, the spec must already exist.
 - A password field is recorded as `secrets.<FIELD_NAME>`, and the value never leaves the page. The command ends by telling you which `SAMURAI_SECRET_*` to set.
 - With `--at n` the window starts on `--url` or the base URL, **not** where steps `0…n-1` would leave it. Get the page to that state yourself before you act.
-- Recording needs a window, so `--headless` has no effect here.
+- Recording needs a window, so `--headless` has no effect here. (`recordSpec` takes `headless: true` for tests and machines without a display.)
 
 ## `samurai init [folder]`
 
