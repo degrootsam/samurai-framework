@@ -164,3 +164,51 @@ test(
     );
   },
 );
+
+const CLOSED_SPEC = `
+import { expect, test } from API;
+test("closed while waiting on the page", async ({ page, browser }) => {
+  await page.navigateTo("data:text/html,<h1>Hi</h1>");
+  setTimeout(() => (browser as unknown as { browserProc: { kill(signal: string): void } }).browserProc.kill("SIGKILL"), 500);
+  await expect(page.getByCss("h1")).toHaveText("never", { timeout: 60000 });
+});
+test("closed while the test only waits", async ({ page, browser }) => {
+  await page.navigateTo("data:text/html,<h1>Hi</h1>");
+  (browser as unknown as { browserProc: { kill(signal: string): void } }).browserProc.kill("SIGKILL");
+  await new Promise((resolve) => setTimeout(resolve, 60000));
+});
+`;
+
+test(
+  "a browser that goes away mid-test ends the test at once, not after the command timeout",
+  OPTIONS,
+  async () => {
+    const dir = project(CLOSED_SPEC);
+    const started = Date.now();
+    const summary = await runTests({
+      projectDir: dir,
+      config: { srcDir: "./specs", timeout: 60000 },
+      dataDir: path.join(dir, "data"),
+      headless: true,
+      port: 9257,
+      reportPath: false,
+    });
+    assert.ok(
+      Date.now() - started < 20000,
+      `took ${Date.now() - started}ms; a command timeout is 30s`,
+    );
+    assert.equal(summary.status, "failed");
+    for (const result of summary.tests) {
+      assert.equal(result.status, "failed");
+      assert.ok(
+        "message" in result && /browser was closed/.test(result.message),
+        JSON.stringify(result),
+      );
+    }
+    assert.equal(
+      summary.tests.length,
+      2,
+      "the next test still ran, with a browser of its own",
+    );
+  },
+);
