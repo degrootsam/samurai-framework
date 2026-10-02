@@ -35,6 +35,7 @@ test(
       file: "tests/signin.spec.ts",
       create: "signs in",
       url: PAGE,
+      headless: true,
       port: 9271,
       signal: controller.signal,
       onEvent: (_event, source) => written.push(source),
@@ -83,6 +84,7 @@ test(
         file: "tests/a.spec.ts",
         ...(at !== undefined && { at }),
         url: PAGE,
+        headless: true,
         port: 9272,
         signal: controller.signal,
         onStarted: async ({ page }) => {
@@ -127,6 +129,7 @@ test("recordSpec ends when the browser window is closed", OPTIONS, async () => {
     file: "tests/c.spec.ts",
     create: "closes",
     url: PAGE,
+    headless: true,
     port: 9274,
     onStarted: async ({ page, browser }) => {
       await page.getByText("Save").click();
