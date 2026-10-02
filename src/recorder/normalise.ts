@@ -16,6 +16,7 @@ export type Observation =
       secret?: boolean;
       secretName?: string;
     }
+  | { type: "press"; key: string; locator: LocatorSpec; pressed: string }
   | {
       type: "assert";
       key: string;
@@ -104,6 +105,19 @@ export class Normaliser {
       this.lastFill = undefined;
       this.lastAction = at;
       return [this.insert({ kind: "click", locator: observation.locator })];
+    }
+
+    if (observation.type === "press") {
+      // The page may react by clearing the field: what is typed next is a new fill, not a rewrite of this one
+      this.lastFill = undefined;
+      this.lastAction = at;
+      return [
+        this.insert({
+          kind: "press",
+          locator: observation.locator,
+          key: observation.pressed,
+        }),
+      ];
     }
 
     if (observation.type === "assert") {

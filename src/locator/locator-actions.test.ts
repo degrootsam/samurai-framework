@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import Locator from "./locator.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
 import type { ElementState } from "./element-state.js";
-import { remote, stubConnector, type StubResponse } from "../testing/stub-connector.js";
+import {
+  remote,
+  stubConnector,
+  type StubResponse,
+} from "../testing/stub-connector.js";
 
 const BOX = { x: 10, y: 20, width: 100, height: 40 };
 
@@ -51,7 +55,10 @@ function performed(sent: Sent, sourceType: string) {
 
 /** [x, y] of the pointerMove of every pointer click sent */
 function pointerClicks(sent: Sent) {
-  return performed(sent, "pointer").map((source) => [source.actions[0]!.x, source.actions[0]!.y]);
+  return performed(sent, "pointer").map((source) => [
+    source.actions[0]!.x,
+    source.actions[0]!.y,
+  ]);
 }
 
 function keysTyped(sent: Sent) {
@@ -99,7 +106,10 @@ test("click() timeout lists the checks of the last probe", async () => {
 });
 
 test("click() timeout names a covering element", async () => {
-  const { locator } = locatorWith("button", state({ hitTarget: "div#cookie-banner.overlay" }));
+  const { locator } = locatorWith(
+    "button",
+    state({ hitTarget: "div#cookie-banner.overlay" }),
+  );
   await assert.rejects(
     locator.click({ timeout: 250 }),
     new ActionTimeoutError({
@@ -141,7 +151,10 @@ test("click() with timeout 0 on a disabled element reports no stable entry", asy
 });
 
 test("click() timeout on a hidden element does not report a covering element", async () => {
-  const { locator } = locatorWith("button", state({ visible: false, hitTarget: "html" }));
+  const { locator } = locatorWith(
+    "button",
+    state({ visible: false, hitTarget: "html" }),
+  );
   await assert.rejects(locator.click({ timeout: 250 }), (err) => {
     assert.ok(err instanceof ActionTimeoutError);
     assert.equal(err.coveredBy, undefined);
@@ -200,6 +213,38 @@ test("fill() waits until the field is editable, then clicks, selects and types",
   assert.equal(keysTyped(sent), "aabb");
 });
 
+test("press() waits until the element is usable, focuses it and presses the key", async () => {
+  const { locator, expressions, sent } = locatorWith(
+    "input",
+    state({ enabled: false }),
+    state(),
+    { type: "undefined" },
+  );
+  await locator.press("Enter", { timeout: 3000 });
+  assert.match(expressions[2]!, /\.focus\(\)/);
+  assert.equal(keysTyped(sent), "\uE007\uE007", "key down and key up of Enter");
+  assert.deepEqual(pointerClicks(sent), [], "no click");
+});
+
+test("press() sends a single character as it is and names the special keys", async () => {
+  const { locator, sent } = locatorWith(
+    "input",
+    state(),
+    { type: "undefined" },
+    state(),
+    { type: "undefined" },
+  );
+  await locator.press("Escape");
+  await locator.press("a");
+  assert.equal(keysTyped(sent), "\uE00C\uE00Caa");
+});
+
+test("press() rejects a key it does not know before touching the page", async () => {
+  const { locator, sent } = locatorWith("input", state());
+  await assert.rejects(locator.press("Hyper"), /unknown key "Hyper"/);
+  assert.equal(sent.length, 0);
+});
+
 test("fill() timeout lists the fill checks", async () => {
   const { locator } = locatorWith("input", state({ editable: false }));
   await assert.rejects(
@@ -227,21 +272,37 @@ test("focus() waits only for the element to be attached", async () => {
 
 test("isEnabled() and isEditable() read the state without waiting", async () => {
   assert.equal(await locatorWith("button", state()).locator.isEnabled(), true);
-  assert.equal(await locatorWith("button", state({ enabled: false })).locator.isEnabled(), false);
-  assert.equal(await locatorWith("button", detached).locator.isEnabled(), false);
+  assert.equal(
+    await locatorWith("button", state({ enabled: false })).locator.isEnabled(),
+    false,
+  );
+  assert.equal(
+    await locatorWith("button", detached).locator.isEnabled(),
+    false,
+  );
   assert.equal(await locatorWith("input", state()).locator.isEditable(), true);
-  assert.equal(await locatorWith("input", state({ editable: false })).locator.isEditable(), false);
-  assert.equal(await locatorWith("input", detached).locator.isEditable(), false);
+  assert.equal(
+    await locatorWith("input", state({ editable: false })).locator.isEditable(),
+    false,
+  );
+  assert.equal(
+    await locatorWith("input", detached).locator.isEditable(),
+    false,
+  );
 });
 
 test("waitFor() waits for visible by default, without scrolling", async () => {
-  const { locator, expressions, calls } = locatorWith("div", state({ visible: false }), state());
+  const { locator, expressions, calls } = locatorWith(
+    "div",
+    state({ visible: false }),
+    state(),
+  );
   await locator.waitFor({ timeout: 3000 });
   assert.equal(expressions.length, 2);
   assert.deepEqual(calls[0]!.args[1], { scroll: false, hitTest: false });
 });
 
-test("waitFor({ state: \"hidden\" }) resolves once the element is gone or invisible", async () => {
+test('waitFor({ state: "hidden" }) resolves once the element is gone or invisible', async () => {
   const gone = locatorWith("div", state(), detached);
   await gone.locator.waitFor({ state: "hidden", timeout: 3000 });
   assert.equal(gone.expressions.length, 2);
@@ -267,7 +328,10 @@ test("waitFor() timeout names the state it waited for", async () => {
     assert.ok(err instanceof ActionTimeoutError);
     assert.equal(err.reason, "wrong-state");
     assert.equal(err.state, "visible");
-    assert.equal(err.message, "waitFor(): //div did not become visible within 250ms");
+    assert.equal(
+      err.message,
+      "waitFor(): //div did not become visible within 250ms",
+    );
     return true;
   });
 });
@@ -299,38 +363,58 @@ function fakeHelpers() {
 function locatorWithHelpers(xpath: string, ...responses: StubResponse[]) {
   const stub = stubConnector(...responses);
   const { log, helpers } = fakeHelpers();
-  return { locator: new Locator(xpath, stub.connector, "ctx", helpers), log, ...stub };
+  return {
+    locator: new Locator(xpath, stub.connector, "ctx", helpers),
+    log,
+    ...stub,
+  };
 }
 
-const HELPERS_MISSING: StubResponse = { type: "string", value: "samurai:helpers-missing" };
+const HELPERS_MISSING: StubResponse = {
+  type: "string",
+  value: "samurai:helpers-missing",
+};
 
 test("with helpers the probe runs in the samurai sandbox after ensuring the install", async () => {
   const { locator, log, sent, calls } = locatorWithHelpers("button", state());
   assert.equal(await locator.isEnabled(), true);
   assert.deepEqual(log, ["ensure"]);
-  const params = sent.find(({ method }) => method === "script.callFunction")!.params as { target: unknown };
+  const params = sent.find(({ method }) => method === "script.callFunction")!
+    .params as { target: unknown };
   assert.deepEqual(params.target, { context: "ctx", sandbox: "samurai" });
   assert.match(calls[0]!.functionDeclaration, /__samurai/);
-  assert.deepEqual(calls[0]!.args, [{ sharedId: "stub-node-0" }, { scroll: false, hitTest: false }]);
+  assert.deepEqual(calls[0]!.args, [
+    { sharedId: "stub-node-0" },
+    { scroll: false, hitTest: false },
+  ]);
 });
 
 test("without helpers the probe source is sent to the page realm as before", async () => {
   const { locator, sent, calls } = locatorWith("button", state());
   await locator.isEnabled();
   const call = sent.find(({ method }) => method === "script.callFunction")!;
-  assert.deepEqual((call.params as { target: unknown }).target, { context: "ctx" });
+  assert.deepEqual((call.params as { target: unknown }).target, {
+    context: "ctx",
+  });
   assert.match(calls[0]!.functionDeclaration, /^\(el, options\) =>/);
 });
 
 test("a missing helper triggers one reinstall and a retry", async () => {
-  const { locator, log, expressions } = locatorWithHelpers("button", HELPERS_MISSING, state());
+  const { locator, log, expressions } = locatorWithHelpers(
+    "button",
+    HELPERS_MISSING,
+    state(),
+  );
   assert.equal(await locator.isEnabled(), true);
   assert.deepEqual(log, ["ensure", "reinstall"]);
   assert.equal(expressions.length, 2);
 });
 
 test("helpers still missing after the reinstall is an error, not a loop", async () => {
-  const { locator, log, expressions } = locatorWithHelpers("button", HELPERS_MISSING);
+  const { locator, log, expressions } = locatorWithHelpers(
+    "button",
+    HELPERS_MISSING,
+  );
   await assert.rejects(locator.isEnabled(), /helpers are missing/);
   assert.deepEqual(log, ["ensure", "reinstall"]);
   assert.equal(expressions.length, 2);
@@ -350,6 +434,11 @@ test("all() items keep using the helpers", async () => {
   const items = await new Locator("li", stub.connector, "ctx", helpers).all();
   await items[1]!.isEnabled();
   assert.ok(log.includes("ensure"));
-  const probe = stub.sent.find(({ method }) => method === "script.callFunction")!;
-  assert.deepEqual((probe.params as { target: unknown }).target, { context: "ctx", sandbox: "samurai" });
+  const probe = stub.sent.find(
+    ({ method }) => method === "script.callFunction",
+  )!;
+  assert.deepEqual((probe.params as { target: unknown }).target, {
+    context: "ctx",
+    sandbox: "samurai",
+  });
 });

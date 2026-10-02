@@ -246,6 +246,10 @@ function readStep(statement: ts.Statement): Step | undefined {
   if (!locator) return undefined;
   if (name.text === "click" && args.length === 0)
     return { kind: "click", locator };
+  if (name.text === "press" && args.length === 1) {
+    const key = stringOf(args[0]);
+    return key === undefined ? undefined : { kind: "press", locator, key };
+  }
   if (name.text === "fill" && args.length === 1) {
     const value = readValue(args[0]);
     return value ? { kind: "fill", locator, value } : undefined;

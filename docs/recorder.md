@@ -16,6 +16,7 @@ A test body is read as a list of steps. The recorder only writes this restricted
 | `goto`               | `await page.goto("/login");`                                                                |
 | `click`              | `await page.getByRole("button", { name: "Save" }).click();`                                 |
 | `fill`               | `await page.getByLabel("Email").fill("a@b.c");` (value may be `env.name` or `secrets.NAME`) |
+| `press`              | `await page.getByLabel("New todo").press("Enter");`                                         |
 | `expect`             | `await expect(locator).toHaveText("Saved");` (also `.not`)                                  |
 | `waitForNetworkIdle` | `await page.waitForNetworkIdle();`                                                          |
 | `custom`             | Any other statement, kept verbatim                                                          |
@@ -89,14 +90,15 @@ source = applyRecorderEvent(source, testIndex, event);
 
 What the person does, and the steps that come out:
 
-| They…                          | Step                                                                                                                                                                                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| click something                | `click`, on the nearest interactive element (a label click records its control)                                                                                                                                                      |
-| type into a field              | one `fill`, rewritten (`replace`) as the text grows; the focus click is dropped                                                                                                                                                      |
-| type into a password field     | `fill` with `secrets.<FIELD_NAME>`. The value never leaves the page                                                                                                                                                                  |
-| Alt+click an element           | `expect`, which the page never sees as a click: `toHaveValue` for fields, `toHaveText` for text up to 100 characters, `toContainText` beyond, `toBeVisible` for no text. The element under the pointer is outlined while Alt is held |
-| navigate right after an action | `waitForNetworkIdle`                                                                                                                                                                                                                 |
-| navigate on their own          | `goto` (relative to `baseURL` when the URL is inside it)                                                                                                                                                                             |
+| They…                          | Step                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| click something                | `click`, on the nearest interactive element (a label click records its control)                                                                                                                                                                                                                                      |
+| type into a field              | one `fill`, rewritten (`replace`) as the text grows; the focus click is dropped                                                                                                                                                                                                                                      |
+| press Enter, Tab or Escape     | `press`, after the `fill` it follows. Typing in the same field afterwards is a **new** `fill`, so a todo list that clears its field on Enter records every item. Enter on a button or link is the click it causes, Enter in a textarea is typing, and Shift+Tab or a key with Ctrl, Alt or Meta held is not recorded |
+| type into a password field     | `fill` with `secrets.<FIELD_NAME>`. The value never leaves the page                                                                                                                                                                                                                                                  |
+| Alt+click an element           | `expect`, which the page never sees as a click: `toHaveValue` for fields, `toHaveText` for text up to 100 characters, `toContainText` beyond, `toBeVisible` for no text. The element under the pointer is outlined while Alt is held                                                                                 |
+| navigate right after an action | `waitForNetworkIdle`                                                                                                                                                                                                                                                                                                 |
+| navigate on their own          | `goto` (relative to `baseURL` when the URL is inside it)                                                                                                                                                                                                                                                             |
 
 For every element the recorder tries locators in order of stability — test id, role and accessible name, label, text, `#id`, `[name]` or `[placeholder]` CSS, and finally an absolute XPath — and keeps only candidates that match exactly **one** element, the one the person used. The best becomes the primary locator and up to two more become its `withFallbacks`. An element that no candidate identifies is skipped with a warning.
 
@@ -106,4 +108,4 @@ Pass `at` (the number of steps before the new ones) and `initialGoto: false`. Th
 
 ### Limits
 
-Not recorded yet: `<select>` choices, key presses (Enter, Tab, …), hover, drag, iframes, contenteditable typing, file uploads and dialogs. One recorder per page at a time. Recording uses the external browser window; embedding the page in an editor is on the [roadmap](roadmap.md).
+Not recorded yet: `<select>` choices, other key presses (arrows, shortcuts), hover, drag, iframes, contenteditable typing, file uploads and dialogs. One recorder per page at a time. Recording uses the external browser window; embedding the page in an editor is on the [roadmap](roadmap.md).
