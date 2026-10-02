@@ -193,3 +193,18 @@ describe("ConsoleReporter", () => {
     assert.ok(text.includes("\u001b[31m"));
   });
 });
+
+describe("scaffold dependency", () => {
+  it("asks for the version that scaffolded the project", () => {
+    const own = JSON.parse(readFileSync("package.json", "utf8")) as {
+      version: string;
+    };
+    const manifest = JSON.parse(scaffold("shop")["package.json"]!) as {
+      dependencies: Record<string, string>;
+    };
+    assert.equal(
+      manifest.dependencies["@itmetsam/samurai-framework"],
+      `^${own.version}`,
+    );
+  });
+});
