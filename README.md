@@ -2,6 +2,8 @@
 
 A browser test framework written in TypeScript. It drives a real browser over the [WebDriver BiDi](https://www.w3.org/TR/webdriver-bidi/) protocol, with no WebDriver server and no Playwright or Puppeteer underneath.
 
+[![CI](https://github.com/degrootsam/samurai-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/degrootsam/samurai-framework/actions/workflows/ci.yml)
+
 ```ts
 import { expect, test } from "../api.js";
 
