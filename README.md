@@ -86,7 +86,7 @@ bun run dev --timeout 60000    # per-test timeout in ms; also --expect-timeout
 
 Once the package is installed in a project, `samurai run` does the same with a readable summary and a proper exit code, and `samurai init` scaffolds a new project (see [Command line](docs/cli.md)).
 
-A browser window opens for each test and closes when the test ends. The result is written to `result/report.json` (status, duration and error per test); nothing summarises it on the console yet. The process exits with code 0 when every test passed and 1 otherwise (add `--headless` to hide the window). Framework logs go to the console and `logs/`.
+A browser window opens for each test and closes when the test ends. The result is written to `result/report.json` (status, duration and error per test); nothing summarises it on the console yet. The process exits with code 0 when every test passed and 1 otherwise (`--headless` hides the window; on CI it is the default, see [Configuration](docs/configuration.md#headless)). Framework logs go to the console and `logs/`.
 
 > `src/tests/index.spec.ts` is an example that submits a real contact form. Delete it or replace it before running everything.
 

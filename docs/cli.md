@@ -17,16 +17,16 @@ Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), 
 samurai run --env staging --headless --grep coupon
 ```
 
-| Option                  | Meaning                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `--env <name>`          | Environment to run against (or `SAMURAI_ENV`)                                   |
-| `--file <spec>`         | Only this spec file, relative to the working directory. Repeatable              |
-| `--grep <text>`         | Only tests whose full name (`describe` titles and test title) contains the text |
-| `--timeout <ms>`        | Time one test may take                                                          |
-| `--expect-timeout <ms>` | Time actions and assertions retry                                               |
-| `--headless`            | Run the browser without a window                                                |
-| `--port <n>`            | The browser's debugging port (default 9223)                                     |
-| `--json`                | JSON lines on stdout instead of the human output (below)                        |
+| Option                        | Meaning                                                                                                                             |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                       |
+| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                  |
+| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                     |
+| `--timeout <ms>`              | Time one test may take                                                                                                              |
+| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                   |
+| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set |
+| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                         |
+| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                            |
 
 Output:
 
@@ -110,7 +110,7 @@ Details:
 - The file is rewritten after every step, as a minimal edit: the rest of the file, comments included, is untouched. Without `--new`, the spec must already exist.
 - A password field is recorded as `secrets.<FIELD_NAME>`, and the value never leaves the page. The command ends by telling you which `SAMURAI_SECRET_*` to set.
 - With `--at n` the window starts on `--url` or the base URL, **not** where steps `0…n-1` would leave it. Get the page to that state yourself before you act.
-- Recording needs a window, so `--headless` has no effect here. (`recordSpec` takes `headless: true` for tests and machines without a display.)
+- Recording is meant for a window: a person has to use it. `--headless` is only for tests of the recorder itself, and on CI (where `CI` is set) you must pass `--no-headless` to get one. `recordSpec` takes `headless` too.
 
 ## `samurai init [folder]`
 
