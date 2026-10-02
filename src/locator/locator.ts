@@ -46,6 +46,7 @@ import {
   UnsupportedOperationError,
 } from "./selector-errors.js";
 import { LABEL_LOCATE } from "./label-locator.js";
+import { keyActions, MODIFIER_KEYS, NAMED_KEYS, parseKey } from "./keys.js";
 import { TEXT_LOCATE } from "./text-locator.js";
 import {
   cssSelector,
@@ -113,24 +114,6 @@ const FILL_CHECKS: readonly CheckName[] = [
 ];
 const PRESS_CHECKS: readonly CheckName[] = ["attached", "visible", "enabled"];
 const ATTACHED_ONLY: readonly CheckName[] = ["attached"];
-
-/** WebDriver code points of the named keys `press()` accepts; any other single character is typed as is */
-const NAMED_KEYS: Readonly<Record<string, string>> = {
-  Backspace: "\uE003",
-  Tab: "\uE004",
-  Enter: "\uE007",
-  Escape: "\uE00C",
-  Space: " ",
-  ArrowLeft: "\uE012",
-  ArrowUp: "\uE013",
-  ArrowRight: "\uE014",
-  ArrowDown: "\uE015",
-  Delete: "\uE017",
-  Home: "\uE011",
-  End: "\uE010",
-  PageUp: "\uE00E",
-  PageDown: "\uE00F",
-};
 
 /** Unicode code point WebDriver uses for the Backspace key */
 const BACKSPACE = "";
@@ -848,15 +831,17 @@ export default class Locator {
   /**
    * Waits until the element is attached, visible and enabled, focuses it and presses `key` with real keyboard input.
    * Named keys are `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Home`, `End`, `PageUp`, `PageDown` and the arrows;
-   * any other key must be a single character.
+   * any other key must be a single character. Hold modifiers (`Control`, `Shift`, `Alt`, `Meta`) with `+`.
    * @example
    *  await page.getByLabel("New todo").press("Enter");
+   *  await page.getByLabel("Comment").press("Control+Enter");
    */
   public async press(key: string, options?: ActionOptions): Promise<void> {
-    const code = NAMED_KEYS[key] ?? (Array.from(key).length === 1 ? key : "");
-    if (code === "") {
+    const parsed = parseKey(key);
+    if (!parsed) {
       throw new Error(
-        `press(): unknown key "${key}". Use one of ${Object.keys(NAMED_KEYS).join(", ")} or a single character`,
+        `press(): unknown key "${key}". Use one of ${Object.keys(NAMED_KEYS).join(", ")} or a single character, ` +
+          `optionally after modifiers: ${Object.keys(MODIFIER_KEYS).join(", ")} joined with "+" (Control+Enter)`,
       );
     }
     await this.waitForActionable(
@@ -869,14 +854,7 @@ export default class Locator {
     await this.biDiConnector.send("input.performActions", {
       context: this.contextId,
       actions: [
-        {
-          type: "key",
-          id: "samurai-keyboard",
-          actions: [
-            { type: "keyDown", value: code },
-            { type: "keyUp", value: code },
-          ],
-        },
+        { type: "key", id: "samurai-keyboard", actions: keyActions(parsed) },
       ],
     });
   }

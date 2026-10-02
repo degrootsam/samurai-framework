@@ -239,6 +239,18 @@ test("press() sends a single character as it is and names the special keys", asy
   assert.equal(keysTyped(sent), "\uE00C\uE00Caa");
 });
 
+test("press() holds the modifiers around the key", async () => {
+  const { locator, sent } = locatorWith("textarea", state(), {
+    type: "undefined",
+  });
+  await locator.press("Control+Enter");
+  const [source] = performed(sent, "key");
+  assert.deepEqual(
+    source!.actions.map((action) => `${action.type}:${action.value}`),
+    ["keyDown:\uE009", "keyDown:\uE007", "keyUp:\uE007", "keyUp:\uE009"],
+  );
+});
+
 test("press() rejects a key it does not know before touching the page", async () => {
   const { locator, sent } = locatorWith("input", state());
   await assert.rejects(locator.press("Hyper"), /unknown key "Hyper"/);

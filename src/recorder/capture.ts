@@ -9,8 +9,10 @@ const OFF_KEY = "samurai.recorder.off";
  *   element (a label click reports its control; the click the browser forwards to the control is dropped).
  * - `{ type: "input", target, candidates, value, secret, secretName }`: text typed into a field. Password
  *   values never leave the page: `secret` is set and `value` is left out.
- * - `{ type: "press", target, candidates, pressed }`: Enter, Tab or Escape (Enter in a button, link or textarea is a
- *   click or typing, which are reported as such).
+ * - `{ type: "press", target, candidates, pressed }`: Enter, Tab, Escape, and the arrows, Home, End, Page Up/Down,
+ *   Delete and Backspace where they navigate rather than edit; `pressed` is named as `press()` names keys, with
+ *   modifiers (`Control+Enter`, `Shift+Tab`). Enter on a button or link, in a text area and Shift+Enter are a click
+ *   or typing, which are reported as such.
  * - `{ type: "assert", target, candidates, text, value }`: an Alt+click, which does not reach the page.
  *   While Alt is held, the element under the pointer is outlined.
  *
@@ -187,16 +189,41 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
     });
   }, true);
 
-  // Enter, Tab and Escape change what the page does next (an Enter adds a todo and clears the field), so they are steps
-  const RECORDED_KEYS = ["Enter", "Tab", "Escape"];
+  // Keys that make the page do something: Enter submits a field that has no button, Escape closes, Tab moves on,
+  // the arrows move through a menu. Typing itself is reported by the input events
+  const NAVIGATION_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "Delete", "Backspace"];
   // Enter on these is a click, which is recorded as one
   const ACTIVATES = "a[href],button,summary,select,input[type=button],input[type=submit],input[type=reset],input[type=checkbox],input[type=radio]";
+  const isCombobox = (el) =>
+    el.getAttribute("role") === "combobox" || el.hasAttribute("aria-autocomplete") || el.getAttribute("aria-expanded") === "true";
+
+  /** The key as press() names it, or undefined when it is not worth a step */
+  const keyToRecord = (event, el) => {
+    const { key, ctrlKey, metaKey, shiftKey, altKey } = event;
+    if (altKey) return undefined;
+    const held = (ctrlKey ? "Control+" : "") + (shiftKey ? "Shift+" : "") + (metaKey ? "Meta+" : "");
+    if (key === "Enter") {
+      // Shift+Enter is a new line; Enter on a button or link is the click it causes; in a text area it is typing
+      if (shiftKey || el.closest(ACTIVATES)) return undefined;
+      if (!ctrlKey && !metaKey && (el.tagName === "TEXTAREA" || el.isContentEditable)) return undefined;
+      return held + key;
+    }
+    if (key === "Tab") return ctrlKey || metaKey ? undefined : held + key;
+    if (key === "Escape") return held === "" ? key : undefined;
+    if (NAVIGATION_KEYS.indexOf(key) >= 0) {
+      if (held !== "" || el === document.body || el === document.documentElement) return undefined;
+      // In a text field or a select these move the caret or change the value, which the input events report
+      const editing = isTextEntry(el) || el.tagName === "SELECT";
+      return editing && !isCombobox(el) ? undefined : key;
+    }
+    return undefined;
+  };
+
   document.addEventListener("keydown", (event) => {
-    if (off() || !event.isTrusted || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
-    if (RECORDED_KEYS.indexOf(event.key) < 0 || !(event.target instanceof Element)) return;
-    const el = event.target;
-    if (event.key === "Enter" && (el.closest(ACTIVATES) || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-    report({ type: "press", target: el, candidates: candidatesOf(el), pressed: event.key });
+    if (off() || !event.isTrusted || event.isComposing || event.repeat || !(event.target instanceof Element)) return;
+    const pressed = keyToRecord(event, event.target);
+    if (pressed === undefined) return;
+    report({ type: "press", target: event.target, candidates: candidatesOf(event.target), pressed });
   }, true);
 
   document.addEventListener("mousemove", (event) => {

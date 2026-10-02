@@ -195,6 +195,58 @@ test(
   },
 );
 
+test(
+  "records navigation keys where they act, and leaves typing and line breaks alone",
+  OPTIONS,
+  async () => {
+    await setContent(
+      page,
+      `<input id="plain" aria-label="Plain">
+     <input id="combo" role="combobox" aria-label="Search">
+     <textarea id="area" aria-label="Comment"></textarea>
+     <div id="menu" role="listbox" tabindex="0" aria-label="Menu">options</div>`,
+    );
+    const events: RecorderEvent[] = [];
+    const recorder = await page.record({
+      onEvent: (event) => events.push(event),
+      initialGoto: false,
+    });
+
+    await page.getByLabel("Plain").press("ArrowLeft"); // moves the caret: not a step
+    await page.getByLabel("Plain").press("Shift+Enter"); // a new line, not a step
+    await page.getByLabel("Search").press("ArrowDown"); // moves through the suggestions
+    await page.getByLabel("Comment").press("Enter"); // a line break
+    await page.getByLabel("Comment").press("Control+Enter"); // submit shortcut
+    await page.getByLabel("Menu").press("ArrowDown");
+    await page.getByLabel("Menu").press("Escape");
+    await page.getByLabel("Menu").press("Shift+Tab");
+    await pause(700);
+    await recorder.stop();
+
+    let source = `test("t", async ({ page }) => {\n});\n`;
+    for (const event of events) source = applyRecorderEvent(source, 0, event);
+    const steps = parseSpec(source)[0]!.steps.map(({ step }) => step);
+    const pressed = steps.flatMap((step) =>
+      step.kind === "press"
+        ? [
+            `${(step.locator.chain[0] as { name?: string; text?: string }).name ?? (step.locator.chain[0] as { text?: string }).text}: ${step.key}`,
+          ]
+        : [],
+    );
+    assert.deepEqual(
+      pressed,
+      [
+        "Search: ArrowDown",
+        "Comment: Control+Enter",
+        "Menu: ArrowDown",
+        "Menu: Escape",
+        "Menu: Shift+Tab",
+      ],
+      source,
+    );
+  },
+);
+
 test("stop ends the recording", OPTIONS, async () => {
   await setContent(page, `<button>Go</button>`);
   const events: RecorderEvent[] = [];
