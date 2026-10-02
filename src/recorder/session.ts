@@ -24,6 +24,8 @@ export interface RecordSpecOptions extends ProjectOptions {
   url?: string;
   /** The browser's debugging port. @default 9223 */
   port?: number;
+  /** Run the browser without a window. A person can't use it then; for tests and machines without a display. @default false */
+  headless?: boolean;
   /** Aborting ends the recording, like closing the browser window */
   signal?: AbortSignal;
   /** Called after each step is written to the file, with the file's new content */
@@ -133,7 +135,7 @@ export async function recordSpec(
 
     const { browser, page } = await Browser.launch(
       "firefox",
-      { port: options.port ?? 9223, headless: false },
+      { port: options.port ?? 9223, headless: options.headless ?? false },
       options.signal,
     );
     const events: RecorderEvent[] = [];
