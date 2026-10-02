@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
@@ -24,6 +24,15 @@ describe("the cli's imports", () => {
   const sources = readdirSync(cliDir).filter(
     (name) => name.endsWith(".ts") && !/\.(test|cli-test)\.ts$/.test(name),
   );
+
+  it("every export points at a source file", () => {
+    for (const file of exported) {
+      assert.ok(
+        existsSync(file.replace(/\.js$/, ".ts")),
+        `${file} has no source file`,
+      );
+    }
+  });
 
   it("have something to check", () => {
     assert.ok(sources.length >= 4);

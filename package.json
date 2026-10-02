@@ -1,6 +1,6 @@
 {
   "name": "@itmetsam/samurai-framework",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "",
   "main": "dist/api.js",
   "exports": {
@@ -19,6 +19,10 @@
     "./recorder": {
       "types": "./dist/recorder/index.d.ts",
       "default": "./dist/recorder/index.js"
+    },
+    "./init": {
+      "types": "./dist/cli/init.d.ts",
+      "default": "./dist/cli/init.js"
     },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
