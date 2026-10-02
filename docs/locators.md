@@ -76,13 +76,14 @@ console.log(save.matchedBy); // { index: 1, selector: 'role=button[name="Save"]'
 
 Actions wait until the element is **actionable** before they act, then fail with a message that says which check was failing.
 
-| Action                           | Waits for                                                    | Does                                                                    |
-| -------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `click(options?)`                | attached, visible, stable (not moving), enabled, not covered | Scrolls into view, clicks the centre with real pointer input            |
-| `fill(value, options?)`          | attached, visible, enabled, editable, not covered            | Clicks the field, selects its content and types `value`; `""` clears it |
-| `focus(options?)`                | attached                                                     | Focuses the element                                                     |
-| `setInputFiles(files, options?)` | attached, enabled (need not be visible)                      | Sets the files of an `<input type=file>`; `[]` clears them              |
-| `screenshot(options?)`           | attached, visible                                            | Screenshot of just this element                                         |
+| Action                           | Waits for                                                    | Does                                                                                                                                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `click(options?)`                | attached, visible, stable (not moving), enabled, not covered | Scrolls into view, clicks the centre with real pointer input                                                                                                                                                                      |
+| `fill(value, options?)`          | attached, visible, enabled, editable, not covered            | Clicks the field, selects its content and types `value`; `""` clears it                                                                                                                                                           |
+| `focus(options?)`                | attached                                                     | Focuses the element                                                                                                                                                                                                               |
+| `press(key, options?)`           | attached, visible, enabled                                   | Focuses the element and presses one key with real keyboard input. Named keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Home`, `End`, `PageUp`, `PageDown`, the arrows; anything else must be a single character |
+| `setInputFiles(files, options?)` | attached, enabled (need not be visible)                      | Sets the files of an `<input type=file>`; `[]` clears them                                                                                                                                                                        |
+| `screenshot(options?)`           | attached, visible                                            | Screenshot of just this element                                                                                                                                                                                                   |
 
 Options for `click`, `fill` and `focus`:
 

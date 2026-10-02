@@ -35,10 +35,21 @@ async function altClick(selectorCss: string) {
     biDiConnector: BiDiConnector;
     contextId: string;
   };
+  const pause = { type: "pause", duration: 0 } as const;
+  // One key source for both the key down and the key up, or Alt stays held for everything that follows
   await biDiConnector.send("input.performActions", {
     context: contextId,
     actions: [
-      { type: "key", id: "kb", actions: [{ type: "keyDown", value: "" }] },
+      {
+        type: "key",
+        id: "kb",
+        actions: [
+          { type: "keyDown", value: "\uE00A" },
+          pause,
+          pause,
+          { type: "keyUp", value: "\uE00A" },
+        ],
+      },
       {
         type: "pointer",
         id: "mouse",
@@ -50,9 +61,9 @@ async function altClick(selectorCss: string) {
           },
           { type: "pointerDown", button: 0 },
           { type: "pointerUp", button: 0 },
+          pause,
         ],
       },
-      { type: "key", id: "kb2", actions: [{ type: "keyUp", value: "" }] },
     ],
   });
 }
@@ -121,6 +132,66 @@ test(
 
     // What was recorded can be replayed
     assert.equal(await page.getByLabel("Name").inputValue(), "Sam");
+  },
+);
+
+test(
+  "records a todo list: Enter after each item, and the next item is a new fill",
+  OPTIONS,
+  async () => {
+    await setContent(
+      page,
+      `<label for="todo">New todo</label><input id="todo"><ul id="items"></ul><button id="add">Add</button>`,
+      `const input = document.getElementById("todo");
+     const add = () => {
+       if (!input.value) return;
+       const li = document.createElement("li");
+       li.textContent = input.value;
+       document.getElementById("items").appendChild(li);
+       input.value = "";
+     };
+     input.addEventListener("keydown", (event) => { if (event.key === "Enter") add(); });
+     document.getElementById("add").addEventListener("click", add);`,
+    );
+    const events: RecorderEvent[] = [];
+    const recorder = await page.record({
+      onEvent: (event) => events.push(event),
+      initialGoto: false,
+    });
+
+    await page.getByLabel("New todo").fill("buy milk");
+    await page.getByLabel("New todo").press("Enter");
+    await page.getByLabel("New todo").fill("walk dog");
+    await page.getByLabel("New todo").press("Enter");
+    await page.getByLabel("New todo").fill("call mum");
+    await pause(600);
+    await recorder.stop();
+
+    let source = `test("t", async ({ page }) => {\n});\n`;
+    for (const event of events) source = applyRecorderEvent(source, 0, event);
+    const steps = parseSpec(source)[0]!.steps.map(({ step }) => step);
+    assert.deepEqual(
+      steps.map((step) =>
+        step.kind === "fill"
+          ? `fill ${(step.value as { value: string }).value}`
+          : step.kind === "press"
+            ? `press ${step.key}`
+            : step.kind,
+      ),
+      [
+        "fill buy milk",
+        "press Enter",
+        "fill walk dog",
+        "press Enter",
+        "fill call mum",
+      ],
+      source,
+    );
+    assert.equal(
+      await page.getByCss("#items li").count(),
+      2,
+      "the app added the two items that were submitted with Enter",
+    );
   },
 );
 
