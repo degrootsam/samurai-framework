@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { FakeWebSocket, tick } from "../testing/fake-websocket.js";
 import { WaitTimeoutError } from "../wait/wait-until.js";
 import { BiDiError } from "./bidi-error.js";
-import { BiDiConnector } from "./bidi-connection.js";
+import { BiDiConnector, ConnectionClosedError } from "./bidi-connection.js";
 
 function setup(options?: { commandTimeout?: number }) {
   const ws = new FakeWebSocket();
@@ -54,7 +54,9 @@ describe("BiDiConnector timeouts", () => {
 
   it("uses the constructor commandTimeout by default", async () => {
     const { connector } = setup({ commandTimeout: 15 });
-    await assert.rejects(connector.send("session.status", {}), { code: "timeout" });
+    await assert.rejects(connector.send("session.status", {}), {
+      code: "timeout",
+    });
   });
 
   it("does not leave a timer running after a reply", async () => {
@@ -75,6 +77,43 @@ describe("BiDiConnector socket close", () => {
   });
 });
 
+describe("BiDiConnector after the socket closed", () => {
+  it("rejects a new command at once instead of waiting for its timeout", async () => {
+    const { ws, connector } = setup({ commandTimeout: 5000 });
+    ws.drop();
+    const started = Date.now();
+    await assert.rejects(connector.send("session.status", {}), (err) => {
+      assert.ok(err instanceof ConnectionClosedError);
+      assert.match(
+        err.message,
+        /Websocket closed: cannot send session\.status/,
+      );
+      return true;
+    });
+    assert.ok(
+      Date.now() - started < 500,
+      "no waiting for the 5s command timeout",
+    );
+    assert.equal(ws.sent.length, 0, "nothing was written to the closed socket");
+  });
+
+  it("rejects pending commands with the same error type", async () => {
+    const { ws, connector } = setup();
+    const pending = connector.send("session.status", {});
+    ws.drop();
+    await assert.rejects(pending, ConnectionClosedError);
+  });
+
+  it("also after kill()", async () => {
+    const { connector } = setup();
+    connector.kill();
+    await assert.rejects(
+      connector.send("session.status", {}),
+      ConnectionClosedError,
+    );
+  });
+});
+
 describe("BiDiConnector.waitForEvent", () => {
   it("resolves with the params of the first matching event and removes its listener", async () => {
     const { ws, connector } = setup();
@@ -92,7 +131,9 @@ describe("BiDiConnector.waitForEvent", () => {
 
   it("is registered before it returns, so an event emitted right after is seen", async () => {
     const { ws, connector } = setup();
-    const waiting = connector.waitForEvent("browsingContext.load", () => true, { timeout: 1000 });
+    const waiting = connector.waitForEvent("browsingContext.load", () => true, {
+      timeout: 1000,
+    });
     ws.emitEvent("browsingContext.load", { context: "a" });
     assert.deepEqual(await waiting, { context: "a" });
   });
@@ -100,7 +141,9 @@ describe("BiDiConnector.waitForEvent", () => {
   it("rejects with WaitTimeoutError on timeout", async () => {
     const { connector } = setup();
     await assert.rejects(
-      connector.waitForEvent("browsingContext.load", () => true, { timeout: 15 }),
+      connector.waitForEvent("browsingContext.load", () => true, {
+        timeout: 15,
+      }),
       (err: unknown) => err instanceof WaitTimeoutError && err.timeout === 15,
     );
   });
@@ -121,7 +164,10 @@ describe("BiDiConnector.waitForEvent", () => {
     const { connector } = setup();
     const signal = AbortSignal.abort(new Error("already"));
     await assert.rejects(
-      connector.waitForEvent("browsingContext.load", () => true, { timeout: 1000, signal }),
+      connector.waitForEvent("browsingContext.load", () => true, {
+        timeout: 1000,
+        signal,
+      }),
       /already/,
     );
   });
@@ -133,17 +179,26 @@ describe("BiDiConnector.subscribe", () => {
     const answer = async () => {
       await tick();
       const last = ws.sent[ws.sent.length - 1]!;
-      ws.reply(last.id, last.method === "session.subscribe" ? { subscription: "s1" } : {});
+      ws.reply(
+        last.id,
+        last.method === "session.subscribe" ? { subscription: "s1" } : {},
+      );
     };
 
     const a = connector.subscribe(["browsingContext.load"]);
     await answer();
     const subA = await a;
     const subB = await connector.subscribe(["browsingContext.load"]);
-    assert.equal(ws.sent.filter((m) => m.method === "session.subscribe").length, 1);
+    assert.equal(
+      ws.sent.filter((m) => m.method === "session.subscribe").length,
+      1,
+    );
 
     await subA.unsubscribe();
-    assert.equal(ws.sent.filter((m) => m.method === "session.unsubscribe").length, 0);
+    assert.equal(
+      ws.sent.filter((m) => m.method === "session.unsubscribe").length,
+      0,
+    );
 
     const leaving = subB.unsubscribe();
     await answer();

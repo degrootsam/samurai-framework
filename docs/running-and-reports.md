@@ -76,6 +76,7 @@ Each entry has `level` (`debug`, `info`, `warn`, `error`), `type` (`console`, `j
 ### Failing on page errors and route errors
 
 - With `logs.failOnPageError: true`, a test that passed fails when the page threw an uncaught exception. `logs.ignoreErrors` skips known noise; `page.allowPageErrors()` opts one test out.
+- If the browser goes away during a test (a person closes the window, or it crashes), the test fails at once with `The browser was closed while the test was running`, and the next test starts with a browser of its own.
 - An error thrown inside a `page.route` handler fails a test that otherwise passed (the mock didn't do what the test meant).
 
 ## Timeouts at a glance

@@ -6,7 +6,12 @@ import { Browser } from "../browser/browser.js";
 import { projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
-import type { RegisteredTestCase, TestFixtures } from "../types/test.js";
+import type {
+  RegisteredTestCase,
+  TestError,
+  TestFixtures,
+  TestLogEntry,
+} from "../types/test.js";
 import { assertModuleProject } from "./module-type.js";
 import { clearRegistry, registeredTests } from "./registry.js";
 import type { PreparedRun } from "./prepare-run.js";
@@ -17,6 +22,7 @@ import type { SamuraiGroup } from "../types/config.js";
 import Page from "../browser/page.js";
 import { takePendingAssertions } from "../assert/expect.js";
 import { toTestError } from "./test-error.js";
+import { ConnectionClosedError } from "../transport/bidi-connection.js";
 import { judgePageLogs } from "./page-logs-report.js";
 import type { LogsConfig } from "./page-logs-report.js";
 
@@ -159,6 +165,19 @@ export default class TestRunner {
   ) {
     logger.verbose("Starting test: %s", test.name);
     reporter.onTestStart(test);
+    // A test ends once, whichever of finishing, failing, timing out, an abort or a closed browser comes first
+    let ended = false;
+    const finish = (
+      error?: TestError,
+      logs?: { logs?: TestLogEntry[]; logsDropped?: number },
+    ) => {
+      if (ended) return;
+      ended = true;
+      reporter.onTestEnd(test, error, logs);
+    };
+    let browserClosed = false;
+    /** Set once the runner itself closes the browser */
+    let closing = false;
     const selectedBrowser: SupportedBrowser =
       (await readConfig("browser")) ?? "firefox";
     const { settings, secrets } = this.run;
@@ -173,7 +192,7 @@ export default class TestRunner {
     await Promise.race([
       new Promise<void>((resolve) => {
         timeoutTimer = setTimeout(() => {
-          reporter.onTestEnd(test, {
+          finish({
             message: `Test timed out after ${timeout / 1000} seconds`,
             type: "timeout",
           });
@@ -182,7 +201,7 @@ export default class TestRunner {
         }, timeout);
         onRunAborted = () => {
           if (timeoutController.signal.aborted) return;
-          reporter.onTestEnd(test, { message: "Run aborted", type: "error" });
+          finish({ message: "Run aborted", type: "error" });
           timeoutController.abort(new Error("Run aborted"));
           resolve();
         };
@@ -201,6 +220,18 @@ export default class TestRunner {
             timeoutController.signal,
           );
           browser = launched.browser;
+          // A person closing the window, or the browser crashing: end the test now instead of waiting for a
+          // command to time out
+          void launched.browser.exited.then(() => {
+            if (ended || closing) return;
+            browserClosed = true;
+            finish({
+              message: "The browser was closed while the test was running",
+              type: "error",
+            });
+            timeoutController.abort(new Error("Browser closed"));
+            resolve();
+          });
           page = launched.page;
           const fixtures: TestFixtures = {
             page: launched.page,
@@ -213,8 +244,7 @@ export default class TestRunner {
           if (timeoutController.signal.aborted) return resolve();
           const unawaited = takePendingAssertions();
           if (unawaited.length > 0) {
-            reporter.onTestEnd(
-              test,
+            finish(
               {
                 message: unawaited
                   .map(
@@ -228,13 +258,17 @@ export default class TestRunner {
             return resolve();
           }
           const verdict = await judgeLogs(page, false);
-          reporter.onTestEnd(test, verdict.error, verdict);
+          finish(verdict.error, verdict);
           resolve();
         } catch (err) {
           if (timeoutController.signal.aborted) return resolve();
-          reporter.onTestEnd(
-            test,
-            toTestError(err),
+          finish(
+            browserClosed || err instanceof ConnectionClosedError
+              ? {
+                  message: "The browser was closed while the test was running",
+                  type: "error",
+                }
+              : toTestError(err),
             await judgeLogs(page, true),
           );
           resolve();
@@ -247,6 +281,7 @@ export default class TestRunner {
       this.options.signal?.removeEventListener("abort", onRunAborted);
     takePendingAssertions();
     logger.verbose("Closing browser for test: %s", test.name);
+    closing = true;
     await browser?.close();
   }
 }
