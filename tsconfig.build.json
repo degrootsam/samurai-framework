@@ -4,6 +4,7 @@
   "exclude": [
     "src/**/*.test.ts",
     "src/**/*.browser-test.ts",
+    "src/**/*.cli-test.ts",
     "src/**/*.test-d.ts",
     "src/tests",
     "src/testing"
