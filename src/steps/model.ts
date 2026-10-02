@@ -52,6 +52,8 @@ export type Step =
       not: boolean;
       expectation: Expectation;
     }
+  /** A key pressed while the element has focus, e.g. `Enter` to submit a field. Named as Playwright names keys */
+  | { kind: "press"; locator: LocatorSpec; key: string }
   | { kind: "waitForNetworkIdle" }
   /** A statement the codec does not understand, kept verbatim */
   | { kind: "custom"; code: string };

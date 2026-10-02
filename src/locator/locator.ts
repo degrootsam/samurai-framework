@@ -111,7 +111,26 @@ const FILL_CHECKS: readonly CheckName[] = [
   "editable",
   "hit target",
 ];
+const PRESS_CHECKS: readonly CheckName[] = ["attached", "visible", "enabled"];
 const ATTACHED_ONLY: readonly CheckName[] = ["attached"];
+
+/** WebDriver code points of the named keys `press()` accepts; any other single character is typed as is */
+const NAMED_KEYS: Readonly<Record<string, string>> = {
+  Backspace: "\uE003",
+  Tab: "\uE004",
+  Enter: "\uE007",
+  Escape: "\uE00C",
+  Space: " ",
+  ArrowLeft: "\uE012",
+  ArrowUp: "\uE013",
+  ArrowRight: "\uE014",
+  ArrowDown: "\uE015",
+  Delete: "\uE017",
+  Home: "\uE011",
+  End: "\uE010",
+  PageUp: "\uE00E",
+  PageDown: "\uE00F",
+};
 
 /** Unicode code point WebDriver uses for the Backspace key */
 const BACKSPACE = "";
@@ -820,6 +839,42 @@ export default class Locator {
               type: "pause",
               duration,
             },
+          ],
+        },
+      ],
+    });
+  }
+
+  /**
+   * Waits until the element is attached, visible and enabled, focuses it and presses `key` with real keyboard input.
+   * Named keys are `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Home`, `End`, `PageUp`, `PageDown` and the arrows;
+   * any other key must be a single character.
+   * @example
+   *  await page.getByLabel("New todo").press("Enter");
+   */
+  public async press(key: string, options?: ActionOptions): Promise<void> {
+    const code = NAMED_KEYS[key] ?? (Array.from(key).length === 1 ? key : "");
+    if (code === "") {
+      throw new Error(
+        `press(): unknown key "${key}". Use one of ${Object.keys(NAMED_KEYS).join(", ")} or a single character`,
+      );
+    }
+    await this.waitForActionable(
+      "press",
+      PRESS_CHECKS,
+      { scroll: true, hitTest: false },
+      options,
+    );
+    await this.callOnElement(undefined, `el.focus();`);
+    await this.biDiConnector.send("input.performActions", {
+      context: this.contextId,
+      actions: [
+        {
+          type: "key",
+          id: "samurai-keyboard",
+          actions: [
+            { type: "keyDown", value: code },
+            { type: "keyUp", value: code },
           ],
         },
       ],

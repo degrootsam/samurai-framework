@@ -94,6 +94,14 @@ const SAMPLES: Step[] = [
     not: false,
     expectation: { matcher: "toHaveCount", expected: 3 },
   },
+  {
+    kind: "press",
+    locator: {
+      chain: [{ method: "getByLabel", text: "New todo" }],
+      fallbacks: [],
+    },
+    key: "Enter",
+  },
   { kind: "waitForNetworkIdle" },
 ];
 
@@ -103,6 +111,37 @@ describe("step codec", () => {
       const source = wrap(stepToSource(step));
       assert.deepEqual(stepsOf(source), [step], stepToSource(step));
     }
+  });
+
+  it("reads a press and writes it back", () => {
+    const [step] = stepsOf(
+      wrap('await page.getByLabel("New todo").press("Enter");'),
+    );
+    assert.deepEqual(step, {
+      kind: "press",
+      locator: {
+        chain: [{ method: "getByLabel", text: "New todo" }],
+        fallbacks: [],
+      },
+      key: "Enter",
+    });
+    assert.equal(
+      stepToSource(step!),
+      'await page.getByLabel("New todo").press("Enter");',
+    );
+  });
+
+  it("keeps a press with options, or with a computed key, as custom code", () => {
+    const steps = stepsOf(
+      wrap(
+        'await page.getByLabel("x").press("Enter", { timeout: 1 });',
+        'await page.getByLabel("x").press(key);',
+      ),
+    );
+    assert.deepEqual(
+      steps.map((step) => step.kind),
+      ["custom", "custom"],
+    );
   });
 
   it("emits canonical single-line statements", () => {

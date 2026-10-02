@@ -33,10 +33,12 @@ export interface RecorderOptions {
 
 /** What the capture script sends */
 interface PageMessage {
-  type: "click" | "input" | "assert";
+  type: "click" | "input" | "press" | "assert";
   target: ElementHandle;
   candidates: LocatorCall[];
   textEntry?: boolean;
+  /** The key of a `press` message */
+  pressed?: string;
   value?: string;
   secret?: boolean;
   secretName?: string;
@@ -178,24 +180,26 @@ export class Recorder {
     const observation: Observation =
       message.type === "click"
         ? { type: "click", key, locator, textEntry: message.textEntry === true }
-        : message.type === "assert"
-          ? {
-              type: "assert",
-              key,
-              locator,
-              text: message.text ?? "",
-              ...(message.value !== undefined && { value: message.value }),
-            }
-          : {
-              type: "input",
-              key,
-              locator,
-              ...(message.value !== undefined && { value: message.value }),
-              ...(message.secret && { secret: true }),
-              ...(message.secretName !== undefined && {
-                secretName: message.secretName,
-              }),
-            };
+        : message.type === "press"
+          ? { type: "press", key, locator, pressed: message.pressed ?? "" }
+          : message.type === "assert"
+            ? {
+                type: "assert",
+                key,
+                locator,
+                text: message.text ?? "",
+                ...(message.value !== undefined && { value: message.value }),
+              }
+            : {
+                type: "input",
+                key,
+                locator,
+                ...(message.value !== undefined && { value: message.value }),
+                ...(message.secret && { secret: true }),
+                ...(message.secretName !== undefined && {
+                  secretName: message.secretName,
+                }),
+              };
     this.emit(this.normaliser.observe(observation, Date.now()));
   }
 

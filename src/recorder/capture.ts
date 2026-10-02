@@ -9,6 +9,8 @@ const OFF_KEY = "samurai.recorder.off";
  *   element (a label click reports its control; the click the browser forwards to the control is dropped).
  * - `{ type: "input", target, candidates, value, secret, secretName }`: text typed into a field. Password
  *   values never leave the page: `secret` is set and `value` is left out.
+ * - `{ type: "press", target, candidates, pressed }`: Enter, Tab or Escape (Enter in a button, link or textarea is a
+ *   click or typing, which are reported as such).
  * - `{ type: "assert", target, candidates, text, value }`: an Alt+click, which does not reach the page.
  *   While Alt is held, the element under the pointer is outlined.
  *
@@ -183,6 +185,18 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
         ? { secret: true, secretName: el.getAttribute("name") || el.id || "" }
         : { value: el.value }),
     });
+  }, true);
+
+  // Enter, Tab and Escape change what the page does next (an Enter adds a todo and clears the field), so they are steps
+  const RECORDED_KEYS = ["Enter", "Tab", "Escape"];
+  // Enter on these is a click, which is recorded as one
+  const ACTIVATES = "a[href],button,summary,select,input[type=button],input[type=submit],input[type=reset],input[type=checkbox],input[type=radio]";
+  document.addEventListener("keydown", (event) => {
+    if (off() || !event.isTrusted || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    if (RECORDED_KEYS.indexOf(event.key) < 0 || !(event.target instanceof Element)) return;
+    const el = event.target;
+    if (event.key === "Enter" && (el.closest(ACTIVATES) || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+    report({ type: "press", target: el, candidates: candidatesOf(el), pressed: event.key });
   }, true);
 
   document.addEventListener("mousemove", (event) => {

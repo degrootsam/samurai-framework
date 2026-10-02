@@ -83,6 +83,8 @@ export function stepToSource(step: Step): string {
       return `await ${locatorToSource(step.locator)}.click();`;
     case "fill":
       return `await ${locatorToSource(step.locator)}.fill(${valueToSource(step.value)});`;
+    case "press":
+      return `await ${locatorToSource(step.locator)}.press(${str(step.key)});`;
     case "expect":
       return `await expect(${locatorToSource(step.locator)})${step.not ? ".not" : ""}.${expectationToSource(step.expectation)};`;
     case "waitForNetworkIdle":

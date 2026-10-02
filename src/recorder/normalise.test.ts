@@ -148,6 +148,48 @@ describe("Normaliser", () => {
   });
 });
 
+describe("Normaliser with key presses", () => {
+  const press = (key: string, pressed: string): Observation => ({
+    type: "press",
+    key,
+    locator: loc(key),
+    pressed,
+  });
+
+  it("an Enter ends the fill: what is typed next in the same field is a new fill, not a rewrite", () => {
+    const n = new Normaliser({ at: 0 });
+    const events = [
+      ...n.observe(input("todo", "buy milk"), 0),
+      ...n.observe(press("todo", "Enter"), 100),
+      ...n.observe(input("todo", "walk dog"), 200),
+      ...n.observe(press("todo", "Enter"), 300),
+    ];
+    assert.deepEqual(
+      events.map(({ op, index, step }) => [op, index, step.kind]),
+      [
+        ["insert", 0, "fill"],
+        ["insert", 1, "press"],
+        ["insert", 2, "fill"],
+        ["insert", 3, "press"],
+      ],
+    );
+    assert.deepEqual((events[1]!.step as { key: string }).key, "Enter");
+    assert.deepEqual((events[2]!.step as { value: unknown }).value, {
+      kind: "literal",
+      value: "walk dog",
+    });
+  });
+
+  it("a navigation right after a press is a consequence of it", () => {
+    const n = new Normaliser({ at: 0 });
+    n.observe(input("search", "samurai"), 0);
+    n.observe(press("search", "Enter"), 100);
+    assert.deepEqual(n.navigated("https://x.test/results", 400)[0]!.step, {
+      kind: "waitForNetworkIdle",
+    });
+  });
+});
+
 describe("applyRecorderEvent", () => {
   it("records into the middle of a test and keeps the steps after it", () => {
     let source = `test("t", async ({ page }) => {\n  await page.goto("/");\n  await page.waitForNetworkIdle();\n});\n`;
