@@ -29,6 +29,20 @@ interface BiDiMessage {
   params?: object | undefined;
 }
 
+/**
+ * The connection to the browser is gone (the browser exited or was closed, or the socket dropped). Commands that
+ * were waiting fail with it, and so does every command sent afterwards: a closed socket would swallow them silently.
+ */
+export class ConnectionClosedError extends Error {
+  public readonly cause: unknown;
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message);
+    this.name = "ConnectionClosedError";
+    this.cause = options?.cause;
+  }
+}
+
 export class BiDiConnector {
   private resolveMap: Map<
     number,
@@ -41,6 +55,8 @@ export class BiDiConnector {
     }
   > = new Map();
   private currentId: number = 0;
+  /** Set once the socket closed or failed: nothing sent after that gets an answer */
+  private closed = false;
   private webSocket: WebSocket;
   private eventEmitter: EventEmitter;
   private commandTimeout: number;
@@ -77,18 +93,28 @@ export class BiDiConnector {
   }
 
   private onWebsocketClose = () => {
+    this.closed = true;
     this.rejectAll(
-      (pending) => new Error(`Websocket closed${pendingSuffix(pending)}`),
+      (pending) =>
+        new ConnectionClosedError(`Websocket closed${pendingSuffix(pending)}`),
     );
   };
 
   private onWebsocketError = (ev: Event) => {
-    this.rejectAll((pending) =>
-      Object.assign(new Error(`Websocket error${pendingSuffix(pending)}`), {
-        cause: ev,
-      }),
+    this.closed = true;
+    this.rejectAll(
+      (pending) =>
+        new ConnectionClosedError(`Websocket error${pendingSuffix(pending)}`, {
+          cause: ev,
+        }),
     );
   };
+
+  private get isClosed(): boolean {
+    // A socket that is closing or closed (readyState 2 or 3) has already lost the browser
+    const state = (this.webSocket as { readyState?: number }).readyState;
+    return this.closed || (typeof state === "number" && state > 1);
+  }
 
   /** Rejects every pending command; `reason` gets the pending method names for its message */
   private rejectAll(reason: (pendingMethods: string[]) => unknown) {
@@ -109,6 +135,12 @@ export class BiDiConnector {
   ): Promise<BiDiCommands[M]["result"]> {
     return new Promise((resolve, reject) => {
       try {
+        if (this.isClosed) {
+          // Sending on a closed socket is silently dropped: without this the command waits out its timeout
+          throw new ConnectionClosedError(
+            `Websocket closed: cannot send ${method}`,
+          );
+        }
         const id = this.getId();
         const timeout = options.timeout ?? this.commandTimeout;
         const timer = setTimeout(() => {
@@ -243,8 +275,12 @@ export class BiDiConnector {
     this.webSocket.removeEventListener("message", this.messageListener);
     this.webSocket.removeEventListener("close", this.onWebsocketClose);
     this.webSocket.removeEventListener("error", this.onWebsocketError);
+    this.closed = true;
     this.rejectAll(
-      (pending) => new Error(`BiDiConnector killed${pendingSuffix(pending)}`),
+      (pending) =>
+        new ConnectionClosedError(
+          `BiDiConnector killed${pendingSuffix(pending)}`,
+        ),
     );
     this.eventEmitter.removeAllListeners();
     this.webSocket.close();
