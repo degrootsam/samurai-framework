@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { SamuraiTestConfig } from "../types/config.js";
 import {
   getRunSettings,
+  isCI,
   peekRunSettings,
   resolveRunSettings,
   setRunSettings,
@@ -52,13 +53,18 @@ describe("resolveRunSettings: choosing the environment", () => {
 
   test("no environments gives the implicit default environment with top-level values", () => {
     assert.deepEqual(
-      resolveRunSettings({ baseURL: "https://harbor.shop", timeout: 1000 }),
+      resolveRunSettings(
+        { baseURL: "https://harbor.shop", timeout: 1000 },
+        {},
+        {},
+      ),
       {
         environment: "default",
         baseURL: "https://harbor.shop",
         timeout: 1000,
         expectTimeout: 5000,
         variables: {},
+        headless: false,
       },
     );
   });
@@ -165,4 +171,47 @@ test("prototype keys are not environments", () => {
           `Unknown environment "${name}". Available: dev, staging`,
     );
   }
+});
+
+describe("headless", () => {
+  test("a run overrides the environment, which overrides use.headless, which overrides CI", () => {
+    const config: SamuraiTestConfig = {
+      use: { headless: true },
+      environments: { dev: {}, local: { headless: false } },
+    };
+    assert.equal(
+      resolveRunSettings(config, { environment: "dev" }, {}).headless,
+      true,
+    );
+    assert.equal(
+      resolveRunSettings(config, { environment: "local" }, {}).headless,
+      false,
+    );
+    assert.equal(
+      resolveRunSettings(config, { environment: "local", headless: true })
+        .headless,
+      true,
+    );
+    assert.equal(
+      resolveRunSettings(
+        { use: { headless: false }, environments: { dev: {} } },
+        { environment: "dev" },
+      ).headless,
+      false,
+    );
+  });
+
+  test("without any setting it follows the CI variable", () => {
+    assert.equal(resolveRunSettings({}, {}, { CI: "true" }).headless, true);
+    assert.equal(resolveRunSettings({}, {}, {}).headless, false);
+  });
+
+  test("isCI treats unset, empty, 0 and false as not CI", () => {
+    assert.equal(isCI({}), false);
+    assert.equal(isCI({ CI: "" }), false);
+    assert.equal(isCI({ CI: "0" }), false);
+    assert.equal(isCI({ CI: "FALSE" }), false);
+    assert.equal(isCI({ CI: "true" }), true);
+    assert.equal(isCI({ CI: "1" }), true);
+  });
 });

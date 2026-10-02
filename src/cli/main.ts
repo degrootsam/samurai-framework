@@ -27,7 +27,8 @@ Options for run and list:
 Options for run:
   --timeout <ms>              Time one test may take
   --expect-timeout <ms>       Time actions and assertions retry
-  --headless                  Run the browser without a window
+  --headless, --no-headless   Run the browser without a window, or with one.
+                              Default: the config's use.headless, else headless when CI is set
   --port <n>                  Browser debugging port (default 9223)
 
 Options for record (also --env, --port, --json):

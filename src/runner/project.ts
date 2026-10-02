@@ -33,6 +33,7 @@ export async function withProject<T>(
     environment,
     timeout,
     expectTimeout,
+    headless,
   } = options;
   const previousDir = projectDir();
   try {
@@ -44,6 +45,7 @@ export async function withProject<T>(
       ...(environment !== undefined && { environment }),
       ...(timeout !== undefined && { timeout }),
       ...(expectTimeout !== undefined && { expectTimeout }),
+      ...(headless !== undefined && { headless }),
     });
     return await work(run);
   } finally {

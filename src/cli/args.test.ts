@@ -87,3 +87,11 @@ describe("parseRunnerFlags", () => {
     );
   });
 });
+
+describe("--headless and --no-headless", () => {
+  test("say which, and leave it unset when neither is given", () => {
+    assert.deepEqual(parseRunnerFlags(["--headless"]), { headless: true });
+    assert.deepEqual(parseRunnerFlags(["--no-headless"]), { headless: false });
+    assert.deepEqual(parseRunnerFlags([]), {});
+  });
+});

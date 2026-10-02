@@ -7,6 +7,8 @@ export interface RunOverrides {
   environment?: string;
   timeout?: number;
   expectTimeout?: number;
+  /** Beats the config's `headless`; the command line's `--headless` and `--no-headless` */
+  headless?: boolean;
 }
 
 /** Everything about a run that depends on the chosen environment */
@@ -18,6 +20,8 @@ export interface RunSettings {
   /** Time (ms) actions and assertions retry */
   expectTimeout: number;
   variables: Variables;
+  /** Whether the browser runs without a window */
+  headless: boolean;
 }
 
 const DEFAULT_TIMEOUT = 30000;
@@ -33,9 +37,19 @@ export class UnknownEnvironmentError extends Error {
 }
 
 /** Picks the environment and applies precedence: run override > environment > project > built-in default */
+/** True when the `CI` environment variable says this is a CI run (set, and not "", "0" or "false") */
+export function isCI(env: Partial<NodeJS.ProcessEnv> = process.env): boolean {
+  const value = env.CI?.trim().toLowerCase();
+  return (
+    value !== undefined && value !== "" && value !== "0" && value !== "false"
+  );
+}
+
 export function resolveRunSettings(
   config: SamuraiTestConfig,
   overrides: RunOverrides = {},
+  /** Where `CI` is read from */
+  env: Partial<NodeJS.ProcessEnv> = process.env,
 ): RunSettings {
   const environments = config.environments ?? {};
   const names = Object.keys(environments);
@@ -77,6 +91,11 @@ export function resolveRunSettings(
       config.expect?.timeout ??
       DEFAULT_EXPECT_TIMEOUT,
     variables: { ...(environment?.variables ?? {}) },
+    headless:
+      overrides.headless ??
+      environment?.headless ??
+      config.use?.headless ??
+      isCI(env),
   };
 }
 

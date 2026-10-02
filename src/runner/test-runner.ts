@@ -196,7 +196,7 @@ export default class TestRunner {
             selectedBrowser,
             {
               port: this.options.port ?? 9223,
-              headless: this.options.headless ?? false,
+              headless: this.options.headless ?? settings.headless,
             },
             timeoutController.signal,
           );

@@ -31,6 +31,8 @@ export interface SamuraiEnvironment {
   /** Overrides the project timeout (ms) for this environment */
   timeout?: number;
   expect?: { timeout?: number };
+  /** Overrides `use.headless` for this environment, e.g. `true` for a `ci` environment */
+  headless?: boolean;
   /** Test data, used in steps as ${name}. Never put secrets here. */
   variables?: Record<string, string | number | boolean>;
 }
@@ -90,6 +92,11 @@ export interface SamuraiTestConfig {
      * @default { width: 1280, height: 720 }
      */
     viewport?: { width: number; height: number } | null;
+    /**
+     * Run the browser without a window. Needed on machines without a display, such as CI runners.
+     * Left out, a run is headless when the `CI` environment variable is set and shows a window otherwise
+     */
+    headless?: boolean;
   };
   /** What to do with the browser's console output and uncaught page exceptions */
   logs?: {

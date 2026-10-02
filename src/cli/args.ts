@@ -30,6 +30,7 @@ export function parseCommandLine(argv: string[]) {
     args: argv,
     options: FLAGS,
     strict: true,
+    allowNegative: true,
     allowPositionals: true,
   });
 }
@@ -50,7 +51,7 @@ export interface RunnerFlags {
 export function parseRunnerFlags(argv: string[]): RunnerFlags {
   const values = parseFlags(argv);
   const flags: RunnerFlags = {};
-  if (values.headless) flags.headless = true;
+  if (values.headless !== undefined) flags.headless = values.headless;
   if (values.port !== undefined) {
     const port = Number(values.port);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
