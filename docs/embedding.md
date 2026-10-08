@@ -20,14 +20,15 @@ Rebuild after changes. The package is ESM only.
 
 ## Entry points
 
-| Import                                 | Gives you                                                                                                                                                                                       |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@itmetsam/samurai-framework`          | What specs import: `test`, `describe`, `expect`, `defineConfig`                                                                                                                                 |
-| `@itmetsam/samurai-framework/runner`   | `runTests`, `listTests`, `listGroups` and the `RunEvent` / `RunnerOptions` types                                                                                                                |
-| `@itmetsam/samurai-framework/steps`    | The step codec: `parseSpec`, `applyEdit`, `stepToSource`, `locatorFromSpec`, step types                                                                                                         |
-| `@itmetsam/samurai-framework/recorder` | `Recorder`, `recordSpec` (records into a spec file, what `samurai record` uses), `applyRecorderEvent`, `RecorderEvent`                                                                          |
-| `@itmetsam/samurai-framework/browser`  | `Browser` (launch Firefox), `BrowserContext`, `Page`, `findBrowser`                                                                                                                             |
-| `@itmetsam/samurai-framework/init`     | `initProject(folder)` (what `samurai init` uses: writes the config, an example test and the rest of a new project, never overwriting) and `scaffold(name)` (the files as a path-to-content map) |
+| Import                                 | Gives you                                                                                                                                                                                                         |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@itmetsam/samurai-framework`          | What specs import: `test`, `describe`, `expect`, `defineConfig`                                                                                                                                                   |
+| `@itmetsam/samurai-framework/runner`   | `runTests`, `listTests`, `listGroups` and the `RunEvent` / `RunnerOptions` types                                                                                                                                  |
+| `@itmetsam/samurai-framework/steps`    | The step codec: `parseSpec`, `applyEdit`, `stepToSource`, `locatorFromSpec`, step types                                                                                                                           |
+| `@itmetsam/samurai-framework/recorder` | `Recorder`, `recordSpec` (records into a spec file, what `samurai record` uses), `applyRecorderEvent`, `RecorderEvent`                                                                                            |
+| `@itmetsam/samurai-framework/browser`  | `Browser` (launch Firefox), `BrowserContext`, `Page`, `findBrowser`                                                                                                                                               |
+| `@itmetsam/samurai-framework/flows`    | The pure flow model, browser-safe (no Node APIs): `FlowFile`, `readFlowFile`, node keys, graph helpers, the expression language (`parseExpression`, `checkExpression`, `evaluateText`, `scopeAt`) and `FLOWS_API` |
+| `@itmetsam/samurai-framework/init`     | `initProject(folder)` (what `samurai init` uses: writes the config, an example test and the rest of a new project, never overwriting) and `scaffold(name)` (the files as a path-to-content map)                   |
 
 Types ship with the package. Nothing else is importable: internals may move.
 
