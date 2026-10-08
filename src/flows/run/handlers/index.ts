@@ -1,3 +1,4 @@
+import { UNSUPPORTED_KINDS } from "../../core/index.js";
 import { condition } from "./condition.js";
 import { end } from "./end.js";
 import { group } from "./group.js";
@@ -22,10 +23,5 @@ export const HANDLERS: Readonly<Record<string, Handler>> = {
   "set-variable": setVariable,
 };
 
-/** Kinds that exist in `flows/core` and have no handler yet */
-export const UNSUPPORTED: readonly string[] = [
-  "api",
-  "database",
-  "email",
-  "script",
-];
+/** Kinds that exist in `flows/core` and have no handler yet (core's one list) */
+export const UNSUPPORTED: readonly string[] = UNSUPPORTED_KINDS;

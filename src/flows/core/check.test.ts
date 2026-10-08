@@ -145,6 +145,40 @@ describe("checkFlow", () => {
     assert.ok(messages(keyed).includes("fan needs at least 2 branches."));
   });
 
+  test("the titles option wins, and undefined falls back", () => {
+    const flow = branching("parallel", [], { title: "Fan out" });
+    const win = messages(flow, { titles: () => "Named by app" });
+    assert.ok(win.includes("Named by app needs at least 2 branches."));
+    const back = messages(flow, { titles: () => undefined });
+    assert.ok(back.includes("Fan out needs at least 2 branches."));
+  });
+
+  test("titles name the node in reachability and branch messages", () => {
+    const titles = (n: FlowNodeModel) =>
+      n.kind === "test" || n.kind === "condition" ? `T-${n.id}` : undefined;
+    const one = linear(1);
+    const cut = {
+      ...one,
+      edges: one.edges.filter((e) => e.source !== "start"),
+    };
+    assert.ok(
+      messages(cut, { titles }).includes("T-n0 isn't reachable from Start."),
+    );
+    const noEnd = {
+      ...one,
+      edges: one.edges.filter((e) => e.target !== "end"),
+    };
+    assert.ok(
+      messages(noEnd, { titles }).includes("T-n0 doesn't lead to End."),
+    );
+    const cond = branching("condition", ["true"]);
+    assert.ok(
+      messages(cond, { titles }).includes(
+        "T-b needs both a true and a false branch.",
+      ),
+    );
+  });
+
   test("expression problems block running and point at the node", () => {
     const flow = branching("condition", ["true", "false"], {
       config: { expr: "nodes.nope.status" },

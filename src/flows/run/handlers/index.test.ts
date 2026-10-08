@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { NODES } from "../../core/index.js";
+import { NODES, UNSUPPORTED_KINDS } from "../../core/index.js";
 import { HANDLERS, UNSUPPORTED } from "./index.js";
 
 describe("handlers", () => {
@@ -13,6 +13,12 @@ describe("handlers", () => {
         `${def.kind}: handled=${handled}, unsupported=${unsupported}`,
       );
     }
+  });
+
+  test("UNSUPPORTED is core's UNSUPPORTED_KINDS, and no kind is in both lists", () => {
+    assert.equal(UNSUPPORTED, UNSUPPORTED_KINDS);
+    for (const kind of UNSUPPORTED_KINDS)
+      assert.ok(!(kind in HANDLERS), `${kind} has a handler`);
   });
 
   test("every handler and every unsupported entry has a core kind", () => {
