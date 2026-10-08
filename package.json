@@ -28,6 +28,10 @@
       "types": "./dist/browser/index.d.ts",
       "default": "./dist/browser/index.js"
     },
+    "./flows": {
+      "types": "./dist/flows/core/index.d.ts",
+      "default": "./dist/flows/core/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
