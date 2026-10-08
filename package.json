@@ -32,6 +32,10 @@
       "types": "./dist/flows/core/index.d.ts",
       "default": "./dist/flows/core/index.js"
     },
+    "./flows/run": {
+      "types": "./dist/flows/run/index.d.ts",
+      "default": "./dist/flows/run/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
