@@ -31,6 +31,14 @@ export async function readFlow(
   if (!id || /[\\/]/.test(id) || id.startsWith("."))
     throw new Error(`"${id}" isn't a valid flow id.`);
   const file = path.join(flowsDir(projectDir), `${id}${FLOW_SUFFIX}`);
+  return readFlowPath(file, id);
+}
+
+/** Reads a `.flow.json` file by its path; the flow's `id` is `id`, else the file name without the suffix */
+export async function readFlowPath(
+  file: string,
+  id = path.basename(file).replace(/\.flow\.json$/, ""),
+): Promise<FlowFile> {
   let text: string;
   try {
     text = await readFile(file, "utf8");

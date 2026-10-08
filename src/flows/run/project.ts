@@ -73,14 +73,8 @@ export function chooseEnvironment(
   return config.defaultEnvironment ?? names[0] ?? "default";
 }
 
-/**
- * Checks and runs a flow of a project: loads its config, lists its tests and groups, refuses to start
- * when `checkFlow` finds errors (`FlowCheckError`), then walks the flow; each Test and Group node runs
- * its tests through `runTests`, one after the other. One at a time per process.
- */
-export async function runFlowInProject(
-  options: RunFlowInProjectOptions,
-): Promise<FlowSummary> {
+/** What the project says about a flow: its environment, tests and groups */
+async function prepare(options: RunFlowInProjectOptions) {
   const projectDir = path.resolve(options.projectDir ?? process.cwd());
   if (!options.flow && !options.flowId)
     throw new Error("Give a flow or a flowId.");
@@ -89,7 +83,7 @@ export async function runFlowInProject(
   );
   const unsupported = options.unsupported ?? "fail";
 
-  // Phase 1: config, environment, tests and groups (one project session, then it ends)
+  // Config, environment, tests and groups (one project session, then it ends)
   const config = await configOf({ ...options, projectDir });
   const name = chooseEnvironment(config, flow, options.environment);
   const environment = {
@@ -125,8 +119,6 @@ export async function runFlowInProject(
       return { tests, groups };
     },
   );
-
-  // Phase 2: refuse a flow that can't run
   const problems = checkFlow(flow, {
     tests: tests.map((t) => t.id),
     groups: groups.map((g) => g.name),
@@ -134,6 +126,58 @@ export async function runFlowInProject(
     handled: new Set(Object.keys(HANDLERS)),
     unsupported,
   });
+  return {
+    projectDir,
+    flow,
+    unsupported,
+    config,
+    name,
+    environment,
+    tests,
+    groups,
+    problems,
+  };
+}
+
+/**
+ * Checks a flow against the project without running it: its tests, groups and environment
+ * variables, and which kinds can run. Returns the flow (with keys) and every problem, warnings included.
+ */
+export async function checkFlowInProject(
+  options: Pick<
+    RunFlowInProjectOptions,
+    | "flow"
+    | "flowId"
+    | "projectDir"
+    | "config"
+    | "dataDir"
+    | "environment"
+    | "unsupported"
+  >,
+): Promise<{ flow: FlowFile; problems: FlowProblem[] }> {
+  const { flow, problems } = await prepare(options);
+  return { flow, problems };
+}
+
+/**
+ * Checks and runs a flow of a project: loads its config, lists its tests and groups, refuses to start
+ * when `checkFlow` finds errors (`FlowCheckError`), then walks the flow; each Test and Group node runs
+ * its tests through `runTests`, one after the other. One at a time per process.
+ */
+export async function runFlowInProject(
+  options: RunFlowInProjectOptions,
+): Promise<FlowSummary> {
+  const {
+    projectDir,
+    flow,
+    unsupported,
+    config,
+    name,
+    environment,
+    tests,
+    groups,
+    problems,
+  } = await prepare(options);
   const errors = problems.filter((p) => p.level === "error");
   if (errors.length) throw new FlowCheckError(errors);
 

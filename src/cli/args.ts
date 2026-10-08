@@ -17,6 +17,8 @@ const FLAGS = {
   group: { type: "string" },
   file: { type: "string", multiple: true },
   json: { type: "boolean" },
+  all: { type: "boolean" },
+  "allow-unsupported": { type: "boolean" },
   test: { type: "string" },
   at: { type: "string" },
   new: { type: "string" },

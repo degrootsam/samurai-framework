@@ -92,6 +92,10 @@ A browser window opens for each test and closes when the test ends. The result i
 
 > `src/tests/index.spec.ts` is an example that submits a real contact form. Delete it or replace it before running everything.
 
+### Flows (optional)
+
+A project can also keep flows in `flows/*.flow.json` (edited in the Samurai app) that chain tests and groups with conditions and variables. `samurai flow check` validates them and `samurai flow run <flow>` runs them, with a report in `result/flows/`. See [Flows](docs/flows.md).
+
 ### 6. Secrets (optional)
 
 ```sh
@@ -113,6 +117,7 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 | [Configuration](docs/configuration.md)                       | Every option in `samurai.config.ts`, CLI flags and precedence                                         |
 | [Environments and secrets](docs/environments-and-secrets.md) | Per-environment settings, variables, secrets and masking                                              |
 | [Command line](docs/cli.md)                                  | `samurai run`, `list`, `record` and `init`, options, output, exit codes, `--json`                     |
+| [Flows](docs/flows.md)                                       | `samurai flow list`, `check` and `run`: graphs of tests, groups and steps, reports, CI                |
 | [Running tests and reports](docs/running-and-reports.md)     | What a run does, `report.json`, page logs, timeouts                                                   |
 | [Steps and the recorder](docs/recorder.md)                   | The step codec and the recording engine                                                               |
 | [Embedding the framework](docs/embedding.md)                 | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
