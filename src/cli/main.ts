@@ -8,6 +8,7 @@ import { recordSpec } from "../recorder/index.js";
 import { listTests, runTests, type RunTestsOptions } from "../runner/run.js";
 import { stepToSource } from "../steps/index.js";
 import { ConsoleReporter } from "./console-reporter.js";
+import { flowCommand } from "./flow.js";
 import { initProject } from "./init.js";
 
 export const USAGE = `samurai: browser tests over WebDriver BiDi
@@ -17,6 +18,7 @@ Usage:
   samurai list [options]      List the tests without running them
   samurai record <spec>       Open a browser and record what you do into a spec file
   samurai init [folder]       Scaffold a project: config, an example test, .env.example
+  samurai flow <command>      List, check and run the flows in ./flows (see below)
 
 Options for run and list:
   --env <name>                Environment to run against (or SAMURAI_ENV)
@@ -43,6 +45,14 @@ Options for record (also --env, --port, --json):
   -v, --version               Show the version
 
 Exit code: 0 when every test passed, 1 when a test failed, 2 for a usage or configuration error.
+
+samurai flow:
+  list                        The flows in ./flows
+  check [<flow>...]           Check flows without running them
+  run <flow>... | --all       Run flows; each writes result/flows/<id>.json
+  Options for run: --env, --headless, --timeout, --expect-timeout, --port, --json, --allow-unsupported
+  Run \`samurai flow\` alone for the details.
+
 Run it in the project folder, the one holding samurai.config.ts.
 `;
 
@@ -79,6 +89,8 @@ export async function main(argv: string[], io: Io): Promise<number> {
       io.out(`${version()}\n`);
       return 0;
     }
+
+    if (command === "flow") return await flowCommand(rest, io);
 
     if (command === "init") {
       const { written, skipped } = initProject(positionals[0] ?? ".");

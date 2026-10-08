@@ -10,6 +10,7 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - **Locators and assertions.** Role, label, text, test id, CSS and XPath locators with chaining and fallbacks; auto-waiting actions; retrying `expect`.
 - **Test API.** `describe`, `test` with `page`, `browser`, `env` and `secrets` fixtures; environments with variables, timeouts and base URLs; secrets from env vars or `.env.<environment>` with masking in logs and reports.
 - **Recorder foundations.** Step codec (parse a spec into steps, minimal-diff edits) and a recording engine (clicks, typing, Alt+click assertions, locator ranking, record from step N).
+- **Flows.** `samurai flow list|check|run`: graphs of tests, groups, conditions, variables, waits and parallel branches, checked before they run, with a report per run. HTTP request, Database query, Email inbox and Script nodes can't run yet (see [Flows](flows.md)).
 - **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request.
 
 ## Open: recorder

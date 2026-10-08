@@ -8,10 +8,13 @@ export {
   flowsDir,
   listFlows,
   readFlow,
+  readFlowPath,
   readFlows,
 } from "./files.js";
+export * from "./report.js";
 export {
   FlowCheckError,
+  checkFlowInProject,
   chooseEnvironment,
   runFlowInProject,
   type RunFlowInProjectOptions,
