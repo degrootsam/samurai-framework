@@ -6,6 +6,8 @@ export * from "./schema.js";
 export * from "./keys.js";
 export * from "./graph.js";
 export * from "./expression/index.js";
+export * from "./nodes/index.js";
+export * from "./check.js";
 
 /**
  * Version of the contract between the SAMURAI app and this framework.
