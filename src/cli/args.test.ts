@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { parseRunnerFlags, parseRunOverrides } from "./args.js";
+import {
+  parseCommandLine,
+  parseRunnerFlags,
+  parseRunOverrides,
+} from "./args.js";
 
 describe("parseRunOverrides", () => {
   test("reads --env, --timeout and --expect-timeout", () => {
@@ -60,6 +64,8 @@ describe("parseRunnerFlags", () => {
         "9300",
         "--grep",
         "login",
+        "--group",
+        "smoke",
         "--file",
         "a.spec.ts",
         "--file",
@@ -69,6 +75,7 @@ describe("parseRunnerFlags", () => {
         headless: true,
         port: 9300,
         grep: "login",
+        group: "smoke",
         files: ["a.spec.ts", "b.spec.ts"],
       },
     );
@@ -93,5 +100,26 @@ describe("--headless and --no-headless", () => {
     assert.deepEqual(parseRunnerFlags(["--headless"]), { headless: true });
     assert.deepEqual(parseRunnerFlags(["--no-headless"]), { headless: false });
     assert.deepEqual(parseRunnerFlags([]), {});
+  });
+});
+
+describe("flow flags", () => {
+  test("reads the subcommand, flows, --all and --allow-unsupported", () => {
+    const { values, positionals } = parseCommandLine([
+      "run",
+      "checkout",
+      "other.flow.json",
+      "--all",
+      "--allow-unsupported",
+      "--no-headless",
+    ]);
+    assert.deepEqual(positionals, ["run", "checkout", "other.flow.json"]);
+    assert.equal(values.all, true);
+    assert.equal(values["allow-unsupported"], true);
+    assert.equal(values.headless, false);
+  });
+
+  test("an unknown flag is still an error", () => {
+    assert.throws(() => parseCommandLine(["run", "--allow-unsupportd"]));
   });
 });

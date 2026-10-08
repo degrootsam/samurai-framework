@@ -7,6 +7,7 @@ samurai init [folder]     # scaffold a project
 samurai list              # list the tests without running them
 samurai record <spec>     # open a browser and record what you do into a spec
 samurai run               # run the tests (the default: `samurai` alone does the same)
+samurai flow <command>    # list, check and run flows (see below)
 ```
 
 Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), an optional peer dependency of the package. Install it next to the framework (`npm install --save-dev tsx`); `samurai init` adds it to the project it creates. Without it the command stops with a message that says so. In the framework's own repository, `bun run dev` does the same as `samurai run` without needing a build.
@@ -17,16 +18,17 @@ Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), 
 samurai run --env staging --headless --grep coupon
 ```
 
-| Option                        | Meaning                                                                                                                             |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                       |
-| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                  |
-| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                     |
-| `--timeout <ms>`              | Time one test may take                                                                                                              |
-| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                   |
-| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set |
-| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                         |
-| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                            |
+| Option                        | Meaning                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                              |
+| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                         |
+| `--group <name>`              | Only the tests of this entry of the config's `groups`; an unknown name is an error listing the groups. Combines with `--file` and `--grep` |
+| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                            |
+| `--timeout <ms>`              | Time one test may take                                                                                                                     |
+| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                          |
+| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set        |
+| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                                |
+| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                                   |
 
 Output:
 
@@ -71,7 +73,7 @@ stdout carries only these lines; framework logging goes to stderr. That makes th
 
 ## `samurai list`
 
-Imports the specs and prints the tests that `--env`, `--file` and `--grep` select, without launching a browser. `--json` prints an array of `{ "name", "file" }`.
+Imports the specs and prints the tests that `--env`, `--file`, `--grep` and `--group` select, without launching a browser. `--json` prints an array of `{ "name", "file" }`.
 
 ## `samurai record <spec>`
 
@@ -111,6 +113,17 @@ Details:
 - A password field is recorded as `secrets.<FIELD_NAME>`, and the value never leaves the page. The command ends by telling you which `SAMURAI_SECRET_*` to set.
 - With `--at n` the window starts on `--url` or the base URL, **not** where steps `0…n-1` would leave it. Get the page to that state yourself before you act.
 - Recording is meant for a window: a person has to use it. `--headless` is only for tests of the recorder itself, and on CI (where `CI` is set) you must pass `--no-headless` to get one. `recordSpec` takes `headless` too.
+
+## `samurai flow`
+
+```sh
+samurai flow list                       # the flows in ./flows, with names and node counts
+samurai flow check [<flow>...]          # validate without running (all flows when none is given)
+samurai flow run <flow>... [options]    # run, in the order given
+samurai flow run --all [options]        # run every flow in ./flows, by file name
+```
+
+A flow is an id (`flows/<id>.flow.json`) or a path to a `.flow.json` file. `run` takes `--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port` and `--json` like `samurai run`, plus `--allow-unsupported` (skip nodes that can't run yet instead of refusing the flow). `check` takes `--env`, `--allow-unsupported` and `--json`. `run` checks first and refuses a flow with errors; every run writes `result/flows/<id>.json`. Exit code: 0 passed, 1 a node failed or the run was cancelled (`check`: errors found), 2 usage, configuration or flow-file error. See [Flows](flows.md).
 
 ## `samurai init [folder]`
 

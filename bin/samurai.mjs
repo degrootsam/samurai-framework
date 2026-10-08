@@ -15,12 +15,14 @@ try {
 }
 
 const { main } = await import("../dist/cli/main.js");
-// Ctrl+C ends a recording cleanly (the browser is closed, the file is complete); a second one stops at once
+// Ctrl+C (or a termination signal) ends a recording or a flow run cleanly (the browser is closed, the file is complete); a second one stops at once
 const interrupt = new AbortController();
-process.on("SIGINT", () => {
-  if (interrupt.signal.aborted) process.exit(130);
-  interrupt.abort();
-});
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    if (interrupt.signal.aborted) process.exit(130);
+    interrupt.abort();
+  });
+}
 const code = await main(process.argv.slice(2), {
   out: (text) => process.stdout.write(text),
   err: (text) => process.stderr.write(text),
