@@ -86,5 +86,17 @@ export const branchOf = (
 export const branchNames = (node: { kind: string }): string[] =>
   branchesOf(node).map((b) => b.name);
 
+/**
+ * Kinds defined in core that a run has no handler for yet (`flows/run` skips or refuses
+ * them). The one list: `flows/run` uses it too, and the builder warns with it without
+ * importing `flows/run`.
+ */
+export const UNSUPPORTED_KINDS: readonly string[] = [
+  "api",
+  "database",
+  "email",
+  "script",
+];
+
 export * from "./define.js";
 export * from "./path.js";

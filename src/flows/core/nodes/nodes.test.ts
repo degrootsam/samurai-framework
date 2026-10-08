@@ -9,6 +9,7 @@ import {
   dynamicOf,
   getPath,
   NODES,
+  UNSUPPORTED_KINDS,
   nodeDef,
   setPath,
   shapeOf,
@@ -127,5 +128,18 @@ describe("node registry", () => {
     assert.deepEqual(setPath(n, "config.expr", "y"), {
       config: { expr: "y", other: 1 },
     });
+  });
+});
+
+describe("UNSUPPORTED_KINDS", () => {
+  test("lists api, database, email and script, all registered core kinds", () => {
+    assert.deepEqual([...UNSUPPORTED_KINDS].sort(), [
+      "api",
+      "database",
+      "email",
+      "script",
+    ]);
+    const kinds = new Set(NODES.map((d) => d.kind));
+    for (const k of UNSUPPORTED_KINDS) assert.ok(kinds.has(k), k);
   });
 });

@@ -30,6 +30,13 @@ export interface CheckOptions {
    */
   handled?: ReadonlySet<string>;
   unsupported?: "skip" | "fail";
+  /**
+   * How a node is named in every message (reachability, leads-to-End, branches,
+   * "needs at least N branches"). When it returns a string, that is the name; when it
+   * returns `undefined`, the node's title, else its key, else its kind's label is used.
+   * The SAMURAI app passes the editor's titles (a Test node shows its test's name).
+   */
+  titles?: (node: FlowNodeModel) => string | undefined;
 }
 
 /** What the node is called in a message: its title, else its key, else its kind's label */
@@ -105,7 +112,7 @@ export function checkFlow(
 
   for (const n of flow.nodes) {
     const def = defOf(n.kind);
-    const title = titleOf(n, def);
+    const title = options.titles?.(n) ?? titleOf(n, def);
     if (!reachable.has(n.id))
       problems.push({
         level: "error",

@@ -66,6 +66,12 @@ Test and Group nodes launch the browser; every other node runs in-process.
 
 A kind that cannot run yet is an **error** in the command line: `samurai flow check` reports "HTTP request can't run yet" and `samurai flow run` refuses to start, so a green CI run never hides a skipped step. `--allow-unsupported` turns the error into a warning: those nodes are _skipped_ (note "Not supported yet") and the flow can still pass.
 
+`UNSUPPORTED_KINDS` (from the pure `flows` entry) lists these kinds, so a browser can warn about them without importing `flows/run`.
+
+### Checking a flow from code
+
+`checkFlow(flow, options)` from the pure `flows` entry returns every problem. Options: `tests` and `groups` (the ids and names that exist), `environment`, `handled` with `unsupported: "skip" | "fail"`, and `titles: (node) => string | undefined`. When `titles` returns a string, that is how every message names the node; when it returns `undefined`, the node's title, else its key, else its kind's label is used.
+
 ## Expressions
 
 Conditions and Set variable values are expressions over four roots: `env.<name>` (the environment's variables), `vars.<name>` (set by earlier Set variable nodes), `nodes.<key>.status|durationMs|error` (earlier nodes) and `run.environment|trigger|startedAt`. For example `vars.order > 0 && nodes.login.status == "passed"`. `check` validates every expression against the flow and the environment: unknown keys, variables nothing sets, syntax errors.
