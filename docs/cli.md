@@ -17,16 +17,17 @@ Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), 
 samurai run --env staging --headless --grep coupon
 ```
 
-| Option                        | Meaning                                                                                                                             |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                       |
-| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                  |
-| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                     |
-| `--timeout <ms>`              | Time one test may take                                                                                                              |
-| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                   |
-| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set |
-| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                         |
-| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                            |
+| Option                        | Meaning                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                              |
+| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                         |
+| `--group <name>`              | Only the tests of this entry of the config's `groups`; an unknown name is an error listing the groups. Combines with `--file` and `--grep` |
+| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                            |
+| `--timeout <ms>`              | Time one test may take                                                                                                                     |
+| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                          |
+| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set        |
+| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                                |
+| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                                   |
 
 Output:
 
@@ -71,7 +72,7 @@ stdout carries only these lines; framework logging goes to stderr. That makes th
 
 ## `samurai list`
 
-Imports the specs and prints the tests that `--env`, `--file` and `--grep` select, without launching a browser. `--json` prints an array of `{ "name", "file" }`.
+Imports the specs and prints the tests that `--env`, `--file`, `--grep` and `--group` select, without launching a browser. `--json` prints an array of `{ "name", "file" }`.
 
 ## `samurai record <spec>`
 

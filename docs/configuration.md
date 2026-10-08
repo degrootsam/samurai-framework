@@ -23,30 +23,30 @@ export default defineConfig({
 
 ## Options
 
-| Option                  | Default                                  | Meaning                                                                              |
-| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
-| `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                  |
-| `browser`               | `"firefox"`                              | Browser for every test. Only `firefox` is supported today                            |
-| `timeout`               | `30000`                                  | Time (ms) one test may take                                                          |
-| `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                              |
-| `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying |
-| `environments`          | none                                     | Named environments, see [Environments and secrets](environments-and-secrets.md)      |
-| `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                           |
-| `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                 |
-| `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                      |
-| `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)  |
-| `bidi.commandTimeout`   | `30000`                                  | Time (ms) a protocol command may wait for its reply                                  |
-| `navigation.timeout`    | `30000`                                  | Time (ms) a navigation or load-state wait may take                                   |
-| `navigation.waitUntil`  | `"complete"`                             | When `navigateTo` resolves: `"none"`, `"interactive"` or `"complete"`                |
-| `network.track`         | `true`                                   | Follow requests from the start. When `false`, `waitForNetworkIdle()` throws          |
-| `network.idleTime`      | `500`                                    | Time (ms) without requests in flight that counts as idle                             |
-| `network.routeTimeout`  | `30000`                                  | Time (ms) a `page.route` handler may take before the request is let through          |
-| `network.collectBodies` | `false`                                  | Keep every response body so `response.body()` always works (costs memory)            |
-| `network.maxBodySize`   | `10485760`                               | Largest body (bytes) that is kept                                                    |
-| `logs.capture`          | `"failures"`                             | Which tests get the page's log in the report: `"off"`, `"failures"`, `"all"`         |
-| `logs.failOnPageError`  | `false`                                  | Fail a passing test when the page threw an uncaught exception                        |
-| `logs.ignoreErrors`     | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                            |
-| `groups`                | none                                     | Declared in the types but **not implemented yet**; see the [roadmap](roadmap.md)     |
+| Option                  | Default                                  | Meaning                                                                               |
+| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                   |
+| `browser`               | `"firefox"`                              | Browser for every test. Only `firefox` is supported today                             |
+| `timeout`               | `30000`                                  | Time (ms) one test may take                                                           |
+| `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                               |
+| `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying  |
+| `environments`          | none                                     | Named environments, see [Environments and secrets](environments-and-secrets.md)       |
+| `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                            |
+| `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                  |
+| `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                       |
+| `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)   |
+| `bidi.commandTimeout`   | `30000`                                  | Time (ms) a protocol command may wait for its reply                                   |
+| `navigation.timeout`    | `30000`                                  | Time (ms) a navigation or load-state wait may take                                    |
+| `navigation.waitUntil`  | `"complete"`                             | When `navigateTo` resolves: `"none"`, `"interactive"` or `"complete"`                 |
+| `network.track`         | `true`                                   | Follow requests from the start. When `false`, `waitForNetworkIdle()` throws           |
+| `network.idleTime`      | `500`                                    | Time (ms) without requests in flight that counts as idle                              |
+| `network.routeTimeout`  | `30000`                                  | Time (ms) a `page.route` handler may take before the request is let through           |
+| `network.collectBodies` | `false`                                  | Keep every response body so `response.body()` always works (costs memory)             |
+| `network.maxBodySize`   | `10485760`                               | Largest body (bytes) that is kept                                                     |
+| `logs.capture`          | `"failures"`                             | Which tests get the page's log in the report: `"off"`, `"failures"`, `"all"`          |
+| `logs.failOnPageError`  | `false`                                  | Fail a passing test when the page threw an uncaught exception                         |
+| `logs.ignoreErrors`     | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                             |
+| `groups`                | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option (see below) |
 
 ### Environment options
 
@@ -59,6 +59,27 @@ Each entry of `environments` can set:
 | `expect.timeout` | Overrides `expect.timeout`                                                         |
 | `variables`      | Test data available as `env.<name>` in tests. Never put secrets here               |
 | `headless`       | Overrides `use.headless` for this environment (e.g. `true` for a `ci` environment) |
+
+### Groups
+
+`groups` names sets of tests. Run one with `samurai run --group <name>` or `runTests({ group })`.
+
+```ts
+groups: [
+  { name: "checkout", src: "./src/checkout" },                 // every *.spec.ts below that folder
+  { name: "api", testMatch: "**/api-*.spec.ts" },              // a glob, relative to `src` (default `srcDir`)
+  { name: "smoke", tests: [{ file: "login.spec.ts", title: "Login > works" }] },
+],
+```
+
+| Field       | Meaning                                                                                                                                                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | What `--group` takes                                                                                                                                                                                                        |
+| `src`       | Folder to search, relative to the project; default `srcDir`. Only specs below it count                                                                                                                                      |
+| `testMatch` | Glob matched against the spec path below `src`; default `**/*.spec.ts`                                                                                                                                                      |
+| `tests`     | Tests picked by hand: `file` relative to `srcDir`, `title` the full name (`describe` titles joined with `>`). Overrides `src` and `testMatch`; a picked test that no longer exists is reported as `missing` by `listGroups` |
+
+A test's id is `<file relative to srcDir, with />::<full name>`. An unknown group name is an error that lists the groups.
 
 ## Command-line flags
 

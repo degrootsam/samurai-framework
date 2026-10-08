@@ -1,5 +1,6 @@
 import type { TestSummary } from "../types/test.js";
 import { withProject, type ProjectOptions } from "./project.js";
+import type { ResolvedGroup } from "./groups.js";
 import TestRunner, { type RunnerOptions } from "./test-runner.js";
 
 export interface RunTestsOptions extends RunnerOptions, ProjectOptions {}
@@ -74,7 +75,34 @@ export async function listTests(
   );
 }
 
+/** Imports the project's specs without running anything and lists the config's groups with the tests each holds */
+export async function listGroups(
+  options: RunTestsOptions = {},
+): Promise<ResolvedGroup[]> {
+  const {
+    projectDir,
+    config,
+    dataDir,
+    environment,
+    timeout,
+    expectTimeout,
+    ...runner
+  } = options;
+  return withProject(
+    {
+      projectDir,
+      config,
+      dataDir,
+      environment,
+      timeout,
+      expectTimeout,
+    } as ProjectOptions,
+    async (run) => (await TestRunner.init(run, undefined, runner)).groups(),
+  );
+}
+
 export type { RunEvent } from "./reporter.js";
 export type { TestError, TestResult, TestSummary } from "../types/test.js";
+export type { ResolvedGroup } from "./groups.js";
 export type { RunnerOptions } from "./test-runner.js";
 export type { ProjectOptions } from "./project.js";

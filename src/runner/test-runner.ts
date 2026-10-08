@@ -3,7 +3,7 @@ import { glob } from "node:fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
 import { Browser } from "../browser/browser.js";
-import { projectDir, readConfig } from "../config/config.js";
+import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type {
@@ -23,6 +23,14 @@ import Page from "../browser/page.js";
 import { takePendingAssertions } from "../assert/expect.js";
 import { toTestError } from "./test-error.js";
 import { ConnectionClosedError } from "../transport/bidi-connection.js";
+import {
+  DEFAULT_SRC_DIR,
+  findGroup,
+  resolveGroups,
+  testId,
+  toPosix,
+} from "./groups.js";
+import type { ResolvedGroup } from "./groups.js";
 import { judgePageLogs } from "./page-logs-report.js";
 import type { LogsConfig } from "./page-logs-report.js";
 
@@ -34,6 +42,8 @@ export interface RunnerOptions {
   grep?: string | RegExp;
   /** Only tests with exactly one of these full names (`describe` titles joined with " > ") */
   testNames?: string[];
+  /** Only the tests of this group of the config's `groups` (unknown name: an error). Combines with the other filters */
+  group?: string;
   /** Run the browser without a window. @default false */
   headless?: boolean;
   /** Remote debugging port of the browser. @default 9223 */
@@ -117,13 +127,12 @@ export default class TestRunner {
     );
   }
 
-  /** Runs the selected tests and returns the summary that was also written to the report */
   /**
-   * Imports the spec files and returns the tests the options select. A fresh registry and a fresh import of each
+   * Imports the spec files and returns every test they register. A fresh registry and a fresh import of each
    * file, so a second run in this process registers its tests again (and sees edited specs, for files loaded as
    * ES modules; CommonJS files stay cached until the process ends)
    */
-  public async register(): Promise<RegisteredTestCase[]> {
+  private async registerAll(): Promise<RegisteredTestCase[]> {
     clearRegistry();
     const stamp = `?run=${Date.now().toString(36)}`;
     for (const file of this.testFiles) assertModuleProject(file);
@@ -131,9 +140,48 @@ export default class TestRunner {
       logger.verbose("Trying to register file: %s", file);
       await import(pathToFileURL(file).href + stamp);
     }
-    // TODO: Implement test grouping
-    return registeredTests().filter((test) =>
-      isSelected(test.name, this.options),
+    return [...registeredTests()];
+  }
+
+  /** Id of a registered test: its spec file relative to `srcDir`, then its name */
+  private idOf(test: RegisteredTestCase, srcDir: string): string {
+    return testId(toPosix(path.relative(srcDir, test.file)), test.name);
+  }
+
+  /** The config's groups, resolved against the tests the specs register */
+  private async resolveAll(tests: RegisteredTestCase[]) {
+    const config = await loadConfig();
+    const dir = projectDir();
+    const srcDir = path.resolve(dir, config.srcDir ?? DEFAULT_SRC_DIR);
+    const groups = resolveGroups(
+      config,
+      tests.map(({ file, name }) => ({
+        file: toPosix(path.relative(srcDir, file)),
+        name,
+      })),
+      dir,
+      srcDir,
+    );
+    return { groups, srcDir };
+  }
+
+  /** The groups of the config with the tests each holds; see `listGroups` */
+  public async groups(): Promise<ResolvedGroup[]> {
+    return (await this.resolveAll(await this.registerAll())).groups;
+  }
+
+  /** Imports the spec files and returns the tests the options select: by `group`, `testNames` and `grep` */
+  public async register(): Promise<RegisteredTestCase[]> {
+    const all = await this.registerAll();
+    const { group } = this.options;
+    let inGroup: (test: RegisteredTestCase) => boolean = () => true;
+    if (group !== undefined) {
+      const { groups, srcDir } = await this.resolveAll(all);
+      const members = new Set(findGroup(groups, group).testIds);
+      inGroup = (test) => members.has(this.idOf(test, srcDir));
+    }
+    return all.filter(
+      (test) => inGroup(test) && isSelected(test.name, this.options),
     );
   }
 
