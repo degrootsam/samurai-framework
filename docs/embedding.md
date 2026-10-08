@@ -23,7 +23,7 @@ Rebuild after changes. The package is ESM only.
 | Import                                 | Gives you                                                                                                                                                                                       |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@itmetsam/samurai-framework`          | What specs import: `test`, `describe`, `expect`, `defineConfig`                                                                                                                                 |
-| `@itmetsam/samurai-framework/runner`   | `runTests`, `listTests` and the `RunEvent` / `RunnerOptions` types                                                                                                                              |
+| `@itmetsam/samurai-framework/runner`   | `runTests`, `listTests`, `listGroups` and the `RunEvent` / `RunnerOptions` types                                                                                                                |
 | `@itmetsam/samurai-framework/steps`    | The step codec: `parseSpec`, `applyEdit`, `stepToSource`, `locatorFromSpec`, step types                                                                                                         |
 | `@itmetsam/samurai-framework/recorder` | `Recorder`, `recordSpec` (records into a spec file, what `samurai record` uses), `applyRecorderEvent`, `RecorderEvent`                                                                          |
 | `@itmetsam/samurai-framework/browser`  | `Browser` (launch Firefox), `BrowserContext`, `Page`, `findBrowser`                                                                                                                             |
@@ -54,7 +54,9 @@ const summary = await runTests({
 console.log(summary.status); // "success" | "failed"; the same object is written to result/report.json
 ```
 
-All options (besides the ones above): `config` (use this object instead of reading `samurai.config.ts`), `dataDir`, `timeout`, `expectTimeout`, `reportPath` (a path, or `false` for no report), `grep` (string or RegExp).
+All options (besides the ones above): `config` (use this object instead of reading `samurai.config.ts`), `dataDir`, `timeout`, `expectTimeout`, `reportPath` (a path, or `false` for no report), `grep` (string or RegExp), `group` (only the tests of that entry of the config's `groups`; an unknown name throws `Unknown group "x". Groups: a, b.`).
+
+`listGroups(options)` imports the specs without running them and returns `{ name, kind: "picked" | "pattern", pattern?, testIds, missing }[]` for every configured group. `testIds` are `<file relative to srcDir>::<full name>`; `missing` lists picked tests (`{ file, title }`) that no longer exist.
 
 Things to know:
 

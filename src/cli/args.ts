@@ -14,6 +14,7 @@ const FLAGS = {
   headless: { type: "boolean" },
   port: { type: "string" },
   grep: { type: "string" },
+  group: { type: "string" },
   file: { type: "string", multiple: true },
   json: { type: "boolean" },
   test: { type: "string" },
@@ -44,10 +45,11 @@ export interface RunnerFlags {
   headless?: boolean;
   port?: number;
   grep?: string;
+  group?: string;
   files?: string[];
 }
 
-/** Reads `--headless`, `--port <n>`, `--grep <text>` and `--file <spec>` (repeatable) from `argv` */
+/** Reads `--headless`, `--port <n>`, `--grep <text>`, `--group <name>` and `--file <spec>` (repeatable) from `argv` */
 export function parseRunnerFlags(argv: string[]): RunnerFlags {
   const values = parseFlags(argv);
   const flags: RunnerFlags = {};
@@ -62,6 +64,7 @@ export function parseRunnerFlags(argv: string[]): RunnerFlags {
     flags.port = port;
   }
   if (values.grep !== undefined) flags.grep = values.grep;
+  if (values.group !== undefined) flags.group = values.group;
   if (values.file?.length) flags.files = values.file;
   return flags;
 }

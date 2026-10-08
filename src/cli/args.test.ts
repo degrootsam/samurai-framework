@@ -60,6 +60,8 @@ describe("parseRunnerFlags", () => {
         "9300",
         "--grep",
         "login",
+        "--group",
+        "smoke",
         "--file",
         "a.spec.ts",
         "--file",
@@ -69,6 +71,7 @@ describe("parseRunnerFlags", () => {
         headless: true,
         port: 9300,
         grep: "login",
+        group: "smoke",
         files: ["a.spec.ts", "b.spec.ts"],
       },
     );

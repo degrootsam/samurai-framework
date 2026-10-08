@@ -22,6 +22,7 @@ Options for run and list:
   --env <name>                Environment to run against (or SAMURAI_ENV)
   --file <spec>               Only this spec file; repeatable
   --grep <text>               Only tests whose full name contains the text
+  --group <name>              Only the tests of this group of the config's groups
   --json                      Machine-readable output: JSON lines for run, one array for list
 
 Options for run:
@@ -151,6 +152,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       ...(flags.headless !== undefined && { headless: flags.headless }),
       ...(flags.port !== undefined && { port: flags.port }),
       ...(flags.grep !== undefined && { grep: flags.grep }),
+      ...(flags.group !== undefined && { group: flags.group }),
       ...(flags.files && { files: flags.files }),
     };
 
