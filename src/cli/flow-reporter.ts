@@ -1,5 +1,6 @@
 import {
   nodeDef,
+  type AnyNodeDefinition,
   type FlowFile,
   type FlowNodeModel,
 } from "../flows/core/index.js";
@@ -16,6 +17,8 @@ export interface FlowReporterOptions {
   write: (text: string) => void;
   /** Colour with ANSI codes */
   color: boolean;
+  /** Definitions of the project's steps, for their labels. @default the built-in steps */
+  steps?: readonly AnyNodeDefinition[];
 }
 
 const took = (ms: number) =>
@@ -29,9 +32,11 @@ export class FlowReporter {
   private readonly paint: (code: number, text: string) => string;
   private readonly nodes: Map<string, FlowNodeModel>;
   private readonly flow: FlowFile;
+  private readonly steps: readonly AnyNodeDefinition[];
   private started = Date.now();
 
-  constructor({ flow, write, color }: FlowReporterOptions) {
+  constructor({ flow, write, color, steps }: FlowReporterOptions) {
+    this.steps = steps ?? STEP_NODES;
     this.flow = flow;
     this.write = write;
     this.paint = (code, text) =>
@@ -56,7 +61,7 @@ export class FlowReporter {
     try {
       label = nodeDef(node.kind).label;
     } catch {
-      label = STEP_NODES.find((d) => d.kind === node.kind)?.label ?? node.kind;
+      label = this.steps.find((d) => d.kind === node.kind)?.label ?? node.kind;
     }
     const base = node.title || label;
     const wrote = result.wrote ? Object.keys(result.wrote) : [];
