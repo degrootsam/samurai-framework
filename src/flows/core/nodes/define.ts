@@ -108,6 +108,10 @@ export interface NodeCoreDefinition<
   fields: readonly Field[];
   /** The node can write outputs (shared-context variables) */
   outputs?: boolean;
+  /** A step's output names: readable later as `nodes.<key>.<name>` */
+  results?: readonly string[];
+  /** The path of the field holding the name of a variable the node writes (`vars.<name>`) */
+  writesVar?: string;
   /** The node has an "on failure" choice */
   onFailure?: boolean;
   /** Pure: problems with this node alone. `node.config` has the field defaults filled in. */
