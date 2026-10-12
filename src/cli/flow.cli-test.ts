@@ -153,6 +153,29 @@ describe("samurai flow", () => {
     assert.equal(typeof rep.durationMs, "number");
   });
 
+  it("run names a step from the project's config by its label", async () => {
+    const STEPS_ENTRY = JSON.stringify(
+      path.resolve(previous, "src/flows/steps/index.ts"),
+    );
+    write(
+      "samurai.config.ts",
+      `import { defineStep } from ${STEPS_ENTRY};
+export default {
+  environments: { dev: { variables: { region: "us" } } },
+  steps: [defineStep({ kind: "shout", label: "Shout", icon: "code", section: "control", fields: [], async run() {} })],
+};
+`,
+    );
+    write(
+      "flows/loud.flow.json",
+      flowJson("loud", [{ id: "s", kind: "shout" }]),
+    );
+    const o = io();
+    const code = await main(["flow", "run", "loud"], o.target);
+    assert.equal(code, 0, o.err() + o.out());
+    assert.match(o.out(), /Shout/);
+  });
+
   it("run takes a path, and --json prints one FlowEvent per line", async () => {
     const r = io();
     assert.equal(

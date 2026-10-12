@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { FlowFile } from "../flows/core/index.js";
 import type { FlowEvent } from "../flows/run/events.js";
+import { defineStep, stepNode } from "../flows/steps/index.js";
 import { FlowReporter } from "./flow-reporter.js";
 
 const node = (id: string, kind: string, title?: string) => ({
@@ -115,5 +116,32 @@ describe("FlowReporter", () => {
     });
     assert.match(text, /Cancelled/);
     assert.match(text, /0 passed, 2 not run/);
+  });
+});
+
+describe("project steps", () => {
+  it("an untitled project step is named by its label", () => {
+    const shout = defineStep({
+      kind: "shout",
+      label: "Shout",
+      icon: "code",
+      section: "control",
+      fields: [],
+      async run() {},
+    });
+    const f: FlowFile = { ...flow, nodes: [node("s", "shout")] };
+    let text = "";
+    const reporter = new FlowReporter({
+      flow: f,
+      write: (t) => (text += t),
+      color: false,
+      steps: [stepNode(shout)],
+    });
+    reporter.handle({
+      type: "node-end",
+      nodeId: "s",
+      result: { status: "passed", durationMs: 1 },
+    });
+    assert.match(text, /Shout/);
   });
 });
