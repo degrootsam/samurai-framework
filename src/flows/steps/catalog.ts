@@ -5,20 +5,17 @@ import type {
   StepInfo,
 } from "../core/index.js";
 import type { Handler } from "../run/handlers/support.js";
-import { api } from "./api.js";
-import { infoOf, stepNode, type StepDefinition } from "./define.js";
-import { stepHandler } from "./handler.js";
-import { setVariable } from "./set-variable.js";
-import { wait } from "./wait.js";
+import { infoOf, type StepDefinition } from "./define.js";
+import { BUILTIN_SET, BUILTIN_STEPS } from "./set.js";
 
 /** The built-in steps, in library order */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const STEPS: readonly StepDefinition<any>[] = [wait, setVariable, api];
+export const STEPS: readonly StepDefinition<any>[] = BUILTIN_STEPS;
 
-export const STEP_NODES: readonly AnyNodeDefinition[] = STEPS.map(stepNode);
+export const STEP_NODES: readonly AnyNodeDefinition[] = BUILTIN_SET.nodes;
 
 export const STEP_HANDLERS: Readonly<Record<string, Handler>> =
-  Object.fromEntries(STEPS.map((s) => [s.kind, stepHandler(s)]));
+  BUILTIN_SET.handlers;
 
 /** The steps as data, for the app */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

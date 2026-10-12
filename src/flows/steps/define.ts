@@ -52,11 +52,10 @@ export interface StepDefinition<C = Record<string, unknown>> extends StepInfo {
   run: (input: StepRunInput<C>) => Promise<StepResult | void>;
 }
 
-/** Declares a flow step: one way in, one way out. Throws for a definition that can't work. */
-export function defineStep<const F extends readonly StepField[]>(
-  def: Omit<StepDefinition<RunConfigOf<F>>, "fields"> & { fields: F },
-): StepDefinition<RunConfigOf<F>> {
-  const name = `Step "${def.kind}"`;
+/** The checks every step passes: in `defineStep`, and again when a project lists it. Throws for a step that can't work. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function checkStep(def: StepDefinition<any>, where = ""): void {
+  const name = `Step "${def.kind}"${where}`;
   if (CLOSED_KINDS.includes(def.kind))
     throw new Error(
       `${name}: "${def.kind}" is a closed kind; steps can't replace it.`,
@@ -65,6 +64,8 @@ export function defineStep<const F extends readonly StepField[]>(
     throw new Error(
       `${name}: "${def.kind}" isn't a valid step kind. Use lowercase letters, digits and -.`,
     );
+  if (!Array.isArray(def.fields))
+    throw new Error(`${name}: fields must be a list.`);
   for (const f of def.fields) {
     if (!f.path.startsWith("config."))
       throw new Error(`${name}: field "${f.path}" must be a config. path.`);
@@ -91,6 +92,16 @@ export function defineStep<const F extends readonly StepField[]>(
     throw new Error(
       `${name}: writesVar "${def.writesVar}" isn't one of its fields.`,
     );
+  if (typeof def.run !== "function")
+    throw new Error(`${name}: run must be a function.`);
+}
+
+/** Declares a flow step: one way in, one way out. Throws for a definition that can't work. */
+export function defineStep<const F extends readonly StepField[]>(
+  def: Omit<StepDefinition<RunConfigOf<F>>, "fields"> & { fields: F },
+): StepDefinition<RunConfigOf<F>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  checkStep(def as StepDefinition<any>);
   return def;
 }
 
