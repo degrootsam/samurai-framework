@@ -4,6 +4,7 @@ export const setVariable = defineNode({
   kind: "set-variable",
   label: "Set variable",
   shape: "step",
+  writesVar: "config.name",
   fields: [
     {
       path: "config.name",

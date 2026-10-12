@@ -265,7 +265,7 @@ describe("checkFlow", () => {
 
   test("an unknown kind is a problem, not a throw", () => {
     const flow = chain([{ kind: "teleport" }]);
-    assert.deepEqual(messages(flow), ["Unknown node kind: teleport"]);
+    assert.deepEqual(messages(flow), ["Unknown step: teleport"]);
   });
 });
 

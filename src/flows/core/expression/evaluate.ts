@@ -5,7 +5,10 @@ export interface ExpressionContext {
   vars: Record<string, unknown>;
   nodes: Record<
     string,
-    { status: string; durationMs?: number; error?: string }
+    { status: string; durationMs?: number; error?: string } & Record<
+      string,
+      unknown
+    >
   >;
   run: { environment: string; trigger: string; startedAt: string };
 }

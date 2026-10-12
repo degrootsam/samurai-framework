@@ -37,19 +37,25 @@ export interface CheckOptions {
    * The SAMURAI app passes the editor's titles (a Test node shows its test's name).
    */
   titles?: (node: FlowNodeModel) => string | undefined;
+  /** Definitions of kinds core doesn't have (steps). A node of a kind in neither is "Unknown step". */
+  nodes?: readonly AnyNodeDefinition[];
 }
 
 /** What the node is called in a message: its title, else its key, else its kind's label */
 const titleOf = (node: FlowNodeModel, def: AnyNodeDefinition | undefined) =>
   node.title || node.key || def?.label || node.kind;
 
-const defOf = (kind: string): AnyNodeDefinition | undefined => {
-  try {
-    return nodeDef(kind);
-  } catch {
-    return undefined;
-  }
-};
+const definitions =
+  (nodes: readonly AnyNodeDefinition[] = []) =>
+  (kind: string): AnyNodeDefinition | undefined =>
+    nodes.find((d) => d.kind === kind) ??
+    (() => {
+      try {
+        return nodeDef(kind);
+      } catch {
+        return undefined;
+      }
+    })();
 
 /** Node ids in the order a run reaches them: from Start, following edges */
 function reachableFrom(flow: FlowFile, startId: string | undefined) {
@@ -77,6 +83,7 @@ export function checkFlow(
   flow: FlowFile,
   options: CheckOptions = {},
 ): FlowProblem[] {
+  const defOf = definitions(options.nodes);
   const problems: FlowProblem[] = [];
   const tests = options.tests ? new Set(options.tests) : undefined;
   const groups = options.groups ? new Set(options.groups) : undefined;
@@ -87,7 +94,7 @@ export function checkFlow(
       problems.push({
         level: "error",
         nodeId: n.id,
-        message: `Unknown node kind: ${n.kind}`,
+        message: `Unknown step: ${n.kind}`,
       });
 
   const starts = flow.nodes.filter((n) => shapeOf(n) === "start");
@@ -190,9 +197,11 @@ export function checkFlow(
     else seen.set(n.key, n.id);
   }
 
-  problems.push(...emptyExpressions(flow));
+  problems.push(...emptyExpressions(flow, defOf));
   if (options.environment)
-    problems.push(...expressionProblems(flow, options.environment));
+    problems.push(
+      ...expressionProblems(flow, options.environment, options.nodes),
+    );
 
   const nodeCount = flow.nodes.filter((n) => {
     const s = shapeOf(n);
@@ -216,7 +225,10 @@ export function checkFlow(
 }
 
 /** Every expression field left empty: it would stop the run at its node */
-function emptyExpressions(flow: FlowFile): FlowProblem[] {
+function emptyExpressions(
+  flow: FlowFile,
+  defOf: (kind: string) => AnyNodeDefinition | undefined,
+): FlowProblem[] {
   return flow.nodes.flatMap((n) => {
     const def = defOf(n.kind);
     if (!def) return [];
@@ -240,7 +252,9 @@ function emptyExpressions(flow: FlowFile): FlowProblem[] {
 export function expressionProblems(
   flow: FlowFile,
   environment: { name: string; variables: Record<string, unknown> },
+  nodes: readonly AnyNodeDefinition[] = [],
 ): FlowProblem[] {
+  const defOf = definitions(nodes);
   return flow.nodes.flatMap((n) => {
     const def = defOf(n.kind);
     if (!def) return [];
@@ -249,7 +263,10 @@ export function expressionProblems(
       .flatMap((f) => {
         const text = getPath(n, f.path);
         if (typeof text !== "string" || text.trim() === "") return [];
-        const problem = problemOf(text, scopeAt(flow, n.id, environment));
+        const problem = problemOf(
+          text,
+          scopeAt(flow, n.id, environment, nodes),
+        );
         return problem
           ? [
               {
