@@ -17,7 +17,10 @@ export function stepHandler(step: StepDefinition<any>): Handler {
       const problem = problemAt(node, run, text);
       if (problem) return { status: "failed", error: problem };
       try {
-        config[f.path.slice("config.".length)] = evaluateText(text, run.context);
+        config[f.path.slice("config.".length)] = evaluateText(
+          text,
+          run.context,
+        );
       } catch (e) {
         return fail(e);
       }
@@ -26,7 +29,9 @@ export function stepHandler(step: StepDefinition<any>): Handler {
     // A step that ignores the signal must not hold the run: Stop wins the race
     const stopped = new Promise<"stopped">((resolve) => {
       if (run.signal.aborted) resolve("stopped");
-      run.signal.addEventListener("abort", () => resolve("stopped"), { once: true });
+      run.signal.addEventListener("abort", () => resolve("stopped"), {
+        once: true,
+      });
     });
     let result: StepResult | void | "stopped";
     try {
@@ -35,7 +40,11 @@ export function stepHandler(step: StepDefinition<any>): Handler {
           config,
           env: { ...run.context.env },
           vars: { ...run.context.vars },
-          node: { id: node.id, ...(node.key && { key: node.key }), ...(node.title && { title: node.title }) },
+          node: {
+            id: node.id,
+            ...(node.key && { key: node.key }),
+            ...(node.title && { title: node.title }),
+          },
           signal: run.signal,
           sleep: (ms) => run.sleep(ms, run.signal),
           log: (level, text) => run.log(node.id, level, text),
@@ -51,11 +60,17 @@ export function stepHandler(step: StepDefinition<any>): Handler {
     const declared = new Set((step.outputs ?? []).map((o) => o.name));
     const extra = keysOf(result?.outputs).filter((k) => !declared.has(k));
     if (extra.length)
-      return { status: "failed", error: `${step.label} returned outputs it doesn't declare: ${extra.join(", ")}.` };
+      return {
+        status: "failed",
+        error: `${step.label} returned outputs it doesn't declare: ${extra.join(", ")}.`,
+      };
     const allowed = step.writesVar ? getPath(typed, step.writesVar) : undefined;
     const wrongVars = keysOf(result?.vars).filter((k) => k !== allowed);
     if (wrongVars.length)
-      return { status: "failed", error: `${step.label} wrote variables it doesn't declare: ${wrongVars.join(", ")}.` };
+      return {
+        status: "failed",
+        error: `${step.label} wrote variables it doesn't declare: ${wrongVars.join(", ")}.`,
+      };
 
     Object.assign(run.context.vars, result?.vars);
     return {

@@ -1,4 +1,9 @@
-import type { AnyNodeDefinition, FlowFile, FlowProblem, StepInfo } from "../core/index.js";
+import type {
+  AnyNodeDefinition,
+  FlowFile,
+  FlowProblem,
+  StepInfo,
+} from "../core/index.js";
 import type { Handler } from "../run/handlers/support.js";
 import { api } from "./api.js";
 import { infoOf, stepNode, type StepDefinition } from "./define.js";
@@ -12,14 +17,14 @@ export const STEPS: readonly StepDefinition<any>[] = [wait, setVariable, api];
 
 export const STEP_NODES: readonly AnyNodeDefinition[] = STEPS.map(stepNode);
 
-export const STEP_HANDLERS: Readonly<Record<string, Handler>> = Object.fromEntries(
-  STEPS.map((s) => [s.kind, stepHandler(s)]),
-);
+export const STEP_HANDLERS: Readonly<Record<string, Handler>> =
+  Object.fromEntries(STEPS.map((s) => [s.kind, stepHandler(s)]));
 
 /** The steps as data, for the app */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const stepCatalog = (steps: readonly StepDefinition<any>[] = STEPS): StepInfo[] =>
-  steps.map(infoOf);
+export const stepCatalog = (
+  steps: readonly StepDefinition<any>[] = STEPS,
+): StepInfo[] => steps.map(infoOf);
 
 /** The project's steps; the built-in ones for now (test-project steps come later) */
 export async function listSteps(): Promise<StepInfo[]> {
@@ -38,7 +43,18 @@ export function validateSteps(
     if (!step?.validate) return [];
     const def = STEP_NODES.find((d) => d.kind === n.kind)!;
     return step.validate(
-      { ...n, config: { ...Object.fromEntries(step.fields.map((f) => [f.path.slice(7), "default" in f ? f.default : undefined])), ...n.config } },
+      {
+        ...n,
+        config: {
+          ...Object.fromEntries(
+            step.fields.map((f) => [
+              f.path.slice(7),
+              "default" in f ? f.default : undefined,
+            ]),
+          ),
+          ...n.config,
+        },
+      },
       { label: def.label, tests, groups },
     );
   });

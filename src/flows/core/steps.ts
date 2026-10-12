@@ -41,7 +41,11 @@ export interface StepInfo {
 
 export const STEP_KIND = /^[a-z][a-z0-9-]*$/;
 /** A node's own result fields: an output can't take these names */
-export const RESERVED_OUTPUTS: readonly string[] = ["status", "durationMs", "error"];
+export const RESERVED_OUTPUTS: readonly string[] = [
+  "status",
+  "durationMs",
+  "error",
+];
 
 const TITLE_FIELDS: readonly Field[] = [
   { path: "title", type: "text", label: "Title" },
@@ -59,7 +63,11 @@ export function fieldProblems(
 ): FlowProblem[] {
   const problems: FlowProblem[] = [];
   const add = (message: string) =>
-    problems.push({ level: "error", nodeId: node.id, message: `${label}: ${message}` });
+    problems.push({
+      level: "error",
+      nodeId: node.id,
+      message: `${label}: ${message}`,
+    });
   for (const f of fields) {
     const name = f.label ?? f.path;
     const value = getPath(node, f.path);
@@ -68,10 +76,17 @@ export function fieldProblems(
       continue;
     }
     if (typeof value === "number") {
-      if (f.min !== undefined && value < f.min) add(`${name} must be at least ${f.min}.`);
-      if (f.max !== undefined && value > f.max) add(`${name} must be at most ${f.max}.`);
+      if (f.min !== undefined && value < f.min)
+        add(`${name} must be at least ${f.min}.`);
+      if (f.max !== undefined && value > f.max)
+        add(`${name} must be at most ${f.max}.`);
     }
-    if (f.pattern && typeof value === "string" && value !== "" && !new RegExp(f.pattern).test(value))
+    if (
+      f.pattern &&
+      typeof value === "string" &&
+      value !== "" &&
+      !new RegExp(f.pattern).test(value)
+    )
       add(f.patternMessage ?? `${name} doesn't match ${f.pattern}.`);
   }
   return problems;

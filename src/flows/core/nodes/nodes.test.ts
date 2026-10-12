@@ -15,14 +15,7 @@ import {
   withDefaults,
 } from "./index.js";
 
-const KINDS = [
-  "start",
-  "end",
-  "test",
-  "group",
-  "condition",
-  "parallel",
-];
+const KINDS = ["start", "end", "test", "group", "condition", "parallel"];
 
 const node = (kind: string, extra: Partial<FlowNodeModel> = {}) =>
   ({
@@ -67,7 +60,10 @@ describe("node registry", () => {
       { expr: "" },
     );
     assert.deepEqual(
-      withDefaults(nodeDef("condition"), node("condition", { config: { expr: "x" } })).config,
+      withDefaults(
+        nodeDef("condition"),
+        node("condition", { config: { expr: "x" } }),
+      ).config,
       { expr: "x" },
     );
   });

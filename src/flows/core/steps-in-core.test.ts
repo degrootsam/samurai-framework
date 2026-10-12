@@ -7,20 +7,42 @@ import type { FlowFile } from "./schema.js";
 import { stepNodeOf } from "./steps.js";
 
 const setter = stepNodeOf({
-  kind: "setter", label: "Setter", icon: "braces", section: "control",
-  fields: [{ path: "config.name", type: "text", label: "Name", default: "", required: true }],
+  kind: "setter",
+  label: "Setter",
+  icon: "braces",
+  section: "control",
+  fields: [
+    {
+      path: "config.name",
+      type: "text",
+      label: "Name",
+      default: "",
+      required: true,
+    },
+  ],
   writesVar: "config.name",
 });
 const fetcher = stepNodeOf({
-  kind: "fetcher", label: "Fetcher", icon: "globe", section: "integrations",
-  fields: [{ path: "config.url", type: "expression", label: "URL", default: "" }],
+  kind: "fetcher",
+  label: "Fetcher",
+  icon: "globe",
+  section: "integrations",
+  fields: [
+    { path: "config.url", type: "expression", label: "URL", default: "" },
+  ],
   outputs: [{ name: "code" }],
 });
 const at = (id: string, kind: string, extra: object = {}) => ({
-  id, key: id, kind, onFailure: "stop" as const, position: { x: 0, y: 0 }, ...extra,
+  id,
+  key: id,
+  kind,
+  onFailure: "stop" as const,
+  position: { x: 0, y: 0 },
+  ...extra,
 });
 const flow: FlowFile = {
-  id: "f", name: "f",
+  id: "f",
+  name: "f",
   nodes: [
     at("start", "start"),
     at("s", "setter", { config: { name: "order" } }),
@@ -51,18 +73,37 @@ describe("kinds core wasn't built with", () => {
     assert.deepEqual(scope.vars, ["order"]);
     assert.deepEqual(scope.outputs, { f1: ["code"] });
     assert.equal(problemOf("nodes.f1.code == 200", scope), undefined);
-    assert.equal(problemOf("nodes.f1.body", scope)?.message,
-      "nodes.f1.body doesn't exist. Use status, durationMs, error or code");
+    assert.equal(
+      problemOf("nodes.f1.body", scope)?.message,
+      "nodes.f1.body doesn't exist. Use status, durationMs, error or code",
+    );
   });
 
   test("checkFlow with the definitions: clean; without them: unknown steps", () => {
-    assert.deepEqual(checkFlow(flow, { environment: env, nodes: [setter, fetcher] }), []);
-    const unknown = checkFlow(flow, { environment: env }).filter((p) => p.message.startsWith("Unknown step"));
-    assert.deepEqual(unknown.map((p) => p.message), ["Unknown step: setter", "Unknown step: fetcher"]);
+    assert.deepEqual(
+      checkFlow(flow, { environment: env, nodes: [setter, fetcher] }),
+      [],
+    );
+    const unknown = checkFlow(flow, { environment: env }).filter((p) =>
+      p.message.startsWith("Unknown step"),
+    );
+    assert.deepEqual(
+      unknown.map((p) => p.message),
+      ["Unknown step: setter", "Unknown step: fetcher"],
+    );
   });
 
   test("checkFlow applies a step's field rules", () => {
-    const empty = { ...flow, nodes: flow.nodes.map((n) => (n.id === "s" ? { ...n, config: { name: "" } } : n)) };
-    assert.ok(checkFlow(empty, { nodes: [setter, fetcher] }).some((p) => p.message === "Setter: Name is required."));
+    const empty = {
+      ...flow,
+      nodes: flow.nodes.map((n) =>
+        n.id === "s" ? { ...n, config: { name: "" } } : n,
+      ),
+    };
+    assert.ok(
+      checkFlow(empty, { nodes: [setter, fetcher] }).some(
+        (p) => p.message === "Setter: Name is required.",
+      ),
+    );
   });
 });

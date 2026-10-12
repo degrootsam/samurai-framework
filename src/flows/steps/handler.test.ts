@@ -18,43 +18,102 @@ const echo = defineStep({
   outputs: [{ name: "value" }],
   writesVar: "config.name",
   async run({ config }) {
-    return { outputs: { value: config.value }, ...(config.name ? { vars: { [config.name]: config.value } } : {}) };
+    return {
+      outputs: { value: config.value },
+      ...(config.name ? { vars: { [config.name]: config.value } } : {}),
+    };
   },
 });
 
 const at = (id: string, kind: string, config?: Record<string, unknown>) => ({
-  id, key: id, kind, onFailure: "stop" as const, position: { x: 0, y: 0 }, ...(config ? { config } : {}),
+  id,
+  key: id,
+  kind,
+  onFailure: "stop" as const,
+  position: { x: 0, y: 0 },
+  ...(config ? { config } : {}),
 });
 const chain = (...nodes: ReturnType<typeof at>[]): FlowFile => ({
-  id: "f", name: "f", nodes: [at("start", "start"), ...nodes, at("end", "end")],
-  edges: ["start", ...nodes.map((n) => n.id), "end"].slice(1).map((id, i, all) => ({
-    id: `e${i}`, source: i === 0 ? "start" : all[i - 1]!, target: id,
-  })),
+  id: "f",
+  name: "f",
+  nodes: [at("start", "start"), ...nodes, at("end", "end")],
+  edges: ["start", ...nodes.map((n) => n.id), "end"]
+    .slice(1)
+    .map((id, i, all) => ({
+      id: `e${i}`,
+      source: i === 0 ? "start" : all[i - 1]!,
+      target: id,
+    })),
 });
-const run = (flow: FlowFile, // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  steps: StepDefinition<any>[] = [echo], signal?: AbortSignal) =>
+const run = (
+  flow: FlowFile, // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  steps: StepDefinition<any>[] = [echo],
+  signal?: AbortSignal,
+) =>
   runFlow({
     flow,
     nodeTests: {},
     environment: { name: "dev", variables: { base: 2 } },
     runTests: async () => "passed",
     sleep: async () => {},
-    handlers: { ...HANDLERS, ...Object.fromEntries(steps.map((s) => [s.kind, stepHandler(s)])) },
+    handlers: {
+      ...HANDLERS,
+      ...Object.fromEntries(steps.map((s) => [s.kind, stepHandler(s)])),
+    },
     nodes: steps.map(stepNode),
     ...(signal && { signal }),
   });
 
 describe("defineStep", () => {
-  const base = { label: "X", icon: "code", section: "control" as const, fields: [], run: async () => {} };
+  const base = {
+    label: "X",
+    icon: "code",
+    section: "control" as const,
+    fields: [],
+    run: async () => {},
+  };
   test("refuses closed kinds, bad names, non-config paths, reserved and duplicate outputs, a writesVar that isn't a field", () => {
-    assert.throws(() => defineStep({ ...base, kind: "condition" }), /closed kind/);
-    assert.throws(() => defineStep({ ...base, kind: "Bad_Kind" }), /isn't a valid step kind/);
-    assert.throws(() => defineStep({ ...base, kind: "x", fields: [{ path: "title", type: "text" }] }), /config\./);
-    assert.throws(() => defineStep({ ...base, kind: "x", outputs: [{ name: "status" }] }), /reserved/);
-    assert.throws(() => defineStep({ ...base, kind: "x", outputs: [{ name: "a" }, { name: "a" }] }), /twice/);
-    assert.throws(() => defineStep({ ...base, kind: "x", writesVar: "config.nope" }), /writesVar/);
     assert.throws(
-      () => defineStep({ ...base, kind: "x", fields: [{ path: "config.a", type: "text", pattern: "(" }] }),
+      () => defineStep({ ...base, kind: "condition" }),
+      /closed kind/,
+    );
+    assert.throws(
+      () => defineStep({ ...base, kind: "Bad_Kind" }),
+      /isn't a valid step kind/,
+    );
+    assert.throws(
+      () =>
+        defineStep({
+          ...base,
+          kind: "x",
+          fields: [{ path: "title", type: "text" }],
+        }),
+      /config\./,
+    );
+    assert.throws(
+      () => defineStep({ ...base, kind: "x", outputs: [{ name: "status" }] }),
+      /reserved/,
+    );
+    assert.throws(
+      () =>
+        defineStep({
+          ...base,
+          kind: "x",
+          outputs: [{ name: "a" }, { name: "a" }],
+        }),
+      /twice/,
+    );
+    assert.throws(
+      () => defineStep({ ...base, kind: "x", writesVar: "config.nope" }),
+      /writesVar/,
+    );
+    assert.throws(
+      () =>
+        defineStep({
+          ...base,
+          kind: "x",
+          fields: [{ path: "config.a", type: "text", pattern: "(" }],
+        }),
       /valid regular expression/,
     );
   });
@@ -76,23 +135,48 @@ describe("stepHandler", () => {
   });
 
   test("a throw fails the node with its message", async () => {
-    const boom = defineStep({ kind: "boom", label: "Boom", icon: "code", section: "control", fields: [],
-      async run() { throw new Error("no luck"); } });
+    const boom = defineStep({
+      kind: "boom",
+      label: "Boom",
+      icon: "code",
+      section: "control",
+      fields: [],
+      async run() {
+        throw new Error("no luck");
+      },
+    });
     const s = await run(chain(at("x", "boom")), [boom]);
     assert.equal(s.nodes.x!.status, "failed");
     assert.equal(s.nodes.x!.error, "no luck");
   });
 
   test("undeclared outputs and variables fail the node", async () => {
-    const sneaky = defineStep({ kind: "sneaky", label: "Sneaky", icon: "code", section: "control", fields: [],
-      async run() { return { outputs: { other: 1 } }; } });
+    const sneaky = defineStep({
+      kind: "sneaky",
+      label: "Sneaky",
+      icon: "code",
+      section: "control",
+      fields: [],
+      async run() {
+        return { outputs: { other: 1 } };
+      },
+    });
     const s = await run(chain(at("x", "sneaky")), [sneaky]);
-    assert.equal(s.nodes.x!.error, "Sneaky returned outputs it doesn't declare: other.");
+    assert.equal(
+      s.nodes.x!.error,
+      "Sneaky returned outputs it doesn't declare: other.",
+    );
   });
 
   test("a step that ignores the stop signal still ends cancelled at once (Review Focus 1)", async () => {
-    const stuck = defineStep({ kind: "stuck", label: "Stuck", icon: "code", section: "control", fields: [],
-      run: () => new Promise(() => {}) });
+    const stuck = defineStep({
+      kind: "stuck",
+      label: "Stuck",
+      icon: "code",
+      section: "control",
+      fields: [],
+      run: () => new Promise(() => {}),
+    });
     const abort = new AbortController();
     setTimeout(() => abort.abort(), 20);
     const began = Date.now();

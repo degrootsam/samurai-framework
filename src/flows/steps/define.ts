@@ -19,7 +19,9 @@ type RunValueOf<F> = F extends { type: "expression" }
 
 /** `config` as `run` sees it: expression fields arrive evaluated */
 export type RunConfigOf<F extends readonly StepField[]> = {
-  [K in F[number] as K["path"] extends `config.${infer P}` ? P : never]: RunValueOf<K>;
+  [
+    K in F[number] as K["path"] extends `config.${infer P}` ? P : never
+  ]: RunValueOf<K>;
 };
 
 export interface StepRunInput<C> {
@@ -56,9 +58,13 @@ export function defineStep<const F extends readonly StepField[]>(
 ): StepDefinition<RunConfigOf<F>> {
   const name = `Step "${def.kind}"`;
   if (CLOSED_KINDS.includes(def.kind))
-    throw new Error(`${name}: "${def.kind}" is a closed kind; steps can't replace it.`);
+    throw new Error(
+      `${name}: "${def.kind}" is a closed kind; steps can't replace it.`,
+    );
   if (!STEP_KIND.test(def.kind))
-    throw new Error(`${name}: "${def.kind}" isn't a valid step kind. Use lowercase letters, digits and -.`);
+    throw new Error(
+      `${name}: "${def.kind}" isn't a valid step kind. Use lowercase letters, digits and -.`,
+    );
   for (const f of def.fields) {
     if (!f.path.startsWith("config."))
       throw new Error(`${name}: field "${f.path}" must be a config. path.`);
@@ -66,17 +72,25 @@ export function defineStep<const F extends readonly StepField[]>(
       try {
         new RegExp(f.pattern);
       } catch {
-        throw new Error(`${name}: field "${f.path}" has a pattern that isn't a valid regular expression.`);
+        throw new Error(
+          `${name}: field "${f.path}" has a pattern that isn't a valid regular expression.`,
+        );
       }
   }
   const outputs = (def.outputs ?? []).map((o) => o.name);
   for (const o of outputs) {
-    if (RESERVED_OUTPUTS.includes(o)) throw new Error(`${name}: output "${o}" is reserved.`);
+    if (RESERVED_OUTPUTS.includes(o))
+      throw new Error(`${name}: output "${o}" is reserved.`);
     if (outputs.indexOf(o) !== outputs.lastIndexOf(o))
       throw new Error(`${name}: output "${o}" is declared twice.`);
   }
-  if (def.writesVar !== undefined && !def.fields.some((f) => f.path === def.writesVar))
-    throw new Error(`${name}: writesVar "${def.writesVar}" isn't one of its fields.`);
+  if (
+    def.writesVar !== undefined &&
+    !def.fields.some((f) => f.path === def.writesVar)
+  )
+    throw new Error(
+      `${name}: writesVar "${def.writesVar}" isn't one of its fields.`,
+    );
   return def;
 }
 
