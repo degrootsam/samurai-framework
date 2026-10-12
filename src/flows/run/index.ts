@@ -12,6 +12,7 @@ export {
   readFlows,
 } from "./files.js";
 export * from "./report.js";
+export { projectSteps, type StepSet } from "../steps/set.js";
 export {
   FlowCheckError,
   checkFlowInProject,

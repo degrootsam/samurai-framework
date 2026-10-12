@@ -55,6 +55,20 @@ export async function loadConfig(): Promise<SamuraiTestConfig> {
   return config.default;
 }
 
+/** A project's config without keeping the project active (`withProject` is one at a time): the given one, else its samurai.config.ts */
+export async function projectConfig(options: {
+  projectDir?: string;
+  config?: SamuraiTestConfig;
+}): Promise<SamuraiTestConfig> {
+  if (options.config) return options.config;
+  setActiveProject({ dir: path.resolve(options.projectDir ?? process.cwd()) });
+  try {
+    return await loadConfig();
+  } finally {
+    setActiveProject(undefined);
+  }
+}
+
 export async function readConfig<K extends keyof SamuraiTestConfig>(
   key: K,
 ): Promise<SamuraiTestConfig[K]> {

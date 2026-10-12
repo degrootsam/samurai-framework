@@ -111,9 +111,9 @@ describe("built-in steps", () => {
     );
   });
 
-  test("validateSteps runs only the steps' own validate", () => {
+  test("validateSteps runs only the steps' own validate", async () => {
     assert.deepEqual(
-      validateSteps(
+      await validateSteps(
         chain(at("v", "set-variable", { name: "", value: "1" })),
         {},
       ),

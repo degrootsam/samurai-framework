@@ -1,5 +1,5 @@
 import path from "node:path";
-import { loadConfig, setActiveProject } from "../../config/config.js";
+import { projectConfig } from "../../config/config.js";
 import {
   checkFlow,
   withKeys,
@@ -19,7 +19,7 @@ import TestRunner from "../../runner/test-runner.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { FlowEvent, FlowSummary, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
-import { STEP_NODES } from "../steps/catalog.js";
+import { projectSteps } from "../steps/set.js";
 import { HANDLERS } from "./handlers/index.js";
 import { runFlow } from "./run.js";
 
@@ -51,17 +51,6 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
 
-/** Reads the project's config without keeping the project active (`withProject` is one at a time) */
-async function configOf(options: RunFlowInProjectOptions) {
-  if (options.config) return options.config;
-  setActiveProject({ dir: path.resolve(options.projectDir ?? process.cwd()) });
-  try {
-    return await loadConfig();
-  } finally {
-    setActiveProject(undefined);
-  }
-}
-
 /** The environment: the option, else the flow's `envDefault` (when the project has it), else the config's default, else the first, else "default" */
 export function chooseEnvironment(
   config: SamuraiTestConfig,
@@ -86,7 +75,8 @@ async function prepare(options: RunFlowInProjectOptions) {
   const unsupported = options.unsupported ?? "fail";
 
   // Config, environment, tests and groups (one project session, then it ends)
-  const config = await configOf({ ...options, projectDir });
+  const config = await projectConfig({ ...options, projectDir });
+  const steps = await projectSteps({ config });
   const name = chooseEnvironment(config, flow, options.environment);
   const environment = {
     name,
@@ -129,15 +119,19 @@ async function prepare(options: RunFlowInProjectOptions) {
     tests: tests.map((t) => t.id),
     groups: groups.map((g) => g.name),
     environment,
-    handled: new Set(Object.keys(HANDLERS)),
+    handled: new Set([
+      ...Object.keys(HANDLERS),
+      ...Object.keys(steps.handlers),
+    ]),
     unsupported,
-    nodes: STEP_NODES,
+    nodes: steps.nodes,
   });
   return {
     projectDir,
     flow,
     unsupported,
     config,
+    steps,
     name,
     environment,
     tests,
@@ -179,6 +173,7 @@ export async function runFlowInProject(
     flow,
     unsupported,
     config,
+    steps,
     name,
     environment,
     tests,
@@ -214,6 +209,8 @@ export async function runFlowInProject(
     ...(options.onEvent && { onEvent: options.onEvent }),
     ...(options.sleep && { sleep: options.sleep }),
     unsupported,
+    handlers: { ...HANDLERS, ...steps.handlers },
+    nodes: steps.nodes,
     runTests: async ({ tests, onEvent, signal }) => {
       const summary = await run({
         projectDir,

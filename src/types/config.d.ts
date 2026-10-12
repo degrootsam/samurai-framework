@@ -1,3 +1,4 @@
+import type { StepDefinition } from "../flows/steps/define.js";
 import type { SupportedBrowser } from "./browser.js";
 
 interface SamuraiTest {
@@ -57,6 +58,12 @@ export interface SamuraiTestConfig {
    * Define a group of test's you want to have executed with a certain configuration
    **/
   groups?: SamuraiGroup[];
+  /**
+   * Flow steps of this project, made with `defineStep`. Listed after the built-in steps;
+   * a kind a built-in or another step uses is refused.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  steps?: readonly StepDefinition<any>[];
   /**
    * The base URL to use when navigating the browser.
    * When recording starts, the browser will start at this URL.

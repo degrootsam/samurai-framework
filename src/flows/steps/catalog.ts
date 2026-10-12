@@ -6,7 +6,8 @@ import type {
 } from "../core/index.js";
 import type { Handler } from "../run/handlers/support.js";
 import { infoOf, type StepDefinition } from "./define.js";
-import { BUILTIN_SET, BUILTIN_STEPS } from "./set.js";
+import type { SamuraiTestConfig } from "../../types/config.js";
+import { BUILTIN_SET, BUILTIN_STEPS, projectSteps } from "./set.js";
 
 /** The built-in steps, in library order */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,22 +24,30 @@ export const stepCatalog = (
   steps: readonly StepDefinition<any>[] = STEPS,
 ): StepInfo[] => steps.map(infoOf);
 
-/** The project's steps; the built-in ones for now (test-project steps come later) */
-export async function listSteps(): Promise<StepInfo[]> {
-  return stepCatalog();
+/** The project's steps as data: the built-ins, then its config's. `projectDir` defaults to the working directory. */
+export async function listSteps(
+  options: { projectDir?: string; config?: SamuraiTestConfig } = {},
+): Promise<StepInfo[]> {
+  return (await projectSteps(options)).catalog;
 }
 
-/** Only the steps' own `validate` problems: the app checks everything else itself */
-export function validateSteps(
+/** Only the steps' own `validate` problems (the project's steps included): the app checks everything else itself */
+export async function validateSteps(
   flow: FlowFile,
-  options: { tests?: string[]; groups?: string[] },
-): FlowProblem[] {
+  options: {
+    tests?: string[];
+    groups?: string[];
+    projectDir?: string;
+    config?: SamuraiTestConfig;
+  },
+): Promise<FlowProblem[]> {
+  const set = await projectSteps(options);
   const tests = options.tests ? new Set(options.tests) : undefined;
   const groups = options.groups ? new Set(options.groups) : undefined;
   return flow.nodes.flatMap((n) => {
-    const step = STEPS.find((s) => s.kind === n.kind);
+    const step = set.steps.find((s) => s.kind === n.kind);
     if (!step?.validate) return [];
-    const def = STEP_NODES.find((d) => d.kind === n.kind)!;
+    const def = set.nodes.find((d) => d.kind === n.kind)!;
     return step.validate(
       {
         ...n,
