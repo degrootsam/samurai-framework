@@ -1,17 +1,15 @@
-import { UNSUPPORTED_KINDS } from "../../core/index.js";
+import { STEP_HANDLERS } from "../../steps/catalog.js";
 import { condition } from "./condition.js";
 import { end } from "./end.js";
 import { group } from "./group.js";
 import { parallel } from "./parallel.js";
-import { setVariable } from "./set-variable.js";
 import { start } from "./start.js";
 import type { Handler } from "./support.js";
 import { test } from "./test.js";
-import { wait } from "./wait.js";
 
 export type { Handler, HandlerRun, Outcome } from "./support.js";
 
-/** The kinds a run can execute, by kind */
+/** The kinds a run can execute, by kind: the closed ones and every built-in step */
 export const HANDLERS: Readonly<Record<string, Handler>> = {
   start,
   end,
@@ -19,9 +17,5 @@ export const HANDLERS: Readonly<Record<string, Handler>> = {
   group,
   condition,
   parallel,
-  wait,
-  "set-variable": setVariable,
+  ...STEP_HANDLERS,
 };
-
-/** Kinds that exist in `flows/core` and have no handler yet (core's one list) */
-export const UNSUPPORTED: readonly string[] = UNSUPPORTED_KINDS;
