@@ -123,7 +123,7 @@ samurai flow run <flow>... [options]    # run, in the order given
 samurai flow run --all [options]        # run every flow in ./flows, by file name
 ```
 
-A flow is an id (`flows/<id>.flow.json`) or a path to a `.flow.json` file. `run` takes `--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port` and `--json` like `samurai run`, plus `--allow-unsupported` (skip nodes that can't run yet instead of refusing the flow). `check` takes `--env`, `--allow-unsupported` and `--json`. `run` checks first and refuses a flow with errors; every run writes `result/flows/<id>.json`. Exit code: 0 passed, 1 a node failed or the run was cancelled (`check`: errors found), 2 usage, configuration or flow-file error. See [Flows](flows.md).
+A flow is an id (`flows/<id>.flow.json`) or a path to a `.flow.json` file. `run` takes `--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port` and `--json` like `samurai run`, plus `--allow-unsupported` (accepted, but every kind runs now, so it changes nothing). `check` takes `--env`, `--allow-unsupported` and `--json`. `run` checks first and refuses a flow with errors; every run writes `result/flows/<id>.json`. Exit code: 0 passed, 1 a node failed or the run was cancelled (`check`: errors found), 2 usage, configuration or flow-file error. See [Flows](flows.md).
 
 ## `samurai init [folder]`
 

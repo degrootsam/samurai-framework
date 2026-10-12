@@ -55,18 +55,17 @@ A flow's id is its file name without `.flow.json`. Everywhere a flow is asked fo
 | `condition`    | Condition      | Evaluates an expression and follows the `true` or the `false` branch; the other branch is skipped             | yes        |
 | `parallel`     | Parallel       | Walks each of its branches (one after the other today), ends when all are done and fails when a branch failed | yes        |
 | `wait`         | Wait           | Waits `ms` milliseconds (stopping the run ends the wait)                                                      | yes        |
-| `api`          | HTTP request   | -                                                                                                             | no         |
-| `database`     | Database query | -                                                                                                             | no         |
-| `email`        | Email inbox    | -                                                                                                             | no         |
-| `script`       | Script         | -                                                                                                             | no         |
+| `api`          | HTTP request   | Sends an HTTP request; outputs `statusCode` and `body` (see [Writing a step](steps.md))                       | yes        |
 
 Test and Group nodes launch the browser; every other node runs in-process.
 
-### Unsupported nodes
+Wait, Set variable and HTTP request are steps; see [Writing a step](steps.md).
 
-A kind that cannot run yet is an **error** in the command line: `samurai flow check` reports "HTTP request can't run yet" and `samurai flow run` refuses to start, so a green CI run never hides a skipped step. `--allow-unsupported` turns the error into a warning: those nodes are _skipped_ (note "Not supported yet") and the flow can still pass.
+### Unknown kinds
 
-`UNSUPPORTED_KINDS` (from the pure `flows` entry) lists these kinds, so a browser can warn about them without importing `flows/run`.
+A node whose kind is neither one of the kinds above nor a step the framework knows is an **error**: `samurai flow check` reports "Unknown step: <kind>" and `samurai flow run` refuses to start. This is what a flow file with an old kind, such as `database`, gets. Nothing is skipped.
+
+`--allow-unsupported` is still accepted, but every kind in a flow runs now, so it has nothing to skip.
 
 ### Checking a flow from code
 
@@ -87,7 +86,7 @@ Checks, without launching a browser: one Start and End, every node reachable, ev
 
 ```text
 checkout:
-  ✖ error   verify (Verify order): HTTP request can't run yet.
+  ✖ error   verify (Verify order): Unknown step: database
   ! warning pay (Pay): ...
 ```
 
@@ -110,9 +109,9 @@ Flow "Checkout" against staging
   ◇ Condition → true (1ms)
   ✖ Checkout with saved card (4.8s)
       expect(locator).toHaveText …
-  ⊘ Verify order (skipped: Not supported yet)
+  ✔ Verify order (210ms)
 
-1 failed, 2 passed, 1 skipped, 1 not run (8.4s)
+1 failed, 3 passed, 1 not run (8.4s)
 Report: result/flows/checkout.json
 ```
 
@@ -126,7 +125,7 @@ Ctrl+C or SIGTERM stops the run: the current test is aborted, the flow ends `can
 
 | Code | Meaning                                                                                                         |
 | ---- | --------------------------------------------------------------------------------------------------------------- |
-| 0    | Every node that should run passed (skipped nodes under `--allow-unsupported` do not fail a run)                 |
+| 0    | Every node that ran passed                                                                                      |
 | 1    | A node failed, or the run was cancelled; for `check`: a flow has errors                                         |
 | 2    | Usage, configuration or flow-file error, no flows folder, or `run` refused a flow that has errors (nothing ran) |
 
