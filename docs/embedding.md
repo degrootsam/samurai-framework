@@ -63,6 +63,7 @@ All options (besides the ones above): `config` (use this object instead of readi
 
 Things to know:
 
+- **The project config is TypeScript too.** `listSteps`, `validateSteps`, `checkFlowInProject` and `runFlowInProject` import the project's `samurai.config.ts` (and the project steps it lists), so the calling process needs the TypeScript loader for these as well. A long-lived process keeps the config as first imported (ES-module cache): start a fresh process to see edits.
 - **Specs are TypeScript.** The process that calls `runTests` must be able to import `.ts` files (`tsx` is an optional peer dependency of the package: install it in the app): run it under `tsx` (`node --import tsx ...`), or use a process whose Node strips types. The Electron main process can't, so run the framework in a child process and talk to it with messages (below).
 - **Specs are ES modules.** The project needs `"type": "module"` in its `package.json`; otherwise `runTests` refuses with a message saying so. A CommonJS spec would get second copies of the framework's classes, and `expect(locator)` would stop recognising locators.
 - **One run at a time per process.** Config, secrets and the test registry are process-wide; a second concurrent call throws. Use one child process per run for parallel runs.
@@ -107,7 +108,7 @@ See [Steps and the recorder](recorder.md) for the codec and the recorder.
 Run the framework in a **child process** (`child_process.fork` with `ELECTRON_RUN_AS_NODE=1` and tsx loaded, `cwd` set to the project), not inside the Electron main bundle:
 
 - the UI is CommonJS and the framework ESM-only, and the framework keeps process-wide state;
-- spec files need a TypeScript loader;
+- spec files and the project config (`samurai.config.ts`) need a TypeScript loader;
 - a crash or `process.exit` in a test can't take the app down.
 
 The child receives commands (`run`, `record`, `stop`, `abort`) and sends back `RunEvent`s and `RecorderEvent`s with `process.send`. The pure codec (`parseSpec`, `applyEdit`) can also run in the main process, imported dynamically. Such an engine entry point is not part of the package yet; see the [roadmap](roadmap.md).

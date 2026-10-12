@@ -111,11 +111,18 @@ describe("built-in steps", () => {
     );
   });
 
+  test("listSteps hands out a copy: mutating it does not corrupt later calls", async () => {
+    const first = await listSteps({ config: {} });
+    const count = first.length;
+    first.length = 0;
+    assert.equal((await listSteps({ config: {} })).length, count);
+  });
+
   test("validateSteps runs only the steps' own validate", async () => {
     assert.deepEqual(
       await validateSteps(
         chain(at("v", "set-variable", { name: "", value: "1" })),
-        {},
+        { config: {} },
       ),
       [],
     );

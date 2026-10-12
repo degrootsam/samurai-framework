@@ -61,11 +61,12 @@ export async function projectConfig(options: {
   config?: SamuraiTestConfig;
 }): Promise<SamuraiTestConfig> {
   if (options.config) return options.config;
+  const previous = activeProject;
   setActiveProject({ dir: path.resolve(options.projectDir ?? process.cwd()) });
   try {
     return await loadConfig();
   } finally {
-    setActiveProject(undefined);
+    setActiveProject(previous);
   }
 }
 
