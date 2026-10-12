@@ -9,6 +9,7 @@ import {
   type FlowSummary,
   type NodeResult,
 } from "../flows/run/index.js";
+import { STEP_NODES } from "../flows/steps/index.js";
 
 export interface FlowReporterOptions {
   flow: FlowFile;
@@ -55,7 +56,7 @@ export class FlowReporter {
     try {
       label = nodeDef(node.kind).label;
     } catch {
-      label = node.kind;
+      label = STEP_NODES.find((d) => d.kind === node.kind)?.label ?? node.kind;
     }
     const base = node.title || label;
     const wrote = result.wrote ? Object.keys(result.wrote) : [];

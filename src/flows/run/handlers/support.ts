@@ -2,6 +2,7 @@ import {
   checkExpression,
   parseExpression,
   scopeAt,
+  type AnyNodeDefinition,
   type ExpressionContext,
   type FlowFile,
   type FlowNodeModel,
@@ -22,6 +23,9 @@ export interface HandlerRun {
   ) => Promise<"passed" | "failed" | "cancelled">;
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   onTestEvent: (nodeId: string, e: RunEvent) => void;
+  /** Definitions of kinds core doesn't have (steps), for expression scopes */
+  nodes: readonly AnyNodeDefinition[];
+  log: (nodeId: string, level: "info" | "warn" | "error", text: string) => void;
 }
 
 /** What a handler decides; the walker adds timing */
@@ -60,5 +64,5 @@ export async function runNodeTests(
 export const problemAt = (node: FlowNodeModel, run: HandlerRun, text: string) =>
   checkExpression(
     parseExpression(text),
-    scopeAt(run.flow, node.id, run.environment),
+    scopeAt(run.flow, node.id, run.environment, run.nodes),
   )?.message;

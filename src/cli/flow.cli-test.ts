@@ -50,7 +50,6 @@ const SET: N = {
   kind: "set-variable",
   config: { name: "order", value: "42" },
 };
-const API_NODE: N = { id: "http", kind: "api" };
 
 let dir: string;
 let previous: string;
@@ -106,22 +105,6 @@ describe("samurai flow", () => {
     const r = io();
     assert.equal(await main(["flow", "check", "a-good"], r.target), 0);
     assert.match(r.out(), /a-good: ok/);
-  });
-
-  it("check exits 1 for an unsupported node and 0 with --allow-unsupported (a warning)", async () => {
-    write("flows/c-http.flow.json", flowJson("Http", [API_NODE]));
-    const r = io();
-    assert.equal(await main(["flow", "check", "c-http"], r.target), 1);
-    assert.match(r.out(), /✖ error {2}.*HTTP request can't run yet/);
-    const allowed = io();
-    assert.equal(
-      await main(
-        ["flow", "check", "c-http", "--allow-unsupported"],
-        allowed.target,
-      ),
-      0,
-    );
-    assert.match(allowed.out(), /warning/);
   });
 
   it("check knows the project's tests, and --json prints the problems", async () => {
@@ -184,28 +167,6 @@ describe("samurai flow", () => {
     assert.equal(events[0].type, "flow-start");
     assert.equal(events[events.length - 1].type, "flow-end");
     assert.equal(events[events.length - 1].summary.status, "passed");
-  });
-
-  it("run checks first: an unsupported node refuses the flow, nothing runs, no report", async () => {
-    write("flows/c-http.flow.json", flowJson("Http", [SET, API_NODE]));
-    const r = io();
-    assert.equal(await main(["flow", "run", "c-http"], r.target), 2);
-    assert.match(r.err(), /HTTP request can't run yet/);
-    assert.match(r.err(), /Nothing was run/);
-    assert.equal(r.out(), "");
-    assert.throws(() => report("c-http"));
-  });
-
-  it("--allow-unsupported skips those nodes and the flow can pass", async () => {
-    write("flows/c-http.flow.json", flowJson("Http", [SET, API_NODE]));
-    const r = io();
-    assert.equal(
-      await main(["flow", "run", "c-http", "--allow-unsupported"], r.target),
-      0,
-    );
-    assert.match(r.out(), /⊘ HTTP request \(skipped: Not supported yet\)/);
-    assert.match(r.out(), /1 passed, 1 skipped/);
-    assert.equal(report("c-http").nodes.http.status, "skipped");
   });
 
   it("a failing node exits 1 and still writes the report", async () => {

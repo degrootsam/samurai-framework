@@ -9,27 +9,13 @@ import {
   dynamicOf,
   getPath,
   NODES,
-  UNSUPPORTED_KINDS,
   nodeDef,
   setPath,
   shapeOf,
   withDefaults,
 } from "./index.js";
 
-const KINDS = [
-  "start",
-  "end",
-  "test",
-  "group",
-  "condition",
-  "parallel",
-  "wait",
-  "set-variable",
-  "api",
-  "database",
-  "email",
-  "script",
-];
+const KINDS = ["start", "end", "test", "group", "condition", "parallel"];
 
 const node = (kind: string, extra: Partial<FlowNodeModel> = {}) =>
   ({
@@ -62,30 +48,23 @@ describe("node registry", () => {
       group: "step",
       condition: "branches",
       parallel: "branches",
-      wait: "step",
-      "set-variable": "step",
-      api: "step",
-      database: "step",
-      email: "step",
-      script: "step",
     });
     assert.equal(shapeOf(node("wait")), "step");
   });
 
   test("field defaults", () => {
     assert.deepEqual(configDefaults(nodeDef("condition")), { expr: "" });
-    assert.deepEqual(configDefaults(nodeDef("wait")), { ms: 1000 });
-    assert.deepEqual(configDefaults(nodeDef("set-variable")), {
-      name: "",
-      value: "",
-    });
     assert.deepEqual(configDefaults(nodeDef("start")), {});
-    assert.deepEqual(withDefaults(nodeDef("wait"), node("wait")).config, {
-      ms: 1000,
-    });
     assert.deepEqual(
-      withDefaults(nodeDef("wait"), node("wait", { config: { ms: 5 } })).config,
-      { ms: 5 },
+      withDefaults(nodeDef("condition"), node("condition")).config,
+      { expr: "" },
+    );
+    assert.deepEqual(
+      withDefaults(
+        nodeDef("condition"),
+        node("condition", { config: { expr: "x" } }),
+      ).config,
+      { expr: "x" },
     );
   });
 
@@ -97,7 +76,7 @@ describe("node registry", () => {
     assert.deepEqual(dynamicOf(node("parallel")), { dynamic: true, min: 2 });
     assert.equal(dynamicOf(node("condition")), undefined);
     assert.deepEqual(branchNames(node("parallel")), ["branch-0", "branch-1"]);
-    assert.deepEqual(branchNames(node("wait")), []);
+    assert.deepEqual(branchNames(node("test")), []);
     assert.deepEqual(branchOf(node("parallel"), "branch-3"), {
       name: "branch-3",
     });
@@ -105,10 +84,6 @@ describe("node registry", () => {
   });
 
   test("labels, outputs and failure choice", () => {
-    assert.deepEqual(
-      ["api", "database", "email", "script"].map((k) => nodeDef(k).label),
-      ["HTTP request", "Database query", "Email inbox", "Script"],
-    );
     assert.equal(nodeDef("test").outputs, true);
     assert.equal(nodeDef("condition").onFailure, true);
     assert.equal(nodeDef("parallel").onFailure, true);
@@ -128,18 +103,5 @@ describe("node registry", () => {
     assert.deepEqual(setPath(n, "config.expr", "y"), {
       config: { expr: "y", other: 1 },
     });
-  });
-});
-
-describe("UNSUPPORTED_KINDS", () => {
-  test("lists api, database, email and script, all registered core kinds", () => {
-    assert.deepEqual([...UNSUPPORTED_KINDS].sort(), [
-      "api",
-      "database",
-      "email",
-      "script",
-    ]);
-    const kinds = new Set(NODES.map((d) => d.kind));
-    for (const k of UNSUPPORTED_KINDS) assert.ok(kinds.has(k), k);
   });
 });

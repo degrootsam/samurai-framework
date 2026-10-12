@@ -1,6 +1,6 @@
 {
   "name": "@itmetsam/samurai-framework",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Browser test framework over WebDriver BiDi: auto-waiting locators, environments and secrets, a recorder, and a command line.",
   "main": "dist/api.js",
   "exports": {
@@ -35,6 +35,10 @@
     "./flows/run": {
       "types": "./dist/flows/run/index.d.ts",
       "default": "./dist/flows/run/index.js"
+    },
+    "./flows/steps": {
+      "types": "./dist/flows/steps/index.d.ts",
+      "default": "./dist/flows/steps/index.js"
     },
     "./package.json": "./package.json"
   },

@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -117,8 +123,9 @@ describe("runFlowInProject", () => {
     });
     assert.equal(summary.status, "passed");
     assert.equal(h.calls.length, 1);
+    // The real path: registered test files come from stack traces
     assert.deepEqual(h.calls[0]!.files, [
-      path.join(dir, "src/checkout/cart.spec.ts"),
+      path.join(realpathSync(dir), "src/checkout/cart.spec.ts"),
     ]);
     assert.deepEqual(h.calls[0]!.testNames, ["Cart > adds"]);
     assert.equal(h.calls[0]!.environment, "dev");
@@ -301,33 +308,6 @@ describe("runFlowInProject", () => {
           return true;
         },
       );
-    });
-
-    const withApi = () =>
-      chain([
-        { id: "http", kind: "api" },
-        { id: "w", kind: "wait", config: { ms: 1 } },
-      ]);
-
-    it('unsupported "fail" (default) refuses a flow with an HTTP node', async () => {
-      const h = harness();
-      await assert.rejects(
-        runFlowInProject({ ...h.options, flow: withApi() }),
-        (e: unknown) =>
-          e instanceof FlowCheckError && /can't run yet/.test(e.message),
-      );
-      assert.deepEqual(h.events, []);
-    });
-
-    it('unsupported "skip" skips the node and the flow can pass', async () => {
-      const summary = await runFlowInProject({
-        ...harness().options,
-        unsupported: "skip",
-        flow: withApi(),
-      });
-      assert.equal(summary.nodes.http!.status, "skipped");
-      assert.equal(summary.nodes.http!.note, "Not supported yet");
-      assert.equal(summary.status, "passed");
     });
   });
 

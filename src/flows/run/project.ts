@@ -8,6 +8,7 @@ import {
 } from "../core/index.js";
 import {
   DEFAULT_SRC_DIR,
+  realPath,
   resolveGroups,
   testId,
   toPosix,
@@ -18,6 +19,7 @@ import TestRunner from "../../runner/test-runner.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { FlowEvent, FlowSummary, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
+import { STEP_NODES } from "../steps/catalog.js";
 import { HANDLERS } from "./handlers/index.js";
 import { runFlow } from "./run.js";
 
@@ -94,7 +96,11 @@ async function prepare(options: RunFlowInProjectOptions) {
         : {}),
     },
   };
-  const srcDir = path.resolve(projectDir, config.srcDir ?? DEFAULT_SRC_DIR);
+  // Real paths, like the registered test files
+  const realDir = realPath(projectDir);
+  const srcDir = realPath(
+    path.resolve(realDir, config.srcDir ?? DEFAULT_SRC_DIR),
+  );
   const { tests, groups } = await withProject(
     {
       projectDir,
@@ -113,7 +119,7 @@ async function prepare(options: RunFlowInProjectOptions) {
       const groups = resolveGroups(
         config,
         tests.map((t) => ({ file: t.relative, name: t.name })),
-        projectDir,
+        realDir,
         srcDir,
       );
       return { tests, groups };
@@ -125,6 +131,7 @@ async function prepare(options: RunFlowInProjectOptions) {
     environment,
     handled: new Set(Object.keys(HANDLERS)),
     unsupported,
+    nodes: STEP_NODES,
   });
   return {
     projectDir,

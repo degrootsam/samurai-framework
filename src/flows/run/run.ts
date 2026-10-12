@@ -7,8 +7,10 @@ import {
   type FlowFile,
   type FlowNodeModel,
 } from "../core/index.js";
+import logger from "../../logger/index.js";
 import type { RunEvent } from "../../runner/reporter.js";
 import type { FlowEvent, FlowSummary, NodeResult, NodeTest } from "./events.js";
+import { STEP_NODES } from "../steps/catalog.js";
 import { HANDLERS, type Handler, type HandlerRun } from "./handlers/index.js";
 
 export interface RunFlowOptions {
@@ -39,7 +41,7 @@ export interface RunFlowOptions {
   unsupported?: "fail" | "skip";
   /** The handlers by kind. @default HANDLERS */
   handlers?: Readonly<Record<string, Handler>>;
-  /** Definitions of kinds beyond the ones `flows/core` registers (a handler needs one to be walked) */
+  /** Definitions of kinds core doesn't have. @default the built-in steps */
   nodes?: readonly AnyNodeDefinition[];
 }
 
@@ -72,8 +74,9 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
   const { flow, onEvent = () => {} } = options;
   const signal = options.signal ?? new AbortController().signal;
   const handlers = options.handlers ?? HANDLERS;
+  const nodes = options.nodes ?? STEP_NODES;
   const defOf = (kind: string): AnyNodeDefinition | undefined =>
-    options.nodes?.find((d) => d.kind === kind) ??
+    nodes.find((d) => d.kind === kind) ??
     (() => {
       try {
         return nodeDef(kind);
@@ -120,6 +123,8 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     runTests: (tests, onTestEvent) =>
       options.runTests({ tests, onEvent: onTestEvent, signal }),
     onTestEvent: (nodeId, event) => onEvent({ type: "test", nodeId, event }),
+    nodes,
+    log: (nodeId, level, text) => logger[level](`[${nodeId}] ${text}`),
   };
   let stopped: "failed" | "cancelled" | undefined;
   const visited = new Set<string>();
@@ -128,6 +133,7 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     results[node.id] = result;
     if (node.key)
       context.nodes[node.key] = {
+        ...result.outputs,
         status: result.status,
         durationMs: result.durationMs,
         error: result.error,

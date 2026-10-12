@@ -2,6 +2,8 @@ import { HELPER_ARGS, HELPERS } from "./evaluate.js";
 import { parseExpression, type ExpressionError, type Parsed } from "./parse.js";
 
 export interface ExpressionScope {
+  /** Output names of the nodes that have them, by key */
+  outputs?: Record<string, readonly string[]>;
   /** The flow environment's name and its variable names */
   env: { name: string; variables: string[] };
   /** Variables set before this node, on every path */
@@ -106,12 +108,10 @@ export function checkExpression(
           message: `${name} is on another branch, so it has no result here`,
           at,
         };
-      if (
-        field !== undefined &&
-        !(NODE_FIELDS as readonly string[]).includes(field)
-      )
+      const fields = [...NODE_FIELDS, ...(scope.outputs?.[name] ?? [])];
+      if (field !== undefined && !fields.includes(field))
         return {
-          message: `nodes.${name}.${field} doesn't exist. Use ${list(NODE_FIELDS)}`,
+          message: `nodes.${name}.${field} doesn't exist. Use ${list(fields)}`,
           at,
         };
     }

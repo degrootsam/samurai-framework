@@ -1,32 +1,13 @@
-import { api } from "./api.js";
 import { condition } from "./condition.js";
-import { database } from "./database.js";
 import type { AnyNodeDefinition, Branch, DynamicBranches } from "./define.js";
-import { email } from "./email.js";
 import { end } from "./end.js";
 import { group } from "./group.js";
 import { parallel } from "./parallel.js";
-import { script } from "./script.js";
-import { setVariable } from "./set-variable.js";
 import { start } from "./start.js";
 import { test } from "./test.js";
-import { wait } from "./wait.js";
 
-// Library order
-const registered = [
-  start,
-  end,
-  test,
-  group,
-  condition,
-  parallel,
-  wait,
-  setVariable,
-  api,
-  database,
-  email,
-  script,
-] as const;
+// Library order. Every other kind is a step (`flows/steps`).
+const registered = [start, end, test, group, condition, parallel] as const;
 
 export type NodeKind = (typeof registered)[number]["kind"];
 
@@ -39,8 +20,16 @@ export function nodeDef(kind: string): AnyNodeDefinition {
   return def;
 }
 
-/** How a run treats a node in the graph */
-export const shapeOf = (node: { kind: string }) => nodeDef(node.kind).shape;
+/** The definition of a kind core registers; undefined for any other (a step) */
+const closedDef = (kind: string): AnyNodeDefinition | undefined =>
+  NODES.find((d) => d.kind === kind);
+
+/** The kinds core defines itself; every other kind is a step */
+export const CLOSED_KINDS: readonly string[] = NODES.map((d) => d.kind);
+
+/** How a run treats a node in the graph: a kind core doesn't define is a step */
+export const shapeOf = (node: { kind: string }) =>
+  closedDef(node.kind)?.shape ?? "step";
 
 /** The branch names a dynamic list gives its branches: branch-0, branch-1, ... */
 export const dynamicName = (index: number) => `branch-${index}`;
@@ -49,8 +38,8 @@ export const dynamicName = (index: number) => `branch-${index}`;
 export const dynamicOf = (node: {
   kind: string;
 }): DynamicBranches | undefined => {
-  const def = nodeDef(node.kind);
-  return def.shape === "branches" &&
+  const def = closedDef(node.kind);
+  return def?.shape === "branches" &&
     def.branches &&
     !Array.isArray(def.branches)
     ? (def.branches as DynamicBranches)
@@ -62,8 +51,8 @@ export const dynamicOf = (node: {
  * `min` empty ones for a dynamic list. Empty for any other shape.
  */
 export const branchesOf = (node: { kind: string }): readonly Branch[] => {
-  const def = nodeDef(node.kind);
-  if (def.shape !== "branches" || !def.branches) return [];
+  const def = closedDef(node.kind);
+  if (!def || def.shape !== "branches" || !def.branches) return [];
   if (Array.isArray(def.branches)) return def.branches as readonly Branch[];
   return Array.from(
     { length: (def.branches as DynamicBranches).min },
@@ -85,18 +74,6 @@ export const branchOf = (
 /** The names of the branches `branchesOf` lists */
 export const branchNames = (node: { kind: string }): string[] =>
   branchesOf(node).map((b) => b.name);
-
-/**
- * Kinds defined in core that a run has no handler for yet (`flows/run` skips or refuses
- * them). The one list: `flows/run` uses it too, and the builder warns with it without
- * importing `flows/run`.
- */
-export const UNSUPPORTED_KINDS: readonly string[] = [
-  "api",
-  "database",
-  "email",
-  "script",
-];
 
 export * from "./define.js";
 export * from "./path.js";
