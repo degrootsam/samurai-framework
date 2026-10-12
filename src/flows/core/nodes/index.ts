@@ -1,32 +1,13 @@
-import { api } from "./api.js";
 import { condition } from "./condition.js";
-import { database } from "./database.js";
 import type { AnyNodeDefinition, Branch, DynamicBranches } from "./define.js";
-import { email } from "./email.js";
 import { end } from "./end.js";
 import { group } from "./group.js";
 import { parallel } from "./parallel.js";
-import { script } from "./script.js";
-import { setVariable } from "./set-variable.js";
 import { start } from "./start.js";
 import { test } from "./test.js";
-import { wait } from "./wait.js";
 
-// Library order
-const registered = [
-  start,
-  end,
-  test,
-  group,
-  condition,
-  parallel,
-  wait,
-  setVariable,
-  api,
-  database,
-  email,
-  script,
-] as const;
+// Library order. Every other kind is a step (`flows/steps`).
+const registered = [start, end, test, group, condition, parallel] as const;
 
 export type NodeKind = (typeof registered)[number]["kind"];
 
@@ -93,18 +74,6 @@ export const branchOf = (
 /** The names of the branches `branchesOf` lists */
 export const branchNames = (node: { kind: string }): string[] =>
   branchesOf(node).map((b) => b.name);
-
-/**
- * Kinds defined in core that a run has no handler for yet (`flows/run` skips or refuses
- * them). The one list: `flows/run` uses it too, and the builder warns with it without
- * importing `flows/run`.
- */
-export const UNSUPPORTED_KINDS: readonly string[] = [
-  "api",
-  "database",
-  "email",
-  "script",
-];
 
 export * from "./define.js";
 export * from "./path.js";

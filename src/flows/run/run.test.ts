@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { FlowFile } from "../core/index.js";
 import type { FlowEvent, NodeTest } from "./events.js";
-import { defineNode } from "../core/index.js";
+import { defineNode, stepNodeOf } from "../core/index.js";
 import { HANDLERS } from "./handlers/index.js";
 import { runFlow, type RunFlowOptions } from "./run.js";
 
@@ -67,6 +67,8 @@ function harness(
 
 const chain = (...ids: string[]) =>
   ids.slice(1).map((id, i) => [ids[i], id] as [string, string]);
+
+const ghost = stepNodeOf({ kind: "ghost", label: "Ghost", icon: "x", section: "control", fields: [] });
 
 describe("runFlow", () => {
   test("runs test nodes in order and passes", async () => {
@@ -316,13 +318,13 @@ describe("runFlow", () => {
       flowOf(
         [
           { id: "start", kind: "start" },
-          { id: "http", kind: "api" },
+          { id: "http", kind: "ghost" },
           { id: "end", kind: "end" },
         ],
         chain("start", "http", "end"),
       ),
       {},
-      { unsupported: "skip" },
+      { unsupported: "skip", nodes: [ghost] },
     );
     const summary = await runFlow(h.options);
     match(summary.nodes.http!, {
@@ -542,16 +544,15 @@ describe("runFlow", () => {
       flowOf(
         [
           { id: "start", kind: "start" },
-          { id: "http", kind: "api" },
+          { id: "http", kind: "ghost" },
           { id: "end", kind: "end" },
         ],
         chain("start", "http", "end"),
       ),
+      {},
+      { nodes: [ghost] },
     );
-    await assert.rejects(
-      runFlow(h.options),
-      /HTTP request can't run yet|can't run yet/,
-    );
+    await assert.rejects(runFlow(h.options), /Ghost can't run yet/);
     assert.deepEqual(h.events, []);
   });
 

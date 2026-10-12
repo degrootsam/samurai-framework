@@ -1,0 +1,45 @@
+import type { AnyNodeDefinition, FlowFile, FlowProblem, StepInfo } from "../core/index.js";
+import type { Handler } from "../run/handlers/support.js";
+import { api } from "./api.js";
+import { infoOf, stepNode, type StepDefinition } from "./define.js";
+import { stepHandler } from "./handler.js";
+import { setVariable } from "./set-variable.js";
+import { wait } from "./wait.js";
+
+/** The built-in steps, in library order */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const STEPS: readonly StepDefinition<any>[] = [wait, setVariable, api];
+
+export const STEP_NODES: readonly AnyNodeDefinition[] = STEPS.map(stepNode);
+
+export const STEP_HANDLERS: Readonly<Record<string, Handler>> = Object.fromEntries(
+  STEPS.map((s) => [s.kind, stepHandler(s)]),
+);
+
+/** The steps as data, for the app */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const stepCatalog = (steps: readonly StepDefinition<any>[] = STEPS): StepInfo[] =>
+  steps.map(infoOf);
+
+/** The project's steps; the built-in ones for now (test-project steps come later) */
+export async function listSteps(): Promise<StepInfo[]> {
+  return stepCatalog();
+}
+
+/** Only the steps' own `validate` problems: the app checks everything else itself */
+export function validateSteps(
+  flow: FlowFile,
+  options: { tests?: string[]; groups?: string[] },
+): FlowProblem[] {
+  const tests = options.tests ? new Set(options.tests) : undefined;
+  const groups = options.groups ? new Set(options.groups) : undefined;
+  return flow.nodes.flatMap((n) => {
+    const step = STEPS.find((s) => s.kind === n.kind);
+    if (!step?.validate) return [];
+    const def = STEP_NODES.find((d) => d.kind === n.kind)!;
+    return step.validate(
+      { ...n, config: { ...Object.fromEntries(step.fields.map((f) => [f.path.slice(7), "default" in f ? f.default : undefined])), ...n.config } },
+      { label: def.label, tests, groups },
+    );
+  });
+}

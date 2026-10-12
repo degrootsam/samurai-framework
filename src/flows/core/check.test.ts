@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { checkFlow } from "./check.js";
+import { stepNodeOf } from "./steps.js";
 import type { FlowEdgeModel, FlowFile, FlowNodeModel } from "./schema.js";
 
 const mk = (id: string, kind: string, extra: Partial<FlowNodeModel> = {}) =>
@@ -24,6 +25,20 @@ function chain(kinds: Partial<FlowNodeModel>[] = []): FlowFile {
     .map((n, i) => ({ id: `e${i}`, source: nodes[i]!.id, target: n.id }));
   return { id: "f", name: "f", nodes, edges };
 }
+const setVariableNode = stepNodeOf({
+  kind: "set-variable", label: "Set variable", icon: "braces", section: "control",
+  fields: [
+    { path: "config.name", type: "text", label: "Name", default: "", required: true,
+      pattern: "^[a-z][a-z0-9_]*$", patternMessage: "use lowercase letters, digits and _ for the name." },
+    { path: "config.value", type: "expression", label: "Value", default: "" },
+  ],
+  writesVar: "config.name",
+});
+const waitNode = stepNodeOf({ kind: "wait", label: "Wait", icon: "timer", section: "control",
+  fields: [{ path: "config.ms", type: "number", label: "Duration", default: 1000, min: 0 }] });
+const apiNode = stepNodeOf({ kind: "api", label: "HTTP request", icon: "globe", section: "integrations",
+  fields: [] });
+const stepNodes = [setVariableNode, waitNode, apiNode];
 const testNode = (i: number): Partial<FlowNodeModel> => ({
   kind: "test",
   ref: { testId: `a.ts::t${i}` },
@@ -212,12 +227,13 @@ describe("checkFlow", () => {
     const flow = chain([{ kind: "set-variable" }]);
     const found = checkFlow(flow, {
       environment: { name: "staging", variables: {} },
+      nodes: stepNodes,
     });
     assert.deepEqual(found, [
       {
         level: "error",
         nodeId: "n0",
-        message: "Set variable: give the variable a name.",
+        message: "Set variable: Name is required.",
       },
       {
         level: "error",
@@ -232,7 +248,7 @@ describe("checkFlow", () => {
       { kind: "set-variable", config: { name: "Bad", value: "1" } },
     ]);
     assert.ok(
-      messages(flow).includes(
+      messages(flow, { nodes: stepNodes }).includes(
         "Set variable: use lowercase letters, digits and _ for the name.",
       ),
     );
@@ -315,24 +331,18 @@ describe("unsupported kinds", () => {
   const withKind = (kind: string) => chain([{ kind }]);
 
   test("skip mode warns with the app's text", () => {
-    for (const [kind, label] of [
-      ["api", "HTTP request"],
-      ["database", "Database query"],
-      ["email", "Email inbox"],
-      ["script", "Script"],
-    ] as const)
-      assert.deepEqual(checkFlow(withKind(kind), { handled }), [
-        {
-          level: "warning",
-          nodeId: "n0",
-          message: `${label} nodes can't run yet. They are skipped.`,
-        },
-      ]);
+    assert.deepEqual(checkFlow(withKind("api"), { handled, nodes: stepNodes }), [
+      {
+        level: "warning",
+        nodeId: "n0",
+        message: "HTTP request nodes can't run yet. They are skipped.",
+      },
+    ]);
   });
 
   test("fail mode makes it an error", () => {
     assert.deepEqual(
-      checkFlow(withKind("api"), { handled, unsupported: "fail" }),
+      checkFlow(withKind("api"), { handled, unsupported: "fail", nodes: stepNodes }),
       [
         {
           level: "error",
@@ -346,6 +356,7 @@ describe("unsupported kinds", () => {
   test("handled kinds, start and end never report", () => {
     assert.deepEqual(
       checkFlow(chain([testNode(0), { kind: "wait" }]), {
+        nodes: stepNodes,
         handled,
         unsupported: "fail",
       }),
@@ -355,6 +366,6 @@ describe("unsupported kinds", () => {
   });
 
   test("without `handled` nothing is reported", () => {
-    assert.deepEqual(checkFlow(withKind("api"), { unsupported: "fail" }), []);
+    assert.deepEqual(checkFlow(withKind("api"), { unsupported: "fail", nodes: stepNodes }), []);
   });
 });

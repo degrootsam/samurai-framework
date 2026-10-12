@@ -302,33 +302,6 @@ describe("runFlowInProject", () => {
         },
       );
     });
-
-    const withApi = () =>
-      chain([
-        { id: "http", kind: "api" },
-        { id: "w", kind: "wait", config: { ms: 1 } },
-      ]);
-
-    it('unsupported "fail" (default) refuses a flow with an HTTP node', async () => {
-      const h = harness();
-      await assert.rejects(
-        runFlowInProject({ ...h.options, flow: withApi() }),
-        (e: unknown) =>
-          e instanceof FlowCheckError && /can't run yet/.test(e.message),
-      );
-      assert.deepEqual(h.events, []);
-    });
-
-    it('unsupported "skip" skips the node and the flow can pass', async () => {
-      const summary = await runFlowInProject({
-        ...harness().options,
-        unsupported: "skip",
-        flow: withApi(),
-      });
-      assert.equal(summary.nodes.http!.status, "skipped");
-      assert.equal(summary.nodes.http!.note, "Not supported yet");
-      assert.equal(summary.status, "passed");
-    });
   });
 
   it("each Test node is its own project session: nodes run one after the other", async () => {
