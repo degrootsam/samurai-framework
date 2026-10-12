@@ -26,6 +26,7 @@ import { ConnectionClosedError } from "../transport/bidi-connection.js";
 import {
   DEFAULT_SRC_DIR,
   findGroup,
+  realPath,
   resolveGroups,
   testId,
   toPosix,
@@ -151,8 +152,11 @@ export default class TestRunner {
   /** The config's groups, resolved against the tests the specs register */
   private async resolveAll(tests: RegisteredTestCase[]) {
     const config = await loadConfig();
-    const dir = projectDir();
-    const srcDir = path.resolve(dir, config.srcDir ?? DEFAULT_SRC_DIR);
+    // Real paths: registered test files come from stack traces, which resolve symlinks
+    const dir = realPath(projectDir());
+    const srcDir = realPath(
+      path.resolve(dir, config.srcDir ?? DEFAULT_SRC_DIR),
+    );
     const groups = resolveGroups(
       config,
       tests.map(({ file, name }) => ({

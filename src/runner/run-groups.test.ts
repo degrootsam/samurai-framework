@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -87,6 +94,26 @@ describe("groups through the runner", () => {
       listTests({ projectDir: dir, config: {}, group: "nope" }),
       /Unknown group "nope"/,
     );
+  });
+
+  it("a project reached through a symlink still finds its group tests", async () => {
+    const link = path.join(
+      mkdtempSync(path.join(tmpdir(), "samurai-link-")),
+      "project",
+    );
+    symlinkSync(realpathSync(dir), link, "dir");
+    try {
+      assert.deepEqual(
+        names(await listTests({ projectDir: link, config, group: "checkout" })),
+        ["Cart > adds"],
+      );
+      assert.deepEqual(
+        names(await listTests({ projectDir: link, config, group: "smoke" })),
+        ["works"],
+      );
+    } finally {
+      rmSync(path.dirname(link), { recursive: true, force: true });
+    }
   });
 
   it("listGroups resolves the groups and reports missing picked tests", async () => {
