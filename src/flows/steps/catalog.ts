@@ -28,7 +28,7 @@ export const stepCatalog = (
 export async function listSteps(
   options: { projectDir?: string; config?: SamuraiTestConfig } = {},
 ): Promise<StepInfo[]> {
-  return (await projectSteps(options)).catalog;
+  return [...(await projectSteps(options)).catalog];
 }
 
 /** Only the steps' own `validate` problems (the project's steps included): the app checks everything else itself */
