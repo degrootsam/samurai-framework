@@ -26,18 +26,46 @@ function chain(kinds: Partial<FlowNodeModel>[] = []): FlowFile {
   return { id: "f", name: "f", nodes, edges };
 }
 const setVariableNode = stepNodeOf({
-  kind: "set-variable", label: "Set variable", icon: "braces", section: "control",
+  kind: "set-variable",
+  label: "Set variable",
+  icon: "braces",
+  section: "control",
   fields: [
-    { path: "config.name", type: "text", label: "Name", default: "", required: true,
-      pattern: "^[a-z][a-z0-9_]*$", patternMessage: "use lowercase letters, digits and _ for the name." },
+    {
+      path: "config.name",
+      type: "text",
+      label: "Name",
+      default: "",
+      required: true,
+      pattern: "^[a-z][a-z0-9_]*$",
+      patternMessage: "use lowercase letters, digits and _ for the name.",
+    },
     { path: "config.value", type: "expression", label: "Value", default: "" },
   ],
   writesVar: "config.name",
 });
-const waitNode = stepNodeOf({ kind: "wait", label: "Wait", icon: "timer", section: "control",
-  fields: [{ path: "config.ms", type: "number", label: "Duration", default: 1000, min: 0 }] });
-const apiNode = stepNodeOf({ kind: "api", label: "HTTP request", icon: "globe", section: "integrations",
-  fields: [] });
+const waitNode = stepNodeOf({
+  kind: "wait",
+  label: "Wait",
+  icon: "timer",
+  section: "control",
+  fields: [
+    {
+      path: "config.ms",
+      type: "number",
+      label: "Duration",
+      default: 1000,
+      min: 0,
+    },
+  ],
+});
+const apiNode = stepNodeOf({
+  kind: "api",
+  label: "HTTP request",
+  icon: "globe",
+  section: "integrations",
+  fields: [],
+});
 const stepNodes = [setVariableNode, waitNode, apiNode];
 const testNode = (i: number): Partial<FlowNodeModel> => ({
   kind: "test",
@@ -331,18 +359,25 @@ describe("unsupported kinds", () => {
   const withKind = (kind: string) => chain([{ kind }]);
 
   test("skip mode warns with the app's text", () => {
-    assert.deepEqual(checkFlow(withKind("api"), { handled, nodes: stepNodes }), [
-      {
-        level: "warning",
-        nodeId: "n0",
-        message: "HTTP request nodes can't run yet. They are skipped.",
-      },
-    ]);
+    assert.deepEqual(
+      checkFlow(withKind("api"), { handled, nodes: stepNodes }),
+      [
+        {
+          level: "warning",
+          nodeId: "n0",
+          message: "HTTP request nodes can't run yet. They are skipped.",
+        },
+      ],
+    );
   });
 
   test("fail mode makes it an error", () => {
     assert.deepEqual(
-      checkFlow(withKind("api"), { handled, unsupported: "fail", nodes: stepNodes }),
+      checkFlow(withKind("api"), {
+        handled,
+        unsupported: "fail",
+        nodes: stepNodes,
+      }),
       [
         {
           level: "error",
@@ -366,6 +401,9 @@ describe("unsupported kinds", () => {
   });
 
   test("without `handled` nothing is reported", () => {
-    assert.deepEqual(checkFlow(withKind("api"), { unsupported: "fail", nodes: stepNodes }), []);
+    assert.deepEqual(
+      checkFlow(withKind("api"), { unsupported: "fail", nodes: stepNodes }),
+      [],
+    );
   });
 });

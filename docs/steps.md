@@ -14,14 +14,23 @@ export const api = defineStep({
   icon: "globe",
   section: "integrations",
   fields: [
-    { path: "config.method", type: "select", label: "Method", options: METHODS, default: "GET" },
+    {
+      path: "config.method",
+      type: "select",
+      label: "Method",
+      options: METHODS,
+      default: "GET",
+    },
     { path: "config.url", type: "expression", label: "URL", default: "" },
     { path: "config.body", type: "code", label: "Body", default: "" },
   ],
   summary: "{config.method} {config.url}",
   outputs: [{ name: "statusCode" }, { name: "body" }],
   async run({ config, signal }) {
-    const res = await fetch(String(config.url), { method: config.method, signal });
+    const res = await fetch(String(config.url), {
+      method: config.method,
+      signal,
+    });
     return { outputs: { statusCode: res.status, body: await res.text() } };
   },
 });
@@ -29,18 +38,18 @@ export const api = defineStep({
 
 ## Properties
 
-| Property | Meaning |
-| --- | --- |
-| `kind` | Stored in flow files. Lowercase letters, digits and `-`; not a closed kind |
-| `label` | Name in the library and in messages; the default title |
-| `icon` | A design-system icon name (unknown names show a square) |
-| `section` | `"control"` or `"integrations"` |
-| `fields` | `config.*` fields: `text`, `code`, `expression`, `number`, `select`, `segmented`, `switch`. Title and Description are added for you |
-| `summary` | The line under the title; `{config.x}` is the field's value |
-| `outputs` | Names `run` returns; later nodes read them as `nodes.<key>.<name>`. Not `status`, `durationMs` or `error` |
-| `writesVar` | The path of the field that holds a variable name; `run` may then return `vars: { [name]: value }` |
-| `validate` | Optional `(node, ctx) => problems`, for checks the field rules can't express |
-| `run` | Return `{ outputs?, vars?, note? }` (or nothing) to pass; throw to fail |
+| Property    | Meaning                                                                                                                             |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`      | Stored in flow files. Lowercase letters, digits and `-`; not a closed kind                                                          |
+| `label`     | Name in the library and in messages; the default title                                                                              |
+| `icon`      | A design-system icon name (unknown names show a square)                                                                             |
+| `section`   | `"control"` or `"integrations"`                                                                                                     |
+| `fields`    | `config.*` fields: `text`, `code`, `expression`, `number`, `select`, `segmented`, `switch`. Title and Description are added for you |
+| `summary`   | The line under the title; `{config.x}` is the field's value                                                                         |
+| `outputs`   | Names `run` returns; later nodes read them as `nodes.<key>.<name>`. Not `status`, `durationMs` or `error`                           |
+| `writesVar` | The path of the field that holds a variable name; `run` may then return `vars: { [name]: value }`                                   |
+| `validate`  | Optional `(node, ctx) => problems`, for checks the field rules can't express                                                        |
+| `run`       | Return `{ outputs?, vars?, note? }` (or nothing) to pass; throw to fail                                                             |
 
 Field rules: `required`, `min`/`max` (numbers), `pattern` and `patternMessage` (text).
 

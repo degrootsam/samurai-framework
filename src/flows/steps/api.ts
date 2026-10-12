@@ -1,6 +1,9 @@
 import { defineStep } from "./define.js";
 
-const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => ({ label: m, value: m }));
+const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => ({
+  label: m,
+  value: m,
+}));
 
 const isJson = (text: string) => {
   try {
@@ -18,9 +21,27 @@ export const api = defineStep({
   icon: "globe",
   section: "integrations",
   fields: [
-    { path: "config.method", type: "select", label: "Method", options: METHODS, default: "GET" },
-    { path: "config.url", type: "expression", label: "URL", placeholder: 'env.baseUrl + "/health"', default: "" },
-    { path: "config.body", type: "code", label: "Body", placeholder: '{ "name": "test" }', default: "" },
+    {
+      path: "config.method",
+      type: "select",
+      label: "Method",
+      options: METHODS,
+      default: "GET",
+    },
+    {
+      path: "config.url",
+      type: "expression",
+      label: "URL",
+      placeholder: 'env.baseUrl + "/health"',
+      default: "",
+    },
+    {
+      path: "config.body",
+      type: "code",
+      label: "Body",
+      placeholder: '{ "name": "test" }',
+      default: "",
+    },
   ],
   summary: "{config.method} {config.url}",
   outputs: [
@@ -28,13 +49,16 @@ export const api = defineStep({
     { name: "body", label: "Response body" },
   ],
   async run({ config, signal }) {
-    const body = config.method !== "GET" && config.body ? config.body : undefined;
+    const body =
+      config.method !== "GET" && config.body ? config.body : undefined;
     const res = await fetch(String(config.url), {
       method: config.method,
       signal,
       ...(body !== undefined && {
         body,
-        headers: { "content-type": isJson(body) ? "application/json" : "text/plain" },
+        headers: {
+          "content-type": isJson(body) ? "application/json" : "text/plain",
+        },
       }),
     });
     return { outputs: { statusCode: res.status, body: await res.text() } };

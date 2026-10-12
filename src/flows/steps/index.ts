@@ -16,4 +16,9 @@ export {
   stepCatalog,
   validateSteps,
 } from "./catalog.js";
-export type { StepField, StepInfo, StepOutput, StepSection } from "../core/index.js";
+export type {
+  StepField,
+  StepInfo,
+  StepOutput,
+  StepSection,
+} from "../core/index.js";

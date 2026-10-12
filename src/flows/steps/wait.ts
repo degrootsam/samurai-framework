@@ -6,7 +6,14 @@ export const wait = defineStep({
   icon: "timer",
   section: "control",
   fields: [
-    { path: "config.ms", type: "number", label: "Duration", unit: "ms", default: 1000, min: 0 },
+    {
+      path: "config.ms",
+      type: "number",
+      label: "Duration",
+      unit: "ms",
+      default: 1000,
+      min: 0,
+    },
   ],
   summary: "{config.ms} ms",
   async run({ config, sleep }) {

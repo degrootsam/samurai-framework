@@ -5,16 +5,39 @@ import { stepNodeOf } from "../steps.js";
 import { scopeAt } from "./scope.js";
 
 const setVariableNode = stepNodeOf({
-  kind: "set-variable", label: "Set variable", icon: "braces", section: "control",
+  kind: "set-variable",
+  label: "Set variable",
+  icon: "braces",
+  section: "control",
   fields: [
-    { path: "config.name", type: "text", label: "Name", default: "", required: true,
-      pattern: "^[a-z][a-z0-9_]*$", patternMessage: "use lowercase letters, digits and _ for the name." },
+    {
+      path: "config.name",
+      type: "text",
+      label: "Name",
+      default: "",
+      required: true,
+      pattern: "^[a-z][a-z0-9_]*$",
+      patternMessage: "use lowercase letters, digits and _ for the name.",
+    },
     { path: "config.value", type: "expression", label: "Value", default: "" },
   ],
   writesVar: "config.name",
 });
-const waitNode = stepNodeOf({ kind: "wait", label: "Wait", icon: "timer", section: "control",
-  fields: [{ path: "config.ms", type: "number", label: "Duration", default: 1000, min: 0 }] });
+const waitNode = stepNodeOf({
+  kind: "wait",
+  label: "Wait",
+  icon: "timer",
+  section: "control",
+  fields: [
+    {
+      path: "config.ms",
+      type: "number",
+      label: "Duration",
+      default: 1000,
+      min: 0,
+    },
+  ],
+});
 const stepNodes = [setVariableNode, waitNode];
 
 const node = (id: string, kind = "test", config?: Record<string, unknown>) => ({

@@ -68,7 +68,13 @@ function harness(
 const chain = (...ids: string[]) =>
   ids.slice(1).map((id, i) => [ids[i], id] as [string, string]);
 
-const ghost = stepNodeOf({ kind: "ghost", label: "Ghost", icon: "x", section: "control", fields: [] });
+const ghost = stepNodeOf({
+  kind: "ghost",
+  label: "Ghost",
+  icon: "x",
+  section: "control",
+  fields: [],
+});
 
 describe("runFlow", () => {
   test("runs test nodes in order and passes", async () => {
