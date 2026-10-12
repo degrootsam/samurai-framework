@@ -7,6 +7,7 @@ import {
   type FlowFile,
   type FlowNodeModel,
 } from "../core/index.js";
+import logger from "../../logger/index.js";
 import type { RunEvent } from "../../runner/reporter.js";
 import type { FlowEvent, FlowSummary, NodeResult, NodeTest } from "./events.js";
 import { HANDLERS, type Handler, type HandlerRun } from "./handlers/index.js";
@@ -120,6 +121,8 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     runTests: (tests, onTestEvent) =>
       options.runTests({ tests, onEvent: onTestEvent, signal }),
     onTestEvent: (nodeId, event) => onEvent({ type: "test", nodeId, event }),
+    nodes: options.nodes ?? [],
+    log: (nodeId, level, text) => logger[level](`[${nodeId}] ${text}`),
   };
   let stopped: "failed" | "cancelled" | undefined;
   const visited = new Set<string>();
@@ -128,6 +131,7 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     results[node.id] = result;
     if (node.key)
       context.nodes[node.key] = {
+        ...result.outputs,
         status: result.status,
         durationMs: result.durationMs,
         error: result.error,
