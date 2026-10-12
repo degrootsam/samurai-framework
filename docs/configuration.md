@@ -23,30 +23,31 @@ export default defineConfig({
 
 ## Options
 
-| Option                  | Default                                  | Meaning                                                                               |
-| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                   |
-| `browser`               | `"firefox"`                              | Browser for every test. Only `firefox` is supported today                             |
-| `timeout`               | `30000`                                  | Time (ms) one test may take                                                           |
-| `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                               |
-| `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying  |
-| `environments`          | none                                     | Named environments, see [Environments and secrets](environments-and-secrets.md)       |
-| `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                            |
-| `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                  |
-| `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                       |
-| `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)   |
-| `bidi.commandTimeout`   | `30000`                                  | Time (ms) a protocol command may wait for its reply                                   |
-| `navigation.timeout`    | `30000`                                  | Time (ms) a navigation or load-state wait may take                                    |
-| `navigation.waitUntil`  | `"complete"`                             | When `navigateTo` resolves: `"none"`, `"interactive"` or `"complete"`                 |
-| `network.track`         | `true`                                   | Follow requests from the start. When `false`, `waitForNetworkIdle()` throws           |
-| `network.idleTime`      | `500`                                    | Time (ms) without requests in flight that counts as idle                              |
-| `network.routeTimeout`  | `30000`                                  | Time (ms) a `page.route` handler may take before the request is let through           |
-| `network.collectBodies` | `false`                                  | Keep every response body so `response.body()` always works (costs memory)             |
-| `network.maxBodySize`   | `10485760`                               | Largest body (bytes) that is kept                                                     |
-| `logs.capture`          | `"failures"`                             | Which tests get the page's log in the report: `"off"`, `"failures"`, `"all"`          |
-| `logs.failOnPageError`  | `false`                                  | Fail a passing test when the page threw an uncaught exception                         |
-| `logs.ignoreErrors`     | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                             |
-| `groups`                | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option (see below) |
+| Option                  | Default                                  | Meaning                                                                                              |
+| ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                                  |
+| `browser`               | `"firefox"`                              | Browser for every test. Only `firefox` is supported today                                            |
+| `timeout`               | `30000`                                  | Time (ms) one test may take                                                                          |
+| `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                                              |
+| `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying                 |
+| `environments`          | none                                     | Named environments, see [Environments and secrets](environments-and-secrets.md)                      |
+| `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                                           |
+| `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                                 |
+| `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                                      |
+| `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)                  |
+| `bidi.commandTimeout`   | `30000`                                  | Time (ms) a protocol command may wait for its reply                                                  |
+| `navigation.timeout`    | `30000`                                  | Time (ms) a navigation or load-state wait may take                                                   |
+| `navigation.waitUntil`  | `"complete"`                             | When `navigateTo` resolves: `"none"`, `"interactive"` or `"complete"`                                |
+| `network.track`         | `true`                                   | Follow requests from the start. When `false`, `waitForNetworkIdle()` throws                          |
+| `network.idleTime`      | `500`                                    | Time (ms) without requests in flight that counts as idle                                             |
+| `network.routeTimeout`  | `30000`                                  | Time (ms) a `page.route` handler may take before the request is let through                          |
+| `network.collectBodies` | `false`                                  | Keep every response body so `response.body()` always works (costs memory)                            |
+| `network.maxBodySize`   | `10485760`                               | Largest body (bytes) that is kept                                                                    |
+| `logs.capture`          | `"failures"`                             | Which tests get the page's log in the report: `"off"`, `"failures"`, `"all"`                         |
+| `logs.failOnPageError`  | `false`                                  | Fail a passing test when the page threw an uncaught exception                                        |
+| `logs.ignoreErrors`     | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                                            |
+| `groups`                | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option (see below)                |
+| `steps`                 | none                                     | Flow steps of this project, made with `defineStep`; see [Writing a step](steps.md#steps-of-your-own) |
 
 ### Environment options
 

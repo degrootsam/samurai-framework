@@ -63,13 +63,13 @@ Wait, Set variable and HTTP request are steps; see [Writing a step](steps.md).
 
 ### Unknown kinds
 
-A node whose kind is neither one of the kinds above nor a step the framework knows is an **error**: `samurai flow check` reports "Unknown step: `<kind>`" and `samurai flow run` refuses to start. This is what a flow file with an old kind, such as `database`, gets.
+A node whose kind is neither one of the kinds above nor a built-in or project step is an **error**: `samurai flow check` reports "Unknown step: `<kind>`" and `samurai flow run` refuses to start. This is what a flow file with an old kind, such as `database`, gets.
 
 `handled` and `unsupported` in `checkFlow` only matter for a kind that has a definition but no handler. With the built-in handlers every kind a flow can name runs, so nothing is reported, and the `--allow-unsupported` flag (still accepted) has nothing to skip.
 
 ### Checking a flow from code
 
-`checkFlow(flow, options)` from the pure `flows` entry returns every problem. Options: `tests` and `groups` (the ids and names that exist), `environment`, `handled` (the kinds that have a handler) with `unsupported: "skip" | "fail"` (what to report for a node whose kind has a definition but no handler: a warning by default, an error with `"fail"`), and `titles: (node) => string | undefined`. When `titles` returns a string, that is how every message names the node; when it returns `undefined`, the node's title, else its key, else its kind's label is used.
+`checkFlow(flow, options)` from the pure `flows` entry returns every problem. Options: `tests` and `groups` (the ids and names that exist), `environment`, `handled` (the kinds that have a handler) with `unsupported: "skip" | "fail"` (what to report for a node whose kind has a definition but no handler: a warning by default, an error with `"fail"`), `nodes` (the step definitions to check against; the built-ins by default; pass `(await projectSteps({ projectDir })).nodes` for a project's own), and `titles: (node) => string | undefined`. When `titles` returns a string, that is how every message names the node; when it returns `undefined`, the node's title, else its key, else its kind's label is used.
 
 ## Expressions
 

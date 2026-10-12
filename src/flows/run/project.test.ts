@@ -12,6 +12,7 @@ import { after, before, describe, it } from "node:test";
 import type { FlowFile } from "../core/index.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { runTests } from "../../runner/run.js";
+import { defineStep } from "../steps/index.js";
 import type { FlowEvent } from "./events.js";
 import {
   FlowCheckError,
@@ -328,6 +329,61 @@ describe("runFlowInProject", () => {
     assert.deepEqual(
       h.calls.map((c) => c.testNames),
       [["works"], ["fails nicely"]],
+    );
+  });
+});
+
+describe("project steps", () => {
+  const echo = defineStep({
+    kind: "echo",
+    label: "Echo",
+    icon: "code",
+    section: "control",
+    fields: [
+      { path: "config.value", type: "expression", label: "Value", default: "" },
+    ],
+    outputs: [{ name: "value" }],
+    async run({ config }) {
+      return { outputs: { value: config.value } };
+    },
+  });
+
+  it("a project step runs, and a later expression reads its output (Review Focus 4)", async () => {
+    const h = harness({ config: { ...config, steps: [echo] } });
+    const summary = await runFlowInProject({
+      ...h.options,
+      flow: chain([
+        { id: "e", kind: "echo", config: { value: '"hi " + env.region' } },
+        {
+          id: "s",
+          kind: "set-variable",
+          config: { name: "said", value: "nodes.e.value" },
+        },
+      ]),
+    });
+    assert.equal(summary.status, "passed");
+    assert.deepEqual(summary.nodes.e!.outputs, { value: "hi us" });
+    assert.deepEqual(summary.vars, { said: "hi us" });
+  });
+
+  it("without the step in the config, its kind is a check error", async () => {
+    await assert.rejects(
+      runFlowInProject({
+        ...harness().options,
+        flow: chain([{ id: "e", kind: "echo", config: { value: "1" } }]),
+      }),
+      FlowCheckError,
+    );
+  });
+
+  it("a collision refuses the run", async () => {
+    await assert.rejects(
+      runFlowInProject({
+        ...harness({ config: { ...config, steps: [{ ...echo, kind: "api" }] } })
+          .options,
+        flow: chain([]),
+      }),
+      /a built-in step already uses this kind/,
     );
   });
 });

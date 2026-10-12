@@ -5,6 +5,7 @@ import {
   parseRunOverrides,
 } from "./args.js";
 import { FlowReporter } from "./flow-reporter.js";
+import { projectSteps } from "../flows/steps/index.js";
 import type { Io } from "./main.js";
 import { type FlowFile, type FlowProblem } from "../flows/core/index.js";
 import {
@@ -185,6 +186,8 @@ async function run(
     return 2;
   };
 
+  const { nodes: steps } = await projectSteps({ projectDir });
+
   // Several flows: refuse them all before the first one runs
   if (flows.length > 1) {
     for (const flow of flows) {
@@ -208,7 +211,7 @@ async function run(
     const builder = new FlowReportBuilder(flow);
     const human = options.json
       ? undefined
-      : new FlowReporter({ flow, write: io.out, color: io.color });
+      : new FlowReporter({ flow, write: io.out, color: io.color, steps });
     if (flows.indexOf(flow) > 0 && !options.json) io.out("\n");
     let summary;
     try {

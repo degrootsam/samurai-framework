@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import {
   browsersDir,
   loadConfig,
+  projectConfig,
   projectDir,
   setActiveProject,
 } from "./config.js";
@@ -21,6 +24,20 @@ describe("active project", () => {
     assert.equal(projectDir(), path.resolve("/work/shop"));
     setActiveProject(undefined);
     assert.equal(projectDir(), process.cwd());
+  });
+
+  it("projectConfig leaves a project that was already active active", async () => {
+    const other = await mkdtemp(path.join(os.tmpdir(), "samurai-other-"));
+    await writeFile(
+      path.join(other, "samurai.config.ts"),
+      "export default { timeout: 77 };\n",
+    );
+    setActiveProject({ dir: "/work/shop", config: { timeout: 1 } });
+    assert.deepEqual(await projectConfig({ projectDir: other }), {
+      timeout: 77,
+    });
+    assert.equal(projectDir(), path.resolve("/work/shop"));
+    assert.deepEqual(await loadConfig(), { timeout: 1 });
   });
 
   it("serves its own config instead of reading a file", async () => {
