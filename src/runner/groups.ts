@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { matchesGlob, relative, resolve } from "node:path";
 import type { SamuraiGroup } from "../types/config.js";
 
@@ -23,6 +24,18 @@ export interface ResolvedGroup {
   testIds: string[];
   /** Picked tests that no longer exist */
   missing: { file: string; title: string }[];
+}
+
+/**
+ * The real path of `p` (symlinks resolved), or `p` itself when it does not exist. Registered test files come
+ * from stack traces, which resolve symlinks, so paths compared with them must be real too
+ */
+export function realPath(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
 }
 
 /** Separators of any platform become `/` */

@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -117,8 +123,9 @@ describe("runFlowInProject", () => {
     });
     assert.equal(summary.status, "passed");
     assert.equal(h.calls.length, 1);
+    // The real path: registered test files come from stack traces
     assert.deepEqual(h.calls[0]!.files, [
-      path.join(dir, "src/checkout/cart.spec.ts"),
+      path.join(realpathSync(dir), "src/checkout/cart.spec.ts"),
     ]);
     assert.deepEqual(h.calls[0]!.testNames, ["Cart > adds"]);
     assert.equal(h.calls[0]!.environment, "dev");

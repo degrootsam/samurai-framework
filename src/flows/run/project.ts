@@ -8,6 +8,7 @@ import {
 } from "../core/index.js";
 import {
   DEFAULT_SRC_DIR,
+  realPath,
   resolveGroups,
   testId,
   toPosix,
@@ -95,7 +96,11 @@ async function prepare(options: RunFlowInProjectOptions) {
         : {}),
     },
   };
-  const srcDir = path.resolve(projectDir, config.srcDir ?? DEFAULT_SRC_DIR);
+  // Real paths, like the registered test files
+  const realDir = realPath(projectDir);
+  const srcDir = realPath(
+    path.resolve(realDir, config.srcDir ?? DEFAULT_SRC_DIR),
+  );
   const { tests, groups } = await withProject(
     {
       projectDir,
@@ -114,7 +119,7 @@ async function prepare(options: RunFlowInProjectOptions) {
       const groups = resolveGroups(
         config,
         tests.map((t) => ({ file: t.relative, name: t.name })),
-        projectDir,
+        realDir,
         srcDir,
       );
       return { tests, groups };
