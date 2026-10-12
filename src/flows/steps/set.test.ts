@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
-import { BUILTIN_STEPS, defineStep, stepSet } from "./index.js";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { after, describe, test } from "node:test";
+import type { FlowFile } from "../core/index.js";
+import {
+  BUILTIN_STEPS,
+  defineStep,
+  listSteps,
+  projectSteps,
+  stepSet,
+  validateSteps,
+} from "./index.js";
 
 const ping = defineStep({
   kind: "ping",
@@ -84,5 +95,96 @@ describe("stepSet", () => {
     assert.throws(() => stepSet(ping), {
       message: "samurai.config.ts: steps must be a list of steps.",
     });
+  });
+});
+
+const STEPS_ENTRY = JSON.stringify(path.resolve("src/flows/steps/index.ts"));
+const projects: string[] = [];
+after(() => {
+  for (const d of projects) rmSync(d, { recursive: true, force: true });
+});
+/** A project folder whose samurai.config.ts is `config` */
+function project(config: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "samurai-project-steps-"));
+  projects.push(dir);
+  writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+  writeFileSync(path.join(dir, "samurai.config.ts"), config);
+  return dir;
+}
+
+describe("project steps", () => {
+  test("listSteps lists a step from the project's config after the built-ins", async () => {
+    const dir = project(
+      `import { defineStep } from ${STEPS_ENTRY};
+export default {
+  steps: [defineStep({ kind: "ping", label: "Ping", icon: "globe", section: "integrations", fields: [], async run() {} })],
+};
+`,
+    );
+    const catalog = await listSteps({ projectDir: dir });
+    assert.deepEqual(
+      catalog.map((s) => s.kind),
+      [...builtinKinds, "ping"],
+    );
+  });
+
+  test("a project without steps lists the built-ins", async () => {
+    const dir = project("export default {};\n");
+    assert.deepEqual(
+      (await listSteps({ projectDir: dir })).map((s) => s.kind),
+      builtinKinds,
+    );
+  });
+
+  test("a config that fails to import rejects with its error (Review Focus 1)", async () => {
+    const dir = project(
+      `import { defineStep } from ${STEPS_ENTRY};
+export default { steps: [defineStep({ kind: "Bad_Kind", label: "x", icon: "code", section: "control", fields: [], async run() {} })] };
+`,
+    );
+    await assert.rejects(
+      listSteps({ projectDir: dir }),
+      /isn't a valid step kind/,
+    );
+  });
+
+  test("a collision in the config rejects", async () => {
+    await assert.rejects(
+      projectSteps({ config: { steps: [{ ...ping, kind: "wait" }] } }),
+      /a built-in step already uses this kind/,
+    );
+  });
+
+  test("validateSteps runs a project step's validate (Review Focus 3)", async () => {
+    const strict = defineStep({
+      kind: "strict",
+      label: "Strict",
+      icon: "code",
+      section: "control",
+      fields: [],
+      validate: (node) => [
+        { level: "error", nodeId: node.id, message: "Strict says no." },
+      ],
+      async run() {},
+    });
+    const flow: FlowFile = {
+      id: "f",
+      name: "f",
+      nodes: [
+        {
+          id: "s",
+          key: "s",
+          kind: "strict",
+          onFailure: "stop",
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [],
+    };
+    const problems = await validateSteps(flow, { config: { steps: [strict] } });
+    assert.deepEqual(
+      problems.map((p) => p.message),
+      ["Strict says no."],
+    );
   });
 });

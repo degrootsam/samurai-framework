@@ -1,3 +1,5 @@
+import { projectConfig } from "../../config/config.js";
+import type { SamuraiTestConfig } from "../../types/config.js";
 import type { AnyNodeDefinition, StepInfo } from "../core/index.js";
 import type { Handler } from "../run/handlers/support.js";
 import { api } from "./api.js";
@@ -59,3 +61,11 @@ export function stepSet(projectSteps: unknown = []): StepSet {
 
 /** The built-in steps alone */
 export const BUILTIN_SET: StepSet = stepSet();
+
+/** The project's steps: its config's `steps` after the built-ins. `projectDir` defaults to the working directory. */
+export async function projectSteps(
+  options: { projectDir?: string; config?: SamuraiTestConfig } = {},
+): Promise<StepSet> {
+  const config = await projectConfig(options);
+  return config.steps === undefined ? BUILTIN_SET : stepSet(config.steps);
+}

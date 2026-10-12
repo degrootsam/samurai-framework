@@ -9,7 +9,13 @@ export {
   type StepRunInput,
 } from "./define.js";
 export { stepHandler } from "./handler.js";
-export { BUILTIN_SET, BUILTIN_STEPS, stepSet, type StepSet } from "./set.js";
+export {
+  BUILTIN_SET,
+  BUILTIN_STEPS,
+  projectSteps,
+  stepSet,
+  type StepSet,
+} from "./set.js";
 export {
   STEPS,
   STEP_HANDLERS,
