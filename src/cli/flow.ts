@@ -30,7 +30,7 @@ A flow is an id (flows/<id>.flow.json) or a path to a .flow.json file.
 
 Options for check and run:
   --env <name>                Environment to use (or SAMURAI_ENV)
-  --allow-unsupported         Skip nodes that can't run yet (HTTP request, ...) instead of refusing the flow
+  --allow-unsupported         Skip nodes whose kind has no handler instead of refusing the flow (every built-in kind runs)
   --json                      Machine-readable output: JSON lines for run, one array for check and list
 
 Options for run:
