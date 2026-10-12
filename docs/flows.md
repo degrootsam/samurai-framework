@@ -63,7 +63,7 @@ Wait, Set variable and HTTP request are steps; see [Writing a step](steps.md).
 
 ### Unknown kinds
 
-A node whose kind is neither one of the kinds above nor a step the framework knows is an **error**: `samurai flow check` reports "Unknown step: <kind>" and `samurai flow run` refuses to start. This is what a flow file with an old kind, such as `database`, gets.
+A node whose kind is neither one of the kinds above nor a step the framework knows is an **error**: `samurai flow check` reports "Unknown step: `<kind>`" and `samurai flow run` refuses to start. This is what a flow file with an old kind, such as `database`, gets.
 
 `handled` and `unsupported` in `checkFlow` only matter for a kind that has a definition but no handler. With the built-in handlers every kind a flow can name runs, so nothing is reported, and the `--allow-unsupported` flag (still accepted) has nothing to skip.
 
