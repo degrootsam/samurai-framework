@@ -36,6 +36,26 @@ export const api = defineStep({
 });
 ```
 
+## Steps of your own
+
+List your steps in `samurai.config.ts` (framework 0.5.0 and later). They run in `samurai flow run`
+and appear in the SAMURAI app's step library, in their `section`, after the built-in steps.
+
+```ts
+// samurai.config.ts
+import { defineConfig } from "@itmetsam/samurai-framework";
+import { slack } from "./steps/slack.js";
+
+export default defineConfig({
+  steps: [slack],
+});
+```
+
+- Every `kind` must be unique: a kind a built-in step uses (`wait`, `set-variable`, `api`), a
+  closed kind, or one listed twice is refused, and nothing runs until it is fixed.
+- The app reads the steps again when its window gets focus, so an edited step shows up when you
+  switch back from your editor.
+
 ## Properties
 
 | Property    | Meaning                                                                                                                             |
