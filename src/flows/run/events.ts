@@ -10,8 +10,10 @@ export interface NodeResult {
   note?: string;
   /** Condition: the branch taken */
   branch?: string;
-  /** Set variable: what it wrote */
+  /** What the node wrote to vars */
   wrote?: Record<string, unknown>;
+  /** A step's outputs, readable later as `nodes.<key>.<name>` */
+  outputs?: Record<string, unknown>;
 }
 
 /** One test of a node: absolute file and full name */
