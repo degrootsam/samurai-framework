@@ -6,7 +6,7 @@ flow). Start, End, Test, Group, Condition and Parallel are closed: steps can't r
 branch.
 
 ```ts
-import { defineStep } from "@itmetsam/samurai-framework/flows/steps";
+import { defineStep } from "@itmetsam/samurai-framework";
 
 export const api = defineStep({
   kind: "api",
