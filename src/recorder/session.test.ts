@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { pickTest, toolbarOptions } from "./session.js";
+import { pickTest, resultSecrets, toolbarOptions } from "./session.js";
 
 const tests = [
   { name: "Login > signs in" },
@@ -76,5 +76,17 @@ test("a", async ({ page }) => {
     const options = await toolbarOptions(run, source, dir, {} as never, 0);
     assert.equal(options.canAddVariables, false);
     assert.equal(options.secretsIgnored, false);
+  });
+});
+
+describe("resultSecrets", () => {
+  const fill = (name: string) =>
+    ({ step: { kind: "fill", value: { kind: "secret", name } } }) as never;
+  it("adds secrets saved from the panel, once, even when never typed", () => {
+    assert.deepEqual(resultSecrets([fill("A"), fill("A")], ["B", "A"]), [
+      "A",
+      "B",
+    ]);
+    assert.deepEqual(resultSecrets([], ["ONLY_ADDED"]), ["ONLY_ADDED"]);
   });
 });

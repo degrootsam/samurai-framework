@@ -35,7 +35,10 @@ export interface RecordSpecOptions extends ProjectOptions {
   signal?: AbortSignal;
   /** Called after each step is written to the file, with the file's new content */
   onEvent?: (event: RecorderEvent, source: string) => void;
-  /** Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page */
+  /**
+   * Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page.
+   * There is no initial call: until the first one the recording is `{ state: "recording", toolbar: true }`
+   */
   onStatus?: (status: {
     state: "recording" | "paused";
     toolbar: boolean;
@@ -101,6 +104,23 @@ export async function toolbarOptions(
       tests[testIndex]?.steps.filter(({ step }) => step.kind === "screenshot")
         .length ?? 0,
   };
+}
+
+/** The secrets a recording needs set: those its steps read, then those added from the panel, once each */
+export function resultSecrets(
+  events: readonly Pick<RecorderEvent, "step">[],
+  added: Iterable<string>,
+): string[] {
+  return [
+    ...new Set([
+      ...events.flatMap(({ step }) =>
+        step.kind === "fill" && step.value.kind === "secret"
+          ? [step.value.name]
+          : [],
+      ),
+      ...added,
+    ]),
+  ];
 }
 
 /** The index of the test `selector` names (see `RecordSpecOptions.test`) */
@@ -243,15 +263,7 @@ export async function recordSpec(
       await browser.close().catch(() => undefined);
     }
 
-    const secrets = [
-      ...new Set(
-        events.flatMap(({ step }) =>
-          step.kind === "fill" && step.value.kind === "secret"
-            ? [step.value.name]
-            : [],
-        ),
-      ),
-    ];
+    const secrets = resultSecrets(events, addedSecrets);
     return { file, test: test.name, events, secrets };
   });
 }
