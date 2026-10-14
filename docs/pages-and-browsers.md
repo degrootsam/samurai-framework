@@ -33,6 +33,12 @@ await page.waitForNetworkIdle({ idleTime: 500, timeout: 10_000 });
 
 `waitForNetworkIdle` waits until no request has been in flight for `idleTime` ms (default 500; config `network.idleTime`). Long-lived requests (server-sent events, long polling) keep the page busy until the timeout. It throws if config `network.track` is `false`. Call `waitForLoadState` after the action that starts a navigation; a document that is still the old one counts.
 
+```ts
+await page.waitForTimeout(2000); // wait 2 s
+```
+
+`waitForTimeout(ms)` waits a fixed time and throws a `RangeError` for a negative or non-finite value. Prefer waiting for something (an assertion, `waitForNetworkIdle`) when you can.
+
 For element state use [`locator.waitFor`](locators.md#waiting-for-state); for traffic see [Network](network.md).
 
 ## Viewport
@@ -54,6 +60,7 @@ await page.screenshot({
   clip: { x: 0, y: 0, width: 400, height: 300 },
 });
 await page.getByTestId("chart").screenshot({ path: "out/chart.png" }); // one element
+await page.screenshot({ name: "after-sign-in", fullPage: true }); // saved with the run
 const pdf = await page.pdf({
   path: "out/page.pdf",
   format: "A4",
@@ -62,6 +69,8 @@ const pdf = await page.pdf({
 ```
 
 Both return a `Buffer` and also write to `path` (folders are created). `quality` (0–100) only applies to JPEG. PDF options: `landscape`, `scale` (0.1–2), `pageRanges`, `margin` (cm), `printBackground`, `format`.
+
+`name` saves the image in the result folder next to the report, and lists it in the test's report entry (see [Running tests and reports](running-and-reports.md#screenshots)). It combines with `path`. The name keeps letters, digits, `-` and `_`; every other character becomes `-`, and an empty name becomes `screenshot`. In one test, a repeated name gets `-2`, `-3`, …. The recorder's Screenshot tool writes this step.
 
 ## Emulation
 
@@ -198,6 +207,10 @@ Firefox 158.0 is not installed. Run: samurai browsers install firefox
 ```
 
 A run with no tests to run does not need a browser.
+
+### Upgrading to 0.7
+
+0.7 adds the [recorder toolbar](recorder.md#the-toolbar), the `waitForTimeout` and `screenshot` steps, `page.waitForTimeout` and `page.screenshot({ name })`. Specs written by 0.6 still parse; 0.6 reads the new steps as custom code. Nothing needs to change in a project.
 
 ### Upgrading to 0.6
 

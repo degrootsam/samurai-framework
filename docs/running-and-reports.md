@@ -61,6 +61,7 @@ The installed `samurai` command does the same with nicer output; see [Command li
 - Run `status` is `"success"` only when every test succeeded.
 - Times are milliseconds (`startTime` is relative to the process start).
 - A failed test carries the error flat on its entry: `type` (`"error"`, `"assertion"` or `"timeout"`), `message`, `stack`, and for assertions `expected` and `actual`.
+- A test that called `page.screenshot({ name })` has `screenshots: [{ "name": "after-sign-in", "path": "screenshots/login/Login-signs-in/after-sign-in.png" }]`. `path` is relative to the `result/` folder and uses `/`. See [Screenshots](#screenshots).
 - Everything in the report is passed through [secret masking](environments-and-secrets.md#masking).
 
 ### Page logs
@@ -79,6 +80,10 @@ Each entry has `level` (`debug`, `info`, `warn`, `error`), `type` (`console`, `j
 - If the browser goes away during a test (a person closes the window, or it crashes), the test fails at once with `The browser was closed while the test was running`, and the next test starts with a browser of its own.
 - An error thrown inside a `page.route` handler fails a test that otherwise passed (the mock didn't do what the test meant).
 
+## Screenshots
+
+`page.screenshot({ name })` in a test saves the image under `result/screenshots/<spec file under srcDir, without extension>/<test name>/<name>.png`. The test name and the screenshot name keep letters, digits, `-` and `_` (the rest becomes `-`), and a repeated name in one test gets `-2`, `-3`, …. Outside a run (a script that launches a browser itself) the file is `result/screenshots/<name>.png` in the project folder. The paths are listed in the report, see above.
+
 ## Timeouts at a glance
 
 | What                              | Default      | Set with                                                     |
@@ -92,12 +97,13 @@ Each entry has `level` (`debug`, `info`, `warn`, `error`), `type` (`console`, `j
 
 ## Logs and artefacts
 
-| Path                 | Content                                        |
-| -------------------- | ---------------------------------------------- |
-| `result/report.json` | The report above                               |
-| `result/downloads/`  | Files downloaded during tests (`downloadsDir`) |
-| `logs/combined.log`  | Framework log, all levels                      |
-| `logs/error.log`     | Framework errors                               |
+| Path                  | Content                                            |
+| --------------------- | -------------------------------------------------- |
+| `result/report.json`  | The report above                                   |
+| `result/downloads/`   | Files downloaded during tests (`downloadsDir`)     |
+| `result/screenshots/` | Screenshots taken with `page.screenshot({ name })` |
+| `logs/combined.log`   | Framework log, all levels                          |
+| `logs/error.log`      | Framework errors                                   |
 
 `logs/` and `result/` are git-ignored.
 
