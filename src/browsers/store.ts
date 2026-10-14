@@ -1,10 +1,4 @@
-import {
-  existsSync,
-  lstatSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, lstatSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { browsersCacheDir } from "./cache-dir.js";
 import { puppeteerDownloader, type Downloader } from "./downloader.js";
