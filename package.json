@@ -24,6 +24,10 @@
       "types": "./dist/cli/init.d.ts",
       "default": "./dist/cli/init.js"
     },
+    "./browsers": {
+      "types": "./dist/browsers/index.d.ts",
+      "default": "./dist/browsers/index.js"
+    },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
       "default": "./dist/browser/index.js"

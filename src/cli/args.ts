@@ -23,6 +23,8 @@ const FLAGS = {
   at: { type: "string" },
   new: { type: "string" },
   url: { type: "string" },
+  build: { type: "string" },
+  unused: { type: "boolean" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;
