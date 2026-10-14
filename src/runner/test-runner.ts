@@ -3,6 +3,7 @@ import { glob } from "node:fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
 import { Browser } from "../browser/browser.js";
+import { projectExecutable } from "../browsers/resolve.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
@@ -199,6 +200,9 @@ export default class TestRunner {
     });
 
     const selected = await this.register();
+    // A missing browser is one clear error before the run, not a failure per test
+    if (selected.length > 0)
+      await projectExecutable((await readConfig("browser")) ?? "firefox");
     reporter.onStart(selected.length);
     for (const test of selected) {
       if (signal?.aborted) {

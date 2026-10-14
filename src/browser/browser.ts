@@ -3,7 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
-import { findBrowser } from "./browser-finder.js";
+import { projectExecutable } from "../browsers/resolve.js";
 import path from "node:path";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import Page from "./page.js";
@@ -204,7 +204,7 @@ export class Browser {
   ) {
     signal?.throwIfAborted();
     logger.verbose("Trying to launch browser %s", browserName);
-    const browserLocation = findBrowser(browserName);
+    const browserLocation = await projectExecutable(browserName);
     logger.debug("Found browser install location at: %s", browserLocation);
     ensureBrowserProfile(browserName);
 
