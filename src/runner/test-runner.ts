@@ -21,6 +21,7 @@ import { createSecretsFixture } from "../config/secrets.js";
 import TestReporter, { type RunEvent } from "./reporter.js";
 import type { SamuraiGroup } from "../types/config.js";
 import Page from "../browser/page.js";
+import { cleanName, Evidence } from "../browser/evidence.js";
 import { takePendingAssertions } from "../assert/expect.js";
 import { toTestError } from "./test-error.js";
 import { ConnectionClosedError } from "../transport/bidi-connection.js";
@@ -75,6 +76,8 @@ export default class TestRunner {
   private run: PreparedRun;
   private group?: SamuraiGroup;
   private options: RunnerOptions;
+  /** The real `srcDir` of this run, set by `start`; test screenshots are saved under paths relative to it */
+  private srcDir = "";
 
   constructor(
     testFiles: string[],
@@ -153,11 +156,7 @@ export default class TestRunner {
   /** The config's groups, resolved against the tests the specs register */
   private async resolveAll(tests: RegisteredTestCase[]) {
     const config = await loadConfig();
-    // Real paths: registered test files come from stack traces, which resolve symlinks
-    const dir = realPath(projectDir());
-    const srcDir = realPath(
-      path.resolve(dir, config.srcDir ?? DEFAULT_SRC_DIR),
-    );
+    const { dir, srcDir } = realDirs(config.srcDir);
     const groups = resolveGroups(
       config,
       tests.map(({ file, name }) => ({
@@ -200,6 +199,7 @@ export default class TestRunner {
     });
 
     const selected = await this.register();
+    this.srcDir = realDirs((await loadConfig()).srcDir).srcDir;
     // A missing browser is one clear error before the run, not a failure per test; a fresh build's slow
     // first start happens here, outside any test's timeout
     if (selected.length > 0)
@@ -228,13 +228,17 @@ export default class TestRunner {
     reporter.onTestStart(test);
     // A test ends once, whichever of finishing, failing, timing out, an abort or a closed browser comes first
     let ended = false;
+    let evidence: Evidence | undefined;
     const finish = (
       error?: TestError,
       logs?: { logs?: TestLogEntry[]; logsDropped?: number },
     ) => {
       if (ended) return;
       ended = true;
-      reporter.onTestEnd(test, error, logs);
+      reporter.onTestEnd(test, error, {
+        ...logs,
+        screenshots: evidence?.screenshots,
+      });
     };
     let browserClosed = false;
     /** Set once the runner itself closes the browser */
@@ -243,6 +247,11 @@ export default class TestRunner {
       (await readConfig("browser")) ?? "firefox";
     const { settings, secrets } = this.run;
     const timeout = settings.timeout;
+    const { reportPath } = this.options;
+    const resultDir =
+      typeof reportPath === "string"
+        ? path.dirname(reportPath)
+        : path.join(projectDir(), "result");
 
     let browser: Browser | undefined;
     let page: Page | undefined;
@@ -294,6 +303,8 @@ export default class TestRunner {
             resolve();
           });
           page = launched.page;
+          evidence = new Evidence(resultDir, testDirOf(test, this.srcDir));
+          launched.page.setEvidence(evidence);
           const fixtures: TestFixtures = {
             page: launched.page,
             browser: launched.browser,
@@ -345,6 +356,24 @@ export default class TestRunner {
     closing = true;
     await browser?.close();
   }
+}
+
+/** The project and source folders as real paths: registered test files come from stack traces, which resolve symlinks */
+function realDirs(configuredSrcDir: string | undefined) {
+  const dir = realPath(projectDir());
+  const srcDir = realPath(
+    path.resolve(dir, configuredSrcDir ?? DEFAULT_SRC_DIR),
+  );
+  return { dir, srcDir };
+}
+
+/** The folder of a test's screenshots below `screenshots/`: its spec file without extension, then its cleaned name */
+function testDirOf(test: RegisteredTestCase, srcDir: string): string {
+  const file = toPosix(path.relative(srcDir, test.file)).replace(
+    /\.[cm]?[jt]sx?$/,
+    "",
+  );
+  return `${file}/${cleanName(test.name)}`;
 }
 
 /** Reads the page's log once the test body is done and applies config `logs` (see judgePageLogs) */

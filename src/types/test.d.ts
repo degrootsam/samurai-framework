@@ -39,6 +39,8 @@ interface TestResultSuccess extends TestResultIdentity {
   logs?: TestLogEntry[];
   /** Entries that fell out of the page's log buffer */
   logsDropped?: number;
+  /** Named screenshots the test saved, relative to the result folder */
+  screenshots?: { name: string; path: string }[];
 }
 
 /** The error sits flat on the entry, as in the report: `message`, `type`, `stack`, and for assertions `expected` and `actual` */
@@ -47,6 +49,8 @@ interface TestResultFailed extends TestResultIdentity, TestError {
   duration: number;
   logs?: TestLogEntry[];
   logsDropped?: number;
+  /** Named screenshots the test saved, relative to the result folder */
+  screenshots?: { name: string; path: string }[];
 }
 
 /** One line of the browser's log, as stored in the report */

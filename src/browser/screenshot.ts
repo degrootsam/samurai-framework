@@ -9,6 +9,8 @@ export interface ScreenshotOptions {
   fullPage?: boolean;
   /** Only this part: in viewport coordinates, or document coordinates with `fullPage` */
   clip?: { x: number; y: number; width: number; height: number };
+  /** Also save the image as run evidence under this name (see the Page API docs) */
+  name?: string;
   /** @default "png" */
   type?: "png" | "jpeg";
   /** 0 to 100, jpeg only */
@@ -16,20 +18,30 @@ export interface ScreenshotOptions {
 }
 
 /** The options a single element's screenshot takes: the image format and where to write it */
-export type ElementScreenshotOptions = Pick<ScreenshotOptions, "path" | "type" | "quality">;
+export type ElementScreenshotOptions = Pick<
+  ScreenshotOptions,
+  "path" | "type" | "quality"
+>;
 
 const MIME = { png: "image/png", jpeg: "image/jpeg" } as const;
 
 /** The `format` of a capture command; validates the type/quality combination */
-function imageFormat({ type, quality }: Pick<ScreenshotOptions, "type" | "quality">) {
+function imageFormat({
+  type,
+  quality,
+}: Pick<ScreenshotOptions, "type" | "quality">) {
   if (quality !== undefined) {
-    if (type !== "jpeg") throw new RangeError("screenshot(): quality only applies to jpeg");
+    if (type !== "jpeg")
+      throw new RangeError("screenshot(): quality only applies to jpeg");
     if (!Number.isFinite(quality) || quality < 0 || quality > 100) {
       throw new RangeError("screenshot(): quality must be between 0 and 100");
     }
   }
   if (type === undefined) return undefined;
-  return { type: MIME[type], ...(quality !== undefined && { quality: quality / 100 }) };
+  return {
+    type: MIME[type],
+    ...(quality !== undefined && { quality: quality / 100 }),
+  };
 }
 
 /**
@@ -58,7 +70,10 @@ export async function takeScreenshot(
 }
 
 /** Writes `data` to `file`, creating the folders; nothing happens without a path */
-export async function writeOutput(file: string | undefined, data: Buffer): Promise<void> {
+export async function writeOutput(
+  file: string | undefined,
+  data: Buffer,
+): Promise<void> {
   if (!file) return;
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, data);
