@@ -102,10 +102,7 @@ export async function installBrowser(
     return downloader.executablePath(cacheDir, name, pin.buildId);
   const remove = () => {
     for (const part of parts(name))
-      rmSync(downloader.installDir(cacheDir, part, pin.buildId), {
-        recursive: true,
-        force: true,
-      });
+      downloader.clean(cacheDir, part, pin.buildId);
   };
   // An unfinished folder from an earlier attempt would make the downloader refuse
   remove();
