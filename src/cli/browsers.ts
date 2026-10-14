@@ -1,4 +1,5 @@
 import {
+  browsersCacheDir,
   browserStatus,
   installBrowser,
   isManagedBrowser,
@@ -13,10 +14,11 @@ import { parseCommandLine } from "./args.js";
 import type { Io } from "./main.js";
 
 export const BROWSERS_USAGE = `Usage:
-  samurai browsers [list]                      The pinned browsers and every build in the cache
-  samurai browsers install [firefox|chrome|all] Download the pinned builds (default: all)
+  samurai browsers [list]                        The pinned browsers and every build in the cache
+  samurai browsers install [firefox|chrome|all]  Download the pinned builds (default: all)
   samurai browsers uninstall <name> [--build <id>]
-  samurai browsers uninstall --unused          Remove builds this framework version doesn't pin
+                                                 Remove a build (default: the pinned one)
+  samurai browsers uninstall --unused            Remove builds this framework version doesn't pin
 `;
 
 export function formatBytes(n: number): string {
@@ -35,7 +37,7 @@ function names(arg: string | undefined): ManagedBrowser[] {
 }
 
 async function list(io: Io, store: StoreOptions) {
-  for (const s of await browserStatus(store)) {
+  for (const s of await browserStatus({ ...store, env: io.env })) {
     const state = s.override
       ? `uses ${s.override.path} (${s.override.from === "env" ? "environment variable" : "samurai.config.ts"})`
       : s.state === "installed"
@@ -54,6 +56,8 @@ async function list(io: Io, store: StoreOptions) {
 }
 
 async function install(io: Io, targets: ManagedBrowser[], store: StoreOptions) {
+  const baseUrl = io.env.SAMURAI_BROWSERS_BASE_URL;
+  if (baseUrl) io.out(`Downloading from ${baseUrl}\n`);
   for (const name of targets) {
     const label = PINNED[name].label;
     let shown = -1;
@@ -77,12 +81,16 @@ async function install(io: Io, targets: ManagedBrowser[], store: StoreOptions) {
   }
 }
 
-/** `samurai browsers …`; `store` is for tests */
+/** `samurai browsers …`; `options` is for tests. The cache folder follows `io.env` */
 export async function browsersCommand(
   argv: string[],
   io: Io,
-  store: StoreOptions = {},
+  options: StoreOptions = {},
 ): Promise<number> {
+  const store: StoreOptions = {
+    ...options,
+    cacheDir: options.cacheDir ?? browsersCacheDir(io.env),
+  };
   const { values, positionals } = parseCommandLine(argv);
   const [sub = "list", target] = positionals;
   try {

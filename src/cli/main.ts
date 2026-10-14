@@ -20,7 +20,7 @@ Usage:
   samurai record <spec>       Open a browser and record what you do into a spec file
   samurai init [folder]       Scaffold a project: config, an example test, .env.example
   samurai flow <command>      List, check and run the flows in ./flows (see below)
-  samurai browsers [command]   List, install and remove the browsers SAMURAI launches
+  samurai browsers [command]  List, install and remove the browsers SAMURAI launches
 
 Options for run and list:
   --env <name>                Environment to run against (or SAMURAI_ENV)
@@ -57,7 +57,8 @@ samurai flow:
 
 samurai browsers:
   list                        The pinned browsers and every build in the cache (the default)
-  install [firefox|chrome|all] Download the pinned builds (default: all)
+  install [firefox|chrome|all]
+                              Download the pinned builds (default: all)
   uninstall <name> [--build <id>] | --unused
 
 Run it in the project folder, the one holding samurai.config.ts.
