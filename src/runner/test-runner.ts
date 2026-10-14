@@ -367,12 +367,24 @@ function realDirs(configuredSrcDir: string | undefined) {
   return { dir, srcDir };
 }
 
-/** The folder of a test's screenshots below `screenshots/`: its spec file without extension, then its cleaned name */
-function testDirOf(test: RegisteredTestCase, srcDir: string): string {
-  const file = toPosix(path.relative(srcDir, test.file)).replace(
-    /\.[cm]?[jt]sx?$/,
-    "",
-  );
+/**
+ * The folder of a test's screenshots below `screenshots/`: its spec file without extension, then its cleaned
+ * name. A spec outside srcDir loses the `..` (and a drive or root) its relative path starts with, so it stays
+ * below `screenshots/`.
+ * @internal Exported for tests
+ */
+export function testDirOf(test: RegisteredTestCase, srcDir: string): string {
+  const file = toPosix(path.relative(srcDir, test.file))
+    .replace(/\.[cm]?[jt]sx?$/, "")
+    .split("/")
+    .filter(
+      (segment) =>
+        segment !== "" &&
+        segment !== "." &&
+        segment !== ".." &&
+        !/^[A-Za-z]:$/.test(segment),
+    )
+    .join("/");
   return `${file}/${cleanName(test.name)}`;
 }
 

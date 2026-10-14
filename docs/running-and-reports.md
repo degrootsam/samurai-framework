@@ -82,7 +82,7 @@ Each entry has `level` (`debug`, `info`, `warn`, `error`), `type` (`console`, `j
 
 ## Screenshots
 
-`page.screenshot({ name })` in a test saves the image under `result/screenshots/<spec file under srcDir, without extension>/<test name>/<name>.png` (`<name>.jpg` with `type: "jpeg"`). The test name and the screenshot name keep letters, digits, `-` and `_` (the rest becomes `-`), and a repeated name in one test gets `-2`, `-3`, …. Outside a run (a script that launches a browser itself) the file is `result/screenshots/<name>.png` (or `.jpg`) in the project folder. The paths are listed in the report, see above.
+`page.screenshot({ name })` in a test saves the image under `result/screenshots/<spec file under srcDir, without extension>/<test name>/<name>.png` (`<name>.jpg` with `type: "jpeg"`). A spec outside `srcDir` uses its path relative to `srcDir` without the leading `../`, so its screenshots stay in `result/screenshots/`. The test name and the screenshot name keep letters, digits, `-` and `_` (the rest becomes `-`), and a repeated name in one test gets `-2`, `-3`, …. Outside a run (a script that launches a browser itself) the file is `result/screenshots/<name>.png` (or `.jpg`) in the project folder. The paths are listed in the report, see above.
 
 ## Timeouts at a glance
 
