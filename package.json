@@ -44,6 +44,10 @@
       "types": "./dist/flows/steps/index.d.ts",
       "default": "./dist/flows/steps/index.js"
     },
+    "./project": {
+      "types": "./dist/project/index.d.ts",
+      "default": "./dist/project/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
