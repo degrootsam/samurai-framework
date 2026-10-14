@@ -27,4 +27,11 @@ describe("capture script", () => {
     );
     assert.ok(!CANDIDATES_JS.includes("`"));
   });
+
+  it("does not outline the toolbar while Alt is held", () => {
+    assert.match(
+      CAPTURE_SOURCE,
+      /addEventListener\("mousemove", \(event\) => \{\s*(\/\/.*\s*)?if \(inToolbar\(event\)\) return unhighlight\(\);/,
+    );
+  });
 });
