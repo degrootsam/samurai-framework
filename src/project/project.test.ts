@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { MASK, maskText, resetSecrets } from "../config/mask.js";
 import { hasConfigPath } from "./config-edit.js";
 import { isGitIgnored, setSecret } from "./secrets-file.js";
 import { addVariable } from "./variables.js";
@@ -60,6 +61,16 @@ describe("project writers", () => {
       setSecret(dir, "dev", "lower", "x"),
       /UPPER_SNAKE_CASE/,
     );
+  });
+
+  it("a secret set with setSecret is masked in this process from then on", async () => {
+    try {
+      assert.equal(maskText("pay with 9q8w7e6r-new"), "pay with 9q8w7e6r-new");
+      await setSecret(dir, "dev", "CARD", "9q8w7e6r-new");
+      assert.equal(maskText("pay with 9q8w7e6r-new"), `pay with ${MASK}`);
+    } finally {
+      resetSecrets();
+    }
   });
 
   it("isGitIgnored reads .gitignore", async () => {
