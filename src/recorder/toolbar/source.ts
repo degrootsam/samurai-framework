@@ -707,7 +707,8 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
   const TYPING = ["keydown", "keyup", "keypress", "beforeinput", "input", "compositionstart", "compositionupdate", "compositionend", "paste", "cut", "copy"];
   for (const type of TYPING) {
     listen(window, type, (event) => {
-      if (!inToolbar(event)) return;
+      // An untrusted event was dispatched by the page itself: it neither carries the tester's typing nor acts
+      if (!event.isTrusted || !inToolbar(event)) return;
       event.stopImmediatePropagation();
       const target = root.activeElement;
       if (type === "keydown") {
@@ -722,7 +723,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     }, true);
   }
   listen(window, "keydown", (event) => {
-    if (event.key === "Escape" && (ui.picking || ui.panel)) {
+    if (event.isTrusted && event.key === "Escape" && (ui.picking || ui.panel)) {
       swallow(event);
       handlers.escape();
     }
