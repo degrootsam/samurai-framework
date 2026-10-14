@@ -33,6 +33,9 @@ before(async () => {
   for (let i = 0; i < 2; i++) {
     const server = createServer((req, res) => {
       const html = pages.get(req.url ?? "/") ?? "<p>not found</p>";
+      // Pages under /csp/ forbid inline styles
+      if (req.url?.startsWith("/csp/"))
+        res.setHeader("content-security-policy", "style-src 'self'");
       res
         .setHeader("content-type", "text/html")
         .end(`<!doctype html><html><body>${html}</body></html>`);
@@ -860,5 +863,35 @@ test(
         ).includes("s3cr3t-Typed") || undefined,
       "the secret in .env.dev",
     );
+  },
+);
+
+test(
+  "a page whose CSP forbids inline styles still gets a styled toolbar in its spot",
+  OPTIONS,
+  async () => {
+    pages.set("/plain", `<p>plain</p>`);
+    pages.set("/csp/strict", `<p>strict</p>`);
+    const look = () =>
+      inSandbox<Record<string, unknown>>(`() => {
+        const rail = ${HOOK}.root.querySelector(".rail");
+        const host = document.querySelector("samurai-recorder-toolbar");
+        const r = rail.getBoundingClientRect();
+        const style = getComputedStyle(rail);
+        return {
+          rail: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+          position: style.position,
+          background: style.backgroundColor,
+          host: getComputedStyle(host).position,
+          hostZ: getComputedStyle(host).zIndex,
+        };
+      }`);
+    await page.navigateTo(`${bases[0]}/plain`, "complete");
+    await record();
+    const plain = await look();
+    assert.equal(plain.position, "fixed");
+
+    await open(`${bases[0]}/csp/strict`);
+    assert.deepEqual(await look(), plain);
   },
 );
