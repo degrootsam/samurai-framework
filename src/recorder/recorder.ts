@@ -103,8 +103,17 @@ export class Recorder {
     private readonly context: string,
     private readonly normaliser: Normaliser,
     private readonly options: RecorderOptions,
+    /** The capture script's channel: page messages only */
     private readonly channel: string,
+    /** The toolbar's channel, handed only to the toolbar's sandbox: toolbar messages only */
+    private readonly toolbarChannel: string,
   ) {}
+
+  /** The context's `samurai-toolbar` sandbox realms, as last listed: the only realms toolbar messages are taken from */
+  private toolbarRealms = new Set<string>();
+  /** Toolbar messages waiting for a realm lookup, and those that arrived behind them (kept in order) */
+  private toolbarBacklog: Promise<void> = Promise.resolve();
+  private toolbarWaiting = 0;
 
   public static async start(
     target: { page: Page; connector: BiDiConnector; context: string },
@@ -122,35 +131,85 @@ export class Recorder {
       normaliser,
       options,
       `samurai-recorder-${randomUUID()}`,
+      `samurai-toolbar-${randomUUID()}`,
     );
     await recorder.begin(options.initialGoto ?? true);
     return recorder;
   }
 
+  /**
+   * Page messages come only on the capture channel; toolbar messages only on the toolbar channel and
+   * only from the toolbar's sandbox realm. Neither channel is reachable from page script (each stays in
+   * its script's closure, and the toolbar's in a sandbox the page cannot see); the realm check also
+   * holds if a page realm ever got the toolbar's channel.
+   */
   private readonly onMessage = (params: {
     channel: string;
     data: unknown;
-    source: { context?: string };
+    source: { context?: string; realm?: string };
   }) => {
-    if (
-      params.channel !== this.channel ||
-      params.source.context !== this.context
-    )
+    if (params.source.context !== this.context) return;
+    if (params.channel === this.channel) {
+      const message = fromRemoteValue(
+        params.data as Parameters<typeof fromRemoteValue>[0],
+      ) as PageMessage | { type: "toolbar" };
+      if (message.type !== "toolbar")
+        this.enqueue(async () => this.handle(message));
       return;
+    }
+    if (params.channel !== this.toolbarChannel || !this.controller) return;
+    const realm = params.source.realm ?? "";
+    if (this.toolbarWaiting === 0 && this.toolbarRealms.has(realm)) {
+      this.fromToolbar(params.data);
+      return;
+    }
+    // A sandbox not seen yet (a new document's toolbar): look it up, and keep later messages behind it
+    this.toolbarWaiting++;
+    this.toolbarBacklog = this.toolbarBacklog
+      .then(async () => {
+        if (!this.toolbarRealms.has(realm)) await this.listToolbarRealms();
+        if (this.toolbarRealms.has(realm)) this.fromToolbar(params.data);
+        else
+          logger.warn(
+            "Recorder ignored a toolbar message from outside the toolbar's sandbox",
+          );
+      })
+      .catch((err: unknown) => {
+        logger.debug("Could not check a toolbar message's realm", { err });
+      })
+      .finally(() => this.toolbarWaiting--);
+  };
+
+  private async listToolbarRealms(): Promise<void> {
+    const { realms } = await this.connector.send("script.getRealms", {
+      context: this.context,
+      type: "window",
+    });
+    this.toolbarRealms = new Set(
+      realms
+        .filter(
+          (info) => info.type === "window" && info.sandbox === TOOLBAR_SANDBOX,
+        )
+        .map((info) => info.realm),
+    );
+  }
+
+  /** A message from the toolbar's own sandbox */
+  private fromToolbar(data: unknown): void {
     const message = fromRemoteValue(
-      params.data as Parameters<typeof fromRemoteValue>[0],
-    ) as PageMessage | (ToolbarMessage & { target?: ElementHandle });
+      data as Parameters<typeof fromRemoteValue>[0],
+    ) as (ToolbarMessage & { target?: ElementHandle }) | { type: string };
     const controller = this.controller;
-    if (message.type !== "toolbar") {
-      this.enqueue(async () => this.handle(message));
-    } else if (controller && message.action === "ready") {
+    if (!controller || message.type !== "toolbar" || !("action" in message))
+      return;
+    if (message.action === "ready") {
       // Not behind a slow insert: the ready watchdog is waiting for it
       void controller.handle(message);
-    } else if (controller?.accept(message)) {
+    } else if (controller.accept(message)) {
       // Decided as it arrives: a double click's second copy would only run after the first had finished
       this.enqueue(async () => controller.handle(message));
     }
-  };
+  }
 
   private readonly onLoad = (params: { context: string; url: string }) => {
     if (params.context === this.context && params.url !== "about:blank")
@@ -205,7 +264,7 @@ export class Recorder {
           source: TOOLBAR_SOURCE,
           sandbox: TOOLBAR_SANDBOX,
           contexts: [this.context],
-          arguments: [new ChannelArg(this.channel)],
+          arguments: [new ChannelArg(this.toolbarChannel)],
           onRunError: "log",
         });
         // The document that is loaded now gets its state and its ready watchdog as a new one would

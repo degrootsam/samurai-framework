@@ -35,6 +35,14 @@ export interface ScriptCommands {
     params: { handles: Handle[]; target: Target };
     result: DisownResult;
   };
+  /** Lists the realms that match, e.g. every window realm (sandboxes included) of a context. */
+  "script.getRealms": {
+    params: {
+      context?: BrowsingContext | undefined;
+      type?: RealmInfo["type"] | undefined;
+    };
+    result: GetRealmsResult;
+  };
   /** Registers a function to run before any page script in every matching new document. */
   "script.addPreloadScript": {
     params: {
@@ -54,13 +62,22 @@ export interface ScriptCommands {
 }
 
 /** A serialized value sent to the browser as a function argument or `this`. */
-export type LocalValue = { type: string; value?: unknown; [key: string]: unknown };
+export type LocalValue = {
+  type: string;
+  value?: unknown;
+  [key: string]: unknown;
+};
 /** A reference to a node or object that already lives in the browser. */
-export type RemoteReference = { sharedId: string; handle?: string | undefined } | { handle: string };
+export type RemoteReference =
+  { sharedId: string; handle?: string | undefined } | { handle: string };
 /** A channel the browser can use to send messages back through `script.message`. */
 export interface ChannelValue {
   type: "channel";
-  value: { channel: Channel; serializationOptions?: SerializationOptions; ownership?: ResultOwnership };
+  value: {
+    channel: Channel;
+    serializationOptions?: SerializationOptions;
+    ownership?: ResultOwnership;
+  };
 }
 export type ArgumentValue = LocalValue | RemoteReference | ChannelValue;
 
