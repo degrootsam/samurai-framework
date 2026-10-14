@@ -15,14 +15,13 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 
 ## Open: recorder
 
-| #   | Item                                 | Notes                                                                                                                                                                                                                                                                                                                      |
-| --- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done                                                                                                                                              |
-| 6   | **Chrome support**                   | Likely through the `chromium-bidi` mapper (BiDi over CDP). The recorder UI also needs it for item 7                                                                                                                                                                                                                        |
-| 7   | **Embedded recording browser**       | Render the page under test inside the editor panel (a `WebContentsView`), expose CDP, run the mapper in Electron's main process and add a framework transport for it. Needs a spike first: CDP port exposure, mapper needing browser-level CDP, user contexts and downloads in Electron. In-app recording is Chromium-only |
-| –   | **Record more interactions**         | `<select>` choices, other key presses (arrows, shortcuts), hover, drag, file uploads, dialogs, contenteditable, iframes. Each needs a step kind in the codec first                                                                                                                                                         |
-| –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                                                                                                                                                               |
-| –   | **Variables in steps**               | `${name}` references to environment variables in the steps view (specs use `env.name` today)                                                                                                                                                                                                                               |
+| #   | Item                                 | Notes                                                                                                                                                                         |
+| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done |
+| 6   | **Chrome support**                   | Likely through the `chromium-bidi` mapper (BiDi over CDP). Chrome for Testing already downloads (`samurai browsers install chrome`); launching it is what is open             |
+| –   | **Record more interactions**         | `<select>` choices, other key presses (arrows, shortcuts), hover, drag, file uploads, dialogs, contenteditable, iframes. Each needs a step kind in the codec first            |
+| –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                  |
+| –   | **Variables in steps**               | `${name}` references to environment variables in the steps view (specs use `env.name` today)                                                                                  |
 
 ### Later, not scheduled
 
@@ -52,7 +51,7 @@ Gaps in the runner today, found while writing these docs:
 
 ## Open: framework API
 
-- **Browsers.** Firefox only (see Chrome above); only Firefox install locations are searched.
+- **Browsers.** Firefox only for launching (see Chrome above); Chrome for Testing downloads already.
 - **Locators.** No `first()`, `last()`, `nth(i)` or `filter(...)` (use `all()`), no `getByPlaceholder` or `getByAltText`, and the test-id attribute is fixed to `data-testid`. No iframe or shadow-DOM piercing beyond the browser's own support.
 - **Actions.** No `hover`, `dblclick`, `check`/`uncheck`, `selectOption`, keyboard `press`/`type`, drag and drop, or scrolling helpers. `fill` replaces the whole value; there is no append.
 - **Assertions.** No `toBeHidden`, `toBeEnabled`, `toBeChecked`, `toHaveCSS`, `toHaveURL`, `toHaveTitle`, `toHaveClass`; no screenshot comparison. Use `expect(await page.url())` for the URL and title.

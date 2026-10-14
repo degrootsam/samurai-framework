@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
+import { ensureWarm } from "../browser/warm-up.js";
 import { projectDir } from "../config/config.js";
 import { withProject, type ProjectOptions } from "../runner/project.js";
 import { parseSpec } from "../steps/parse.js";
@@ -113,6 +114,9 @@ export async function recordSpec(
         `${options.file} does not exist; give a title with --new to create it`,
       );
     }
+    // Before the spec is touched: a recording without its browser changes nothing
+    await ensureWarm("firefox", { port: options.port ?? 9223 }, options.signal);
+    options.signal?.throwIfAborted();
     source ??= "";
     if (
       options.create !== undefined &&

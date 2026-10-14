@@ -8,6 +8,7 @@ import { recordSpec } from "../recorder/index.js";
 import { listTests, runTests, type RunTestsOptions } from "../runner/run.js";
 import { stepToSource } from "../steps/index.js";
 import { ConsoleReporter } from "./console-reporter.js";
+import { browsersCommand } from "./browsers.js";
 import { flowCommand } from "./flow.js";
 import { initProject } from "./init.js";
 
@@ -19,6 +20,7 @@ Usage:
   samurai record <spec>       Open a browser and record what you do into a spec file
   samurai init [folder]       Scaffold a project: config, an example test, .env.example
   samurai flow <command>      List, check and run the flows in ./flows (see below)
+  samurai browsers [command]  List, install and remove the browsers SAMURAI launches
 
 Options for run and list:
   --env <name>                Environment to run against (or SAMURAI_ENV)
@@ -52,6 +54,12 @@ samurai flow:
   run <flow>... | --all       Run flows; each writes result/flows/<id>.json
   Options for run: --env, --headless, --timeout, --expect-timeout, --port, --json, --allow-unsupported
   Run \`samurai flow\` alone for the details.
+
+samurai browsers:
+  list                        The pinned browsers and every build in the cache (the default)
+  install [firefox|chrome|all]
+                              Download the pinned builds (default: all)
+  uninstall <name> [--build <id>] | --unused
 
 Run it in the project folder, the one holding samurai.config.ts.
 `;
@@ -91,12 +99,15 @@ export async function main(argv: string[], io: Io): Promise<number> {
     }
 
     if (command === "flow") return await flowCommand(rest, io);
+    if (command === "browsers") return await browsersCommand(rest, io);
 
     if (command === "init") {
       const { written, skipped } = initProject(positionals[0] ?? ".");
       for (const file of written) io.out(`created ${file}\n`);
       for (const file of skipped) io.out(`kept    ${file} (already there)\n`);
-      io.out("\nNext: install the dependencies, then `samurai run`.\n");
+      io.out(
+        "\nNext: install the dependencies, then `samurai browsers install firefox`, then `samurai run`.\n",
+      );
       return 0;
     }
 

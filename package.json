@@ -1,6 +1,6 @@
 {
   "name": "@itmetsam/samurai-framework",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Browser test framework over WebDriver BiDi: auto-waiting locators, environments and secrets, a recorder, and a command line.",
   "main": "dist/api.js",
   "exports": {
@@ -23,6 +23,10 @@
     "./init": {
       "types": "./dist/cli/init.d.ts",
       "default": "./dist/cli/init.js"
+    },
+    "./browsers": {
+      "types": "./dist/browsers/index.d.ts",
+      "default": "./dist/browsers/index.js"
     },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
@@ -65,6 +69,7 @@
     "tsx": "^4.21.0"
   },
   "dependencies": {
+    "@puppeteer/browsers": "^3.2.4",
     "typescript": "^6.0.2",
     "winston": "^3.19.0"
   },

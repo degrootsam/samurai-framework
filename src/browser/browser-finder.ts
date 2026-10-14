@@ -10,6 +10,7 @@ const macBrowserPaths: Record<SupportedBrowser, string> = {
   firefox: "/Applications/Firefox.app/Contents/MacOS/Firefox",
 };
 
+/** @deprecated Launches use the builds SAMURAI downloads (`samurai browsers install`); removed in a later major */
 export function findBrowser(browserName: SupportedBrowser) {
   logger.verbose("Checking install location for %s", browserName);
   if (!supportedBrowsers.includes(browserName)) {

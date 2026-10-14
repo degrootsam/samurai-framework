@@ -1,6 +1,7 @@
 node_modules
 dist
 browsers
+!src/browsers/
 logs
 results
 result/*

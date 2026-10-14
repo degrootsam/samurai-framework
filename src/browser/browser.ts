@@ -3,9 +3,13 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
-import { findBrowser } from "./browser-finder.js";
+import { projectBrowser } from "../browsers/resolve.js";
 import path from "node:path";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  BiDiConnector,
+  DEFAULT_COMMAND_TIMEOUT,
+} from "../transport/bidi-connection.js";
+import { BiDiError } from "../transport/bidi-error.js";
 import Page from "./page.js";
 import { BrowserContext, type ContextHost } from "./browser-context.js";
 import type { UserPromptHandler } from "../types/bidi-modules/session.js";
@@ -27,6 +31,42 @@ import type {
 export const SESSION_CAPABILITIES = {
   alwaysMatch: { unhandledPromptBehavior: { default: "ignore" } },
 };
+
+/** session.new waits at least this long (ms): the first start after an install can take a while (macOS checks the new app) */
+const SESSION_START_TIMEOUT = 120_000;
+
+/** session.new got no reply in time */
+export class BrowserStartTimeoutError extends Error {
+  constructor(label: string, timeout: number) {
+    super(
+      `${label} did not finish starting within ${Math.round(timeout / 1000)}s. The first start after an install can be slow; run again.`,
+    );
+    this.name = "BrowserStartTimeoutError";
+  }
+}
+
+/** Sends session.new with its own, longer timeout; `label` names the browser in the timeout error */
+export async function startSession(
+  connector: Pick<BiDiConnector, "send">,
+  label: string,
+  commandTimeout: number | undefined,
+): Promise<void> {
+  const timeout = Math.max(
+    commandTimeout ?? DEFAULT_COMMAND_TIMEOUT,
+    SESSION_START_TIMEOUT,
+  );
+  try {
+    await connector.send(
+      "session.new",
+      { capabilities: SESSION_CAPABILITIES },
+      { timeout },
+    );
+  } catch (err) {
+    if (err instanceof BiDiError && err.code === "timeout")
+      throw new BrowserStartTimeoutError(label, timeout);
+    throw err;
+  }
+}
 
 /** Time (ms) to wait for Firefox to answer browser.close before killing the process */
 const BROWSER_CLOSE_GRACE = 2000;
@@ -102,14 +142,19 @@ export function abandonLaunch(
 const browserAppDataPath = (browserName: SupportedBrowser): string =>
   path.join(browsersDir(), "app-data", browserName);
 
-const browserLaunchEnv = (browserName: SupportedBrowser) => {
-  const appDataPath = browserAppDataPath(browserName);
+/** Env added to a browser's process */
+export const browserLaunchEnv = (
+  browserName: SupportedBrowser,
+  appDataPath: string = browserAppDataPath(browserName),
+): Record<string, string> => {
   mkdirSync(appDataPath, { recursive: true });
   logger.debug("Using app data dir for %s: %s", browserName, appDataPath);
 
   switch (browserName) {
     case "firefox":
-      return { MOZ_APP_DATA: appDataPath };
+      // The project profile may have been opened by a newer Firefox (the system one, before 0.6);
+      // without this Firefox refuses to start on it
+      return { MOZ_APP_DATA: appDataPath, MOZ_ALLOW_DOWNGRADE: "1" };
   }
 };
 
@@ -204,7 +249,8 @@ export class Browser {
   ) {
     signal?.throwIfAborted();
     logger.verbose("Trying to launch browser %s", browserName);
-    const browserLocation = findBrowser(browserName);
+    const { executablePath: browserLocation, label } =
+      await projectBrowser(browserName);
     logger.debug("Found browser install location at: %s", browserLocation);
     ensureBrowserProfile(browserName);
 
@@ -258,15 +304,12 @@ export class Browser {
         try {
           let url = urlMatch[0] + browserWsPath[browserName];
           logger.verbose("Websocket URL match: %s", url);
-          biDiConnector = await BiDiConnector.connect(url, {
-            commandTimeout: await readCommandTimeout(),
-          });
+          const commandTimeout = await readCommandTimeout();
+          biDiConnector = await BiDiConnector.connect(url, { commandTimeout });
           logger.verbose("Starting new session");
           const status = await biDiConnector.send("session.status", {});
           logger.verbose("Session status", status);
-          await biDiConnector.send("session.new", {
-            capabilities: SESSION_CAPABILITIES,
-          });
+          await startSession(biDiConnector, label, commandTimeout);
           logger.verbose("Session started successfully");
 
           const downloadsDir = await prepareDownloadsDir(
