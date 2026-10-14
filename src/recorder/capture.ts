@@ -5,9 +5,15 @@ const OFF_KEY = "samurai.recorder.off";
 /** Name of the window flag that pauses the capture script (see `CAPTURE_MUTE`) */
 const MUTED_KEY = "samurai.recorder.muted";
 
+/** Name of the window counter that tells a document's capture scripts which run is the current one */
+const RUN_KEY = "samurai.recorder.run";
+
 /**
  * Function declaration installed as a preload script, called as `(send)` where `send` is the recorder's
- * channel. Reports what the tester does in the top-level document:
+ * channel. `send` stays in this closure and is never put on the page's window, so a page script cannot
+ * report anything. A second run in a document that was recorded before (a new recording) adds its own
+ * listeners; those of the earlier run go quiet, as their run is no longer the current one.
+ * Reports what the tester does in the top-level document:
  *
  * - `{ type: "click", target, candidates, textEntry }`: a click, retargeted to the nearest interactive
  *   element (a label click reports its control; the click the browser forwards to the control is dropped).
@@ -24,20 +30,17 @@ const MUTED_KEY = "samurai.recorder.muted";
  */
 export const CAPTURE_SOURCE = String.raw`(send) => {
   const OFF = Symbol.for("${OFF_KEY}");
-  const ON = Symbol.for("samurai.recorder.on");
-  const SEND = Symbol.for("samurai.recorder.send");
+  const RUN = Symbol.for("${RUN_KEY}");
   if (window !== window.top) return;
-  // A document that was recorded before gets the new channel; its listeners are already in place
   window[OFF] = false;
-  window[SEND] = send;
-  if (window[ON]) return;
-  window[ON] = true;
-  const report = (message) => window[SEND](message);
+  // This run's number; the listeners of an earlier run in this document stop reporting
+  const run = (window[RUN] = (typeof window[RUN] === "number" ? window[RUN] : 0) + 1);
+  const report = (message) => send(message);
 
   ${CANDIDATES_JS}
 
   const MUTED = Symbol.for("${MUTED_KEY}");
-  const off = () => window[OFF] === true || window[MUTED] === true;
+  const off = () => window[RUN] !== run || window[OFF] === true || window[MUTED] === true;
   let lastClick = { el: null, at: 0 };
   let outlined = null;
   let outlinedStyle = "";

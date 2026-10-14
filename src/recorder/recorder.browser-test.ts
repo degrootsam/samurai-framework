@@ -2,6 +2,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
+import { callFunction } from "../script/call-function.js";
 import { setContent } from "../testing/browser-fixture.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { parseSpec } from "../steps/parse.js";
@@ -238,3 +239,37 @@ test("ignores the toolbar and can be muted", OPTIONS, async () => {
   assert.equal(events.length, 2);
   await recorder.stop();
 });
+
+test(
+  "a second recording of the same document records each action once, Alt+clicks too",
+  OPTIONS,
+  async () => {
+    await setContent(page, `<button id="b">Go</button><h1>Title</h1>`);
+    const first = await page.record({ onEvent: () => {}, initialGoto: false });
+    await first.stop();
+    const events: RecorderEvent[] = [];
+    const second = await page.record({
+      onEvent: (event) => events.push(event),
+      initialGoto: false,
+    });
+    await page.getByCss("#b").click();
+    await altClick("h1");
+    await pause(300);
+    await second.stop();
+    assert.deepEqual(
+      events.map((event) =>
+        event.op === "insert" ? event.step.kind : event.op,
+      ),
+      ["click", "expect"],
+    );
+    assert.equal(
+      await callFunction(
+        (page as unknown as { biDiConnector: BiDiConnector }).biDiConnector,
+        page.contextId,
+        `() => typeof window[Symbol.for("samurai.recorder.send")]`,
+      ),
+      "undefined",
+      "the channel is not on the page's window",
+    );
+  },
+);

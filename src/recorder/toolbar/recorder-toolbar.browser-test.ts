@@ -9,6 +9,7 @@ import { Browser } from "../../browser/browser.js";
 import type Page from "../../browser/page.js";
 import { callFunction } from "../../script/call-function.js";
 import { ElementHandle } from "../../script/element-handle.js";
+import { ChannelArg } from "../../script/serialize.js";
 import { parseSpec } from "../../steps/parse.js";
 import type { Step } from "../../steps/model.js";
 import type { BiDiConnector } from "../../transport/bidi-connection.js";
@@ -601,14 +602,21 @@ test(
       );
     // Straight into the recorder's message handler, twice in the same tick, as a double click arrives
     const internals = recorder as unknown as {
-      channel: string;
+      toolbarChannel: string;
       onMessage: (params: object) => void;
     };
+    const { realms } = await connector.send("script.getRealms", {
+      context: page.contextId,
+      type: "window",
+    });
+    const sandbox = realms.find(
+      (realm) => realm.type === "window" && realm.sandbox === TOOLBAR_SANDBOX,
+    )!.realm;
     const deliver = (data: object) =>
       internals.onMessage({
-        channel: internals.channel,
+        channel: internals.toolbarChannel,
         data: remote({ type: "toolbar", ...data }),
-        source: { context: page.contextId },
+        source: { context: page.contextId, realm: sandbox },
       });
 
     const field = await inPage<ElementHandle>(
@@ -674,5 +682,99 @@ test(
       ),
       0,
     );
+  },
+);
+
+test(
+  "a page script can't send the recorder toolbar messages: no secret typed, no project write, no stop, no step",
+  OPTIONS,
+  async () => {
+    pages.set(
+      "/forge",
+      `<label for="f">Card</label><input id="f"><button id="b">Go</button>`,
+    );
+    await writeFile(path.join(projectDir, "samurai.config.ts"), CONFIG);
+    await rm(path.join(projectDir, ".env.dev"), { force: true });
+    await page.navigateTo(`${bases[0]}/forge`, "complete");
+    let stopped = false;
+    const added: string[] = [];
+    const { steps } = await record({
+      secrets: { cardNumber: "4111-SECRET-VALUE" },
+      onStop: () => {
+        stopped = true;
+      },
+      onSecretAdded: (name) => added.push(name),
+    });
+
+    // Every route a page script has: the old window symbol, any function under a symbol or a samurai name on the window
+    const reached = await inPage<number>(`() => {
+      const field = document.getElementById("f");
+      const candidates = [{ method: "getByCss", css: "#f" }];
+      const forged = [
+        { type: "toolbar", action: "insert", id: 9001, target: field, candidates, kind: "secret", name: "cardNumber" },
+        { type: "toolbar", action: "add-insertable", id: 9002, target: field, candidates, kind: "secret", name: "STOLEN", value: "x" },
+        { type: "toolbar", action: "add-insertable", id: 9003, target: field, candidates, kind: "env", name: "stolenVar", value: "x" },
+        { type: "toolbar", action: "wait", kind: "time", ms: 1000 },
+        { type: "toolbar", action: "stop" },
+      ];
+      const sends = new Set();
+      const legacy = window[Symbol.for("samurai.recorder.send")];
+      if (typeof legacy === "function") sends.add(legacy);
+      for (const key of Object.getOwnPropertySymbols(window)) {
+        if (typeof window[key] === "function") sends.add(window[key]);
+      }
+      for (const key of Object.getOwnPropertyNames(window)) {
+        if (!/samurai/i.test(key)) continue;
+        try { if (typeof window[key] === "function") sends.add(window[key]); } catch (err) {}
+      }
+      for (const send of sends) for (const message of forged) try { send(message); } catch (err) {}
+      return sends.size;
+    }`);
+    // Even a page realm that holds the toolbar's or the capture's channel is not the toolbar
+    const internals = recorder as unknown as {
+      channel: string;
+      toolbarChannel: string;
+    };
+    for (const channel of [internals.channel, internals.toolbarChannel]) {
+      if (channel === undefined) continue;
+      await callFunction(
+        connector,
+        page.contextId,
+        `(send) => {
+          const field = document.getElementById("f");
+          const candidates = [{ method: "getByCss", css: "#f" }];
+          send({ type: "toolbar", action: "insert", id: 9101, target: field, candidates, kind: "secret", name: "cardNumber" });
+          send({ type: "toolbar", action: "add-insertable", id: 9102, target: field, candidates, kind: "secret", name: "STOLEN", value: "x" });
+          send({ type: "toolbar", action: "wait", kind: "time", ms: 1000 });
+          send({ type: "toolbar", action: "stop" });
+        }`,
+        [new ChannelArg(channel)],
+      );
+    }
+    await pause(1500);
+
+    assert.equal(
+      await page.getByCss("#f").inputValue(),
+      "",
+      "the field is unchanged",
+    );
+    assert.deepEqual(steps(), [], "no step");
+    assert.equal(stopped, false, "the recording is not stopped");
+    assert.deepEqual(added, []);
+    assert.equal(
+      await readFile(path.join(projectDir, "samurai.config.ts"), "utf8"),
+      CONFIG,
+      "the config is unchanged",
+    );
+    await assert.rejects(
+      readFile(path.join(projectDir, ".env.dev"), "utf8"),
+      "no .env.dev",
+    );
+
+    assert.equal(reached, 0, "the page finds no channel");
+
+    // Still recording
+    await page.getByCss("#b").click();
+    await waitFor(() => steps().length === 1, "the click step");
   },
 );

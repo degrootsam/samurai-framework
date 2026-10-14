@@ -4,7 +4,9 @@ import { TOOLBAR_CSS } from "./styles.js";
 
 /**
  * The recorder toolbar: a function declaration `(send) => { … }` installed as a preload script in the
- * `samurai-toolbar` sandbox realm (the caller names the sandbox), top-level documents only. It draws a
+ * `samurai-toolbar` sandbox realm (the caller names the sandbox), top-level documents only. `send` is the
+ * toolbar's own channel (not the capture script's); it stays in this closure, which page script cannot
+ * reach, and the recorder takes toolbar messages only from this sandbox's realm. It draws a
  * closed shadow root on a `<samurai-recorder-toolbar>` element and is a thin view: it renders the
  * `ToolbarState` the recorder pushes and sends `ToolbarMessage`s; every step is decided by the recorder.
  *
@@ -23,7 +25,8 @@ import { TOOLBAR_CSS } from "./styles.js";
  *   `wait-add`, `screenshot-add`; `escape` (the Esc key).
  *   Form inputs carry `data-field` (`expected`, `attribute`, `countIndex`, `filter`, `name`, `value`,
  *   `waitKind`, `seconds`, `shotName`, `fullPage`) and update on `input`/`change`.
- * - `rebind(send)`: used by a second run in the same document, which keeps the host and swaps the channel.
+ * - `rebind(send)`: used by a second run in the same document (a new recording), which keeps the host and
+ *   swaps in that recording's toolbar channel.
  * - `state()`, `picking()`: the last state from `update` and whether the Assert picker is on (for tests).
  * - `dispose()`: removes the host and every listener the toolbar put on the window and document (the
  *   recording ended while the document stays open).
