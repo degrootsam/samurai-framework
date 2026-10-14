@@ -1,0 +1,9 @@
+export {
+  ConfigEditError,
+  editConfig,
+  hasConfigPath,
+  propertyText,
+  type ConfigValue,
+} from "./config-edit.js";
+export { addVariable, ExistsError, VARIABLE_NAME } from "./variables.js";
+export { isGitIgnored, SECRET_NAME, setSecret } from "./secrets-file.js";
