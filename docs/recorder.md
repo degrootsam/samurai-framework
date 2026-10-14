@@ -72,7 +72,7 @@ Only the touched statement changes; formatting and comments elsewhere stay byte 
 
 ## The toolbar
 
-While `samurai record` (or `recordSpec`) runs, a rail sits at the top right of the page. It is a closed shadow DOM inside a sandbox realm named `samurai-toolbar`, so the page's own scripts, styles and monkeypatched globals can't reach or break it. It is shown on top-level documents only, and again on every page the recording navigates to. What you do on the rail is never recorded as a click.
+While `samurai record` (or `recordSpec`) runs, a rail sits at the top right of the page. It is a closed shadow DOM drawn by a script in a sandbox realm named `samurai-toolbar`: the page's own scripts and monkeypatched globals can't reach that script or the shadow DOM, the page's styles don't apply inside it, and it is styled through the CSSOM, so a content security policy that forbids inline styles doesn't break it either. The toolbar talks to the recorder over its own channel, which never appears on the page's `window`, and the recorder takes toolbar messages only from that sandbox realm, so a page script can't send it actions (such as typing a secret into a field of its choosing). Keys, typed text and the clipboard of the toolbar's inputs are stopped before the page's own listeners see them; on the page the recording starts on, listeners that page registered before the recording began still run first and can see those keys, so add a secret there only on a page you trust, or navigate once first. It is shown on top-level documents only, and again on every page the recording navigates to. What you do on the rail is never recorded as a click.
 
 | Control    | What it does                                                                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -111,8 +111,8 @@ Insert types into the text field that had focus before you opened it. With none,
 - The secrets listed are those with a value (`.env.<environment>` or a `SAMURAI_SECRET_*` variable) plus the `secrets.X` names the recorded spec file already reads. Other spec files are not scanned.
 - Picking a secret that is not set opens the form to set it.
 - "+ Add variable" and "+ Add secret" (with the filter as the name) open a form: Name, and the value in the environment. "Save and insert" writes it, types it into the field and records the `fill`.
-- If the field can't be typed into, a toast says "Couldn't type into that field", and nothing is written to the project.
-- A secret's value never goes to the page: the toolbar gets secret names and whether they are set.
+- If the field can't be typed into, a toast says "Couldn't type into that field". For "Save and insert" the value is written first: the toast then says "Saved X, but couldn't type into that field", and the variable or secret stays in the project. Only an element that can't be identified uniquely ("This element can't be identified uniquely") stops the write.
+- A secret's value never goes to the page: the toolbar gets secret names and whether they are set. A value you type into the New secret form stays in the toolbar too (see below).
 
 Where an added value goes:
 
@@ -127,7 +127,7 @@ A secret added from the panel is in `RecordResult.secrets`, so the CLI's closing
 
 ### When the toolbar can't load
 
-A page can fail to load the toolbar (for example a strict content security policy). The rail then shows nothing, the recorder reports `toolbar: false`, and the CLI prints "The toolbar couldn't load on this page. Alt+click still records assertions." Recording itself continues.
+A page can fail to load the toolbar. The rail then shows nothing, the recorder reports `toolbar: false`, and the CLI prints "The toolbar couldn't load on this page. Alt+click still records assertions." Recording itself continues.
 
 ## Recording
 
