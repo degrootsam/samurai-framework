@@ -170,7 +170,7 @@ export function editConfig(
   let obj = rootObject(sf);
 
   for (let i = 0; i < path.length; i++) {
-    const key = path[i];
+    const key = path[i]!;
     const prop = obj.properties.find((p) => nameOf(p) === key);
     const isLast = i === path.length - 1;
 
@@ -205,7 +205,7 @@ export function editConfig(
       if (value === undefined) return source;
       // Build the rest of the path as one nested object and add it here
       let nested: ConfigValue = value;
-      for (let j = path.length - 1; j > i; j--) nested = { [path[j]]: nested };
+      for (let j = path.length - 1; j > i; j--) nested = { [path[j]!]: nested };
       const splice = insertProperty(source, obj, key, nested);
       return (
         source.slice(0, splice.start) + splice.text + source.slice(splice.end)
