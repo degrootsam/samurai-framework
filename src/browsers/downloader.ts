@@ -8,6 +8,9 @@ import {
   type BrowserPlatform,
 } from "@puppeteer/browsers";
 
+/** Written into a build folder once its download and unpack finished; a folder without it is unfinished */
+export const COMPLETE_MARKER = ".samurai-complete";
+
 /** One build folder in the cache, as the downloader names it ("firefox", "chrome", "chromedriver") */
 export interface CachedBuild {
   browser: string;
@@ -29,7 +32,7 @@ export interface Downloader {
     onProgress?: (done: number, total: number) => void,
   ): Promise<void>;
   uninstall(cacheDir: string, browser: string, buildId: string): void;
-  /** Removes a build's folder and any archive a killed download left behind */
+  /** Removes a build's folder (its marker first) and any archive a killed download left behind */
   clean(cacheDir: string, browser: string, buildId: string): void;
   list(cacheDir: string): CachedBuild[];
 }
@@ -71,10 +74,10 @@ export function puppeteerDownloader(
       new Cache(cacheDir).uninstall(as(browser), platform(), buildId),
     clean(cacheDir, browser, buildId) {
       const cache = new Cache(cacheDir);
-      rmSync(cache.installationDir(as(browser), platform(), buildId), {
-        recursive: true,
-        force: true,
-      });
+      const dir = cache.installationDir(as(browser), platform(), buildId);
+      // The marker goes first: a removal that stops halfway leaves a folder that reads as missing
+      rmSync(path.join(dir, COMPLETE_MARKER), { force: true });
+      rmSync(dir, { recursive: true, force: true });
       // The archive is downloaded next to the build folders, as <buildId>-<file>
       const root = cache.browserRoot(as(browser));
       if (!existsSync(root)) return;

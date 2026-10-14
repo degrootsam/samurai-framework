@@ -5,8 +5,10 @@ import {
   mkdtempSync,
   readdirSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
+import { setTimeout as sleep } from "node:timers/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -34,7 +36,16 @@ beforeEach(
 afterEach(() => rmSync(cacheDir, { recursive: true, force: true }));
 
 /** Unpacks into <cache>/<browser>/<buildId>/bin; `fail` names a browser part whose install throws after writing half a folder */
-function fake(options: { fail?: string; platform?: string | undefined } = {}) {
+function fake(
+  options: {
+    fail?: string;
+    platform?: string | undefined;
+    /** ms each install takes */
+    delay?: number;
+    /** thrown by uninstall and clean, after nothing was removed (a locked file on Windows) */
+    removeFails?: string;
+  } = {},
+) {
   const calls: string[] = [];
   const dirOf = (cache: string, b: string, id: string) =>
     path.join(cache, b, id);
@@ -49,17 +60,21 @@ function fake(options: { fail?: string; platform?: string | undefined } = {}) {
       if (existsSync(dir)) throw new Error(`${dir} already exists`);
       mkdirSync(dir, { recursive: true });
       writeFileSync(path.join(dir, "partial"), "");
+      if (options.delay) await sleep(options.delay);
       if (options.fail === b) throw new Error("connection reset");
       onProgress?.(5, 10);
       onProgress?.(10, 10);
       writeFileSync(path.join(dir, "bin"), "binary");
     },
     clean(cache, b, id) {
+      if (options.removeFails) throw new Error(options.removeFails);
       rmSync(dirOf(cache, b, id), { recursive: true, force: true });
       rmSync(path.join(cache, b, `${id}-archive.tar.xz`), { force: true });
     },
-    uninstall: (cache, b, id) =>
-      rmSync(dirOf(cache, b, id), { recursive: true, force: true }),
+    uninstall(cache, b, id) {
+      if (options.removeFails) throw new Error(options.removeFails);
+      rmSync(dirOf(cache, b, id), { recursive: true, force: true });
+    },
     list(cache) {
       const out: CachedBuild[] = [];
       for (const b of ["firefox", "chrome", "chromedriver"]) {
@@ -75,6 +90,9 @@ function fake(options: { fail?: string; platform?: string | undefined } = {}) {
 }
 
 const ff = PINNED.firefox;
+
+const stagingDirs = () =>
+  readdirSync(cacheDir).filter((e) => e.startsWith(".staging-"));
 
 describe("installBrowser", () => {
   it("installs, writes the marker last, and reports progress", async () => {
@@ -115,6 +133,7 @@ describe("installBrowser", () => {
       new Error(`Could not download ${ff.label}: connection reset`),
     );
     assert.equal(existsSync(path.join(cacheDir, "firefox", ff.buildId)), false);
+    assert.deepEqual(stagingDirs(), []);
   });
 
   it("chrome whose chromedriver fails removes both (Review Focus 3)", async () => {
@@ -153,6 +172,56 @@ describe("installBrowser", () => {
     writeFileSync(archive, "truncated");
     await installBrowser("firefox", { cacheDir, downloader });
     assert.equal(existsSync(archive), false);
+  });
+
+  it("two installs of one build at once both get it, complete, with no staging left (I2)", async () => {
+    const { downloader } = fake({ delay: 30 });
+    const [a, b] = await Promise.all([
+      installBrowser("firefox", { cacheDir, downloader }),
+      installBrowser("firefox", { cacheDir, downloader }),
+    ]);
+    const exe = path.join(cacheDir, "firefox", ff.buildId, "bin");
+    assert.equal(a, exe);
+    assert.equal(b, exe);
+    assert.equal(
+      statusOf("firefox", { cacheDir, downloader }).state,
+      "installed",
+    );
+    assert.ok(existsSync(exe));
+    assert.deepEqual(stagingDirs(), []);
+  });
+
+  it("downloads into a staging folder; the build folder appears only once complete", async () => {
+    const { downloader } = fake({ delay: 30 });
+    const dir = path.join(cacheDir, "firefox", ff.buildId);
+    const pending = installBrowser("firefox", { cacheDir, downloader });
+    await sleep(10);
+    assert.equal(existsSync(dir), false);
+    assert.equal(stagingDirs().length, 1);
+    await pending;
+    assert.ok(existsSync(path.join(dir, COMPLETE_MARKER)));
+  });
+
+  it("removes staging folders older than a day, keeps recent ones", async () => {
+    const { downloader } = fake();
+    const old = path.join(cacheDir, ".staging-old");
+    const recent = path.join(cacheDir, ".staging-recent");
+    mkdirSync(path.join(old, "firefox"), { recursive: true });
+    mkdirSync(recent);
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    utimesSync(old, twoDaysAgo, twoDaysAgo);
+    await installBrowser("firefox", { cacheDir, downloader });
+    assert.equal(existsSync(old), false);
+    assert.ok(existsSync(recent));
+  });
+
+  it("a cleanup that fails reads as a failed download", async () => {
+    const { downloader } = fake({ removeFails: "EBUSY: resource busy" });
+    await assert.rejects(
+      installBrowser("firefox", { cacheDir, downloader }),
+      new Error(`Could not download ${ff.label}: EBUSY: resource busy`),
+    );
+    assert.deepEqual(stagingDirs(), []);
   });
 
   it("no download for this platform", async () => {
@@ -262,6 +331,33 @@ describe("uninstallBrowser and listInstalled", () => {
   });
 });
 
+describe("uninstallBrowser", () => {
+  it("removes the marker first, so a removal that fails halfway reads as missing (I3)", async () => {
+    await installBrowser("firefox", {
+      cacheDir,
+      downloader: fake().downloader,
+    });
+    const { downloader } = fake({ removeFails: "EBUSY: resource busy" });
+    assert.throws(
+      () => uninstallBrowser("firefox", undefined, { cacheDir, downloader }),
+      /EBUSY/,
+    );
+    assert.equal(
+      statusOf("firefox", { cacheDir, downloader }).state,
+      "missing",
+    );
+  });
+
+  it("refuses a build id that leaves the cache", () => {
+    const { downloader } = fake();
+    for (const id of ["../x", "a/b", "a\\b", ".."])
+      assert.throws(
+        () => uninstallBrowser("firefox", id, { cacheDir, downloader }),
+        new Error(`Invalid build id "${id}"`),
+      );
+  });
+});
+
 describe("puppeteerDownloader.clean", () => {
   it("removes the build folder and archives of that build, nothing else", () => {
     const platform = detectBrowserPlatform();
@@ -283,5 +379,23 @@ describe("puppeteerDownloader.clean", () => {
 
   it("copes with a cache that has no such browser", () => {
     puppeteerDownloader().clean(cacheDir, "firefox", ff.buildId);
+  });
+
+  it("list ignores staging folders", () => {
+    const platform = detectBrowserPlatform();
+    if (!platform) return;
+    mkdirSync(
+      path.join(
+        cacheDir,
+        ".staging-abc",
+        "firefox",
+        `${platform}-${ff.buildId}`,
+      ),
+      { recursive: true },
+    );
+    assert.deepEqual(
+      listInstalled({ cacheDir, downloader: puppeteerDownloader() }),
+      [],
+    );
   });
 });

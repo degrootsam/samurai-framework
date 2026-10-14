@@ -1,7 +1,21 @@
-import { existsSync, lstatSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { browsersCacheDir } from "./cache-dir.js";
-import { puppeteerDownloader, type Downloader } from "./downloader.js";
+import {
+  COMPLETE_MARKER,
+  puppeteerDownloader,
+  type Downloader,
+} from "./downloader.js";
 import {
   overrideOf,
   type Override,
@@ -14,8 +28,12 @@ import {
   type ManagedBrowser,
 } from "./pins.js";
 
-/** Written into a build folder once its download and unpack finished; a folder without it is unfinished */
-export const COMPLETE_MARKER = ".samurai-complete";
+export { COMPLETE_MARKER };
+
+/** Each install downloads into its own `<cache>/.staging-<random>/` and moves the finished build into place */
+const STAGING_PREFIX = ".staging-";
+/** A staging folder this old belongs to an install that was killed */
+const STALE_STAGING_MS = 24 * 60 * 60 * 1000;
 
 export class BrowserNotInstalledError extends Error {
   constructor(
@@ -78,7 +96,25 @@ function sizeOf(dir: string): number {
   return total;
 }
 
-/** Downloads the pinned build unless it is complete already; returns its executable */
+/** Removes staging folders that killed installs left behind; best effort */
+function removeStaleStaging(cacheDir: string) {
+  if (!existsSync(cacheDir)) return;
+  for (const entry of readdirSync(cacheDir)) {
+    if (!entry.startsWith(STAGING_PREFIX)) continue;
+    const dir = path.join(cacheDir, entry);
+    try {
+      if (Date.now() - statSync(dir).mtimeMs > STALE_STAGING_MS)
+        rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // another process may be removing it too
+    }
+  }
+}
+
+/**
+ * Downloads the pinned build unless it is complete already; returns its executable. The download goes into a
+ * private staging folder and is moved into place once complete, so two installs at once do not break each other.
+ */
 export async function installBrowser(
   name: ManagedBrowser,
   options: StoreOptions & {
@@ -92,30 +128,50 @@ export async function installBrowser(
       `${pin.label} has no download for ${process.platform} ${process.arch}`,
     );
   const dir = downloader.installDir(cacheDir, name, pin.buildId);
-  if (complete(dir))
-    return downloader.executablePath(cacheDir, name, pin.buildId);
-  const remove = () => {
-    for (const part of parts(name))
-      downloader.clean(cacheDir, part, pin.buildId);
-  };
-  // An unfinished folder from an earlier attempt would make the downloader refuse
-  remove();
+  const exe = () => downloader.executablePath(cacheDir, name, pin.buildId);
+  if (complete(dir)) return exe();
+  let staging: string | undefined;
   try {
+    removeStaleStaging(cacheDir);
+    mkdirSync(cacheDir, { recursive: true });
+    staging = mkdtempSync(path.join(cacheDir, STAGING_PREFIX));
     for (const part of parts(name))
       await downloader.install(
-        cacheDir,
+        staging,
         part,
         pin.buildId,
         part === name ? options.onProgress : undefined,
       );
+    writeFileSync(
+      path.join(
+        downloader.installDir(staging, name, pin.buildId),
+        COMPLETE_MARKER,
+      ),
+      new Date().toISOString(),
+    );
+    // The part holding the marker moves last, so the build counts as complete only once every part is in place
+    for (const part of parts(name).reverse()) {
+      // Another install finished first
+      if (complete(dir)) return exe();
+      // An unfinished folder from an earlier attempt would block the move
+      downloader.clean(cacheDir, part, pin.buildId);
+      const target = downloader.installDir(cacheDir, part, pin.buildId);
+      mkdirSync(path.dirname(target), { recursive: true });
+      try {
+        renameSync(downloader.installDir(staging, part, pin.buildId), target);
+      } catch (e) {
+        if (complete(dir)) return exe();
+        throw e;
+      }
+    }
   } catch (e) {
-    remove();
     throw new Error(
       `Could not download ${pin.label}: ${e instanceof Error ? e.message : String(e)}`,
     );
+  } finally {
+    if (staging) rmSync(staging, { recursive: true, force: true });
   }
-  writeFileSync(path.join(dir, COMPLETE_MARKER), new Date().toISOString());
-  return downloader.executablePath(cacheDir, name, pin.buildId);
+  return exe();
 }
 
 /** The pinned build of `name`: whether it is there, and any path set instead of it */
@@ -154,6 +210,15 @@ export function managedExecutable(
   return status.executablePath!;
 }
 
+/** The folder the pinned build of `name` is, or would be, installed in */
+export function managedBuildDir(
+  name: ManagedBrowser,
+  options: StoreOptions = {},
+): string {
+  const { cacheDir, downloader } = store(options);
+  return downloader.installDir(cacheDir, name, PINNED[name].buildId);
+}
+
 /** Removes a build (default: the pinned one); Chrome takes its chromedriver along */
 export function uninstallBrowser(
   name: ManagedBrowser,
@@ -161,9 +226,21 @@ export function uninstallBrowser(
   options: StoreOptions = {},
 ): void {
   const { cacheDir, downloader } = store(options);
-  for (const part of parts(name)) {
-    if (existsSync(downloader.installDir(cacheDir, part, buildId)))
-      downloader.uninstall(cacheDir, part, buildId);
+  const root = path.resolve(cacheDir);
+  const dirs = parts(name).map((part) => ({
+    part,
+    dir: downloader.installDir(cacheDir, part, buildId),
+  }));
+  if (
+    /[/\\]|\.\./.test(buildId) ||
+    dirs.some(({ dir }) => !path.resolve(dir).startsWith(root + path.sep))
+  )
+    throw new Error(`Invalid build id "${buildId}"`);
+  for (const { part, dir } of dirs) {
+    if (!existsSync(dir)) continue;
+    // Without its marker a build that is only partly removed reads as missing
+    rmSync(path.join(dir, COMPLETE_MARKER), { force: true });
+    downloader.uninstall(cacheDir, part, buildId);
   }
 }
 
