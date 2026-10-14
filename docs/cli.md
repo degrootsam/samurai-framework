@@ -8,6 +8,7 @@ samurai list              # list the tests without running them
 samurai record <spec>     # open a browser and record what you do into a spec
 samurai run               # run the tests (the default: `samurai` alone does the same)
 samurai flow <command>    # list, check and run flows (see below)
+samurai browsers          # download and manage the browsers tests run on (see below)
 ```
 
 Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), an optional peer dependency of the package. Install it next to the framework (`npm install --save-dev tsx`); `samurai init` adds it to the project it creates. Without it the command stops with a message that says so. In the framework's own repository, `bun run dev` does the same as `samurai run` without needing a build.
@@ -124,6 +125,29 @@ samurai flow run --all [options]        # run every flow in ./flows, by file nam
 ```
 
 A flow is an id (`flows/<id>.flow.json`) or a path to a `.flow.json` file. `run` takes `--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port` and `--json` like `samurai run`, plus `--allow-unsupported` (accepted, but every kind runs now, so it changes nothing). `check` takes `--env`, `--allow-unsupported` and `--json`. `run` checks first and refuses a flow with errors; every run writes `result/flows/<id>.json`. Exit code: 0 passed, 1 a node failed or the run was cancelled (`check`: errors found), 2 usage, configuration or flow-file error. See [Flows](flows.md).
+
+## `samurai browsers`
+
+Manages the pinned browser builds in the per-user cache (see [Which browser runs](pages-and-browsers.md#which-browser-runs)).
+
+```sh
+samurai browsers                          # same as `list`
+samurai browsers list                     # the pinned builds, and other builds in the cache
+samurai browsers install [firefox|chrome|all]
+samurai browsers uninstall <name> [--build <id>]
+samurai browsers uninstall --unused
+```
+
+- `list` shows each pinned browser as installed, not installed, or using a path set by an environment variable or `samurai.config.ts`. Builds in the cache that this version does not pin come after, with their size.
+- `install` downloads the pinned builds (all when no name is given) and prints the progress. A build that is already complete is not downloaded again. A failed or killed download is cleaned up, archive included.
+- `uninstall <name>` removes the pinned build. `--build <id>` removes that build instead.
+- `uninstall --unused` removes every build this framework version does not pin. Projects on other framework versions may still use them.
+
+| Code | Meaning                                                                 |
+| ---- | ----------------------------------------------------------------------- |
+| 0    | Done                                                                    |
+| 1    | Unknown browser (`Unknown browser "x". Choose firefox, chrome or all.`) |
+| 2    | Usage error, such as `uninstall` without a name                         |
 
 ## `samurai init [folder]`
 
