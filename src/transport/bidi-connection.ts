@@ -11,7 +11,7 @@ import {
 } from "./subscriptions.js";
 
 /** Time (ms) a command may wait for its reply before it fails with code "timeout" */
-const DEFAULT_COMMAND_TIMEOUT = 30000;
+export const DEFAULT_COMMAND_TIMEOUT = 30000;
 
 export interface ConnectorOptions {
   /** @default 30000 */
