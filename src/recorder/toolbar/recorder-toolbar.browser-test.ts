@@ -895,3 +895,69 @@ test(
     assert.deepEqual(await look(), plain);
   },
 );
+
+test(
+  "Enter and Escape that the page dispatches on the toolbar do nothing; a real Enter still adds",
+  OPTIONS,
+  async () => {
+    pages.set("/start", `<p>start</p>`);
+    pages.set(
+      "/forged-keys",
+      `<label for="user">User</label><input id="user">`,
+    );
+    await page.navigateTo(`${bases[0]}/start`, "complete");
+    const { steps } = await record();
+    await open(`${bases[0]}/forged-keys`);
+
+    await page.getByCss("#user").click();
+    await press("insert");
+    assert.equal(
+      await inSandbox(
+        `() => ${HOOK}.root.activeElement && ${HOOK}.root.activeElement.getAttribute("data-field")`,
+      ),
+      "filter",
+      "the Insert filter has the focus",
+    );
+    const panelOpen = () =>
+      inSandbox<boolean>(`() => ${HOOK}.root.querySelector(".panel") !== null`);
+    const before = steps().length;
+
+    for (const key of ["Enter", "Escape"]) {
+      await inPage(`() => {
+        const host = document.querySelector("samurai-recorder-toolbar");
+        host.dispatchEvent(new KeyboardEvent("keydown", { key: "${key}", bubbles: true, composed: true, cancelable: true }));
+      }`);
+    }
+    await pause(800);
+    assert.equal(steps().length, before, "no step from a forged Enter");
+    assert.equal(
+      await page.getByCss("#user").inputValue(),
+      "",
+      "nothing typed",
+    );
+    assert.equal(
+      await panelOpen(),
+      true,
+      "a forged Escape doesn't close the panel",
+    );
+
+    await connector.send("input.performActions", {
+      context: page.contextId,
+      actions: [
+        {
+          type: "key",
+          id: "kb",
+          actions: [
+            { type: "keyDown", value: "" },
+            { type: "keyUp", value: "" },
+          ],
+        },
+      ],
+    });
+    await waitFor(
+      () => steps().length === before + 1,
+      "the fill from a real Enter",
+    );
+    assert.equal(await page.getByCss("#user").inputValue(), "dev@example.com");
+  },
+);
