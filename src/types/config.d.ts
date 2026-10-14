@@ -50,6 +50,11 @@ export interface SamuraiTestConfig {
    */
   browser?: SupportedBrowser;
   /**
+   * Browser binaries to launch instead of the builds SAMURAI downloads, relative to the project.
+   * `SAMURAI_FIREFOX_PATH` / `SAMURAI_CHROME_PATH` win over these.
+   */
+  browserPaths?: { firefox?: string; chrome?: string };
+  /**
    * The timeout (in ms) to use for all tests
    * @default 30000
    */

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
+import { projectExecutable } from "../browsers/resolve.js";
 import { projectDir } from "../config/config.js";
 import { withProject, type ProjectOptions } from "../runner/project.js";
 import { parseSpec } from "../steps/parse.js";
@@ -106,6 +107,8 @@ export async function recordSpec(
   options: RecordSpecOptions,
 ): Promise<RecordResult> {
   return withProject(options, async ({ settings }) => {
+    // Before the spec is touched: a recording without its browser changes nothing
+    await projectExecutable("firefox");
     const file = path.resolve(projectDir(), options.file);
     let source = existsSync(file) ? readFileSync(file, "utf8") : undefined;
     if (source === undefined && options.create === undefined) {
