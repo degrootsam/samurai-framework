@@ -1,4 +1,29 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+// Specs import the framework from their project. A global (or linked) samurai must run that same copy, or the specs
+// register their tests in the project's copy and this one finds none
+const own = realpathSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), ".."),
+);
+let local;
+try {
+  local = path.dirname(
+    createRequire(path.join(process.cwd(), "package.json")).resolve(
+      "@itmetsam/samurai-framework/package.json",
+    ),
+  );
+} catch {
+  local = undefined;
+}
+if (local !== undefined && realpathSync(local) !== own) {
+  // That copy's binary runs the command and exits
+  await import(pathToFileURL(path.join(local, "bin/samurai.mjs")).href);
+}
+
 // Quiet the framework's console logging unless the caller asked for more; the log files keep everything
 process.env.SAMURAI_LOG_LEVEL ??= "warn";
 
