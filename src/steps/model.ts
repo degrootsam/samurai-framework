@@ -55,6 +55,10 @@ export type Step =
   /** A key pressed while the element has focus, e.g. `Enter` to submit a field. Named as Playwright names keys */
   | { kind: "press"; locator: LocatorSpec; key: string }
   | { kind: "waitForNetworkIdle" }
+  /** A fixed pause, in milliseconds */
+  | { kind: "waitForTimeout"; ms: number }
+  /** Saves the page as evidence under the run's results; never compares */
+  | { kind: "screenshot"; name: string; fullPage: boolean }
   /** A statement the codec does not understand, kept verbatim */
   | { kind: "custom"; code: string };
 
