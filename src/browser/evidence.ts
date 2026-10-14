@@ -16,8 +16,8 @@ export class Evidence {
     private readonly testDir?: string,
   ) {}
 
-  /** The file for the next screenshot called `name`; a repeat gets -2, -3, … */
-  public fileFor(name: string) {
+  /** The file for the next screenshot called `name` (`.jpg` for a jpeg, else `.png`); a repeat gets -2, -3, … */
+  public fileFor(name: string, type: "png" | "jpeg" = "png") {
     const base = cleanName(name);
     let unique = base;
     for (let n = 2; this.used.has(unique); n++) unique = `${base}-${n}`;
@@ -25,7 +25,7 @@ export class Evidence {
     const relative = [
       "screenshots",
       ...(this.testDir ? this.testDir.split("/") : []),
-      `${unique}.png`,
+      `${unique}.${type === "jpeg" ? "jpg" : "png"}`,
     ].join("/");
     const entry = {
       file: path.join(this.resultDir, ...relative.split("/")),

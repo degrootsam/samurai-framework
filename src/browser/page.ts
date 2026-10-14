@@ -645,7 +645,10 @@ export default class Page {
     if (options.name !== undefined) {
       const evidence =
         this.evidence ?? new Evidence(path.join(projectDir(), "result"));
-      await writeOutput(evidence.fileFor(options.name).file, image);
+      await writeOutput(
+        evidence.fileFor(options.name, options.type).file,
+        image,
+      );
     }
     return image;
   }
