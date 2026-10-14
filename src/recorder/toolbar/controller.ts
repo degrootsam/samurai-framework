@@ -63,6 +63,10 @@ export interface ControllerOptions {
   screenshots: number;
 }
 
+/** A wait for time is 0.1–60 s */
+const WAIT_MIN_MS = 100;
+const WAIT_MAX_MS = 60000;
+
 /** How long a loaded page's toolbar has to say `ready` */
 const READY_WITHIN = 2000;
 
@@ -209,7 +213,12 @@ export class ToolbarController {
         if (this.paused) return;
         if (message.kind === "time") {
           if (!Number.isFinite(message.ms) || message.ms < 0) return;
-          this.deps.observe({ type: "wait-time", ms: Math.round(message.ms) });
+          // The panel's range (0.1–60 s), whatever the message says
+          const ms = Math.min(
+            WAIT_MAX_MS,
+            Math.max(WAIT_MIN_MS, Math.round(message.ms)),
+          );
+          this.deps.observe({ type: "wait-time", ms });
         } else {
           this.deps.observe({ type: "wait-idle" });
         }

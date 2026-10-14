@@ -86,7 +86,7 @@ samurai record tests/login.spec.ts --new "signs in" --env staging
 
 ```text
   + await page.goto("/login");
-Recording. Alt+click an element to assert on it. Press Ctrl+C or close the window to stop.
+Recording. Alt+click an element to assert on it. Press Stop in the toolbar, Ctrl+C or close the window to stop.
   + await page.getByRole("textbox", { name: "Email" }).withFallbacks(page.getByLabel("Email"), page.getByCss("#email")).fill("sam@example.com");
   ~ await page.getByRole("textbox", { name: "Email" }).withFallbacks(...).fill("sam@example.com!");
   + await page.getByRole("button", { name: "Sign in" }).click();

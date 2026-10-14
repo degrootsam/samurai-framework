@@ -47,7 +47,11 @@ export type ToolbarOptions = ControllerOptions & {
   onStatus?: ControllerDeps["onStatus"];
   /** A secret was saved to `.env.<environment>` from the panel (before its value is typed) */
   onSecretAdded?: (name: string) => void;
-  /** The toolbar's Stop. Without it, Stop stops the recorder */
+  /**
+   * The toolbar's Stop; the caller then stops the recording (`recorder.stop()`), as `recordSpec` does.
+   * Without it, Stop runs `recorder.stop()` itself: the toolbar goes away and nothing more is recorded, but
+   * nothing tells the `page.record()` caller, so pass `onStop` to learn of it.
+   */
   onStop?: () => void;
 };
 
