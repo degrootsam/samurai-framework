@@ -110,6 +110,9 @@ function setup(
     setSecret: async (name, value) => {
       calls.push(`setSecret ${name}=${value}`);
     },
+    secretAdded: (name) => {
+      calls.push(`secretAdded ${name}`);
+    },
     // As the recorder does: an observation becomes a step, which is counted
     observe: (observation) => {
       observed.push(observation);
@@ -438,6 +441,7 @@ describe("ToolbarController", () => {
     await controller.handle(add(16, "secret", "API_TOKEN", NEW_SECRET));
     assert.deepEqual(calls, [
       `setSecret API_TOKEN=${NEW_SECRET}`,
+      "secretAdded API_TOKEN",
       `type ${NEW_SECRET}`,
     ]);
     assert.deepEqual(observed, [
@@ -769,5 +773,144 @@ describe("ToolbarController", () => {
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(calls, ["mute"]);
     controller.dispose();
+  });
+
+  describe("fix round 1", () => {
+    const failingType = {
+      type: async () => {
+        throw new Error("not editable");
+      },
+    };
+
+    it("shows a toast when typing fails, since the panel is gone by then", async () => {
+      const { controller, last, replies } = setup({}, failingType);
+      await controller.handle(insert(40, "env", "testUser"));
+      assert.equal(last().toast?.text, "Couldn't type into that field");
+      assert.deepEqual(replies, [
+        {
+          id: 40,
+          result: { ok: false, error: "Couldn't type into that field" },
+        },
+      ]);
+
+      const added = setup({}, failingType);
+      await added.controller.handle(add(41, "env", "adminUser", "x"));
+      assert.equal(
+        added.last().toast?.text,
+        "Saved adminUser, but couldn't type into that field",
+      );
+      assert.ok(
+        added.last().variables.some((v) => v.name === "adminUser"),
+        "the saved variable is listed",
+      );
+    });
+
+    it("decides at receive time: a repeat in flight or after ok is refused, a retry after a failure is accepted", async () => {
+      let fail = true;
+      const { controller, observed, replies } = setup(
+        {},
+        {
+          type: async () => {
+            if (fail) throw new Error("detached");
+          },
+        },
+      );
+      const first = insert(42, "env", "testUser");
+      assert.equal(controller.accept(first), true);
+      assert.equal(controller.accept(first), false, "in flight");
+      await controller.handle(first);
+      assert.equal(lastOf(replies)?.result.ok, false);
+      fail = false;
+      assert.equal(
+        controller.accept(first),
+        true,
+        "a retry after { ok: false }",
+      );
+      await controller.handle(first);
+      assert.deepEqual(lastOf(replies), { id: 42, result: { ok: true } });
+      assert.equal(controller.accept(first), false, "already answered ok");
+      assert.equal(observed.length, 1);
+      assert.equal(
+        controller.accept(msg({ action: "wait", kind: "idle" })),
+        true,
+        "messages without an id always pass",
+      );
+    });
+
+    it("never sends back a secret that a picked field holds (Review Focus 4)", async () => {
+      const { controller, replies, observed, noSecretLeaks } = setup(
+        {},
+        {
+          inspect: async (): Promise<Inspection> => ({
+            info: {
+              ...INFO,
+              text: "",
+              value: SECRET,
+              attributes: [
+                { name: "id", value: "pw" },
+                { name: "value", value: SECRET },
+              ],
+              first: { matcher: "toHaveValue", expected: SECRET },
+            },
+            counts: [],
+          }),
+        },
+      );
+      await controller.handle(pick(43));
+      const reply = lastOf(replies)!.result as PickInfo & { ok: true };
+      assert.equal(reply.value, undefined);
+      assert.deepEqual(reply.first, { matcher: "toBeVisible" });
+      assert.deepEqual(reply.attributes, [{ name: "id", value: "pw" }]);
+      await controller.handle(
+        msg({
+          action: "assert",
+          id: 43,
+          target: TARGET,
+          candidates: CANDIDATES,
+          matcher: "toBeVisible",
+          not: false,
+        }),
+      );
+      assert.ok(!JSON.stringify(observed).includes(SECRET));
+      noSecretLeaks();
+    });
+
+    it("reports a page whose ready never came, even after a stray ready from the last one", (t: TestContext) => {
+      t.mock.timers.enable({ apis: ["setTimeout"] });
+      const { controller, statuses } = setup();
+      controller.loaded();
+      void controller.handle(
+        msg({ action: "ready", url: "http://localhost/a" }),
+      );
+      // A stray extra ready from the old document, then the navigation
+      void controller.handle(
+        msg({ action: "ready", url: "http://localhost/a" }),
+      );
+      controller.navigating();
+      // Firefox's transient about:blank
+      void controller.handle(msg({ action: "ready", url: "about:blank" }));
+      controller.loaded();
+      t.mock.timers.tick(2000);
+      assert.deepEqual(statuses, [{ state: "recording", toolbar: false }]);
+      controller.dispose();
+    });
+
+    it("tells the recorder a secret was added before it types it, even when typing fails", async () => {
+      const { controller, calls } = setup(
+        {},
+        {
+          type: async (_locator, value) => {
+            calls.push(`type ${value}`);
+            throw new Error("not editable");
+          },
+        },
+      );
+      await controller.handle(add(44, "secret", "NEW_ONE", NEW_SECRET));
+      assert.deepEqual(calls, [
+        `setSecret NEW_ONE=${NEW_SECRET}`,
+        "secretAdded NEW_ONE",
+        `type ${NEW_SECRET}`,
+      ]);
+    });
   });
 });

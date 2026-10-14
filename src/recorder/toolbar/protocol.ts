@@ -36,47 +36,49 @@ export interface ToolbarState {
 }
 
 /** Element-carrying messages send the element itself (it arrives as a handle) and its candidates */
-export type ToolbarMessage = { type: "toolbar" } & (
-  | { action: "ready" }
-  | { action: "pause" }
-  | { action: "resume" }
-  | { action: "resume-goto"; add: boolean }
-  | { action: "stop" }
-  | { action: "move"; x: number; y: number }
-  | { action: "collapse"; collapsed: boolean }
-  | { action: "pick"; id: number; target: unknown; candidates: LocatorCall[] }
-  | {
-      action: "assert";
-      id: number;
-      target: unknown;
-      candidates: LocatorCall[];
-      matcher: MatcherChoice;
-      expected?: string;
-      attribute?: string;
-      countIndex?: number;
-      not: boolean;
-    }
-  | {
-      action: "insert";
-      id: number;
-      target: unknown;
-      candidates: LocatorCall[];
-      kind: "env" | "secret";
-      name: string;
-    }
-  | {
-      action: "add-insertable";
-      id: number;
-      target: unknown;
-      candidates: LocatorCall[];
-      kind: "env" | "secret";
-      name: string;
-      value: string;
-    }
-  | { action: "wait"; kind: "idle" }
-  | { action: "wait"; kind: "time"; ms: number }
-  | { action: "screenshot"; name: string; fullPage: boolean }
-);
+export type ToolbarMessage = { type: "toolbar" } &
+  /** `url` is the document's `location.href`; Firefox also runs the toolbar in a transient about:blank */
+  (
+    | { action: "ready"; url?: string }
+    | { action: "pause" }
+    | { action: "resume" }
+    | { action: "resume-goto"; add: boolean }
+    | { action: "stop" }
+    | { action: "move"; x: number; y: number }
+    | { action: "collapse"; collapsed: boolean }
+    | { action: "pick"; id: number; target: unknown; candidates: LocatorCall[] }
+    | {
+        action: "assert";
+        id: number;
+        target: unknown;
+        candidates: LocatorCall[];
+        matcher: MatcherChoice;
+        expected?: string;
+        attribute?: string;
+        countIndex?: number;
+        not: boolean;
+      }
+    | {
+        action: "insert";
+        id: number;
+        target: unknown;
+        candidates: LocatorCall[];
+        kind: "env" | "secret";
+        name: string;
+      }
+    | {
+        action: "add-insertable";
+        id: number;
+        target: unknown;
+        candidates: LocatorCall[];
+        kind: "env" | "secret";
+        name: string;
+        value: string;
+      }
+    | { action: "wait"; kind: "idle" }
+    | { action: "wait"; kind: "time"; ms: number }
+    | { action: "screenshot"; name: string; fullPage: boolean }
+  );
 
 /** The answer to `pick` */
 export type PickInfo =

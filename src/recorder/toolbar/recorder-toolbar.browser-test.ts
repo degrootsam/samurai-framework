@@ -8,6 +8,7 @@ import { after, afterEach, before, test } from "node:test";
 import { Browser } from "../../browser/browser.js";
 import type Page from "../../browser/page.js";
 import { callFunction } from "../../script/call-function.js";
+import { ElementHandle } from "../../script/element-handle.js";
 import { parseSpec } from "../../steps/parse.js";
 import type { Step } from "../../steps/model.js";
 import type { BiDiConnector } from "../../transport/bidi-connection.js";
@@ -558,6 +559,104 @@ test(
       "1",
       "the page got the click",
     );
+  },
+);
+
+/** A JavaScript value as the BiDi remote value a `script.message` carries */
+const remote = (value: unknown): unknown => {
+  if (value instanceof ElementHandle)
+    return { type: "node", sharedId: value.sharedId };
+  if (typeof value === "string") return { type: "string", value };
+  if (typeof value === "number") return { type: "number", value };
+  if (typeof value === "boolean") return { type: "boolean", value };
+  if (Array.isArray(value)) return { type: "array", value: value.map(remote) };
+  return {
+    type: "object",
+    value: Object.entries(value as object).map(([key, item]) => [
+      key,
+      remote(item),
+    ]),
+  };
+};
+
+test(
+  "the same action arriving twice back to back adds one step and one ok reply (Review Focus 5)",
+  OPTIONS,
+  async () => {
+    pages.set(
+      "/form",
+      `<h1>Hello</h1><label for="email">Email</label><input id="email">`,
+    );
+    await page.navigateTo(`${bases[0]}/form`, "complete");
+    const { steps } = await record();
+    await inSandbox(`() => {
+      const hook = ${HOOK};
+      const reply = hook.reply;
+      globalThis.replies = [];
+      hook.reply = (id, result) => { globalThis.replies.push({ id, result }); reply(id, result); };
+    }`);
+    const replies = () =>
+      inSandbox<{ id: number; result: Record<string, unknown> }[]>(
+        `() => globalThis.replies`,
+      );
+    // Straight into the recorder's message handler, twice in the same tick, as a double click arrives
+    const internals = recorder as unknown as {
+      channel: string;
+      onMessage: (params: object) => void;
+    };
+    const deliver = (data: object) =>
+      internals.onMessage({
+        channel: internals.channel,
+        data: remote({ type: "toolbar", ...data }),
+        source: { context: page.contextId },
+      });
+
+    const field = await inPage<ElementHandle>(
+      `() => document.getElementById("email")`,
+    );
+    const insertion = {
+      action: "insert",
+      id: 777,
+      target: field,
+      candidates: [{ method: "getByRole", role: "textbox", name: "Email" }],
+      kind: "env",
+      name: "testUser",
+    };
+    deliver(insertion);
+    deliver(insertion);
+    await waitFor(() => steps().length === 1, "the fill step");
+
+    await press("assert");
+    await pickElement("h1");
+    const picked = await waitFor(
+      async () => (await replies()).find((r) => r.id !== 777),
+      "the pick reply",
+    );
+    const assertion = {
+      action: "assert",
+      id: picked.id,
+      target: field,
+      candidates: [],
+      matcher: "toBeVisible",
+      not: false,
+    };
+    deliver(assertion);
+    deliver(assertion);
+    await waitFor(() => steps().length === 2, "the expect step");
+    await pause(500);
+
+    assert.deepEqual(
+      steps().map((step) => step.kind),
+      ["fill", "expect"],
+    );
+    // Action replies (the pick's own reply carries a label)
+    const actionReplies = (await replies()).filter(
+      (r) => !("label" in r.result),
+    );
+    assert.deepEqual(actionReplies, [
+      { id: 777, result: { ok: true } },
+      { id: picked.id, result: { ok: true } },
+    ]);
   },
 );
 

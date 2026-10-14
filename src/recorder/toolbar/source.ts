@@ -778,7 +778,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     if (!announced) {
       announced = true;
       render();
-      post({ action: "ready" });
+      post({ action: "ready", url: location.href });
     }
     return true;
   };
