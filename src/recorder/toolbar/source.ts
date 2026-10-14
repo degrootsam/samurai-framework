@@ -577,8 +577,8 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     if (handler) handler(detail || {});
   };
 
-  const onField = (event) => {
-    const t = event.target;
+  const onField = (event, target) => {
+    const t = target || event.target;
     const field = t && t.getAttribute && t.getAttribute("data-field");
     if (!field) return;
     const value = t.value;
@@ -661,15 +661,19 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     event.stopPropagation();
     if (event.target.closest && event.target.closest("[data-grip]")) startDrag(event);
   });
+  const onKeydown = (event, target) => {
+    const enter = event.key === "Enter" && target && target.getAttribute && target.getAttribute("data-enter");
+    if (!enter || event.isComposing) return;
+    event.preventDefault();
+    if (target.getAttribute("data-field")) onField(event, target);
+    press(enter);
+  };
+  // Typing reaches these only when it does not cross the shadow boundary (the window listeners below take the rest)
   root.addEventListener("input", (event) => { event.stopPropagation(); onField(event); });
   root.addEventListener("change", (event) => { event.stopPropagation(); onField(event); });
   root.addEventListener("keydown", (event) => {
     event.stopPropagation();
-    const enter = event.key === "Enter" && event.target.getAttribute && event.target.getAttribute("data-enter");
-    if (!enter || event.isComposing) return;
-    event.preventDefault();
-    if (event.target.getAttribute("data-field")) onField(event);
-    press(enter);
+    onKeydown(event, event.target);
   });
   for (const type of ["keyup", "keypress", "mousedown", "mouseup", "pointerup", "dblclick", "focusin", "focusout"]) {
     root.addEventListener(type, (event) => event.stopPropagation());
@@ -680,6 +684,27 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     event.preventDefault();
     event.stopImmediatePropagation();
   };
+  // Typing in the toolbar stays in the toolbar: these run first on the window (registered at document start,
+  // before any page script), so no page listener sees a key, typed text or the clipboard of a toolbar input
+  // (the New secret value among them). The browser's default action, the text going into the input, still
+  // happens. Outside the shadow root the event's target is the host, so the input is the focused element.
+  const TYPING = ["keydown", "keyup", "keypress", "beforeinput", "input", "compositionstart", "compositionupdate", "compositionend", "paste", "cut", "copy"];
+  for (const type of TYPING) {
+    listen(window, type, (event) => {
+      if (!inToolbar(event)) return;
+      event.stopImmediatePropagation();
+      const target = root.activeElement;
+      if (type === "keydown") {
+        if (event.key === "Escape" && (ui.picking || ui.panel)) {
+          event.preventDefault();
+          handlers.escape();
+        } else onKeydown(event, target);
+      } else if (type === "input" && target && target.type !== "radio" && target.type !== "checkbox") {
+        // A radio or checkbox the pointer changed need not have the focus; its change event (below) updates it
+        onField(event, target);
+      }
+    }, true);
+  }
   listen(window, "keydown", (event) => {
     if (event.key === "Escape" && (ui.picking || ui.panel)) {
       swallow(event);
