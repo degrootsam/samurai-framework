@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { pickTest } from "./session.js";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { pickTest, toolbarOptions } from "./session.js";
 
 const tests = [
   { name: "Login > signs in" },
@@ -32,5 +35,46 @@ describe("pickTest", () => {
 
   it("explains an empty file", () => {
     assert.throws(() => pickTest([], undefined), /--new/);
+  });
+});
+
+describe("toolbarOptions", () => {
+  const source = `import { test } from "@itmetsam/samurai-framework";
+test("a", async ({ page }) => {
+  await page.getByLabel("Pw").fill(secrets.PASSWORD);
+  await page.screenshot({ name: "one" });
+  await page.screenshot({ name: "two" });
+});
+`;
+  const run = {
+    settings: { environment: "staging", variables: { user: "sam" } },
+    secrets: new Map([["TOKEN", "t"]]),
+  } as never;
+
+  it("lists the run's and the spec's secrets, with values only when set", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-toolbar-"));
+    writeFileSync(path.join(dir, ".gitignore"), ".env.staging\n");
+    const options = await toolbarOptions(
+      run,
+      source,
+      dir,
+      { environments: { staging: {} } } as never,
+      0,
+    );
+    assert.deepEqual(options, {
+      environment: "staging",
+      canAddVariables: true,
+      variables: { user: "sam" },
+      secrets: { TOKEN: "t", PASSWORD: undefined },
+      secretsIgnored: true,
+      screenshots: 2,
+    });
+  });
+
+  it("can't add variables without environments, and sees an unignored env file", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-toolbar-"));
+    const options = await toolbarOptions(run, source, dir, {} as never, 0);
+    assert.equal(options.canAddVariables, false);
+    assert.equal(options.secretsIgnored, false);
   });
 });

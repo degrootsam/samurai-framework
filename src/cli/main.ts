@@ -128,6 +128,8 @@ export async function main(argv: string[], io: Io): Promise<number> {
             ? Number(values.test)
             : values.test;
       let count = 0;
+      let state: "recording" | "paused" = "recording";
+      let toolbarWarned = false;
       const result = await recordSpec({
         ...parseRunOverrides(rest, io.env),
         file,
@@ -142,6 +144,19 @@ export async function main(argv: string[], io: Io): Promise<number> {
             io.out(
               "Recording. Alt+click an element to assert on it. Press Ctrl+C or close the window to stop.\n",
             );
+        },
+        onStatus: (status) => {
+          if (values.json) return;
+          if (!status.toolbar && !toolbarWarned) {
+            toolbarWarned = true;
+            io.out(
+              "The toolbar couldn't load on this page. Alt+click still records assertions.\n",
+            );
+          }
+          if (status.state !== state) {
+            state = status.state;
+            io.out(state === "paused" ? "Paused\n" : "Recording\n");
+          }
         },
         onEvent: (event) => {
           if (values.json) return void io.out(`${JSON.stringify(event)}\n`);

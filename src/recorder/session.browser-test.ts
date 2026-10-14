@@ -9,6 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { callFunction } from "../script/call-function.js";
+import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { parseSpec } from "../steps/parse.js";
 import { recordSpec } from "./session.js";
 
@@ -139,3 +141,45 @@ test("recordSpec ends when the browser window is closed", OPTIONS, async () => {
   });
   assert.equal(result.test, "closes");
 });
+
+test(
+  "recordSpec resolves when the toolbar's Stop is pressed, and reports its status",
+  OPTIONS,
+  async () => {
+    const { dir, config } = project();
+    const statuses: { state: string; toolbar: boolean }[] = [];
+    const result = await recordSpec({
+      projectDir: dir,
+      config,
+      dataDir: path.join(dir, "data"),
+      file: "tests/stop.spec.ts",
+      create: "stops",
+      url: PAGE,
+      headless: true,
+      port: 9245,
+      onStatus: (status) => statuses.push(status),
+      onStarted: async ({ page }) => {
+        await page.getByLabel("Name").fill("Sam");
+        await pause(1500);
+        const press = (action: string) =>
+          callFunction(
+            (page as unknown as { biDiConnector: BiDiConnector }).biDiConnector,
+            page.contextId,
+            `() => globalThis[Symbol.for("samurai.toolbar")].press(${JSON.stringify(action)})`,
+            [],
+            { sandbox: "samurai-toolbar" },
+          );
+        await press("pause");
+        await pause(300);
+        await press("resume");
+        await pause(300);
+        await press("stop");
+      },
+    });
+    assert.equal(result.test, "stops");
+    assert.deepEqual(statuses, [
+      { state: "paused", toolbar: true },
+      { state: "recording", toolbar: true },
+    ]);
+  },
+);
