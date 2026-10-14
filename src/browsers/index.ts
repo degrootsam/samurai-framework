@@ -10,13 +10,17 @@ export {
 } from "./pins.js";
 export {
   browserStatus,
+  projectBrowser,
   projectExecutable,
+  resolveBrowser,
   resolveExecutable,
+  type ResolvedBrowser,
 } from "./resolve.js";
 export {
   BrowserNotInstalledError,
   installBrowser,
   listInstalled,
+  managedBuildDir,
   managedExecutable,
   uninstallBrowser,
   type BrowserStatus,

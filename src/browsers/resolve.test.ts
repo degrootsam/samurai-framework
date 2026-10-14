@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { Downloader } from "./downloader.js";
 import { PINNED } from "./pins.js";
-import { browserStatus, resolveExecutable } from "./resolve.js";
+import { browserStatus, resolveBrowser, resolveExecutable } from "./resolve.js";
 import { BrowserNotInstalledError, COMPLETE_MARKER } from "./store.js";
 
 let dir: string;
@@ -95,6 +95,25 @@ describe("resolveExecutable", () => {
     assert.throws(
       () => resolveExecutable("firefox", { ...store(), env: {} }),
       BrowserNotInstalledError,
+    );
+  });
+});
+
+describe("resolveBrowser", () => {
+  it("the managed build carries its pinned label and folder; an override neither", () => {
+    const managed = installFirefox();
+    assert.deepEqual(resolveBrowser("firefox", { ...store(), env: {} }), {
+      executablePath: managed,
+      label: PINNED.firefox.label,
+      buildDir: path.dirname(managed),
+    });
+    const fromEnv = file("env-ff");
+    assert.deepEqual(
+      resolveBrowser("firefox", {
+        ...store(),
+        env: { SAMURAI_FIREFOX_PATH: fromEnv },
+      }),
+      { executablePath: fromEnv, label: "Firefox" },
     );
   });
 });

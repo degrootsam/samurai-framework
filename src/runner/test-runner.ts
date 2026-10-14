@@ -3,7 +3,7 @@ import { glob } from "node:fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
 import { Browser } from "../browser/browser.js";
-import { projectExecutable } from "../browsers/resolve.js";
+import { ensureWarm } from "../browser/warm-up.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
@@ -200,9 +200,14 @@ export default class TestRunner {
     });
 
     const selected = await this.register();
-    // A missing browser is one clear error before the run, not a failure per test
+    // A missing browser is one clear error before the run, not a failure per test; a fresh build's slow
+    // first start happens here, outside any test's timeout
     if (selected.length > 0)
-      await projectExecutable((await readConfig("browser")) ?? "firefox");
+      await ensureWarm(
+        (await readConfig("browser")) ?? "firefox",
+        { port: this.options.port ?? 9223 },
+        signal,
+      );
     reporter.onStart(selected.length);
     for (const test of selected) {
       if (signal?.aborted) {
