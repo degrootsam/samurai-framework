@@ -102,6 +102,8 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
   }, true);
 
   document.addEventListener("mousemove", (event) => {
+    // Alt+click on the toolbar asserts nothing, so nothing there (or behind it) is outlined
+    if (inToolbar(event)) return unhighlight();
     if (off() || !event.altKey || !(event.target instanceof Element) || event.target === outlined) return;
     unhighlight();
     outlined = event.target;
