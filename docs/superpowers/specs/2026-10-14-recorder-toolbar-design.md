@@ -35,7 +35,7 @@ becomes a step in the spec. The toolbar is the framework's, so `samurai record` 
 
 ## The toolbar
 
-The approved mockups: https://claude.ai/artifact/SzFJ7FVeJj9HxqEanJJX9L (private; share it from the page).
+The approved mockups: [the published page](https://claude.ai/artifact/SzFJ7FVeJj9HxqEanJJX9L) (private; share it from the page).
 
 ### Rail
 
@@ -83,12 +83,12 @@ Alt+click stays the one-click shortcut and works as today.
 
 ### New variable or secret
 
-- A Variable / Secret switch, Name, and "Value in <environment>" (masked for a secret). The name is
+- A Variable / Secret switch, Name, and "Value in `<environment>`" (masked for a secret). The name is
   prefilled from the filter, else from the field's label, name or id (`email` / `EMAIL`).
 - Variable: hint "Saved to `environments.<env>.variables` in samurai.config.ts. Other environments don't
   get it — add it there before running against them."
 - Secret: hint "Saved as `SAMURAI_SECRET_<NAME>` in `.env.<env>` (git-ignored)." When `.env.<env>` is not
-  ignored by git, the hint is a warning instead: "Add .env.<env> to .gitignore before committing."
+  ignored by git, the hint is a warning instead: "Add `.env.<env>` to .gitignore before committing."
 - Save and insert: writes the value to the project, types it into the field and records the `fill`.
   Cancel goes back to the list.
 - Values entered as variables are strings.
@@ -242,7 +242,7 @@ rule as the other steps. `ms` is a non-negative integer literal.
 
 ## Testing
 
-**Framework**
+### Framework tests
 
 - Normaliser: each new observation (assert with matcher and Not, insert env / secret, both waits,
   screenshot, goto after resume, nothing while paused, a pending `fill` closed before a toolbar step).
@@ -261,7 +261,7 @@ rule as the other steps. `ms` is a non-negative integer literal.
 - Runner: a test with `page.screenshot({ name })` writes the PNG and its report entry;
   `waitForTimeout` waits.
 
-**App**
+### App tests
 
 - Engine and service forward `record-status`.
 - Pure helpers for the new step kinds' labels and forms; run detail reads screenshots from the report.
