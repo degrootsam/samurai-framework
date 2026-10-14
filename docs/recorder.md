@@ -108,4 +108,4 @@ Pass `at` (the number of steps before the new ones) and `initialGoto: false`. Th
 
 ### Limits
 
-Not recorded yet: `<select>` choices, other key presses (arrows, shortcuts), hover, drag, iframes, contenteditable typing, file uploads and dialogs. One recorder per page at a time. Recording uses the external browser window; embedding the page in an editor is on the [roadmap](roadmap.md).
+Not recorded yet: `<select>` choices, other key presses (arrows, shortcuts), hover, drag, iframes, contenteditable typing, file uploads and dialogs. One recorder per page at a time. Recording uses a browser window of its own.

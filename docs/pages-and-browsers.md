@@ -151,7 +151,63 @@ await page.goto("https://example.com");
 await browser.close();
 ```
 
-Launch options: `port` (remote debugging port, default 9222), `headless` (default `true`), `profileDir`. The browser must be installed; if it can't be found you get `Cannot find browser firefox on this machine! Is it installed?`.
+Launch options: `port` (remote debugging port, default 9222), `headless` (default `true`), `profileDir`. The browser must be installed by the framework or set on purpose; see [Which browser runs](#which-browser-runs).
+
+## Which browser runs
+
+The framework runs a build it downloaded itself, so every machine tests with the same browser. Launching never downloads and never uses the browser installed on the computer.
+
+These builds are pinned by this framework version:
+
+| Browser            | Build                            | Launchable |
+| ------------------ | -------------------------------- | ---------- |
+| Firefox            | Firefox 158.0                    | yes        |
+| Chrome for Testing | Chrome for Testing 155.0.8059.79 | not yet    |
+
+Download them once per machine:
+
+```sh
+samurai browsers install firefox   # or chrome, or all (the default)
+samurai browsers                   # what is installed
+```
+
+Builds go in a per-user cache folder, shared by all projects:
+
+| OS      | Folder                                                               |
+| ------- | -------------------------------------------------------------------- |
+| macOS   | `~/Library/Caches/samurai/browsers`                                  |
+| Linux   | `$XDG_CACHE_HOME/samurai/browsers`, else `~/.cache/samurai/browsers` |
+| Windows | `%LOCALAPPDATA%\samurai\browsers`                                    |
+
+`SAMURAI_BROWSERS_PATH` replaces the folder. A download that was interrupted leaves nothing behind that counts: the build is only used once it is complete, and the next `install` starts it again.
+
+A launch picks the browser in this order:
+
+1. `SAMURAI_FIREFOX_PATH` (or `SAMURAI_CHROME_PATH`), a path to the executable.
+2. `browserPaths` in `samurai.config.ts` (see [Configuration](configuration.md#browser-paths)).
+3. The pinned build in the cache.
+
+A path set in 1 or 2 must exist; otherwise the launch stops with `SAMURAI_FIREFOX_PATH points to a missing file: <path>` or `browserPaths.firefox in samurai.config.ts points to a missing file: <path>`. When there is no such path and the pinned build is not installed, you get:
+
+```text
+Firefox 158.0 is not installed. Run: samurai browsers install firefox
+```
+
+A run with no tests to run does not need a browser.
+
+### Upgrading to 0.6
+
+Before 0.6 the framework used the Firefox installed on the computer. Now it does not. Run `samurai browsers install firefox` once per machine, or set `SAMURAI_FIREFOX_PATH` to the Firefox you want to keep using.
+
+On CI, run `samurai browsers install firefox` before `samurai run`, and cache the cache folder between runs, keyed on the framework version:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/samurai/browsers
+    key: browsers-${{ runner.os }}-${{ hashFiles('package.json') }}
+- run: npx samurai browsers install firefox
+```
 
 ## Contexts
 

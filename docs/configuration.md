@@ -32,6 +32,7 @@ export default defineConfig({
 | `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying                 |
 | `environments`          | none                                     | Named environments, see [Environments and secrets](environments-and-secrets.md)                      |
 | `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                                           |
+| `browserPaths`          | none                                     | Executables to launch instead of the downloaded builds, see [Browser paths](#browser-paths)          |
 | `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                                 |
 | `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                                      |
 | `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)                  |
@@ -106,6 +107,18 @@ For timeouts, the first that is set wins:
 4. the built-in default (30 000 and 5000 ms)
 
 `baseURL` follows environment, then project. A timeout passed to one call (`click({ timeout })`, `expect(...).toBeVisible({ timeout })`) always wins for that call.
+
+## Browser paths
+
+By default a launch uses the build `samurai browsers install` downloaded. To use a browser of your own, give its path:
+
+```ts
+export default defineConfig({
+  browserPaths: { firefox: "/opt/firefox/firefox" },
+});
+```
+
+Keys are `firefox` and `chrome`. A relative path is relative to the project folder. The path must exist, or the launch fails. `SAMURAI_FIREFOX_PATH` and `SAMURAI_CHROME_PATH` win over this key. See [Which browser runs](pages-and-browsers.md#which-browser-runs).
 
 ## Headless
 

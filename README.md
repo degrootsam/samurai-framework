@@ -29,7 +29,7 @@ test("Visitor can sign in", async ({ page, env, secrets }) => {
 ### 1. Requirements
 
 - [Node.js](https://nodejs.org) 26 or newer and [Bun](https://bun.sh) 1.3 or newer (CI uses these versions)
-- Firefox installed on the machine. It is found in the usual install locations on Linux, macOS and Windows.
+- Firefox, downloaded by the framework: run `npx samurai browsers install firefox` once (see [Which browser runs](docs/pages-and-browsers.md#which-browser-runs)). The Firefox installed on the machine is not used.
 
 ### 2. Install
 

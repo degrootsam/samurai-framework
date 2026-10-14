@@ -40,8 +40,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - name: Firefox version
-        run: firefox --version
+      - name: Browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/samurai/browsers
+          key: browsers-${{ runner.os }}-${{ hashFiles('src/browsers/pins.ts') }}
+      - name: Install Firefox
+        run: bunx tsx src/index.ts browsers install firefox
       - name: Browser tests
         timeout-minutes: 12
         run: bun run test:browser
