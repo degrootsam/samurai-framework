@@ -1,6 +1,6 @@
 # Recorder toolbar (B)
 
-**Date:** 2026-10-14 · **Status:** design, awaiting review · **Repos:** `samurai-framework` (0.7.0), `samurai` (app)
+**Date:** 2026-10-14 · **Status:** approved · **Repos:** `samurai-framework` (0.7.0), `samurai` (app)
 
 ## Context
 
@@ -35,7 +35,7 @@ becomes a step in the spec. The toolbar is the framework's, so `samurai record` 
 
 ## The toolbar
 
-The approved mockups: <!-- link added after review: the published mockups page -->.
+The approved mockups: https://claude.ai/artifact/SzFJ7FVeJj9HxqEanJJX9L (private; share it from the page).
 
 ### Rail
 
