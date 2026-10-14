@@ -138,7 +138,7 @@ samurai browsers uninstall <name> [--build <id>]
 samurai browsers uninstall --unused
 ```
 
-- `list` shows each pinned browser as installed, not installed, or using a path set by an environment variable or `samurai.config.ts`. Builds in the cache that this version does not pin come after, with their size.
+- `list` shows each pinned browser as installed, not installed, without a download for this computer, or using a path set by an environment variable or `samurai.config.ts`. Builds in the cache that this version does not pin come after, with their size.
 - `install` downloads the pinned builds (all when no name is given) and prints the progress. A build that is already complete is not downloaded again. A failed or killed download is cleaned up, archive included.
 - `uninstall <name>` removes the pinned build. `--build <id>` removes that build instead.
 - `uninstall --unused` removes every build this framework version does not pin. Projects on other framework versions may still use them.

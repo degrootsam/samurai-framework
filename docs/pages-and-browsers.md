@@ -199,13 +199,13 @@ A run with no tests to run does not need a browser.
 
 Before 0.6 the framework used the Firefox installed on the computer. Now it does not. Run `samurai browsers install firefox` once per machine, or set `SAMURAI_FIREFOX_PATH` to the Firefox you want to keep using.
 
-On CI, run `samurai browsers install firefox` before `samurai run`, and cache the cache folder between runs, keyed on the framework version:
+On CI, run `samurai browsers install firefox` before `samurai run`, and cache the cache folder between runs, keyed on the lockfile, because a new framework version can pin new browsers:
 
 ```yaml
 - uses: actions/cache@v4
   with:
     path: ~/.cache/samurai/browsers
-    key: browsers-${{ runner.os }}-${{ hashFiles('package.json') }}
+    key: browsers-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock') }}
 - run: npx samurai browsers install firefox
 ```
 
