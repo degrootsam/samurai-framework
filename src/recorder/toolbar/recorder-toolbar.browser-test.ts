@@ -778,3 +778,87 @@ test(
     await waitFor(() => steps().length === 1, "the click step");
   },
 );
+
+test(
+  "keys typed into the toolbar's New secret value never reach the page's listeners, and the form still gets them",
+  OPTIONS,
+  async () => {
+    pages.set("/start", `<p>start</p>`);
+    // A keylogger on the window and the document, capture and bubble, registered by the page's own script
+    pages.set(
+      "/keylog",
+      `<label for="card">Card</label><input id="card">
+      <script>
+        window.keylog = [];
+        const types = ["keydown", "keyup", "keypress", "beforeinput", "input", "compositionstart",
+          "compositionupdate", "compositionend", "paste", "cut", "copy"];
+        for (const target of [window, document]) {
+          for (const type of types) {
+            for (const capture of [true, false]) {
+              target.addEventListener(type, (event) => {
+                window.keylog.push(type + ":" + (event.key || event.data || ""));
+              }, capture);
+            }
+          }
+        }
+      </script>`,
+    );
+    await rm(path.join(projectDir, ".env.dev"), { force: true });
+    await page.navigateTo(`${bases[0]}/start`, "complete");
+    await record();
+    // A page loaded while recording: its scripts run after the toolbar's
+    await open(`${bases[0]}/keylog`);
+
+    await page.getByCss("#card").click();
+    await inPage(`() => { window.keylog = []; }`);
+    await press("insert");
+    await press("insert-new", { kind: "secret" });
+    assert.equal(
+      await inSandbox(
+        `() => ${HOOK}.root.activeElement && ${HOOK}.root.activeElement.getAttribute("data-field")`,
+      ),
+      "value",
+      "the value input has the focus",
+    );
+
+    const keys = (text: string) =>
+      connector.send("input.performActions", {
+        context: page.contextId,
+        actions: [
+          {
+            type: "key",
+            id: "kb",
+            actions: [...text].flatMap((value) => [
+              { type: "keyDown" as const, value },
+              { type: "keyUp" as const, value },
+            ]),
+          },
+        ],
+      });
+    await keys("s3cr3t-Typed");
+    await pause(200);
+    assert.deepEqual(
+      await inPage(`() => window.keylog`),
+      [],
+      "the page saw no key",
+    );
+    assert.equal(
+      await inSandbox(
+        `() => ${HOOK}.root.querySelector('[data-field="value"]').value`,
+      ),
+      "s3cr3t-Typed",
+    );
+
+    // Enter in the form saves it: the form had the value
+    await keys("");
+    await waitFor(
+      async () =>
+        (
+          await readFile(path.join(projectDir, ".env.dev"), "utf8").catch(
+            () => "",
+          )
+        ).includes("s3cr3t-Typed") || undefined,
+      "the secret in .env.dev",
+    );
+  },
+);
