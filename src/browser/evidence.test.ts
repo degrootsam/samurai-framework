@@ -34,6 +34,13 @@ describe("Evidence", () => {
     );
   });
 
+  it("names a jpeg .jpg and anything else .png", () => {
+    const e = new Evidence("/r");
+    assert.equal(e.fileFor("a", "jpeg").path, "screenshots/a.jpg");
+    assert.equal(e.fileFor("b", "png").path, "screenshots/b.png");
+    assert.equal(e.fileFor("c").path, "screenshots/c.png");
+  });
+
   it("without a test folder writes to screenshots/", () => {
     assert.equal(new Evidence("/r").fileFor("x").path, "screenshots/x.png");
   });
