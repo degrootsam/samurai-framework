@@ -22,14 +22,14 @@ test("Visitor can sign in", async ({ page, env, secrets }) => {
 - **Network control.** Mock, block or modify requests; wait for requests, responses and network idle; read response bodies.
 - **Recorder building blocks.** Specs are parsed into steps and edited back with minimal diffs, and an engine records what a person does in the browser. The UI that ties them together is not built yet (see the [roadmap](docs/roadmap.md)).
 
-> **Status:** early. Firefox only, run from a checkout of this repository (not published to npm yet). See [what is still open](docs/roadmap.md).
+> **Status:** early. Firefox only. See [what is still open](docs/roadmap.md).
 
 ## Getting started
 
 ### 1. Requirements
 
 - [Node.js](https://nodejs.org) 26 or newer and [Bun](https://bun.sh) 1.3 or newer (CI uses these versions)
-- Firefox, downloaded by the framework: run `npx samurai browsers install firefox` once (see [Which browser runs](docs/pages-and-browsers.md#which-browser-runs)). The Firefox installed on the machine is not used.
+- Firefox, downloaded by the framework: run `npx samurai browsers install firefox` once in a project (`bun run dev browsers install firefox` in this checkout; see [Which browser runs](docs/pages-and-browsers.md#which-browser-runs)). The Firefox installed on the machine is not used.
 
 ### 2. Install
 

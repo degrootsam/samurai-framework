@@ -72,7 +72,7 @@ Things to know:
 - **Aborting** stops the test that is running (its browser is closed) and reports it and the remaining tests as failed with the message `Run aborted`.
 - **Where things are read and written** follows `projectDir`: the config, `.env.<environment>`, `srcDir`, `result/report.json` and `downloadsDir`. Framework logs (`logs/`) follow the process's working directory, so start a child process with `cwd` set to the project if you want them there.
 - **Browser profile files.** Firefox needs a generated profile and app-data folder. They go in `browsers/` in the project folder, or in `dataDir`, or in the folder `SAMURAI_DATA_DIR` points to (highest priority). An app should point it at a folder it may write to, such as its user-data folder.
-- **Firefox must be installed by the framework.** Launches use the pinned build from the cache, or a path set with `SAMURAI_FIREFOX_PATH` or `browserPaths`; they never download and never use the system browser. A missing build throws `BrowserNotInstalledError` (message: `Firefox 158.0 is not installed. Run: samurai browsers install firefox`). Call `installBrowser("firefox", { onProgress })` from the app to offer the download, and `browserStatus` to show whether it is there.
+- **Firefox must be downloaded by the framework.** Launches use the pinned build from the cache, or a path set with `SAMURAI_FIREFOX_PATH` or `browserPaths`; they never download and never use the system browser. A missing build throws `BrowserNotInstalledError` (message: `Firefox 158.0 is not installed. Run: samurai browsers install firefox`). Call `installBrowser("firefox", { onProgress })` from the app to offer the download, and `browserStatus` to show whether it is there.
 
 ## Or use the command
 
