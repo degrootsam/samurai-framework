@@ -13,19 +13,20 @@ import { TOOLBAR_SANDBOX } from "./protocol.js";
 const MAX_COUNTS = 3;
 
 /**
- * Run in the toolbar's sandbox on the picked element: its text, value (as the Alt+click rule reads it), first
+ * Run in the toolbar's sandbox on the picked element: its text (cut at 4 KB), value (as the Alt+click rule reads it), first
  * 20 attributes, its role without a name and its `tag.class` selector. `roleOf` only knows the roles the
  * candidates use, so the common list and table roles are added for Count.
  */
 const INSPECT_SOURCE = String.raw`(el) => {
   ${CANDIDATES_JS}
+  const TEXT_CAP = 4096;
   const MORE_ROLES = { li: "listitem", ul: "list", ol: "list", tr: "row", td: "cell", th: "columnheader", option: "option", nav: "navigation", table: "table", article: "article", dialog: "dialog" };
   const tag = el.tagName.toLowerCase();
   const hasValue = typeof el.value === "string" && el.tagName !== "BUTTON" && el.tagName !== "LI";
   const secret = tag === "input" && (el.getAttribute("type") || "").toLowerCase() === "password";
   const classes = Array.from(el.classList).filter(Boolean);
   return {
-    text: norm(el.textContent),
+    text: norm(String(el.textContent == null ? "" : el.textContent).slice(0, TEXT_CAP * 2)).slice(0, TEXT_CAP),
     value: hasValue && !secret ? el.value : null,
     attributes: Array.from(el.attributes).slice(0, 20).map((a) => ({ name: a.name, value: a.value })),
     role: roleOf(el) || MORE_ROLES[tag] || null,

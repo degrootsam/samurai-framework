@@ -9,7 +9,7 @@ import type {
   LocatorSpec,
   Step,
 } from "../../steps/model.js";
-import type { Observation } from "../normalise.js";
+import { expectationFor, type Observation } from "../normalise.js";
 import type {
   ActionReply,
   PickInfo,
@@ -45,6 +45,8 @@ export interface ControllerDeps {
   unmute(): Promise<void>;
   addVariable(name: string, value: string): Promise<void>;
   setSecret(name: string, value: string): Promise<void>;
+  /** A secret was written to the project (called before its value is typed) */
+  secretAdded(name: string): void;
   observe(observation: Observation): void;
   stop(): void;
   onStatus(status: { state: "recording" | "paused"; toolbar: boolean }): void;
@@ -101,6 +103,10 @@ export class ToolbarController {
     { id: number; locator: LocatorSpec; counts: LocatorCall[] } | undefined;
   /** Ids of `assert`, `insert` and `add-insertable` being processed */
   private readonly inFlight = new Set<number>();
+  /** Ids `accept` let through whose `handle` hasn't started yet */
+  private readonly claimed = new Set<number>();
+  /** Ids answered `{ ok: true }`: their step exists, a repeat is a double click */
+  private readonly done = new Set<number>();
   /** Bumped on every page load: work started for an older page is not answered */
   private page = 0;
   private toolbar = true;
@@ -174,7 +180,7 @@ export class ToolbarController {
     if (this.disposed) return;
     switch (message.action) {
       case "ready":
-        return this.ready();
+        return this.ready(message.url);
       case "pause":
         return this.pause();
       case "resume":
@@ -194,11 +200,11 @@ export class ToolbarController {
       case "pick":
         return this.picked(message);
       case "assert":
-        return this.once(message.id, () => this.assert(message));
+        return this.once(message, () => this.assert(message));
       case "insert":
-        return this.once(message.id, () => this.insert(message));
+        return this.once(message, () => this.insert(message));
       case "add-insertable":
-        return this.once(message.id, () => this.addInsertable(message));
+        return this.once(message, () => this.addInsertable(message));
       case "wait":
         if (this.paused) return;
         if (message.kind === "time") {
@@ -243,6 +249,14 @@ export class ToolbarController {
     }, READY_WITHIN);
   }
 
+  /**
+   * A top-level navigation to a new document started: a `ready` from before it belongs to the old document
+   * and doesn't count for the coming load
+   */
+  public navigating(): void {
+    this.readySinceLoad = false;
+  }
+
   /** A step was emitted (any source): count it */
   public stepAdded(step: Step): void {
     this.steps++;
@@ -262,7 +276,9 @@ export class ToolbarController {
    * in a transient about:blank while navigating. A `ready` that arrives while the watchdog runs settles it;
    * any other counts for the next load.
    */
-  private ready(): void {
+  private ready(url: string | undefined): void {
+    // The transient about:blank Firefox passes through while navigating is not the page being recorded
+    if (url === "about:blank") return;
     if (this.watchdog !== undefined) {
       clearTimeout(this.watchdog);
       this.watchdog = undefined;
@@ -308,12 +324,37 @@ export class ToolbarController {
   }
 
   /** Runs an action that expects a reply; a second one with the same id while the first runs is dropped */
-  private async once(id: number, work: () => Promise<ActionReply | undefined>) {
-    if (this.inFlight.has(id)) return;
+  /**
+   * Whether to process `message`; call it as the message arrives, before queueing it. An `assert`, `insert` or
+   * `add-insertable` whose id is in flight or was already answered `{ ok: true }` is a double click and is
+   * dropped (its first copy answers). A retry after `{ ok: false }` is accepted.
+   */
+  public accept(message: Message): boolean {
+    if (
+      message.action !== "assert" &&
+      message.action !== "insert" &&
+      message.action !== "add-insertable"
+    )
+      return true;
+    const { id } = message;
+    if (this.inFlight.has(id) || this.done.has(id)) return false;
     this.inFlight.add(id);
+    this.claimed.add(id);
+    return true;
+  }
+
+  /** Runs an action that expects a reply, unless it is a repeat (see `accept`) */
+  private async once(
+    message: Of<"assert" | "insert" | "add-insertable">,
+    work: () => Promise<ActionReply>,
+  ) {
+    const { id } = message;
+    if (!this.claimed.has(id) && !this.accept(message)) return;
+    this.claimed.delete(id);
     try {
       const result = await work();
-      if (result) this.reply(id, result);
+      if (result.ok) this.done.add(id);
+      this.reply(id, result);
     } finally {
       this.inFlight.delete(id);
     }
@@ -341,7 +382,41 @@ export class ToolbarController {
     }
     // The page that asked is gone: its successor's toolbar isn't waiting for this
     if (page !== this.page) return;
-    this.reply(message.id, found ? found.info : fail(UNIDENTIFIABLE));
+    this.reply(
+      message.id,
+      found ? this.withoutSecrets(found.info) : fail(UNIDENTIFIABLE),
+    );
+  }
+
+  /**
+   * A field may hold an inserted secret: its value (and any text or attribute equal to a secret) is left out,
+   * and the first matcher follows the Alt+click rule without a value, so neither the page nor the spec gets it.
+   */
+  private withoutSecrets(info: PickInfo & { ok: true }): PickInfo {
+    const values = [...this.secrets.values()].filter(
+      (value): value is string => value !== undefined && value !== "",
+    );
+    const secret = (text: string | undefined) =>
+      text !== undefined && values.some((value) => text.includes(value));
+    if (
+      !secret(info.value) &&
+      !secret(info.text) &&
+      !secret(info.first.expected) &&
+      !info.attributes.some((a) => secret(a.value))
+    )
+      return info;
+    const text = secret(info.text) ? "" : info.text;
+    const first = expectationFor(text, undefined);
+    const { value: _value, ...rest } = info;
+    return {
+      ...rest,
+      text,
+      attributes: info.attributes.filter((a) => !secret(a.value)),
+      first: {
+        matcher: first.matcher,
+        ...("expected" in first && { expected: String(first.expected) }),
+      },
+    };
   }
 
   private async assert(message: Of<"assert">): Promise<ActionReply> {
@@ -446,9 +521,12 @@ export class ToolbarController {
           );
     if (written) return written;
     if (kind === "env") this.variables.set(name, value);
-    else this.secrets.set(name, value);
+    else {
+      this.secrets.set(name, value);
+      this.deps.secretAdded(name);
+    }
     this.push();
-    return this.typeIn(locator, kind, name, value);
+    return this.typeIn(locator, kind, name, value, true);
   }
 
   /** Undefined when `work` succeeded, else the reply for its error */
@@ -481,10 +559,18 @@ export class ToolbarController {
     kind: "env" | "secret",
     name: string,
     value: string,
+    saved = false,
   ): Promise<ActionReply> {
     try {
       await this.deps.type(locator, value);
     } catch {
+      // Typing clicks the field, which closes the panel the reply is for: the toast is what the tester sees
+      this.showToast(
+        saved
+          ? `Saved ${name}, but couldn't type into that field`
+          : TYPE_FAILED,
+      );
+      this.push();
       return fail(TYPE_FAILED);
     }
     this.deps.observe({ type: "insert", locator, value: { kind, name } });

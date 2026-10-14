@@ -42,6 +42,8 @@ export type ToolbarOptions = ControllerOptions & {
   projectDir: string;
   /** Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page */
   onStatus?: ControllerDeps["onStatus"];
+  /** A secret was saved to `.env.<environment>` from the panel (before its value is typed) */
+  onSecretAdded?: (name: string) => void;
   /** The toolbar's Stop. Without it, Stop stops the recorder */
   onStop?: () => void;
 };
@@ -141,13 +143,15 @@ export class Recorder {
     } else if (controller && message.action === "ready") {
       // Not behind a slow insert: the ready watchdog is waiting for it
       void controller.handle(message);
-    } else if (controller) {
+    } else if (controller?.accept(message)) {
+      // Decided as it arrives: a double click's second copy would only run after the first had finished
       this.enqueue(async () => controller.handle(message));
     }
   };
 
-  private readonly onLoad = (params: { context: string }) => {
-    if (params.context === this.context) this.controller?.loaded();
+  private readonly onLoad = (params: { context: string; url: string }) => {
+    if (params.context === this.context && params.url !== "about:blank")
+      this.controller?.loaded();
   };
 
   private readonly onNavigation = (params: {
@@ -155,6 +159,7 @@ export class Recorder {
     url: string;
   }) => {
     if (params.context !== this.context || params.url === "about:blank") return;
+    this.controller?.navigating();
     this.known.clear();
     this.enqueue(async () => {
       // Paused: navigations are not recorded either
@@ -211,7 +216,8 @@ export class Recorder {
   }
 
   private createController(toolbar: ToolbarOptions): ToolbarController {
-    const { projectDir, environment, onStatus, onStop } = toolbar;
+    const { projectDir, environment, onStatus, onStop, onSecretAdded } =
+      toolbar;
     return new ToolbarController(
       {
         push: (state) => this.callToolbar("update", [state]),
@@ -244,6 +250,7 @@ export class Recorder {
           addVariable(projectDir, environment, name, value),
         setSecret: (name, value) =>
           setSecret(projectDir, environment, name, value),
+        secretAdded: (name) => onSecretAdded?.(name),
         observe: (observation) =>
           this.emit(this.normaliser.observe(observation, Date.now())),
         stop: () => {
