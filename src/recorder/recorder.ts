@@ -40,7 +40,10 @@ export type { RecorderEvent } from "./normalise.js";
 export type ToolbarOptions = ControllerOptions & {
   /** The project folder: `samurai.config.ts` and `.env.<environment>` */
   projectDir: string;
-  /** Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page */
+  /**
+   * Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page.
+   * There is no initial call: until the first one the recording is `{ state: "recording", toolbar: true }`
+   */
   onStatus?: ControllerDeps["onStatus"];
   /** A secret was saved to `.env.<environment>` from the panel (before its value is typed) */
   onSecretAdded?: (name: string) => void;
