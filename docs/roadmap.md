@@ -5,23 +5,24 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 ## Built
 
 - **Protocol layer.** WebDriver BiDi connection with typed commands, refcounted event subscriptions, script calls and preload scripts.
-- **Page API.** Navigation with real load waits, history, viewport, screenshots, PDF, emulation, dialogs, downloads and file pickers, init scripts, console and page-error capture, user contexts and cookies.
+- **Page API.** Navigation with real load waits, history, viewport, screenshots (also named, saved with the run), `waitForTimeout`, PDF, emulation, dialogs, downloads and file pickers, init scripts, console and page-error capture, user contexts and cookies.
 - **Network.** Request tracking, real network-idle, waiting for requests and responses, mocking, blocking and modifying, response bodies, cache control.
 - **Locators and assertions.** Role, label, text, test id, CSS and XPath locators with chaining and fallbacks; auto-waiting actions; retrying `expect`.
 - **Test API.** `describe`, `test` with `page`, `browser`, `env` and `secrets` fixtures; environments with variables, timeouts and base URLs; secrets from env vars or `.env.<environment>` with masking in logs and reports.
 - **Recorder foundations.** Step codec (parse a spec into steps, minimal-diff edits) and a recording engine (clicks, typing, Alt+click assertions, locator ranking, record from step N).
+- **Recorder toolbar.** A rail inside the recorded page: pause and resume, assertions with a choice of matcher, inserting and adding variables and secrets, waits, named screenshots and stop. Adds the `waitForTimeout` and `screenshot` steps and the `/project` writers (see [Steps and the recorder](recorder.md#the-toolbar)).
 - **Flows.** `samurai flow list|check|run`: graphs of tests, groups, conditions, variables, waits and parallel branches, checked before they run, with a report per run. Wait, Set variable and HTTP request run, and you can write more steps, and a project can list its own steps in `samurai.config.ts` (see [Flows](flows.md) and [Writing a step](steps.md)).
 - **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request.
 
 ## Open: recorder
 
-| #   | Item                                 | Notes                                                                                                                                                                         |
-| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done |
-| 6   | **Chrome support**                   | Likely through the `chromium-bidi` mapper (BiDi over CDP). Chrome for Testing already downloads (`samurai browsers install chrome`); launching it is what is open             |
-| –   | **Record more interactions**         | `<select>` choices, other key presses (arrows, shortcuts), hover, drag, file uploads, dialogs, contenteditable, iframes. Each needs a step kind in the codec first            |
-| –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                  |
-| –   | **Variables in steps**               | `${name}` references to environment variables in the steps view (specs use `env.name` today)                                                                                  |
+| #   | Item                                 | Notes                                                                                                                                                                                                                        |
+| --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. The toolbar inside the browser window is done. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done |
+| 6   | **Chrome support**                   | Likely through the `chromium-bidi` mapper (BiDi over CDP). Chrome for Testing already downloads (`samurai browsers install chrome`); launching it is what is open                                                            |
+| –   | **Record more interactions**         | `<select>` choices, other key presses (arrows, shortcuts), hover, drag, file uploads, dialogs, contenteditable, iframes (the toolbar is not shown in them either). Each needs a step kind in the codec first                 |
+| –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                                                                 |
+| –   | **Variables in steps**               | `${name}` references to environment variables in the steps view (specs use `env.name` today)                                                                                                                                 |
 
 ### Later, not scheduled
 

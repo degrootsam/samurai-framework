@@ -20,7 +20,7 @@ test("Visitor can sign in", async ({ page, env, secrets }) => {
 - **Semantic locators.** By role, label, text, test id, CSS or XPath, with ordered fallbacks.
 - **Environments and secrets.** One test file runs against `dev`, `staging` or `production`; secrets come from the environment or a `.env.<name>` file and are masked in logs and reports.
 - **Network control.** Mock, block or modify requests; wait for requests, responses and network idle; read response bodies.
-- **Recorder building blocks.** Specs are parsed into steps and edited back with minimal diffs, and an engine records what a person does in the browser. The UI that ties them together is not built yet (see the [roadmap](docs/roadmap.md)).
+- **Recorder building blocks.** Specs are parsed into steps and edited back with minimal diffs, and an engine records what a person does in the browser. A toolbar in the recorded page adds assertions, variables and secrets, waits, screenshots and pause (see [Steps and the recorder](docs/recorder.md)). The Electron app that ties them together lives in a separate repository (see the [roadmap](docs/roadmap.md)).
 
 > **Status:** early. Firefox only. See [what is still open](docs/roadmap.md).
 
@@ -119,7 +119,7 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 | [Command line](docs/cli.md)                                  | `samurai run`, `list`, `record` and `init`, options, output, exit codes, `--json`                     |
 | [Flows](docs/flows.md)                                       | `samurai flow list`, `check` and `run`: graphs of tests, groups and steps, reports, CI                |
 | [Running tests and reports](docs/running-and-reports.md)     | What a run does, `report.json`, page logs, timeouts                                                   |
-| [Steps and the recorder](docs/recorder.md)                   | The step codec and the recording engine                                                               |
+| [Steps and the recorder](docs/recorder.md)                   | The step codec, the recording engine and the recorder toolbar                                         |
 | [Embedding the framework](docs/embedding.md)                 | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
 | [Contributing](docs/contributing.md)                         | Project layout, running the framework's own tests, conventions                                        |
 | [Roadmap](docs/roadmap.md)                                   | What is built and what is still open                                                                  |

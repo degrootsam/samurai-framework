@@ -78,7 +78,7 @@ Imports the specs and prints the tests that `--env`, `--file`, `--grep` and `--g
 
 ## `samurai record <spec>`
 
-Opens a browser window on your environment's `baseURL`, and writes what you do into a spec file, step by step, as you do it. Stop with Ctrl+C or by closing the window.
+Opens a browser window on your environment's `baseURL`, and writes what you do into a spec file, step by step, as you do it. Stop with Ctrl+C, by closing the window or with the toolbar's Stop.
 
 ```sh
 samurai record tests/login.spec.ts --new "signs in" --env staging
@@ -96,7 +96,7 @@ Recording. Alt+click an element to assert on it. Press Ctrl+C or close the windo
 Recorded 5 steps into "signs in" in /work/shop/tests/login.spec.ts
 ```
 
-`+` is a new step, `~` a step that was rewritten (typing grows one `fill`). What each action becomes, and what isn't recorded yet, is in [Steps and the recorder](recorder.md).
+`+` is a new step, `~` a step that was rewritten (typing grows one `fill`). The page shows a [toolbar](recorder.md#the-toolbar) with Pause, Assert, Insert, Wait, Screenshot and Stop. Pausing or resuming prints `Paused` or `Recording`. If the toolbar can't load on a page, the command prints `The toolbar couldn't load on this page. Alt+click still records assertions.` once. What each action becomes, and what isn't recorded yet, is in [Steps and the recorder](recorder.md).
 
 | Option                 | Meaning                                                                                                                            |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
