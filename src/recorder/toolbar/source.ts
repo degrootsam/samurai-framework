@@ -97,14 +97,30 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
   };
   const ico = (text) => h("span", { class: "ico" }, text);
 
+  // Styles go through the CSSOM (property by property, and a constructed sheet), which a page's CSP does not
+  // block, unlike a style attribute or a <style> element without 'unsafe-inline'
   const host = document.createElement("samurai-recorder-toolbar");
-  host.setAttribute("style", "all: initial !important; display: block !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 0 !important; height: 0 !important; overflow: visible !important; z-index: 2147483647 !important;");
+  const HOST_STYLE = [
+    ["all", "initial"], ["display", "block"], ["position", "fixed"], ["top", "0"], ["left", "0"], ["width", "0"],
+    ["height", "0"], ["overflow", "visible"], ["z-index", "2147483647"],
+  ];
+  for (const [name, value] of HOST_STYLE) host.style.setProperty(name, value, "important");
   const root = host.attachShadow({ mode: "closed" });
   const frame = h("div", { class: "frame" });
   const container = h("div", { class: "ui" });
   const outline = h("div", { class: "outline", hidden: true });
   const toast = h("div", { class: "toast ui", hidden: true });
-  root.append(h("style", null, CSS), frame, outline, container, toast);
+  let adopted = false;
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(CSS);
+    root.adoptedStyleSheets = [sheet];
+    adopted = root.adoptedStyleSheets.length === 1;
+  } catch (err) {
+    adopted = false;
+  }
+  // Without constructed sheets: a <style> element, which a strict CSP blocks
+  root.append(...(adopted ? [] : [h("style", null, CSS)]), frame, outline, container, toast);
 
   const viewport = () => ({ w: frame.clientWidth || innerWidth, h: frame.clientHeight || innerHeight });
 
