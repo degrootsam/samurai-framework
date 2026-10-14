@@ -47,14 +47,14 @@ const downloader: Downloader = {
     ),
 };
 
-function io() {
+function io(env: Partial<NodeJS.ProcessEnv> = {}) {
   const out: string[] = [];
   const err: string[] = [];
   const target: Io = {
     out: (t) => out.push(t),
     err: (t) => err.push(t),
     color: false,
-    env: {},
+    env,
   };
   return { target, out: () => out.join(""), err: () => err.join("") };
 }
@@ -124,6 +124,33 @@ describe("samurai browsers", () => {
     assert.equal(
       existsSync(path.join(cacheDir, "firefox", PINNED.firefox.buildId)),
       false,
+    );
+  });
+
+  it("lists with the given env, not the process env", async () => {
+    const saved = process.env.SAMURAI_FIREFOX_PATH;
+    process.env.SAMURAI_FIREFOX_PATH = "/from/process";
+    try {
+      assert.doesNotMatch((await run(["list"])).out(), /\/from\/process/);
+      assert.match(
+        (await run(["list"], io({ SAMURAI_FIREFOX_PATH: "/from/io" }))).out(),
+        /uses .*from.io \(environment variable\)/,
+      );
+    } finally {
+      if (saved === undefined) delete process.env.SAMURAI_FIREFOX_PATH;
+      else process.env.SAMURAI_FIREFOX_PATH = saved;
+    }
+  });
+
+  it("install says where it downloads from when SAMURAI_BROWSERS_BASE_URL is set", async () => {
+    const r = await run(
+      ["install", "firefox"],
+      io({ SAMURAI_BROWSERS_BASE_URL: "http://127.0.0.1:8080" }),
+    );
+    assert.match(r.out(), /^Downloading from http:\/\/127\.0\.0\.1:8080\n/);
+    assert.doesNotMatch(
+      (await run(["install", "chrome"])).out(),
+      /Downloading from/,
     );
   });
 
