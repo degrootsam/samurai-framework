@@ -142,7 +142,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
         onStarted: () => {
           if (!values.json)
             io.out(
-              "Recording. Alt+click an element to assert on it. Press Ctrl+C or close the window to stop.\n",
+              "Recording. Alt+click an element to assert on it. Press Stop in the toolbar, Ctrl+C or close the window to stop.\n",
             );
         },
         onStatus: (status) => {

@@ -656,6 +656,16 @@ describe("ToolbarController", () => {
     ]);
   });
 
+  it("keeps a wait for time between 0.1 and 60 seconds", async () => {
+    const { controller, observed } = setup();
+    for (const ms of [5, 100, 1234.4, 60000, 3600000, -1, Number.NaN])
+      await controller.handle(msg({ action: "wait", kind: "time", ms }));
+    assert.deepEqual(
+      observed.map((o) => (o.type === "wait-time" ? o.ms : o.type)),
+      [100, 100, 1234, 60000, 60000],
+    );
+  });
+
   it("adds screenshot steps and counts them for the next default name", async () => {
     const { controller, observed, last } = setup();
     controller.loaded();
