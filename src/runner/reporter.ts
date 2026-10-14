@@ -111,7 +111,11 @@ export default class TestReporter {
   public onTestEnd(
     test: RegisteredTestCase,
     error?: TestError,
-    logs?: { logs?: TestLogEntry[]; logsDropped?: number },
+    extras?: {
+      logs?: TestLogEntry[];
+      logsDropped?: number;
+      screenshots?: { name: string; path: string }[];
+    },
   ) {
     const key = keyOf(test);
     performance.mark(`${key}-finish`);
@@ -126,8 +130,9 @@ export default class TestReporter {
       duration,
       status: error ? "failed" : "success",
       ...(error ? error : undefined),
-      ...(logs?.logs && { logs: logs.logs }),
-      ...(logs?.logsDropped && { logsDropped: logs.logsDropped }),
+      ...(extras?.logs && { logs: extras.logs }),
+      ...(extras?.logsDropped && { logsDropped: extras.logsDropped }),
+      ...(extras?.screenshots?.length && { screenshots: extras.screenshots }),
     } as TestResult);
     this.testResults.set(key, result);
     this.emit({ type: "test-end", name: test.name, file: test.file, result });

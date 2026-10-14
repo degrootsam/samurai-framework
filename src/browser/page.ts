@@ -7,7 +7,8 @@ import {
   textSelector,
 } from "../locator/selector.js";
 import EventEmitter from "node:events";
-import { readConfig } from "../config/config.js";
+import path from "node:path";
+import { projectDir, readConfig } from "../config/config.js";
 import { peekRunSettings } from "../config/run-settings.js";
 import logger from "../logger/index.js";
 import {
@@ -31,7 +32,12 @@ import {
   DownloadWaitTimeoutError,
   FileChooserTimeoutError,
 } from "./page-wait.js";
-import { takeScreenshot, type ScreenshotOptions } from "./screenshot.js";
+import {
+  takeScreenshot,
+  writeOutput,
+  type ScreenshotOptions,
+} from "./screenshot.js";
+import { Evidence } from "./evidence.js";
 import {
   PageLogs,
   type ConsoleMessage,
@@ -635,7 +641,29 @@ export default class Page {
    */
   public async screenshot(options: ScreenshotOptions = {}): Promise<Buffer> {
     this.assertOpen();
-    return takeScreenshot(this.biDiConnector, this.id, options);
+    const image = await takeScreenshot(this.biDiConnector, this.id, options);
+    if (options.name !== undefined) {
+      const evidence =
+        this.evidence ?? new Evidence(path.join(projectDir(), "result"));
+      await writeOutput(evidence.fileFor(options.name).file, image);
+    }
+    return image;
+  }
+
+  private evidence: Evidence | undefined;
+
+  /** @internal The runner gives each test its own evidence folder */
+  public setEvidence(evidence: Evidence | undefined): void {
+    this.evidence = evidence;
+  }
+
+  /** Waits `ms` milliseconds. Prefer waiting for something (an assertion, `waitForNetworkIdle`) when you can */
+  public async waitForTimeout(ms: number): Promise<void> {
+    if (!Number.isFinite(ms) || ms < 0)
+      throw new RangeError(
+        `waitForTimeout needs 0 or more milliseconds, got ${ms}`,
+      );
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** Renders the page as a PDF and returns it (also written to `options.path`) */
