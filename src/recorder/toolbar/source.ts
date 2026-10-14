@@ -24,6 +24,9 @@ import { TOOLBAR_CSS } from "./styles.js";
  *   Form inputs carry `data-field` (`expected`, `attribute`, `countIndex`, `filter`, `name`, `value`,
  *   `waitKind`, `seconds`, `shotName`, `fullPage`) and update on `input`/`change`.
  * - `rebind(send)`: used by a second run in the same document, which keeps the host and swaps the channel.
+ * - `state()`, `picking()`: the last state from `update` and whether the Assert picker is on (for tests).
+ * - `dispose()`: removes the host and every listener the toolbar put on the window and document (the
+ *   recording ended while the document stays open).
  *
  * A string, so no transpiler helper can end up in it.
  */
@@ -62,6 +65,12 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
 
   const post = (message) => {
     try { channel(Object.assign({ type: "toolbar" }, message)); } catch (err) { /* the channel is gone */ }
+  };
+  // Listeners on the page's window and document, so dispose() can take them all off again
+  const listening = [];
+  const listen = (target, type, handler, capture) => {
+    target.addEventListener(type, handler, capture === true);
+    listening.push([target, type, handler, capture === true]);
   };
   const paused = () => state.status === "paused";
   // Whole pixels, so a rail at the far edge does not overhang it by a rounding error
@@ -668,19 +677,19 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     event.preventDefault();
     event.stopImmediatePropagation();
   };
-  window.addEventListener("keydown", (event) => {
+  listen(window, "keydown", (event) => {
     if (event.key === "Escape" && (ui.picking || ui.panel)) {
       swallow(event);
       handlers.escape();
     }
   }, true);
-  window.addEventListener("pointerover", (event) => {
+  listen(window, "pointerover", (event) => {
     if (!ui.picking) return;
     if (inToolbar(event) || !event.target || event.target.nodeType !== 1) hideOutline();
     else showOutline(event.target);
   }, true);
   for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "dblclick", "auxclick", "contextmenu"]) {
-    window.addEventListener(type, (event) => {
+    listen(window, type, (event) => {
       if (inToolbar(event)) return;
       if (ui.picking) return swallow(event);
       if (type === "pointerdown" && ui.panel) {
@@ -689,12 +698,12 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
       }
     }, true);
   }
-  window.addEventListener("click", (event) => {
+  listen(window, "click", (event) => {
     if (!ui.picking || inToolbar(event)) return;
     swallow(event);
     pick(event.target);
   }, true);
-  document.addEventListener("focusin", (event) => {
+  listen(document, "focusin", (event) => {
     if (inToolbar(event) || !event.target || event.target.nodeType !== 1) return;
     ui.field = isTextEntry(event.target) ? event.target : null;
     if (ui.panel === "insert" && !ui.insert.field && ui.field) {
@@ -702,8 +711,8 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
       render();
     }
   }, true);
-  window.addEventListener("resize", () => render());
-  window.addEventListener("scroll", () => {
+  listen(window, "resize", () => render());
+  listen(window, "scroll", () => {
     if (ui.panel === "assert" && ui.assert && !outline.hidden) showOutline(ui.assert.target);
   }, true);
 
@@ -778,15 +787,26 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     announced = false;
     attach();
   };
-  globalThis[KEY] = { root, update, reply, press, rebind };
+  let watcher = null;
+  // The recording ended while this document stays open: take every listener and the host away
+  const dispose = () => {
+    endDrag();
+    for (const [target, type, handler, capture] of listening.splice(0)) target.removeEventListener(type, handler, capture);
+    if (watcher) watcher.disconnect();
+    clearTimeout(toastTimer);
+    channel = () => {};
+    host.remove();
+    if (globalThis[KEY] && globalThis[KEY].root === root) delete globalThis[KEY];
+  };
+  globalThis[KEY] = { root, update, reply, press, rebind, dispose, state: () => state, picking: () => ui.picking };
 
   const focused = document.activeElement;
   if (focused && focused.nodeType === 1 && isTextEntry(focused)) ui.field = focused;
   if (!attach()) {
-    const watcher = new MutationObserver(() => { if (attach()) watcher.disconnect(); });
+    watcher = new MutationObserver(() => { if (attach()) watcher.disconnect(); });
     watcher.observe(document, { childList: true });
   }
   // The page may replace the root element while it loads
-  document.addEventListener("DOMContentLoaded", attach);
-  window.addEventListener("load", attach);
+  listen(document, "DOMContentLoaded", attach);
+  listen(window, "load", attach);
 }`;
