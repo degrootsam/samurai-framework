@@ -23,7 +23,22 @@ export type Observation =
       locator: LocatorSpec;
       text: string;
       value?: string;
-    };
+    }
+  | {
+      type: "expect";
+      locator: LocatorSpec;
+      not: boolean;
+      expectation: Expectation;
+    }
+  | {
+      type: "insert";
+      locator: LocatorSpec;
+      value: { kind: "env" | "secret"; name: string };
+    }
+  | { type: "wait-idle" }
+  | { type: "wait-time"; ms: number }
+  | { type: "screenshot"; name: string; fullPage: boolean }
+  | { type: "goto"; url: string };
 
 export interface NormaliserOptions {
   /** Index the first recorded step gets */
@@ -46,7 +61,10 @@ export function secretNameFor(hint: string | undefined): string {
   return name === "" || /^\d/.test(name) ? "PASSWORD" : name;
 }
 
-function expectationFor(text: string, value: string | undefined): Expectation {
+export function expectationFor(
+  text: string,
+  value: string | undefined,
+): Expectation {
   if (value !== undefined) return { matcher: "toHaveValue", expected: value };
   if (text === "") return { matcher: "toBeVisible" };
   return text.length <= TEXT_LIMIT
@@ -99,7 +117,46 @@ export class Normaliser {
     return url;
   }
 
+  /** Steps the toolbar asks for directly; undefined for page observations */
+  private toolbarStep(observation: Observation): Step | undefined {
+    switch (observation.type) {
+      case "expect":
+        return {
+          kind: "expect",
+          locator: observation.locator,
+          not: observation.not,
+          expectation: observation.expectation,
+        };
+      case "insert":
+        return {
+          kind: "fill",
+          locator: observation.locator,
+          value: observation.value,
+        };
+      case "wait-idle":
+        return { kind: "waitForNetworkIdle" };
+      case "wait-time":
+        return { kind: "waitForTimeout", ms: observation.ms };
+      case "screenshot":
+        return {
+          kind: "screenshot",
+          name: observation.name,
+          fullPage: observation.fullPage,
+        };
+      case "goto":
+        return { kind: "goto", url: this.relative(observation.url) };
+      default:
+        return undefined;
+    }
+  }
+
   public observe(observation: Observation, at: number): RecorderEvent[] {
+    const fromToolbar = this.toolbarStep(observation);
+    if (fromToolbar) {
+      this.lastFill = undefined;
+      return [this.insert(fromToolbar)];
+    }
+
     if (observation.type === "click") {
       if (observation.textEntry) return []; // focusing a field: the fill that follows needs no click
       this.lastFill = undefined;
@@ -132,6 +189,7 @@ export class Normaliser {
       ];
     }
 
+    if (observation.type !== "input") return [];
     this.lastAction = at;
     const step: Step = {
       kind: "fill",

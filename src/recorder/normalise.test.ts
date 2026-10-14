@@ -208,3 +208,77 @@ describe("applyRecorderEvent", () => {
     assert.doesNotMatch(source, /fill\("S"\)/);
   });
 });
+
+describe("toolbar observations", () => {
+  const field = {
+    chain: [{ method: "getByLabel", text: "Email" }],
+    fallbacks: [],
+  } as LocatorSpec;
+  it("each becomes its step", () => {
+    const n = new Normaliser({ at: 0, baseURL: "https://app.test" });
+    const steps = [
+      ...n.observe(
+        {
+          type: "expect",
+          locator: field,
+          not: true,
+          expectation: { matcher: "toBeVisible" },
+        },
+        1,
+      ),
+      ...n.observe(
+        {
+          type: "insert",
+          locator: field,
+          value: { kind: "env", name: "testUser" },
+        },
+        2,
+      ),
+      ...n.observe({ type: "wait-idle" }, 3),
+      ...n.observe({ type: "wait-time", ms: 2000 }, 4),
+      ...n.observe({ type: "screenshot", name: "x", fullPage: true }, 5),
+      ...n.observe({ type: "goto", url: "https://app.test/admin" }, 6),
+    ].map((e) => e.step);
+    assert.deepEqual(steps, [
+      {
+        kind: "expect",
+        locator: field,
+        not: true,
+        expectation: { matcher: "toBeVisible" },
+      },
+      {
+        kind: "fill",
+        locator: field,
+        value: { kind: "env", name: "testUser" },
+      },
+      { kind: "waitForNetworkIdle" },
+      { kind: "waitForTimeout", ms: 2000 },
+      { kind: "screenshot", name: "x", fullPage: true },
+      { kind: "goto", url: "/admin" },
+    ]);
+  });
+
+  it("a toolbar step closes the fill being typed: typing afterwards is a new fill (Review Focus 3)", () => {
+    const n = new Normaliser({ at: 0 });
+    n.observe({ type: "input", key: "k", locator: field, value: "a" }, 1);
+    n.observe({ type: "wait-time", ms: 100 }, 2);
+    const [event] = n.observe(
+      { type: "input", key: "k", locator: field, value: "ab" },
+      3,
+    );
+    assert.equal(event!.op, "insert");
+    assert.equal(event!.index, 2);
+  });
+
+  it("an insert replaces nothing and is followed by nothing", () => {
+    const n = new Normaliser({ at: 0 });
+    const events = n.observe(
+      { type: "insert", locator: field, value: { kind: "secret", name: "PW" } },
+      1,
+    );
+    assert.deepEqual(
+      events.map((e) => e.op),
+      ["insert"],
+    );
+  });
+});
