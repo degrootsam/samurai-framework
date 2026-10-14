@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { Writable } from "node:stream";
+import { transports } from "winston";
+import logger from "../logger/index.js";
 import { FakeWebSocket, tick } from "../testing/fake-websocket.js";
 import { WaitTimeoutError } from "../wait/wait-until.js";
 import { BiDiError } from "./bidi-error.js";
@@ -206,5 +209,87 @@ describe("BiDiConnector.subscribe", () => {
     const unsub = ws.sent.filter((m) => m.method === "session.unsubscribe");
     assert.equal(unsub.length, 1);
     assert.deepEqual(unsub[0]!.params, { subscriptions: ["s1"] });
+  });
+});
+
+describe("BiDiConnector debug log", () => {
+  /** Everything the real logger writes while `work` runs */
+  async function logged(work: () => Promise<void> | void): Promise<string> {
+    let out = "";
+    const transport = new transports.Stream({
+      stream: new Writable({
+        write(chunk, _enc, done) {
+          out += String(chunk);
+          done();
+        },
+      }),
+    });
+    logger.add(transport);
+    try {
+      await work();
+    } finally {
+      logger.remove(transport);
+    }
+    return out;
+  }
+
+  const str = (value: string) => ({ type: "string", value });
+
+  it("logs a recorder or toolbar script.message by channel and action, without its data", async () => {
+    const { ws } = setup();
+    const toolbar = "samurai-toolbar-1234";
+    const capture = "samurai-recorder-5678";
+    const out = await logged(() => {
+      ws.emitEvent("script.message", {
+        channel: toolbar,
+        data: {
+          type: "object",
+          value: [
+            ["type", str("toolbar")],
+            ["action", str("add-insertable")],
+            ["name", str("CARD")],
+            ["value", str("TOPSECRET-4242")],
+          ],
+        },
+        source: { realm: "r1", context: "c1" },
+      });
+      ws.emitEvent("script.message", {
+        channel: capture,
+        data: {
+          type: "object",
+          value: [
+            ["type", str("input")],
+            ["value", str("typed-in-the-page")],
+          ],
+        },
+        source: { realm: "r2", context: "c1" },
+      });
+    });
+    assert.ok(!out.includes("TOPSECRET-4242"), out);
+    assert.ok(!out.includes("typed-in-the-page"), out);
+    assert.ok(out.includes(toolbar), out);
+    assert.ok(out.includes("add-insertable"), out);
+    assert.ok(out.includes(capture), out);
+  });
+
+  it("delivers the full message to listeners and logs other channels as they are", async () => {
+    const { ws, connector } = setup();
+    const seen: unknown[] = [];
+    connector.onEvent("script.message", (params) => seen.push(params.data));
+    const data = { type: "object", value: [["value", str("v-1")]] };
+    const out = await logged(() => {
+      ws.emitEvent("script.message", {
+        channel: "samurai-toolbar-1",
+        data,
+        source: { realm: "r", context: "c" },
+      });
+      ws.emitEvent("script.message", {
+        channel: "someone-else",
+        data: { type: "string", value: "plain-data" },
+        source: { realm: "r", context: "c" },
+      });
+    });
+    assert.deepEqual(seen[0], data);
+    assert.ok(out.includes("plain-data"), out);
   });
 });

@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { registerSecret } from "../config/mask.js";
 
 const PREFIX = "SAMURAI_SECRET_";
 export const SECRET_NAME = /^[A-Z][A-Z0-9_]*$/;
@@ -50,7 +51,10 @@ export async function isGitIgnored(projectDir: string, file: string) {
   }
 }
 
-/** Sets SAMURAI_SECRET_<name> in .env.<environment>, replacing its line or adding one */
+/**
+ * Sets SAMURAI_SECRET_<name> in .env.<environment>, replacing its line or adding one. The value is masked
+ * in this process's logs from then on, as a secret loaded from the file would be
+ */
 export async function setSecret(
   projectDir: string,
   environment: string,
@@ -70,4 +74,5 @@ export async function setSecret(
   if (at >= 0) lines[at] = line;
   else lines.push(line);
   await writeFile(file, lines.join("\n") + "\n", { mode: 0o600 });
+  registerSecret(name, value);
 }

@@ -130,6 +130,7 @@ export class Recorder {
       target.context,
       normaliser,
       options,
+      // The connector's debug log leaves out the data of these channels' messages (it knows them by prefix)
       `samurai-recorder-${randomUUID()}`,
       `samurai-toolbar-${randomUUID()}`,
     );
