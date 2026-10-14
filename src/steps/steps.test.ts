@@ -103,6 +103,9 @@ const SAMPLES: Step[] = [
     key: "Enter",
   },
   { kind: "waitForNetworkIdle" },
+  { kind: "waitForTimeout", ms: 2000 },
+  { kind: "screenshot", name: "after-sign-in", fullPage: false },
+  { kind: "screenshot", name: "whole", fullPage: true },
 ];
 
 describe("step codec", () => {
@@ -111,6 +114,40 @@ describe("step codec", () => {
       const source = wrap(stepToSource(step));
       assert.deepEqual(stepsOf(source), [step], stepToSource(step));
     }
+  });
+
+  it("reads waits and screenshots, and keeps other shapes as custom code", () => {
+    assert.equal(
+      stepToSource({ kind: "waitForTimeout", ms: 1500 }),
+      "await page.waitForTimeout(1500);",
+    );
+    assert.equal(
+      stepToSource({ kind: "screenshot", name: "a", fullPage: true }),
+      'await page.screenshot({ name: "a", fullPage: true });',
+    );
+    assert.equal(
+      stepToSource({ kind: "screenshot", name: "a", fullPage: false }),
+      'await page.screenshot({ name: "a" });',
+    );
+    const steps = stepsOf(
+      wrap(
+        "await page.waitForTimeout(ms);",
+        "await page.waitForTimeout(1.5);",
+        "await page.waitForTimeout(-1);",
+        'await page.screenshot({ path: "x.png" });',
+        "await page.screenshot();",
+        'await page.screenshot({ name: "a", fullPage: false });',
+      ),
+    );
+    assert.deepEqual(
+      steps.map((s) => s.kind),
+      ["custom", "custom", "custom", "custom", "custom", "screenshot"],
+    );
+    assert.deepEqual(steps[5], {
+      kind: "screenshot",
+      name: "a",
+      fullPage: false,
+    });
   });
 
   it("reads a press and writes it back", () => {

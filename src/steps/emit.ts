@@ -89,6 +89,10 @@ export function stepToSource(step: Step): string {
       return `await expect(${locatorToSource(step.locator)})${step.not ? ".not" : ""}.${expectationToSource(step.expectation)};`;
     case "waitForNetworkIdle":
       return "await page.waitForNetworkIdle();";
+    case "waitForTimeout":
+      return `await page.waitForTimeout(${step.ms});`;
+    case "screenshot":
+      return `await page.screenshot({ name: ${str(step.name)}${step.fullPage ? ", fullPage: true" : ""} });`;
     case "custom":
       return step.code;
   }
