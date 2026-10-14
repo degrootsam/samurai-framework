@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { CAPTURE_OFF, CAPTURE_SOURCE } from "./capture.js";
+import { CANDIDATES_JS } from "./candidates.js";
 
 describe("capture script", () => {
   it("compiles as a function declaration", () => {
@@ -16,5 +17,14 @@ describe("capture script", () => {
 
   it("holds no template literals, which could not survive the page", () => {
     assert.ok(!CAPTURE_SOURCE.includes("`"));
+  });
+
+  it("ignores the toolbar and shares the candidate code", () => {
+    assert.match(CAPTURE_SOURCE, /inToolbar\(event\)/);
+    assert.ok(CAPTURE_SOURCE.includes(CANDIDATES_JS));
+    assert.doesNotThrow(
+      () => new Function(`return (() => {${CANDIDATES_JS}})`),
+    );
+    assert.ok(!CANDIDATES_JS.includes("`"));
   });
 });

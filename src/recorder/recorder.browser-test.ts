@@ -211,3 +211,30 @@ test("stop ends the recording", OPTIONS, async () => {
   await pause(300);
   assert.equal(events.length, count);
 });
+
+test("ignores the toolbar and can be muted", OPTIONS, async () => {
+  await setContent(
+    page,
+    `<samurai-recorder-toolbar><button id="t">t</button></samurai-recorder-toolbar><button id="b">b</button>`,
+  );
+  const events: RecorderEvent[] = [];
+  const recorder = await page.record({
+    onEvent: (event) => events.push(event),
+    initialGoto: false,
+  });
+  await page.getByCss("#t").click();
+  await pause(300);
+  assert.equal(events.length, 0, "a click in the toolbar is not recorded");
+  await page.getByCss("#b").click();
+  await pause(300);
+  assert.equal(events.length, 1);
+  await recorder.mute();
+  await page.getByCss("#b").click();
+  await pause(300);
+  assert.equal(events.length, 1, "muted: nothing recorded");
+  await recorder.unmute();
+  await page.getByCss("#b").click();
+  await pause(300);
+  assert.equal(events.length, 2);
+  await recorder.stop();
+});
