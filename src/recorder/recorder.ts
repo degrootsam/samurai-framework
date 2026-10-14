@@ -6,7 +6,12 @@ import { ChannelArg, fromRemoteValue } from "../script/serialize.js";
 import { ElementHandle } from "../script/element-handle.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { LocatorCall, LocatorSpec } from "../steps/model.js";
-import { CAPTURE_OFF, CAPTURE_SOURCE } from "./capture.js";
+import {
+  CAPTURE_MUTE,
+  CAPTURE_OFF,
+  CAPTURE_SOURCE,
+  CAPTURE_UNMUTE,
+} from "./capture.js";
 import {
   Normaliser,
   type Observation,
@@ -213,6 +218,27 @@ export class Recorder {
       this.subscription?.unsubscribe(),
       this.preload?.dispose(),
     ]);
+  }
+
+  /**
+   * Pauses capture in the loaded document: clicks and typing are not reported until `unmute`.
+   * @internal
+   */
+  public async mute(): Promise<void> {
+    await this.setMuted(CAPTURE_MUTE);
+  }
+
+  /** @internal */
+  public async unmute(): Promise<void> {
+    await this.setMuted(CAPTURE_UNMUTE);
+  }
+
+  private async setMuted(source: string): Promise<void> {
+    await runInLoadedContexts(this.connector, {
+      source,
+      contexts: [this.context],
+      onRunError: "log",
+    });
   }
 
   /** Stops recording. Events already received are still processed and reported first */
