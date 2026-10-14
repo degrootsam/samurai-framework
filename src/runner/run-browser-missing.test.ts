@@ -9,7 +9,8 @@ import { runTests } from "./run.js";
 
 const API = JSON.stringify(path.resolve("src/api.ts"));
 let dir: string;
-const saved = { ...process.env };
+const KEYS = ["SAMURAI_BROWSERS_PATH", "SAMURAI_FIREFOX_PATH"] as const;
+const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
 
 before(() => {
   dir = mkdtempSync(path.join(tmpdir(), "samurai-nobrowser-"));
@@ -23,7 +24,10 @@ before(() => {
   delete process.env.SAMURAI_FIREFOX_PATH;
 });
 after(() => {
-  process.env = saved;
+  for (const k of KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
   rmSync(dir, { recursive: true, force: true });
 });
 

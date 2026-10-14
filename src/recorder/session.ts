@@ -107,8 +107,6 @@ export async function recordSpec(
   options: RecordSpecOptions,
 ): Promise<RecordResult> {
   return withProject(options, async ({ settings }) => {
-    // Before the spec is touched: a recording without its browser changes nothing
-    await projectExecutable("firefox");
     const file = path.resolve(projectDir(), options.file);
     let source = existsSync(file) ? readFileSync(file, "utf8") : undefined;
     if (source === undefined && options.create === undefined) {
@@ -116,6 +114,8 @@ export async function recordSpec(
         `${options.file} does not exist; give a title with --new to create it`,
       );
     }
+    // Before the spec is touched: a recording without its browser changes nothing
+    await projectExecutable("firefox");
     source ??= "";
     if (
       options.create !== undefined &&
