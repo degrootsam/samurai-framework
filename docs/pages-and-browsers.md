@@ -179,7 +179,11 @@ Builds go in a per-user cache folder, shared by all projects:
 | Linux   | `$XDG_CACHE_HOME/samurai/browsers`, else `~/.cache/samurai/browsers` |
 | Windows | `%LOCALAPPDATA%\samurai\browsers`                                    |
 
-`SAMURAI_BROWSERS_PATH` replaces the folder. A download that was interrupted leaves nothing behind that counts: the build is only used once it is complete, and the next `install` starts it again.
+`SAMURAI_BROWSERS_PATH` replaces the folder. A download goes into a temporary `.staging-…` folder inside it and moves into place once complete, so a download that was interrupted leaves nothing behind that counts, and two installs at once (the app and the CLI, two CI jobs) do not break each other. Staging folders a killed download left behind are removed after a day.
+
+`SAMURAI_BROWSERS_BASE_URL` is for tests only: it points the downloads at another server, and nothing checks what that server sends. `samurai browsers install` prints `Downloading from <url>` when it is set.
+
+The first start of a freshly downloaded build can be slow (macOS checks the new app). `samurai run` and `samurai record` therefore start a new build once, headless, before the first test or recording, and remember that in the build folder. If the browser still takes more than two minutes to start, the launch stops with `Firefox 158.0 did not finish starting within 120s. The first start after an install can be slow; run again.`
 
 A launch picks the browser in this order:
 
@@ -197,9 +201,9 @@ A run with no tests to run does not need a browser.
 
 ### Upgrading to 0.6
 
-Before 0.6 the framework used the Firefox installed on the computer. Now it does not. Run `samurai browsers install firefox` once per machine, or set `SAMURAI_FIREFOX_PATH` to the Firefox you want to keep using.
+Before 0.6 the framework used the Firefox installed on the computer. Now it does not. Run `samurai browsers install firefox` once per machine, or set `SAMURAI_FIREFOX_PATH` to the Firefox you want to keep using. The project's Firefox profile keeps working even when a newer system Firefox opened it before: the framework lets Firefox open a profile from a newer version.
 
-On CI, run `samurai browsers install firefox` before `samurai run`, and cache the cache folder between runs, keyed on the lockfile, because a new framework version can pin new browsers:
+On CI, run `samurai browsers install firefox` before `samurai run`, and cache the cache folder between runs, keyed on the lockfile, because a new framework version can pin new browsers. `~/.cache/samurai/browsers` below is the Linux folder; on macOS runners use `~/Library/Caches/samurai/browsers`, on Windows `%LOCALAPPDATA%\samurai\browsers` (or set `SAMURAI_BROWSERS_PATH` to one folder everywhere):
 
 ```yaml
 - uses: actions/cache@v4
@@ -208,6 +212,8 @@ On CI, run `samurai browsers install firefox` before `samurai run`, and cache th
     key: browsers-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock') }}
 - run: npx samurai browsers install firefox
 ```
+
+The download contains Firefox only, not the system libraries it needs. GitHub's Ubuntu runners have them; on a minimal Linux image (a slim Docker image, for example) install them first, e.g. `apt-get install -y libgtk-3-0 libasound2 libx11-xcb1 libdbus-glib-1-2`.
 
 ## Contexts
 
