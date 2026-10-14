@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import path from "node:path";
 import {
   Browser as PuppeteerBrowser,
   Cache,
@@ -27,6 +29,8 @@ export interface Downloader {
     onProgress?: (done: number, total: number) => void,
   ): Promise<void>;
   uninstall(cacheDir: string, browser: string, buildId: string): void;
+  /** Removes a build's folder and any archive a killed download left behind */
+  clean(cacheDir: string, browser: string, buildId: string): void;
   list(cacheDir: string): CachedBuild[];
 }
 
@@ -65,6 +69,19 @@ export function puppeteerDownloader(
     },
     uninstall: (cacheDir, browser, buildId) =>
       new Cache(cacheDir).uninstall(as(browser), platform(), buildId),
+    clean(cacheDir, browser, buildId) {
+      const cache = new Cache(cacheDir);
+      rmSync(cache.installationDir(as(browser), platform(), buildId), {
+        recursive: true,
+        force: true,
+      });
+      // The archive is downloaded next to the build folders, as <buildId>-<file>
+      const root = cache.browserRoot(as(browser));
+      if (!existsSync(root)) return;
+      for (const entry of readdirSync(root))
+        if (entry.startsWith(`${buildId}-`))
+          rmSync(path.join(root, entry), { recursive: true, force: true });
+    },
     list: (cacheDir) =>
       new Cache(cacheDir)
         .getInstalledBrowsers()

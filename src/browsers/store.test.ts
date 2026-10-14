@@ -10,7 +10,12 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import type { CachedBuild, Downloader } from "./downloader.js";
+import { detectBrowserPlatform } from "@puppeteer/browsers";
+import {
+  puppeteerDownloader,
+  type CachedBuild,
+  type Downloader,
+} from "./downloader.js";
 import { PINNED } from "./pins.js";
 import {
   BrowserNotInstalledError,
@@ -40,12 +45,18 @@ function fake(options: { fail?: string; platform?: string | undefined } = {}) {
     async install(cache, b, id, onProgress) {
       calls.push(`install ${b}@${id}`);
       const dir = dirOf(cache, b, id);
+      // like puppeteer: refuses a build folder that is already there
+      if (existsSync(dir)) throw new Error(`${dir} already exists`);
       mkdirSync(dir, { recursive: true });
       writeFileSync(path.join(dir, "partial"), "");
       if (options.fail === b) throw new Error("connection reset");
       onProgress?.(5, 10);
       onProgress?.(10, 10);
       writeFileSync(path.join(dir, "bin"), "binary");
+    },
+    clean(cache, b, id) {
+      rmSync(dirOf(cache, b, id), { recursive: true, force: true });
+      rmSync(path.join(cache, b, `${id}-archive.tar.xz`), { force: true });
     },
     uninstall: (cache, b, id) =>
       rmSync(dirOf(cache, b, id), { recursive: true, force: true }),
@@ -129,6 +140,19 @@ describe("installBrowser", () => {
       statusOf("firefox", { cacheDir, downloader }).state,
       "installed",
     );
+  });
+
+  it("a leftover archive from a killed download is removed before installing", async () => {
+    const { downloader } = fake();
+    const archive = path.join(
+      cacheDir,
+      "firefox",
+      `${ff.buildId}-archive.tar.xz`,
+    );
+    mkdirSync(path.dirname(archive), { recursive: true });
+    writeFileSync(archive, "truncated");
+    await installBrowser("firefox", { cacheDir, downloader });
+    assert.equal(existsSync(archive), false);
   });
 
   it("no download for this platform", async () => {
@@ -235,5 +259,29 @@ describe("uninstallBrowser and listInstalled", () => {
       listInstalled({ cacheDir, downloader }).map((b) => b.buildId),
       [ff.buildId],
     );
+  });
+});
+
+describe("puppeteerDownloader.clean", () => {
+  it("removes the build folder and archives of that build, nothing else", () => {
+    const platform = detectBrowserPlatform();
+    if (!platform) return;
+    const root = path.join(cacheDir, "firefox");
+    const folder = path.join(root, `${platform}-${ff.buildId}`);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(path.join(folder, "x"), "");
+    writeFileSync(path.join(root, `${ff.buildId}-archive.dmg`), "");
+    writeFileSync(path.join(root, "other-archive.dmg"), "");
+    puppeteerDownloader().clean(cacheDir, "firefox", ff.buildId);
+    assert.equal(existsSync(folder), false);
+    assert.equal(
+      existsSync(path.join(root, `${ff.buildId}-archive.dmg`)),
+      false,
+    );
+    assert.ok(existsSync(path.join(root, "other-archive.dmg")));
+  });
+
+  it("copes with a cache that has no such browser", () => {
+    puppeteerDownloader().clean(cacheDir, "firefox", ff.buildId);
   });
 });
