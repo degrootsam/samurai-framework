@@ -21,4 +21,5 @@ export {
   uninstallBrowser,
   type BrowserStatus,
   type InstalledBuild,
+  type StoreOptions,
 } from "./store.js";
