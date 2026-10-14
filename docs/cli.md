@@ -2,6 +2,8 @@
 
 The package installs a `samurai` command. Run it in the project folder, the one holding `samurai.config.ts`.
 
+A `samurai` installed globally (or linked) hands over to the project's own copy of the framework when the project has one, so the command always matches the version the specs import.
+
 ```sh
 samurai init [folder]     # scaffold a project
 samurai list              # list the tests without running them
