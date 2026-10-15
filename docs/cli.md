@@ -113,7 +113,7 @@ Recorded 5 steps into "signs in" in /work/shop/tests/login.spec.ts
 Details:
 
 - The file is rewritten after every step, as a minimal edit: the rest of the file, comments included, is untouched. Without `--new`, the spec must already exist.
-- A password field is recorded as `secrets.<FIELD_NAME>`, and the value never leaves the page. The command ends by telling you which `SAMURAI_SECRET_*` to set.
+- A password field is recorded as `secrets.<FIELD_NAME>`, and the value never leaves the page. The command ends by telling you which `SAMURAI_SECRET_*` to set: those without a value in the environment yet (`RecordResult.unsetSecrets`).
 - With `--at n` the window starts on `--url` or the base URL, **not** where steps `0…n-1` would leave it. Get the page to that state yourself before you act.
 - Recording is meant for a window: a person has to use it. `--headless` is only for tests of the recorder itself, and on CI (where `CI` is set) you must pass `--no-headless` to get one. `recordSpec` takes `headless` too.
 

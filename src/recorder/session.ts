@@ -4,6 +4,7 @@ import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { ensureWarm } from "../browser/warm-up.js";
 import { loadConfig, projectDir } from "../config/config.js";
+import { loadSecrets } from "../config/secrets.js";
 import { isGitIgnored } from "../project/index.js";
 import type { PreparedRun } from "../runner/prepare-run.js";
 import { withProject, type ProjectOptions } from "../runner/project.js";
@@ -57,6 +58,8 @@ export interface RecordResult {
   events: RecorderEvent[];
   /** Names the recorded steps read with `secrets.<NAME>`: they must be set before the test can run */
   secrets: string[];
+  /** Those of `secrets` that have no value in the recording's environment yet, read when the recording ended */
+  unsetSecrets: string[];
 }
 
 const NEW_SPEC_HEADER = `import { expect, test } from "@itmetsam/samurai-framework";\n\n`;
@@ -264,6 +267,9 @@ export async function recordSpec(
     }
 
     const secrets = resultSecrets(events, addedSecrets);
-    return { file, test: test.name, events, secrets };
+    // Read again: the toolbar may have written new ones to the .env file
+    const set = loadSecrets(settings.environment);
+    const unsetSecrets = secrets.filter((name) => !set.has(name));
+    return { file, test: test.name, events, secrets, unsetSecrets };
   });
 }
