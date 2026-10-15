@@ -2,10 +2,10 @@
 
 ## Test files
 
-A test file ends in `.spec.ts` and lives under `srcDir` (see [Configuration](configuration.md)). Importing `test`, `describe` and `expect` from `api.js` registers tests when the file is loaded:
+A test file ends in `.spec.ts` and lives under `srcDir` (see [Configuration](configuration.md)). Importing `test`, `describe` and `expect` from `@itmetsam/samurai-framework` registers tests when the file is loaded (in this repository's own `src/tests`, the import is `../api.js`):
 
 ```ts
-import { describe, expect, test } from "../api.js";
+import { describe, expect, test } from "@itmetsam/samurai-framework";
 
 describe("Checkout", () => {
   describe("as a guest", () => {

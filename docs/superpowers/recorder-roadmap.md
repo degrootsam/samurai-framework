@@ -1,7 +1,7 @@
 # Recorder — roadmap
 
 Date: 2026-10-01
-Status: phases 1 and 2 done; phases 3 and 4 not specced yet.
+Status: phases 1 and 2 done, plus the in-page recorder toolbar; phases 3 and 4 not specced yet.
 UI: the Electron app at `~/dev/itmetsam/projects/samurai` (designs: "SAMURAI" design canvas, boards "Test editor & recorder" and "Test editor · code view").
 
 Each item gets its own spec in `docs/superpowers/specs/` and its own plan. Order respects dependencies (`←`).
@@ -26,6 +26,7 @@ Each item gets its own spec in `docs/superpowers/specs/` and its own plan. Order
 
 ### Phase 3 — UI
 
+- [x] **Recorder toolbar** ← 4 — a rail inside the recorded page: pause and resume, assertions with a choice of matcher, inserting and adding variables and secrets, waits, named screenshots, stop. — [spec](specs/2026-10-14-recorder-toolbar-design.md)
 - [ ] **5. Recorder UI (Electron)** ← 3, 4 — steps panel, step inspector, IPC to the engine, live step stream while recording.
 
 ### Phase 4 — browsers

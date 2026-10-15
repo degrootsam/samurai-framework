@@ -1,6 +1,6 @@
 # Pages and browsers
 
-Everything here is on `page` (the fixture), `browser` or a browser context. Calls on a page that was closed throw `page closed`.
+Everything here is on `page` (the fixture), `browser` or a browser context. `page.close()` closes the tab; calls on a page that was closed throw `page closed`.
 
 ## Navigation
 
@@ -90,7 +90,7 @@ Options: `locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientati
 Logging starts when the page opens, so early output is kept.
 
 ```ts
-page.on("console", (message) => console.log(message.type(), message.text()));
+page.on("console", (message) => console.log(message.type(), message.text())); // also page.once and page.off
 page.on("pageerror", (error) => console.error(error.message));
 page.getLogs(); // newest entries, oldest first (buffer of 1000)
 page.pageErrors(); // uncaught exceptions

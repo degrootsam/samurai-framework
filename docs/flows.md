@@ -178,8 +178,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/samurai/browsers
+          key: browsers-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - run: npx samurai browsers install firefox
       - name: Check flows
         run: npx samurai flow check
       - name: Run flows
@@ -195,7 +200,7 @@ jobs:
           if-no-files-found: ignore
 ```
 
-`CI` is set on GitHub Actions, so the browser runs headless. Firefox is preinstalled on `ubuntu-latest`; see [Contributing](contributing.md) for how the framework's own CI is set up.
+`CI` is set on GitHub Actions, so the browser runs headless. The Firefox preinstalled on the runner is not used: the framework launches the build `samurai browsers install` downloads (see [Which browser runs](pages-and-browsers.md#which-browser-runs)). See [Contributing](contributing.md) for how the framework's own CI is set up.
 
 ## From code
 

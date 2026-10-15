@@ -90,6 +90,51 @@ describe("main", () => {
     }
   });
 
+  it("record passes --headless and --no-headless to the browser", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
+    writeFileSync(path.join(dir, "samurai.config.ts"), "export default {};");
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    // A "browser" that writes the flags it was started with and exits, so the launch fails right after
+    const browser = path.join(dir, "fake-firefox.sh");
+    writeFileSync(
+      browser,
+      `#!/bin/sh\necho "$@" >> "${path.join(dir, "args.txt")}"\nexit 1\n`,
+      { mode: 0o755 },
+    );
+    const saved = {
+      path: process.env.SAMURAI_FIREFOX_PATH,
+      ci: process.env.CI,
+    };
+    process.env.SAMURAI_FIREFOX_PATH = browser;
+    process.env.CI = "1"; // headless by default, so only --no-headless gives a window
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      for (const flag of ["--no-headless", "--headless"]) {
+        const { target } = io();
+        const argv = ["record", "a.spec.ts", "--new", "t", flag];
+        assert.equal(await main(argv, target), 2);
+      }
+      const [windowed, headless] = readFileSync(
+        path.join(dir, "args.txt"),
+        "utf8",
+      )
+        .trim()
+        .split("\n");
+      assert.doesNotMatch(windowed!, /--headless/);
+      assert.match(headless!, /--headless/);
+    } finally {
+      process.chdir(previous);
+      for (const [key, value] of [
+        ["SAMURAI_FIREFOX_PATH", saved.path],
+        ["CI", saved.ci],
+      ] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
   it("init scaffolds a project and never overwrites", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-init-"));
     writeFileSync(path.join(dir, "package.json"), '{"name":"mine"}');

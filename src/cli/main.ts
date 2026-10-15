@@ -36,7 +36,7 @@ Options for run:
                               Default: the config's use.headless, else headless when CI is set
   --port <n>                  Browser debugging port (default 9223)
 
-Options for record (also --env, --port, --json):
+Options for record (also --env, --port, --json, --headless, --no-headless):
   --new <title>               Add a test with this title (creates the spec file if needed)
   --test <name|index>         Record into this test; not needed when the file has one
   --at <n>                    Insert from step n (default: after the last step)
@@ -137,6 +137,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
         ...(values.new !== undefined && { create: values.new }),
         ...(at !== undefined && { at }),
         ...(values.url !== undefined && { url: values.url }),
+        ...(flags.headless !== undefined && { headless: flags.headless }),
         ...(flags.port !== undefined && { port: flags.port }),
         ...(io.signal && { signal: io.signal }),
         onStarted: () => {
