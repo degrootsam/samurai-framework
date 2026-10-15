@@ -108,6 +108,7 @@ The first choice follows the Alt+click rule above. The Not checkbox writes `.not
 Insert types into the text field that had focus before you opened it. With none, the panel says "Click into a field first". It lists the variables of the recording's environment (with their values) and its secrets (names only; a value shows as `••••••`, a missing one as "not set"). The list has a filter.
 
 - A variable is typed into the field and recorded as `fill(env.<name>)`; a secret as `fill(secrets.<NAME>)`. Even when the page re-renders the field on every input, exactly one such `fill` is recorded.
+- A step that reads `env` or `secrets` adds it to the test's parameters (`async ({ page, env }) =>`) when it isn't there yet. Parameters that can't take it, a plain name such as `async (fixtures) =>` or a `...rest`, are left as they are.
 - The secrets listed are those with a value (`.env.<environment>` or a `SAMURAI_SECRET_*` variable) plus the `secrets.X` names the recorded spec file already reads. Other spec files are not scanned.
 - Picking a secret that is not set opens the form to set it.
 - "+ Add variable" and "+ Add secret" (with the filter as the name) open a form: Name, and the value in the environment. "Save and insert" writes it, types it into the field and records the `fill`.

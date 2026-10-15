@@ -1,6 +1,6 @@
 {
   "name": "@itmetsam/samurai-framework",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Browser test framework over WebDriver BiDi: auto-waiting locators, environments and secrets, a recorder, and a command line.",
   "main": "dist/api.js",
   "exports": {

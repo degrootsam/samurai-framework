@@ -80,4 +80,10 @@ export interface ParsedTest {
   /** Offset just after the `{` of the test body, and of its closing `}` */
   bodyStart: number;
   bodyEnd: number;
+  /**
+   * The fixtures the test's callback destructures, and the offset where another one goes: after the last one
+   * (`list`), inside an empty `{}` (`empty`) or inside the empty `()` of a callback without parameters (`none`).
+   * Undefined when the parameter can't take one: a plain identifier, or a rest element
+   */
+  fixtures?: { names: string[]; at: number; shape: "list" | "empty" | "none" };
 }

@@ -87,19 +87,53 @@ function removeStep(source: string, parsed: ParsedTest, index: number): string {
   return splice(source, lineStart(source, anchor), lineEnd(source, end), "");
 }
 
+/** The fixtures a step's statement reads */
+function fixturesOf(step: Step): string[] {
+  if (step.kind !== "fill" || step.value.kind === "literal") return [];
+  return [step.value.kind === "env" ? "env" : "secrets"];
+}
+
+/** Adds the fixtures the step reads to the test's parameters, when they aren't there yet */
+function withFixtures(source: string, parsed: ParsedTest, step: Step): string {
+  const { fixtures } = parsed;
+  if (!fixtures) return source;
+  const missing = fixturesOf(step).filter(
+    (name) => !fixtures.names.includes(name),
+  );
+  if (missing.length === 0) return source;
+  const list = missing.join(", ");
+  const text =
+    fixtures.shape === "list"
+      ? `, ${list}`
+      : fixtures.shape === "empty"
+        ? ` ${list} `
+        : `{ ${list} }`;
+  return splice(source, fixtures.at, fixtures.at, text);
+}
+
 /**
- * Applies one edit and returns the new source. Only the touched statement changes: everything else,
- * formatting and comments included, stays byte for byte.
+ * Applies one edit and returns the new source. Only the touched statement changes, plus the test's parameters
+ * when the step reads a fixture (`env`, `secrets`) they don't have yet: everything else, formatting and
+ * comments included, stays byte for byte.
  */
 export function applyEdit(source: string, edit: StepEdit): string {
   const parsed = pickTest(source, edit.test);
   switch (edit.op) {
     case "replace": {
       const { start, end } = pickStep(parsed, edit.index);
-      return splice(source, start, end, stepToSource(edit.step));
+      // The parameters come before the body: adding to them leaves the step's offsets valid
+      return withFixtures(
+        splice(source, start, end, stepToSource(edit.step)),
+        parsed,
+        edit.step,
+      );
     }
     case "insert":
-      return insertCode(source, parsed, edit.index, stepToSource(edit.step));
+      return withFixtures(
+        insertCode(source, parsed, edit.index, stepToSource(edit.step)),
+        parsed,
+        edit.step,
+      );
     case "remove":
       return removeStep(source, parsed, edit.index);
     case "move": {
