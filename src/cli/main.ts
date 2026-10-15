@@ -170,9 +170,9 @@ export async function main(argv: string[], io: Io): Promise<number> {
         io.out(
           `\nRecorded ${count} ${count === 1 ? "step" : "steps"} into "${result.test}" in ${result.file}\n`,
         );
-        if (result.secrets.length > 0) {
+        if (result.unsetSecrets.length > 0) {
           io.out(
-            `Set ${result.secrets.map((name) => `SAMURAI_SECRET_${name}`).join(", ")} (environment variable or .env.<environment>) before running it.\n`,
+            `Set ${result.unsetSecrets.map((name) => `SAMURAI_SECRET_${name}`).join(", ")} (environment variable or .env.<environment>) before running it.\n`,
           );
         }
       }

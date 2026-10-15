@@ -65,6 +65,7 @@ test(
     );
     assert.ok(!source.includes("hunter2"), "a password never reaches the file");
     assert.deepEqual(result.secrets, ["PW"]);
+    assert.deepEqual(result.unsetSecrets, ["PW"], "PW has no value yet");
     assert.ok(written.length >= 4, "the file was updated while recording");
   },
 );
@@ -246,6 +247,10 @@ test(
       },
     });
     assert.ok(result.secrets.includes("API_KEY"));
+    assert.ok(
+      !result.unsetSecrets.includes("API_KEY"),
+      "a secret added from the toolbar has a value",
+    );
     assert.match(
       readFileSync(path.join(dir, ".env.default"), "utf8"),
       /API_KEY/,
