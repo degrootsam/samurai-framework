@@ -20,16 +20,32 @@ test("Visitor can sign in", async ({ page, env, secrets }) => {
 - **Semantic locators.** By role, label, text, test id, CSS or XPath, with ordered fallbacks.
 - **Environments and secrets.** One test file runs against `dev`, `staging` or `production`; secrets come from the environment or a `.env.<name>` file and are masked in logs and reports.
 - **Network control.** Mock, block or modify requests; wait for requests, responses and network idle; read response bodies.
+- **Flows.** Chain tests and groups into a graph with conditions, variables, waits and HTTP requests, and run it from the command line or CI (see [Flows](docs/flows.md)).
 - **Recorder building blocks.** Specs are parsed into steps and edited back with minimal diffs, and an engine records what a person does in the browser. A toolbar in the recorded page adds assertions, variables and secrets, waits, screenshots and pause (see [Steps and the recorder](docs/recorder.md)). The Electron app that ties them together lives in a separate repository (see the [roadmap](docs/roadmap.md)).
 
 > **Status:** early. Firefox only. See [what is still open](docs/roadmap.md).
 
 ## Getting started
 
+### In your own project
+
+The package is published on npm as [`@itmetsam/samurai-framework`](https://www.npmjs.com/package/@itmetsam/samurai-framework). In an empty folder:
+
+```sh
+npx -p @itmetsam/samurai-framework samurai init   # config, an example test, .env.example, .gitignore
+npm install
+npx samurai browsers install firefox             # once per machine
+npx samurai run
+```
+
+Specs and the config then import from `@itmetsam/samurai-framework` instead of the relative paths used below. See [Command line](docs/cli.md).
+
+The rest of this section works in a checkout of this repository.
+
 ### 1. Requirements
 
-- [Node.js](https://nodejs.org) 26 or newer and [Bun](https://bun.sh) 1.3 or newer (CI uses these versions)
-- Firefox, downloaded by the framework: run `npx samurai browsers install firefox` once in a project (`bun run dev browsers install firefox` in this checkout; see [Which browser runs](docs/pages-and-browsers.md#which-browser-runs)). The Firefox installed on the machine is not used.
+- [Node.js](https://nodejs.org) 24 or newer (`engines` in `package.json`; CI uses 26) and, to work on the framework, [Bun](https://bun.sh) 1.3 or newer
+- Firefox, downloaded by the framework: run `bun run dev browsers install firefox` once in this checkout (`npx samurai browsers install firefox` in a project; see [Which browser runs](docs/pages-and-browsers.md#which-browser-runs)). The Firefox installed on the machine is not used.
 
 ### 2. Install
 
@@ -86,9 +102,9 @@ bun run dev --env production   # another environment (or SAMURAI_ENV=production)
 bun run dev --timeout 60000    # per-test timeout in ms; also --expect-timeout
 ```
 
-Once the package is installed in a project, `samurai run` does the same with a readable summary and a proper exit code, and `samurai init` scaffolds a new project (see [Command line](docs/cli.md)).
+`bun run dev` is `samurai run` straight from the sources, so it takes the same options (`--grep`, `--file`, `--group`, `--headless`, `--json`, …) and the other commands too (`bun run dev list`, `bun run dev browsers install firefox`). See [Command line](docs/cli.md).
 
-A browser window opens for each test and closes when the test ends. The result is written to `result/report.json` (status, duration and error per test); nothing summarises it on the console yet. The process exits with code 0 when every test passed and 1 otherwise (`--headless` hides the window; on CI it is the default, see [Configuration](docs/configuration.md#headless)). Framework logs go to the console and `logs/`.
+A browser window opens for each test and closes when the test ends (`--headless` hides it; on CI it is the default, see [Configuration](docs/configuration.md#headless)). Each test's result is printed as it finishes, followed by a summary, and the full report is written to `result/report.json`. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error. Framework logs go to stderr and `logs/`.
 
 > `src/tests/index.spec.ts` is an example that submits a real contact form. Delete it or replace it before running everything.
 
@@ -100,6 +116,7 @@ A project can also keep flows in `flows/*.flow.json` (edited in the Samurai app)
 
 ```sh
 cp .env.example .env.staging
+# then add a line per secret, e.g.
 # SAMURAI_SECRET_TEST_PASSWORD=...
 ```
 
@@ -118,19 +135,21 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 | [Environments and secrets](docs/environments-and-secrets.md) | Per-environment settings, variables, secrets and masking                                              |
 | [Command line](docs/cli.md)                                  | `samurai run`, `list`, `record` and `init`, options, output, exit codes, `--json`                     |
 | [Flows](docs/flows.md)                                       | `samurai flow list`, `check` and `run`: graphs of tests, groups and steps, reports, CI                |
+| [Writing a step](docs/steps.md)                              | `defineStep`: flow steps of your own, the built-in steps                                              |
 | [Running tests and reports](docs/running-and-reports.md)     | What a run does, `report.json`, page logs, timeouts                                                   |
 | [Steps and the recorder](docs/recorder.md)                   | The step codec, the recording engine and the recorder toolbar                                         |
 | [Embedding the framework](docs/embedding.md)                 | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
 | [Contributing](docs/contributing.md)                         | Project layout, running the framework's own tests, conventions                                        |
 | [Roadmap](docs/roadmap.md)                                   | What is built and what is still open                                                                  |
 
-Design notes for every feature live in [`docs/superpowers/specs`](docs/superpowers/specs).
+The [documentation index](docs/README.md) lists every guide and design note by topic. Design notes for every feature live in [`docs/superpowers/specs`](docs/superpowers/specs).
 
 ## Scripts
 
 | Command                | Does                                            |
 | ---------------------- | ----------------------------------------------- |
-| `bun run dev`          | Runs the test suite (`tsx src/index.ts`)        |
+| `bun run dev`          | `samurai` from the sources (`tsx src/index.ts`) |
 | `bun run test`         | Unit tests of the framework (no browser needed) |
 | `bun run test:browser` | Browser tests of the framework (needs Firefox)  |
+| `bun run test:cli`     | Tests of the `samurai` command (build first)    |
 | `bun run build`        | Typechecks and compiles to `dist/`              |

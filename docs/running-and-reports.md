@@ -4,17 +4,17 @@
 
 ```sh
 bun run dev [--env <name>] [--timeout <ms>] [--expect-timeout <ms>]
-        [--headless | --no-headless] [--port <n>] [--grep <text>] [--file <spec>]...
+        [--headless | --no-headless] [--port <n>] [--grep <text>] [--group <name>] [--file <spec>]... [--json]
 ```
 
 1. Reads `samurai.config.ts`, picks the [environment](environments-and-secrets.md), loads its secrets and registers them for masking.
 2. Finds every `*.spec.ts` under `srcDir` (recursively) and imports each one, which registers its tests.
-3. Runs the tests **one at a time**, in registration order. For each test it launches a fresh browser (window visible), opens a page, runs the test function with the [fixtures](writing-tests.md#fixtures), judges the page's log, and closes the browser.
-4. Writes `result/report.json` and exits with the run's status.
+3. Runs the tests **one at a time**, in registration order. For each test it launches a fresh browser, opens a page, runs the test function with the [fixtures](writing-tests.md#fixtures), judges the page's log, and closes the browser.
+4. Prints each result as it finishes and a summary, writes `result/report.json` and exits with the run's status.
 
-The browser window is visible unless you pass `--headless`, set `use.headless` in the config, or run on CI (the `CI` environment variable is set); see [Headless](configuration.md#headless). The browser's debugging port is 9223 unless you pass `--port`. `--grep <text>` runs only tests whose full name contains the text, and `--file <spec>` (repeatable, relative to the working directory) runs only those spec files. The process exits with code 0 when every test passed and 1 otherwise, so a CI job can gate on it. Tests still run one at a time.
+The browser window is visible unless you pass `--headless`, set `use.headless` in the config, or run on CI (the `CI` environment variable is set); see [Headless](configuration.md#headless). The browser's debugging port is 9223 unless you pass `--port`. `--grep <text>` runs only tests whose full name contains the text, `--group <name>` only the tests of a [group](configuration.md#groups), and `--file <spec>` (repeatable, relative to the working directory) only those spec files. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error, so a CI job can gate on it. Tests still run one at a time.
 
-The installed `samurai` command does the same with nicer output; see [Command line](cli.md). To run tests from your own code, see [Embedding the framework](embedding.md).
+`bun run dev` is the installed `samurai run` command, run from the sources; see [Command line](cli.md) for the output and `--json`. To run tests from your own code, see [Embedding the framework](embedding.md).
 
 ## The report
 
@@ -113,4 +113,4 @@ Each entry has `level` (`debug`, `info`, `warn`, `error`), `type` (`console`, `j
 - An `ActionTimeoutError` names the check that kept failing (`visible`, `enabled`, `hit target`, …) and what covers the element.
 - Set `logs.capture: "all"` to see the page's console for passing tests as well.
 - Add `await page.screenshot({ path: "out/debug.png" })` before the failing step.
-- Run one spec by pointing `srcDir` at a folder that holds only it.
+- Run only the failing test with `--file <spec>` and `--grep <name>`, and with `--no-headless` to watch it.

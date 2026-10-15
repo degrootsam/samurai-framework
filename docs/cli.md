@@ -126,7 +126,7 @@ samurai flow run <flow>... [options]    # run, in the order given
 samurai flow run --all [options]        # run every flow in ./flows, by file name
 ```
 
-A flow is an id (`flows/<id>.flow.json`) or a path to a `.flow.json` file. `run` takes `--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port` and `--json` like `samurai run`, plus `--allow-unsupported` (accepted, but every kind runs now, so it changes nothing). `check` takes `--env`, `--allow-unsupported` and `--json`. `run` checks first and refuses a flow with errors; every run writes `result/flows/<id>.json`. Exit code: 0 passed, 1 a node failed or the run was cancelled (`check`: errors found), 2 usage, configuration or flow-file error. See [Flows](flows.md).
+A flow is an id (`flows/<id>.flow.json`) or a path to a `.flow.json` file. `list` takes `--json` (an array of `{ "id", "name", "nodes" }`, or `{ "id", "error" }` for a file that can't be read). `run` takes `--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port` and `--json` like `samurai run`, plus `--allow-unsupported` (accepted, but every kind runs now, so it changes nothing). `check` takes `--env`, `--allow-unsupported` and `--json`. `run` checks first and refuses a flow with errors; every run writes `result/flows/<id>.json`. Exit code: 0 passed, 1 a node failed or the run was cancelled (`check`: errors found), 2 usage, configuration or flow-file error. See [Flows](flows.md).
 
 ## `samurai browsers`
 
@@ -155,15 +155,15 @@ samurai browsers uninstall --unused
 
 Creates, in the folder (default: the current one), and never overwrites a file that exists:
 
-| File                    | Content                                                                    |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `package.json`          | ES module project, `npm test` runs `samurai run`, depends on the framework |
-| `samurai.config.ts`     | `srcDir: "./tests"`, one `local` environment                               |
-| `tests/example.spec.ts` | A first test                                                               |
-| `.env.example`          | Where secrets go                                                           |
-| `.gitignore`            | `node_modules`, `result`, `logs`, `browsers`, `.env.*`                     |
+| File                    | Content                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `package.json`          | ES module project, `npm test` runs `samurai run`, depends on the framework and `tsx` |
+| `samurai.config.ts`     | `srcDir: "./tests"`, one `local` environment                                         |
+| `tests/example.spec.ts` | A first test                                                                         |
+| `.env.example`          | Where secrets go                                                                     |
+| `.gitignore`            | `node_modules`, `result`, `logs`, `browsers`, `.env.*`                               |
 
-Then install the dependencies and run `samurai run`.
+Then install the dependencies, run `samurai browsers install firefox` once, and `samurai run`. Without a local install yet, run it as `npx -p @itmetsam/samurai-framework samurai init`.
 
 ## Logging
 

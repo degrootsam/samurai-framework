@@ -12,7 +12,9 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - **Recorder foundations.** Step codec (parse a spec into steps, minimal-diff edits) and a recording engine (clicks, typing, Alt+click assertions, locator ranking, record from step N).
 - **Recorder toolbar.** A rail inside the recorded page: pause and resume, assertions with a choice of matcher, inserting and adding variables and secrets, waits, named screenshots and stop. Adds the `waitForTimeout` and `screenshot` steps and the `/project` writers (see [Steps and the recorder](recorder.md#the-toolbar)).
 - **Flows.** `samurai flow list|check|run`: graphs of tests, groups, conditions, variables, waits and parallel branches, checked before they run, with a report per run. Wait, Set variable and HTTP request run, and you can write more steps, and a project can list its own steps in `samurai.config.ts` (see [Flows](flows.md) and [Writing a step](steps.md)).
-- **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request.
+- **Packaging.** Published on npm as `@itmetsam/samurai-framework`, with subpath exports (see [Embedding](embedding.md)) and the `samurai` command (see [Command line](cli.md)).
+- **Browser management.** `samurai browsers install|list|uninstall` downloads pinned Firefox and Chrome for Testing builds into a per-user cache.
+- **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request (the `samurai` command's own tests, `bun run test:cli`, are run locally).
 
 ## Open: recorder
 
@@ -20,6 +22,7 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 | --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. The toolbar inside the browser window is done. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done |
 | 6   | **Chrome support**                   | Likely through the `chromium-bidi` mapper (BiDi over CDP). Chrome for Testing already downloads (`samurai browsers install chrome`); launching it is what is open                                                            |
+| 7   | **Embedded recording browser**       | Recording inside the Electron editor panel through `chromium-bidi`. Needs Chrome support (6) first; see the [recorder roadmap](superpowers/recorder-roadmap.md)                                                              |
 | –   | **Record more interactions**         | `<select>` choices, other key presses (arrows, shortcuts), hover, drag, file uploads, dialogs, contenteditable, iframes (the toolbar is not shown in them either). Each needs a step kind in the codec first                 |
 | –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                                                                 |
 | –   | **Variables in steps**               | `${name}` references to environment variables in the steps view (specs use `env.name` today)                                                                                                                                 |
@@ -35,7 +38,6 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - **Engine process.** A ready-made entry point for a child process that takes `run` / `record` / `stop` / `abort` commands and answers with events over `process.send`, so the Electron app doesn't have to write it.
 - **Mid-test abort is untested.** Aborting before a run starts and between tests is covered; aborting while a browser is running relies on the existing launch/close handling.
 - **Logs location.** Framework logs go to `logs/` of the process's working directory, not the project folder.
-- **Publishing.** Not on npm; consumers link the built package.
 - **Command extras.** No `--config` flag, no watch mode; `samurai record --at` doesn't replay the steps before it; `samurai --version` creates a `logs/` folder because the logger opens its files on import.
 
 ## Open: runner and CLI
@@ -47,14 +49,13 @@ Gaps in the runner today, found while writing these docs:
 - **Tags.** Tests can be selected by file and by name, but not by tag.
 - **Hooks and modifiers.** No `beforeEach`, `afterEach`, `beforeAll`, `afterAll`, `test.skip`, `test.only`, `test.fixme`, or retries.
 - **Failure artefacts.** No automatic screenshot, video or trace when a test fails.
-- **Packaging.** The package builds to `dist/` with subpath exports (see [Embedding](embedding.md)) and has a `samurai` command (see [Command line](cli.md)), but isn't published to npm.
 - **Config loading.** `samurai.config.ts` is read from the working directory only; no `--config` flag.
 
 ## Open: framework API
 
 - **Browsers.** Firefox only for launching (see Chrome above); Chrome for Testing downloads already.
 - **Locators.** No `first()`, `last()`, `nth(i)` or `filter(...)` (use `all()`), no `getByPlaceholder` or `getByAltText`, and the test-id attribute is fixed to `data-testid`. No iframe or shadow-DOM piercing beyond the browser's own support.
-- **Actions.** No `hover`, `dblclick`, `check`/`uncheck`, `selectOption`, keyboard `press`/`type`, drag and drop, or scrolling helpers. `fill` replaces the whole value; there is no append.
+- **Actions.** No `hover`, `dblclick`, `check`/`uncheck`, `selectOption`, `type`, page-level keyboard, drag and drop, or scrolling helpers. `locator.press` presses one key on an element. `fill` replaces the whole value; there is no append.
 - **Assertions.** No `toBeHidden`, `toBeEnabled`, `toBeChecked`, `toHaveCSS`, `toHaveURL`, `toHaveTitle`, `toHaveClass`; no screenshot comparison. Use `expect(await page.url())` for the URL and title.
 - **Windows and tabs.** No `popup` event or API for tabs and windows the page opens itself; open extra pages with `context.newPage()`.
 - **HTTP authentication.** `network.continueWithAuth` (basic-auth challenges) was left out of the interception work.

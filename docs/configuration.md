@@ -1,9 +1,9 @@
 # Configuration
 
-Configuration lives in `samurai.config.ts` in the directory you run from. It must export `defineConfig({...})` as the default export; the file is read when the run starts.
+Configuration lives in `samurai.config.ts` in the directory you run from (or the `projectDir` given to `runTests`). It must export `defineConfig({...})` as the default export; the file is read when the run starts. In a project, `defineConfig` comes from `@itmetsam/samurai-framework`; this repository's own config imports `./src/config/config.js`.
 
 ```ts
-import { defineConfig } from "./src/config/config.js";
+import { defineConfig } from "@itmetsam/samurai-framework";
 
 export default defineConfig({
   srcDir: "./src/tests",
@@ -95,7 +95,7 @@ bun run dev --env staging --timeout 60000 --expect-timeout 10000
 | `--timeout <ms>`        | Per-test timeout                      |                      |
 | `--expect-timeout <ms>` | Retry time for actions and assertions |                      |
 
-Unknown flags are an error, and the millisecond flags must be whole numbers.
+Unknown flags are an error, and the millisecond flags must be whole numbers. Every flag of the command (`--file`, `--grep`, `--group`, `--headless`, `--port`, `--json`, …) is in [Command line](cli.md).
 
 ## Precedence
 
