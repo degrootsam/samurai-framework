@@ -376,3 +376,85 @@ describe("applyEdit", () => {
     );
   });
 });
+
+describe("applyEdit and the test's fixtures", () => {
+  const field = {
+    chain: [{ method: "getByCss" as const, css: "#f" }],
+    fallbacks: [],
+  };
+  const fillWith = (kind: "env" | "secret", name: string): Step => ({
+    kind: "fill",
+    locator: field,
+    value: { kind, name },
+  });
+  const insert = (source: string, step: Step) =>
+    applyEdit(source, { op: "insert", test: 0, index: 0, step });
+
+  it("adds env and secrets to the parameters when a step reads them", () => {
+    let next = `test("t", async ({ page }) => {\n});\n`;
+    next = insert(next, fillWith("env", "user"));
+    next = insert(next, fillWith("secret", "PW"));
+    assert.match(next, /^test\("t", async \(\{ page, env, secrets \}\) => \{/);
+  });
+
+  it("adds a fixture once, and leaves the parameters alone when it is there", () => {
+    const source = `test("t", async ({ page, env }) => {\n});\n`;
+    const next = insert(
+      insert(source, fillWith("env", "a")),
+      fillWith("env", "b"),
+    );
+    assert.match(next, /async \(\{ page, env \}\)/);
+  });
+
+  it("counts a renamed fixture as there", () => {
+    const source = `test("t", async ({ page, env: data }) => {\n});\n`;
+    assert.match(
+      insert(source, fillWith("env", "a")),
+      /async \(\{ page, env: data \}\)/,
+    );
+  });
+
+  it("replace adds the fixture too", () => {
+    const source = `test("t", async ({ page }) => {\n  await page.goto("/");\n});\n`;
+    const next = applyEdit(source, {
+      op: "replace",
+      test: 0,
+      index: 0,
+      step: fillWith("secret", "PW"),
+    });
+    assert.match(next, /async \(\{ page, secrets \}\)/);
+  });
+
+  it("a callback without parameters gets them", () => {
+    const next = insert(`test("t", async () => {\n});\n`, fillWith("env", "a"));
+    assert.match(next, /async \(\{ env \}\) =>/);
+  });
+
+  it("an empty pattern and a trailing comma stay valid", () => {
+    assert.match(
+      insert(`test("t", async ({}) => {});`, fillWith("env", "a")),
+      /async \(\{ env \}\)/,
+    );
+    assert.match(
+      insert(`test("t", async ({ page, }) => {});`, fillWith("env", "a")),
+      /async \(\{ page, env, \}\)/,
+    );
+  });
+
+  it("leaves parameters it can't extend alone", () => {
+    for (const params of ["fixtures", "{ page, ...rest }"]) {
+      const source = `test("t", async (${params}) => {});`;
+      assert.ok(
+        insert(source, fillWith("env", "a")).startsWith(source.slice(0, -4)),
+      );
+    }
+  });
+
+  it("the edited test is still found with its steps", () => {
+    const next = insert(
+      `test("t", async ({ page }) => {\n});\n`,
+      fillWith("env", "a"),
+    );
+    assert.deepEqual(stepsOf(next), [fillWith("env", "a")]);
+  });
+});
