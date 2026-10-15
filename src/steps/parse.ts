@@ -298,6 +298,33 @@ function parseStatement(
   };
 }
 
+function callbackFixtures(
+  callback: ts.ArrowFunction | ts.FunctionExpression,
+  sourceFile: ts.SourceFile,
+): ParsedTest["fixtures"] {
+  const [first] = callback.parameters;
+  if (!first) {
+    const open = callback
+      .getChildren(sourceFile)
+      .find((child) => child.kind === ts.SyntaxKind.OpenParenToken);
+    return open ? { names: [], at: open.end, shape: "none" } : undefined;
+  }
+  const pattern = first.name;
+  if (!ts.isObjectBindingPattern(pattern)) return undefined;
+  if (pattern.elements.some((element) => element.dotDotDotToken))
+    return undefined;
+  const last = pattern.elements[pattern.elements.length - 1];
+  if (!last)
+    return { names: [], at: pattern.getStart(sourceFile) + 1, shape: "empty" };
+  return {
+    names: pattern.elements.map(({ propertyName, name }) =>
+      (propertyName ?? name).getText(sourceFile),
+    ),
+    at: last.end,
+    shape: "list",
+  };
+}
+
 function callbackBody(node: ts.Expression | undefined): ts.Block | undefined {
   return node &&
     (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) &&
@@ -331,6 +358,10 @@ export function parseSpec(source: string): ParsedTest[] {
           ),
           bodyStart: body.getStart(sourceFile) + 1,
           bodyEnd: body.end - 1,
+          fixtures: callbackFixtures(
+            node.arguments[1] as ts.ArrowFunction | ts.FunctionExpression,
+            sourceFile,
+          ),
         });
         return;
       }
