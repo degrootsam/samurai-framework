@@ -2,19 +2,58 @@ import { randomUUID } from "node:crypto";
 import logger from "../logger/index.js";
 import type Page from "../browser/page.js";
 import { addPreload, runInLoadedContexts } from "../script/preload.js";
-import { ChannelArg, fromRemoteValue } from "../script/serialize.js";
+import { callFunction } from "../script/call-function.js";
+import { ChannelArg, fromRemoteValue, type Arg } from "../script/serialize.js";
 import { ElementHandle } from "../script/element-handle.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { LocatorCall, LocatorSpec } from "../steps/model.js";
-import { CAPTURE_OFF, CAPTURE_SOURCE } from "./capture.js";
+import { locatorFromSpec } from "../steps/build.js";
+import { addVariable, setSecret } from "../project/index.js";
+import {
+  CAPTURE_MUTE,
+  CAPTURE_OFF,
+  CAPTURE_SOURCE,
+  CAPTURE_UNMUTE,
+} from "./capture.js";
 import {
   Normaliser,
   type Observation,
   type RecorderEvent,
 } from "./normalise.js";
 import { rankLocator } from "./ranking.js";
+import {
+  ToolbarController,
+  type ControllerDeps,
+  type ControllerOptions,
+} from "./toolbar/controller.js";
+import { inspectElement } from "./toolbar/inspect.js";
+import {
+  TOOLBAR_KEY,
+  TOOLBAR_SANDBOX,
+  type ToolbarMessage,
+} from "./toolbar/protocol.js";
+import { TOOLBAR_SOURCE } from "./toolbar/source.js";
 
 export type { RecorderEvent } from "./normalise.js";
+
+/** The toolbar's settings: the recording's environment, and where its variables and secrets are written */
+export type ToolbarOptions = ControllerOptions & {
+  /** The project folder: `samurai.config.ts` and `.env.<environment>` */
+  projectDir: string;
+  /**
+   * Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page.
+   * There is no initial call: until the first one the recording is `{ state: "recording", toolbar: true }`
+   */
+  onStatus?: ControllerDeps["onStatus"];
+  /** A secret was saved to `.env.<environment>` from the panel (before its value is typed) */
+  onSecretAdded?: (name: string) => void;
+  /**
+   * The toolbar's Stop; the caller then stops the recording (`recorder.stop()`), as `recordSpec` does.
+   * Without it, Stop runs `recorder.stop()` itself: the toolbar goes away and nothing more is recorded, but
+   * nothing tells the `page.record()` caller, so pass `onStop` to learn of it.
+   */
+  onStop?: () => void;
+};
 
 export interface RecorderOptions {
   /** Called for every step the tester produces, in order. Steps get indexes from `at` on */
@@ -29,7 +68,12 @@ export interface RecorderOptions {
   initialGoto?: boolean;
   /** URLs inside it are written relative to it, as `page.goto` resolves them */
   baseURL?: string;
+  /** Shows the recorder toolbar in the page (pause, assert, insert, wait, screenshot, stop). Without it, no toolbar */
+  toolbar?: ToolbarOptions;
 }
+
+/** The toolbar's hook in its sandbox */
+const HOOK = `globalThis[Symbol.for(${JSON.stringify(TOOLBAR_KEY)})]`;
 
 /** What the capture script sends */
 interface PageMessage {
@@ -54,6 +98,8 @@ export class Recorder {
   private readonly queue: { tail: Promise<void> } = { tail: Promise.resolve() };
   private readonly known = new Map<string, LocatorSpec | undefined>();
   private stopped = false;
+  private stopping: Promise<void> | undefined;
+  private controller: ToolbarController | undefined;
 
   private constructor(
     private readonly page: Page,
@@ -61,8 +107,17 @@ export class Recorder {
     private readonly context: string,
     private readonly normaliser: Normaliser,
     private readonly options: RecorderOptions,
+    /** The capture script's channel: page messages only */
     private readonly channel: string,
+    /** The toolbar's channel, handed only to the toolbar's sandbox: toolbar messages only */
+    private readonly toolbarChannel: string,
   ) {}
+
+  /** The context's `samurai-toolbar` sandbox realms, as last listed: the only realms toolbar messages are taken from */
+  private toolbarRealms = new Set<string>();
+  /** Toolbar messages waiting for a realm lookup, and those that arrived behind them (kept in order) */
+  private toolbarBacklog: Promise<void> = Promise.resolve();
+  private toolbarWaiting = 0;
 
   public static async start(
     target: { page: Page; connector: BiDiConnector; context: string },
@@ -79,26 +134,91 @@ export class Recorder {
       target.context,
       normaliser,
       options,
+      // The connector's debug log leaves out the data of these channels' messages (it knows them by prefix)
       `samurai-recorder-${randomUUID()}`,
+      `samurai-toolbar-${randomUUID()}`,
     );
     await recorder.begin(options.initialGoto ?? true);
     return recorder;
   }
 
+  /**
+   * Page messages come only on the capture channel; toolbar messages only on the toolbar channel and
+   * only from the toolbar's sandbox realm. Neither channel is reachable from page script (each stays in
+   * its script's closure, and the toolbar's in a sandbox the page cannot see); the realm check also
+   * holds if a page realm ever got the toolbar's channel.
+   */
   private readonly onMessage = (params: {
     channel: string;
     data: unknown;
-    source: { context?: string };
+    source: { context?: string; realm?: string };
   }) => {
-    if (
-      params.channel !== this.channel ||
-      params.source.context !== this.context
-    )
+    if (params.source.context !== this.context) return;
+    if (params.channel === this.channel) {
+      const message = fromRemoteValue(
+        params.data as Parameters<typeof fromRemoteValue>[0],
+      ) as PageMessage | { type: "toolbar" };
+      if (message.type !== "toolbar")
+        this.enqueue(async () => this.handle(message));
       return;
+    }
+    if (params.channel !== this.toolbarChannel || !this.controller) return;
+    const realm = params.source.realm ?? "";
+    if (this.toolbarWaiting === 0 && this.toolbarRealms.has(realm)) {
+      this.fromToolbar(params.data);
+      return;
+    }
+    // A sandbox not seen yet (a new document's toolbar): look it up, and keep later messages behind it
+    this.toolbarWaiting++;
+    this.toolbarBacklog = this.toolbarBacklog
+      .then(async () => {
+        if (!this.toolbarRealms.has(realm)) await this.listToolbarRealms();
+        if (this.toolbarRealms.has(realm)) this.fromToolbar(params.data);
+        else
+          logger.warn(
+            "Recorder ignored a toolbar message from outside the toolbar's sandbox",
+          );
+      })
+      .catch((err: unknown) => {
+        logger.debug("Could not check a toolbar message's realm", { err });
+      })
+      .finally(() => this.toolbarWaiting--);
+  };
+
+  private async listToolbarRealms(): Promise<void> {
+    const { realms } = await this.connector.send("script.getRealms", {
+      context: this.context,
+      type: "window",
+    });
+    this.toolbarRealms = new Set(
+      realms
+        .filter(
+          (info) => info.type === "window" && info.sandbox === TOOLBAR_SANDBOX,
+        )
+        .map((info) => info.realm),
+    );
+  }
+
+  /** A message from the toolbar's own sandbox */
+  private fromToolbar(data: unknown): void {
     const message = fromRemoteValue(
-      params.data as Parameters<typeof fromRemoteValue>[0],
-    ) as PageMessage;
-    this.enqueue(async () => this.handle(message));
+      data as Parameters<typeof fromRemoteValue>[0],
+    ) as (ToolbarMessage & { target?: ElementHandle }) | { type: string };
+    const controller = this.controller;
+    if (!controller || message.type !== "toolbar" || !("action" in message))
+      return;
+    if (message.action === "ready") {
+      // Not behind a slow insert: the ready watchdog is waiting for it
+      void controller.handle(message);
+    } else if (controller.accept(message)) {
+      // Decided as it arrives: a double click's second copy would only run after the first had finished
+      this.enqueue(async () => controller.handle(message));
+    }
+  }
+
+  private readonly onLoad = (params: { context: string; url: string }) => {
+    if (params.context === this.context && params.url !== "about:blank")
+      this.controller?.loaded();
   };
 
   private readonly onNavigation = (params: {
@@ -106,25 +226,33 @@ export class Recorder {
     url: string;
   }) => {
     if (params.context !== this.context || params.url === "about:blank") return;
+    this.controller?.navigating();
     this.known.clear();
-    this.enqueue(async () =>
-      this.emit(this.normaliser.navigated(params.url, Date.now())),
-    );
+    this.enqueue(async () => {
+      // Paused: navigations are not recorded either
+      if (this.controller?.paused) return;
+      this.emit(this.normaliser.navigated(params.url, Date.now()));
+    });
   };
 
   private subscription: { unsubscribe(): Promise<void> } | undefined;
   private preload: { dispose(): Promise<void> } | undefined;
+  private toolbarPreload: { dispose(): Promise<void> } | undefined;
 
   private async begin(initialGoto: boolean): Promise<void> {
+    const toolbar = this.options.toolbar;
+    if (toolbar) this.controller = this.createController(toolbar);
     this.connector.onEvent("script.message", this.onMessage);
     this.connector.onEvent(
       "browsingContext.navigationStarted",
       this.onNavigation,
     );
+    if (toolbar) this.connector.onEvent("browsingContext.load", this.onLoad);
     try {
       this.subscription = await this.connector.subscribe([
         "script.message",
         "browsingContext.navigationStarted",
+        ...(toolbar ? (["browsingContext.load"] as const) : []),
       ]);
       if (initialGoto) {
         const url = await this.page.url();
@@ -136,10 +264,83 @@ export class Recorder {
         arguments: [new ChannelArg(this.channel)],
         onRunError: "log",
       });
+      if (this.controller) {
+        this.toolbarPreload = await addPreload(this.connector, {
+          source: TOOLBAR_SOURCE,
+          sandbox: TOOLBAR_SANDBOX,
+          contexts: [this.context],
+          arguments: [new ChannelArg(this.toolbarChannel)],
+          onRunError: "log",
+        });
+        // The document that is loaded now gets its state and its ready watchdog as a new one would
+        this.controller.loaded();
+      }
     } catch (err) {
+      this.controller?.dispose();
       await this.release();
       throw err;
     }
+  }
+
+  private createController(toolbar: ToolbarOptions): ToolbarController {
+    const { projectDir, environment, onStatus, onStop, onSecretAdded } =
+      toolbar;
+    return new ToolbarController(
+      {
+        push: (state) => this.callToolbar("update", [state]),
+        reply: (id, result) => this.callToolbar("reply", [id, result]),
+        currentUrl: () => this.page.url(),
+        rank: (target, candidates) =>
+          rankLocator(this.page, target, candidates),
+        inspect: (target, locator, candidates) =>
+          inspectElement(
+            this.page,
+            this.connector,
+            this.context,
+            target,
+            locator,
+            candidates,
+          ),
+        type: async (locator, value) => {
+          await this.mute();
+          try {
+            await locatorFromSpec(this.page, locator).fill(value, {
+              timeout: 5000,
+            });
+          } finally {
+            await this.unmute();
+          }
+        },
+        mute: () => this.mute(),
+        unmute: () => this.unmute(),
+        addVariable: (name, value) =>
+          addVariable(projectDir, environment, name, value),
+        setSecret: (name, value) =>
+          setSecret(projectDir, environment, name, value),
+        secretAdded: (name) => onSecretAdded?.(name),
+        observe: (observation) =>
+          this.emit(this.normaliser.observe(observation, Date.now())),
+        stop: () => {
+          if (onStop) onStop();
+          else void this.stop();
+        },
+        onStatus: (status) => onStatus?.(status),
+      },
+      toolbar,
+    );
+  }
+
+  /** Calls the toolbar hook's `method` in the loaded document; a document between loads has no toolbar yet */
+  private callToolbar(method: "update" | "reply", args: unknown[]): void {
+    callFunction(
+      this.connector,
+      this.context,
+      `(...args) => { ${HOOK}?.${method}(...args); }`,
+      args as Arg[],
+      { sandbox: TOOLBAR_SANDBOX, awaitPromise: false },
+    ).catch((err: unknown) =>
+      logger.debug("Could not reach the recorder toolbar", { err }),
+    );
   }
 
   private enqueue(work: () => Promise<void>): void {
@@ -150,7 +351,10 @@ export class Recorder {
 
   private emit(events: RecorderEvent[]): void {
     if (this.stopped) return;
-    for (const event of events) this.options.onEvent(event);
+    for (const event of events) {
+      this.options.onEvent(event);
+      if (event.op === "insert") this.controller?.stepAdded(event.step);
+    }
   }
 
   private async locatorFor(
@@ -168,6 +372,8 @@ export class Recorder {
   }
 
   private async handle(message: PageMessage): Promise<void> {
+    // Paused: what the capture script still reports (before a new document is muted) is dropped
+    if (this.controller?.paused) return;
     const locator = await this.locatorFor(message);
     if (!locator) {
       logger.warn(
@@ -209,20 +415,60 @@ export class Recorder {
       "browsingContext.navigationStarted",
       this.onNavigation,
     );
+    this.connector.offEvent("browsingContext.load", this.onLoad);
     await Promise.allSettled([
       this.subscription?.unsubscribe(),
       this.preload?.dispose(),
+      this.toolbarPreload?.dispose(),
     ]);
   }
 
+  /**
+   * Pauses capture in the loaded document: clicks and typing are not reported until `unmute`.
+   * @internal
+   */
+  public async mute(): Promise<void> {
+    await this.setMuted(CAPTURE_MUTE);
+  }
+
+  /** @internal */
+  public async unmute(): Promise<void> {
+    await this.setMuted(CAPTURE_UNMUTE);
+  }
+
+  private async setMuted(source: string): Promise<void> {
+    await runInLoadedContexts(this.connector, {
+      source,
+      contexts: [this.context],
+      onRunError: "log",
+    });
+  }
+
   /** Stops recording. Events already received are still processed and reported first */
-  public async stop(): Promise<void> {
+  public stop(): Promise<void> {
+    this.stopping ??= this.end();
+    return this.stopping;
+  }
+
+  private async end(): Promise<void> {
     if (this.stopped) return;
+    this.controller?.dispose();
     await runInLoadedContexts(this.connector, {
       source: CAPTURE_OFF,
       contexts: [this.context],
       onRunError: "log",
     }).catch(() => undefined);
+    // A later recording of this document must not start muted
+    if (this.controller?.paused) await this.unmute().catch(() => undefined);
+    if (this.toolbarPreload) {
+      // The window may stay open: take the toolbar and its listeners off the page
+      await runInLoadedContexts(this.connector, {
+        source: `() => { ${HOOK}?.dispose(); }`,
+        contexts: [this.context],
+        sandbox: TOOLBAR_SANDBOX,
+        onRunError: "log",
+      }).catch(() => undefined);
+    }
     await this.queue.tail;
     this.stopped = true;
     await this.release();

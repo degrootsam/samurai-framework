@@ -218,9 +218,31 @@ function readStep(statement: ts.Statement): Step | undefined {
       const url = stringOf(args[0]);
       return url === undefined ? undefined : { kind: "goto", url };
     }
-    return name.text === "waitForNetworkIdle" && args.length === 0
-      ? { kind: "waitForNetworkIdle" }
-      : undefined;
+    if (name.text === "waitForNetworkIdle" && args.length === 0)
+      return { kind: "waitForNetworkIdle" };
+    if (
+      name.text === "waitForTimeout" &&
+      args.length === 1 &&
+      ts.isNumericLiteral(args[0]!)
+    ) {
+      const ms = Number(args[0].text);
+      return Number.isInteger(ms) ? { kind: "waitForTimeout", ms } : undefined;
+    }
+    if (name.text === "screenshot" && args.length === 1) {
+      const options = readObject(args[0], ["name", "fullPage"]);
+      if (!options || typeof options.name !== "string") return undefined;
+      if (
+        options.fullPage !== undefined &&
+        typeof options.fullPage !== "boolean"
+      )
+        return undefined;
+      return {
+        kind: "screenshot",
+        name: options.name,
+        fullPage: options.fullPage === true,
+      };
+    }
+    return undefined;
   }
 
   // expect(locator).matcher(…) and expect(locator).not.matcher(…)

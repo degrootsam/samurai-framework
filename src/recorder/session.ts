@@ -3,8 +3,12 @@ import path from "node:path";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { ensureWarm } from "../browser/warm-up.js";
-import { projectDir } from "../config/config.js";
+import { loadConfig, projectDir } from "../config/config.js";
+import { isGitIgnored } from "../project/index.js";
+import type { PreparedRun } from "../runner/prepare-run.js";
 import { withProject, type ProjectOptions } from "../runner/project.js";
+import type { SamuraiTestConfig } from "../types/config.js";
+import type { ControllerOptions } from "./toolbar/controller.js";
 import { parseSpec } from "../steps/parse.js";
 import { applyRecorderEvent } from "./apply.js";
 import type { RecorderEvent } from "./normalise.js";
@@ -31,6 +35,14 @@ export interface RecordSpecOptions extends ProjectOptions {
   signal?: AbortSignal;
   /** Called after each step is written to the file, with the file's new content */
   onEvent?: (event: RecorderEvent, source: string) => void;
+  /**
+   * Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page.
+   * There is no initial call: until the first one the recording is `{ state: "recording", toolbar: true }`
+   */
+  onStatus?: (status: {
+    state: "recording" | "paused";
+    toolbar: boolean;
+  }) => void;
   /** Called once the browser is open and recording */
   onStarted?: (context: {
     page: Page;
@@ -55,6 +67,60 @@ function addTest(source: string, title: string): string {
       ? NEW_SPEC_HEADER
       : `${source.replace(/\s*$/, "")}\n\n`;
   return `${header}test(${JSON.stringify(title)}, async ({ page }) => {\n});\n`;
+}
+
+/** Every `secrets.<NAME>` a parsed value contains, at any depth */
+function secretNames(node: unknown, found: Set<string>): void {
+  if (Array.isArray(node)) node.forEach((item) => secretNames(item, found));
+  else if (node !== null && typeof node === "object") {
+    const record = node as Record<string, unknown>;
+    if (record.kind === "secret" && typeof record.name === "string")
+      found.add(record.name);
+    Object.values(record).forEach((item) => secretNames(item, found));
+  }
+}
+
+/** What the toolbar shows of the project: its environment, variables, secrets and the test's screenshots */
+export async function toolbarOptions(
+  run: Pick<PreparedRun, "settings" | "secrets">,
+  source: string,
+  dir: string,
+  config: Pick<SamuraiTestConfig, "environments">,
+  testIndex: number,
+): Promise<ControllerOptions> {
+  const tests = parseSpec(source);
+  const names = new Set(run.secrets.keys());
+  secretNames(tests, names);
+  const secrets: Record<string, string | undefined> = {};
+  for (const name of names) secrets[name] = run.secrets.get(name);
+  const { environment } = run.settings;
+  return {
+    environment,
+    canAddVariables: typeof config.environments === "object",
+    variables: run.settings.variables,
+    secrets,
+    secretsIgnored: await isGitIgnored(dir, `.env.${environment}`),
+    screenshots:
+      tests[testIndex]?.steps.filter(({ step }) => step.kind === "screenshot")
+        .length ?? 0,
+  };
+}
+
+/** The secrets a recording needs set: those its steps read, then those added from the panel, once each */
+export function resultSecrets(
+  events: readonly Pick<RecorderEvent, "step">[],
+  added: Iterable<string>,
+): string[] {
+  return [
+    ...new Set([
+      ...events.flatMap(({ step }) =>
+        step.kind === "fill" && step.value.kind === "secret"
+          ? [step.value.name]
+          : [],
+      ),
+      ...added,
+    ]),
+  ];
 }
 
 /** The index of the test `selector` names (see `RecordSpecOptions.test`) */
@@ -106,7 +172,8 @@ export function pickTest(
 export async function recordSpec(
   options: RecordSpecOptions,
 ): Promise<RecordResult> {
-  return withProject(options, async ({ settings }) => {
+  return withProject(options, async (run) => {
+    const { settings } = run;
     const file = path.resolve(projectDir(), options.file);
     let source = existsSync(file) ? readFileSync(file, "utf8") : undefined;
     if (source === undefined && options.create === undefined) {
@@ -146,6 +213,9 @@ export async function recordSpec(
       options.signal,
     );
     const events: RecorderEvent[] = [];
+    const addedSecrets = new Set<string>();
+    let stopRequested!: () => void;
+    const stopped = new Promise<void>((resolve) => (stopRequested = resolve));
     try {
       const start = options.url ?? settings.baseURL;
       if (options.url !== undefined) await page.goto(options.url);
@@ -155,6 +225,19 @@ export async function recordSpec(
         at,
         initialGoto: at === 0 && start !== undefined,
         ...(settings.baseURL !== undefined && { baseURL: settings.baseURL }),
+        toolbar: {
+          ...(await toolbarOptions(
+            run,
+            source,
+            projectDir(),
+            await loadConfig(),
+            testIndex,
+          )),
+          projectDir: projectDir(),
+          ...(options.onStatus && { onStatus: options.onStatus }),
+          onSecretAdded: (name) => addedSecrets.add(name),
+          onStop: () => stopRequested(),
+        },
         onEvent: (event) => {
           source = applyRecorderEvent(source!, testIndex, event);
           writeFileSync(file, source);
@@ -172,6 +255,7 @@ export async function recordSpec(
           once: true,
         });
         void browser.exited.then(resolve);
+        void stopped.then(resolve);
       });
       // With the window gone there is nothing to ask: what was reported before is in the file
       if (!windowClosed) await recorder.stop().catch(() => undefined);
@@ -179,15 +263,7 @@ export async function recordSpec(
       await browser.close().catch(() => undefined);
     }
 
-    const secrets = [
-      ...new Set(
-        events.flatMap(({ step }) =>
-          step.kind === "fill" && step.value.kind === "secret"
-            ? [step.value.name]
-            : [],
-        ),
-      ),
-    ];
+    const secrets = resultSecrets(events, addedSecrets);
     return { file, test: test.name, events, secrets };
   });
 }

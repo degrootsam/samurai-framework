@@ -241,7 +241,7 @@ export class BiDiConnector {
 
   private messageListener = (ev: MessageEvent) => {
     const message = JSON.parse(ev.data);
-    logger.debug("Received message from BiDi Websocket: ", message);
+    logger.debug("Received message from BiDi Websocket: ", forLog(message));
     if (message.type === "success" && message.id !== undefined) {
       const targetToResolve = this.resolveMap.get(message.id);
       if (targetToResolve) {
@@ -285,6 +285,47 @@ export class BiDiConnector {
     this.eventEmitter.removeAllListeners();
     this.webSocket.close();
   }
+}
+
+/** Channels whose messages carry what the tester typed (the recorder's) or adds as a secret (its toolbar's) */
+const PRIVATE_CHANNEL = /^samurai-(recorder|toolbar)-/;
+
+/**
+ * The message as the debug log gets it: a `script.message` on a private channel is logged by channel and
+ * action only, so a value the tester types or a secret added from the recorder toolbar never reaches the log
+ * (an added secret is only registered for masking after it is saved).
+ */
+function forLog(message: {
+  type?: string;
+  method?: string;
+  params?: { channel?: unknown; data?: unknown };
+}): unknown {
+  const channel = message.params?.channel;
+  if (
+    message.type !== "event" ||
+    message.method !== "script.message" ||
+    typeof channel !== "string" ||
+    !PRIVATE_CHANNEL.test(channel)
+  )
+    return message;
+  const entries = (message.params?.data as { value?: unknown } | undefined)
+    ?.value;
+  const field = (key: string) => {
+    if (!Array.isArray(entries)) return undefined;
+    const entry = entries.find(
+      (pair): pair is [string, { value?: unknown }] =>
+        Array.isArray(pair) && pair[0] === key,
+    );
+    const value = entry?.[1]?.value;
+    return typeof value === "string" ? value : undefined;
+  };
+  return {
+    ...message,
+    params: {
+      ...message.params,
+      data: { type: field("type"), action: field("action"), redacted: true },
+    },
+  };
 }
 
 function pendingSuffix(pending: string[]) {
