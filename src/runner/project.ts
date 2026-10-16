@@ -1,3 +1,4 @@
+import { removeGeneratedFiles } from "../browser/generated-files.js";
 import { loadConfig, projectDir, setActiveProject } from "../config/config.js";
 import { resetSecrets } from "../config/mask.js";
 import { setRunSettings, type RunOverrides } from "../config/run-settings.js";
@@ -49,6 +50,7 @@ export async function withProject<T>(
     });
     return await work(run);
   } finally {
+    await removeGeneratedFiles().catch(() => undefined);
     setRunSettings(undefined);
     setActiveProject(undefined);
     active = false;
