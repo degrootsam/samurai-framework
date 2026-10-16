@@ -102,6 +102,9 @@ export class ToolbarController {
   private question: string | undefined;
   private toast: { id: number; text: string } | undefined;
   private toastId = 0;
+  private savingName: string | undefined;
+  private warnings: { id: number; text: string }[] = [];
+  private warningId = 0;
   /** The picked element an `assert` with the same id refers to */
   private pick:
     { id: number; locator: LocatorSpec; counts: LocatorCall[] } | undefined;
@@ -154,6 +157,8 @@ export class ToolbarController {
       resumeQuestion: this.question !== undefined,
       nextScreenshot: `screenshot-${this.screenshots + 1}`,
       ...(this.toast && { toast: this.toast }),
+      ...(this.savingName !== undefined && { saving: this.savingName }),
+      warnings: this.warnings.map((w) => ({ ...w })),
     };
   }
 
@@ -174,6 +179,18 @@ export class ToolbarController {
     if (this.toolbar === loaded) return;
     this.toolbar = loaded;
     this.reportStatus();
+  }
+
+  /** A picked or dropped file is being saved; undefined when done */
+  public saving(name: string | undefined): void {
+    this.savingName = name;
+    this.push();
+  }
+
+  /** Shows a warning that stays until the tester dismisses it */
+  public warn(text: string): void {
+    this.warnings.push({ id: ++this.warningId, text });
+    this.push();
   }
 
   private showToast(text: string): void {
@@ -200,6 +217,9 @@ export class ToolbarController {
       case "collapse":
         this.collapsed = message.collapsed === true;
         this.pick = undefined;
+        return this.push();
+      case "dismiss":
+        this.warnings = this.warnings.filter((w) => w.id !== message.id);
         return this.push();
       case "pick":
         return this.picked(message);

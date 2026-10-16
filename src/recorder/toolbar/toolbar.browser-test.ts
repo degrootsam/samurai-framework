@@ -71,6 +71,7 @@ const STATE: ToolbarState = {
   secretsIgnored: true,
   resumeQuestion: false,
   nextScreenshot: "screenshot-1",
+  warnings: [],
 };
 
 async function waitFor<T>(
@@ -792,3 +793,30 @@ test(
     await waitFor(() => messagesOn(channel, "stop")[0], "stop");
   },
 );
+
+test("shows the saving line and warnings with Dismiss", OPTIONS, async () => {
+  const channel = await install();
+  await update({
+    saving: "avatar.png",
+    warnings: [{ id: 7, text: "big.mov is 300 MB." }],
+  });
+  const view = await inSandbox<{
+    saving: string | null;
+    warning: string | null;
+  }>(
+    `() => {
+      const root = ${HOOK}.root;
+      const saving = root.querySelector(".saving");
+      const warning = root.querySelector('[data-warning="7"]');
+      return { saving: saving && saving.textContent, warning: warning && warning.textContent };
+    }`,
+  );
+  assert.equal(view.saving, "Saving avatar.png…");
+  assert.match(view.warning ?? "", /big\.mov is 300 MB\./);
+  await clickAt(await centreOf('[data-warning="7"] .dismiss'));
+  const message = await waitFor(
+    () => messagesOn(channel, "dismiss")[0],
+    "dismiss",
+  );
+  assert.equal(message.data.id, 7);
+});
