@@ -25,18 +25,18 @@ are stored once in the project and committed with the tests. Tests that need a f
 
 ## Decisions
 
-| Question                     | Decision                                                                                                                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What is captured             | The file's name, type and contents. The path on disk is not available to pages and is not needed                                                                                                              |
-| Interactions                 | `<input type=file>` changes (also hidden inputs behind a button) and drops of files                                                                                                                           |
-| How the bytes leave the page | Read in the recorder's sandbox with `FileReader` as base64 data URLs (Firefox forbids TypedArray access over Xrays, so `arrayBuffer()` bytes can't be read there), sent over the files channel in 1 MB chunks |
-| Where files live             | One shared `files/` folder at the project root; `filesDir` in `samurai.config.ts` changes it                                                                                                                  |
-| Duplicates                   | Content dedupe by SHA-256: identical content is stored once, whatever its name                                                                                                                                |
-| Name clashes                 | Same name, other content: `<name>-2.<ext>`, `-3`, …; an existing file is never overwritten                                                                                                                    |
-| Size cap                     | 50 MB per file while recording. Bigger files get a step but are not stored, with a warning                                                                                                                    |
-| Drop replay                  | Temporary sandbox `<input type=file>` + `input.setFiles`, then synthetic `dragenter`, `dragover`, `drop`                                                                                                      |
-| Generated files              | `generatedFile({ name, size, type? })`: seeded pseudo-random bytes written at run time, never stored                                                                                                          |
-| Version                      | Framework 0.8.0                                                                                                                                                                                               |
+| Question                     | Decision                                                                                                                                                                                                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What is captured             | The file's name, type and contents. The path on disk is not available to pages and is not needed                                                                                                                                                                                               |
+| Interactions                 | `<input type=file>` changes (also hidden inputs behind a button) and drops of files                                                                                                                                                                                                            |
+| How the bytes leave the page | Read in the recorder's sandbox with `FileReader` as base64 data URLs (Firefox forbids TypedArray access over Xrays, so `arrayBuffer()` bytes can't be read there), sent over the files channel in 1 MB chunks                                                                                  |
+| Where files live             | One shared `files/` folder at the project root; `filesDir` in `samurai.config.ts` changes it                                                                                                                                                                                                   |
+| Duplicates                   | A file keeps its recorded name. Same name and same content (size, then SHA-256) is reused; different names with the same content are stored separately. Changed 2026-10-16 (user decision): the page must see the recorded name at replay, so no cross-name dedupe.                            |
+| Name clashes                 | Same name, other content: `<H>/<name>` where `<H>` is the first 8 hex characters of the content's SHA-256 (16, then 64, on a prefix collision); an existing file is never overwritten. Changed 2026-10-16 (user decision): replaces `-2`, `-3` suffixes, which changed the name the page sees. |
+| Size cap                     | 50 MB per file while recording. Bigger files get a step but are not stored, with a warning                                                                                                                                                                                                     |
+| Drop replay                  | Temporary sandbox `<input type=file>` + `input.setFiles`, then synthetic `dragenter`, `dragover`, `drop`                                                                                                                                                                                       |
+| Generated files              | `generatedFile({ name, size, type? })`: seeded pseudo-random bytes written at run time, never stored                                                                                                                                                                                           |
+| Version                      | Framework 0.8.0                                                                                                                                                                                                                                                                                |
 
 ## Steps
 
@@ -115,9 +115,10 @@ await page.getByLabel("Avatar").setInputFiles([]);
 - For each file, the sandbox sends `file-start` (name, type, size), then 1 MB base64 chunks, then
   `file-end`. The toolbar shows `Saving avatar.png…` while a transfer runs. The step is written once
   all its files are stored; steps recorded meanwhile keep their order.
-- The recorder hashes the content (SHA-256) and compares it with the files in `files/` of the same
-  size only. A match is reused. Otherwise the file is saved under its cleaned name, or `<name>-2`,
-  `-3`, … when that name is taken.
+- The recorder compares content with a same-named file by size first, then SHA-256. The file is saved under its cleaned name. If that name holds the same content it is reused; if it holds
+  other content the file goes in `<H>/<name>`, with `<H>` the first 8 hex characters of its SHA-256 (16, then 64,
+  on a collision). Different names with the same content are stored separately. (User decision, 2026-10-16:
+  the page must see the recorded name at replay, so no `-2` suffixes and no cross-name reuse.)
 - Cleaning a name: drop any path part (`/`, `\`), control characters and leading dots; trim; cap at
   120 characters keeping the extension; an empty result becomes `file`. The resolved path must stay
   inside `files/` (or `filesDir`), or the file is not written.
@@ -197,8 +198,8 @@ stored in files/ and committed with your tests.`
 
 - Unit: codec round-trip of both kinds (one file, several, `[]`, generated with each unit), custom
   fallback for other arguments, the `generatedFile` import being added once; size parsing and
-  formatting; name cleaning (separators, `..`, control characters, empty, long names); dedupe (same
-  content other name reused, same name other content suffixed, only same-size files hashed).
+  formatting; name cleaning (separators, `..`, control characters, empty, long names); storage (same
+  name and content reused, same name other content in a hash folder, other name same content stored separately, only same-size files hashed).
 - Browser:
   - spike first: a `change` and a `drop` in Firefox's sandbox realm deliver bytes that reach the
     recorder intact, at 1 KB and at 50 MB;

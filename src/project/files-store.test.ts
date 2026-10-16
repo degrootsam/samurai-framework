@@ -6,6 +6,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -25,6 +26,9 @@ function content(text: string) {
   writeFileSync(file, text);
   return file;
 }
+
+const prefix = (text: string) =>
+  createHash("sha256").update(text).digest("hex").slice(0, 8);
 
 describe("cleanFileName", () => {
   it("keeps a plain name", () =>
@@ -61,7 +65,7 @@ describe("storeFile", () => {
     );
   });
 
-  it("reuses identical content, whatever its name", async () => {
+  it("reuses a file of the same name and content", async () => {
     const dir = project();
     await storeFile({
       projectDir: dir,
@@ -71,45 +75,86 @@ describe("storeFile", () => {
     assert.deepEqual(
       await storeFile({
         projectDir: dir,
-        name: "b.png",
+        name: "a.png",
         content: content("same"),
       }),
-      {
-        path: "files/a.png",
-        reused: true,
-      },
+      { path: "files/a.png", reused: true },
     );
     assert.deepEqual(readdirSync(path.join(dir, "files")), ["a.png"]);
   });
 
-  it("gives a name taken by other content -2, -3, and never overwrites", async () => {
+  it("puts a name taken by other content in a folder named after the content hash, and never overwrites", async () => {
     const dir = project();
     await storeFile({
       projectDir: dir,
       name: "a.png",
       content: content("one"),
     });
-    assert.equal(
-      (
-        await storeFile({
-          projectDir: dir,
-          name: "a.png",
-          content: content("two"),
-        })
-      ).path,
-      "files/a-2.png",
-    );
-    assert.equal(
-      (
-        await storeFile({
-          projectDir: dir,
-          name: "a.png",
-          content: content("three"),
-        })
-      ).path,
-      "files/a-3.png",
-    );
+    const two = await storeFile({
+      projectDir: dir,
+      name: "a.png",
+      content: content("two"),
+    });
+    assert.deepEqual(two, {
+      path: `files/${prefix("two")}/a.png`,
+      reused: false,
+    });
+    const three = await storeFile({
+      projectDir: dir,
+      name: "a.png",
+      content: content("three"),
+    });
+    assert.equal(three.path, `files/${prefix("three")}/a.png`);
+    assert.notEqual(prefix("two"), prefix("three"));
     assert.equal(readFileSync(path.join(dir, "files", "a.png"), "utf8"), "one");
+    assert.equal(readFileSync(path.join(dir, three.path), "utf8"), "three");
+    // the same clashing content again is reused from its hash folder
+    assert.deepEqual(
+      await storeFile({
+        projectDir: dir,
+        name: "a.png",
+        content: content("two"),
+      }),
+      { path: two.path, reused: true },
+    );
+  });
+
+  it("stores the same content under a different name under that name", async () => {
+    const dir = project();
+    await storeFile({
+      projectDir: dir,
+      name: "feb.pdf",
+      content: content("same"),
+    });
+    assert.deepEqual(
+      await storeFile({
+        projectDir: dir,
+        name: "march.pdf",
+        content: content("same"),
+      }),
+      { path: "files/march.pdf", reused: false },
+    );
+    assert.deepEqual(readdirSync(path.join(dir, "files")).sort(), [
+      "feb.pdf",
+      "march.pdf",
+    ]);
+  });
+
+  it("gives clashes in the project root paths without a leading slash", async () => {
+    const dir = project();
+    await storeFile({
+      projectDir: dir,
+      filesDir: ".",
+      name: "a.png",
+      content: content("one"),
+    });
+    const stored = await storeFile({
+      projectDir: dir,
+      filesDir: ".",
+      name: "a.png",
+      content: content("two"),
+    });
+    assert.equal(stored.path, `${prefix("two")}/a.png`);
   });
 
   it("leaves the content file in place", async () => {

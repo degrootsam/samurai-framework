@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { missingFileText } from "./recorder.js";
 import { pickTest, resultSecrets, toolbarOptions } from "./session.js";
 
 const tests = [
@@ -97,5 +98,22 @@ describe("resultSecrets with remove events", () => {
       resultSecrets([{ op: "remove", index: 0 } as never], []),
       [],
     );
+  });
+});
+
+describe("missingFileText", () => {
+  const file = {
+    path: "a.png",
+    name: "a.png",
+    size: 10,
+    reason: "unreadable" as const,
+  };
+  it("names the files folder", () =>
+    assert.match(missingFileText(file, "files"), /add it to files\/ yourself/));
+  it("names the project folder when the files folder is the project root", () => {
+    const text = missingFileText(file, "");
+    assert.match(text, /add it to the project folder yourself/);
+    assert.ok(!text.includes(" / "));
+    assert.ok(!text.includes("to /"));
   });
 });

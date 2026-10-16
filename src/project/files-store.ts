@@ -1,5 +1,5 @@
 import { constants, createReadStream } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
@@ -44,10 +44,23 @@ function hashOf(file: string): Promise<string> {
   });
 }
 
+function sameContent(
+  candidate: string,
+  size: number,
+  hash: () => Promise<string>,
+): Promise<boolean> {
+  return stat(candidate).then(async (info) =>
+    info.size !== size ? false : (await hashOf(candidate)) === (await hash()),
+  );
+}
+
 /**
- * Stores the bytes in `content` in the files folder, once: a file there with the same content is reused,
- * whatever its name; a name taken by other content gets -2, -3, …. Nothing is overwritten and nothing is
- * written outside the folder. `content` is left in place. Returns the project-relative path.
+ * Stores the bytes in `content` in the files folder under their own (cleaned) name, so the page sees at
+ * replay the name it saw while recording. If the name is free the file is copied there; if a file of that
+ * name holds the same content it is reused. If the name is taken by other content, the file goes in a
+ * folder named after the first 8 hex characters of its SHA-256 (`<H>/<name>`; 16, then all 64, on a
+ * collision). Different names with the same content are stored separately. Nothing is overwritten and
+ * nothing is written outside the folder. `content` is left in place. Returns the project-relative path.
  */
 export async function storeFile(options: {
   projectDir: string;
@@ -59,38 +72,45 @@ export async function storeFile(options: {
     options.projectDir,
     options.filesDir,
   );
-  const projectPath = (file: string) =>
-    relative ? `${relative}/${path.basename(file)}` : path.basename(file);
+  const projectPath = (...parts: string[]) =>
+    [relative, ...parts].filter((part) => part !== "").join("/");
+  const name = cleanFileName(options.name);
   const { size } = await stat(options.content);
   await mkdir(absolute, { recursive: true });
 
   let hash: string | undefined;
-  for (const entry of await readdir(absolute, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    const candidate = path.join(absolute, entry.name);
-    if ((await stat(candidate)).size !== size) continue;
-    hash ??= await hashOf(options.content);
-    if ((await hashOf(candidate)) === hash)
-      return { path: projectPath(candidate), reused: true };
-  }
+  const contentHash = async () => (hash ??= await hashOf(options.content));
 
-  const name = cleanFileName(options.name);
-  const ext = path.extname(name);
-  const stem = ext === "" || ext === name ? name : name.slice(0, -ext.length);
-  for (let n = 1; ; n++) {
-    const target = path.join(
-      absolute,
-      n === 1 ? name : `${stem}-${n}${ext === name ? "" : ext}`,
-    );
-    if (path.dirname(target) !== absolute)
-      throw new Error(`${options.name} can't be stored in ${relative}/`);
+  /** Copies to the target, or reports it reused when it holds the same content; undefined when it holds other content */
+  const place = async (
+    target: string,
+    relativeParts: string[],
+  ): Promise<{ path: string; reused: boolean } | undefined> => {
     try {
       await copyFile(options.content, target, constants.COPYFILE_EXCL);
-      return { path: projectPath(target), reused: false };
+      return { path: projectPath(...relativeParts), reused: false };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
     }
+    return (await sameContent(target, size, contentHash))
+      ? { path: projectPath(...relativeParts), reused: true }
+      : undefined;
+  };
+
+  const direct = await place(path.join(absolute, name), [name]);
+  if (direct) return direct;
+
+  const full = await contentHash();
+  for (const length of [8, 16, 64]) {
+    const folder = full.slice(0, length);
+    await mkdir(path.join(absolute, folder), { recursive: true });
+    const stored = await place(path.join(absolute, folder, name), [
+      folder,
+      name,
+    ]);
+    if (stored) return stored;
   }
+  throw new Error(`${options.name} can't be stored in ${relative}/`);
 }
 
 /** Whether the project's .gitignore ignores the folder (`files`, `files/`, `/files`, `files/*`, `files/**`) */
