@@ -159,6 +159,9 @@ export async function main(argv: string[], io: Io): Promise<number> {
             io.out(state === "paused" ? "Paused\n" : "Recording\n");
           }
         },
+        onMissingFile: (_file, text) => {
+          if (!values.json) io.out(`${text}\n`);
+        },
         onEvent: (event) => {
           if (values.json) return void io.out(`${JSON.stringify(event)}\n`);
           if (event.op === "remove") {
@@ -182,6 +185,20 @@ export async function main(argv: string[], io: Io): Promise<number> {
             `Set ${result.unsetSecrets.map((name) => `SAMURAI_SECRET_${name}`).join(", ")} (environment variable or .env.<environment>) before running it.\n`,
           );
         }
+        if (result.missingFiles.length > 0) {
+          io.out(
+            `Add ${result.missingFiles.map((f) => f.path).join(", ")} before running it (or use generatedFile).\n`,
+          );
+        }
+        const folder =
+          result.files[0]?.split("/").slice(0, -1).join("/") ??
+          result.missingFiles[0]?.path.split("/").slice(0, -1).join("/");
+        if (folder && result.filesIgnored)
+          io.out(`${folder}/ is ignored by git; CI won't have these files.\n`);
+        if (folder && result.firstFiles)
+          io.out(
+            `Recorded files are stored in ${folder}/ and committed with your tests.\n`,
+          );
       }
       return 0;
     }

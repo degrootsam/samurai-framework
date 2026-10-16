@@ -18,6 +18,8 @@ A test body is read as a list of steps. The recorder only writes this restricted
 | `click`              | `await page.getByRole("button", { name: "Save" }).click();`                                 |
 | `fill`               | `await page.getByLabel("Email").fill("a@b.c");` (value may be `env.name` or `secrets.NAME`) |
 | `press`              | `await page.getByLabel("New todo").press("Enter");`                                         |
+| `setInputFiles`      | `await page.getByLabel("Avatar").setInputFiles("files/avatar.png");` (also an array, `[]`)  |
+| `dropFiles`          | `await page.getByTestId("zone").dropFiles(["files/a.png", "files/b.png"]);`                 |
 | `expect`             | `await expect(locator).toHaveText("Saved");` (also `.not`)                                  |
 | `waitForNetworkIdle` | `await page.waitForNetworkIdle();`                                                          |
 | `waitForTimeout`     | `await page.waitForTimeout(2000);` (a whole number of milliseconds)                         |
@@ -162,11 +164,23 @@ What the person does, and the steps that come out:
 | press Enter, Tab or Escape     | `press`, after the `fill` it follows. Typing in the same field afterwards is a **new** `fill`, so a todo list that clears its field on Enter records every item. Enter on a button or link is the click it causes, Enter in a textarea is typing, and Shift+Tab or a key with Ctrl, Alt or Meta held is not recorded |
 | type into a password field     | `fill` with `secrets.<FIELD_NAME>`. The value never leaves the page                                                                                                                                                                                                                                                  |
 | Alt+click an element           | `expect`, which the page never sees as a click: `toHaveValue` for fields, `toHaveText` for text up to 100 characters, `toContainText` beyond, `toBeVisible` for no text. The element under the pointer is outlined while Alt is held                                                                                 |
+| pick files in a file input     | `setInputFiles` with the files stored in `files/` (see [Files](#files)). A click that opened the picker is replaced by this step; a cancelled picker removes the click                                                                                                                                               |
+| drop files on the page         | `dropFiles` on the element they landed on, with the files stored in `files/`                                                                                                                                                                                                                                         |
 | navigate right after an action | `waitForNetworkIdle`                                                                                                                                                                                                                                                                                                 |
 | navigate on their own          | `goto` (relative to `baseURL` when the URL is inside it)                                                                                                                                                                                                                                                             |
 | use the toolbar                | See [The toolbar](#the-toolbar)                                                                                                                                                                                                                                                                                      |
 
 For every element the recorder tries locators in order of stability — test id, role and accessible name, label, text, `#id`, `[name]` or `[placeholder]` CSS, and finally an absolute XPath — and keeps only candidates that match exactly **one** element, the one the person used. The best becomes the primary locator and up to two more become its `withFallbacks`. An element that no candidate identifies is skipped with a warning.
+
+### Files
+
+Files a person picks or drops are copied into one folder shared by the whole project: `files/` at the project root, or `filesDir` in `samurai.config.ts` (relative to the project folder). The steps point at them with project-relative paths, so a test runs from any directory and the files are committed with the tests.
+
+- A file whose content is already in the folder (same size and SHA-256) is reused, not copied again. The same name with other content is stored as `name-2.ext`, `name-3.ext`, and so on. An existing file is never overwritten.
+- Files over 50 MB are not stored. The step is still written, pointing at the path the file would have, and the person is told: the toolbar shows `<name> is <size>. Files over 50 MB aren't saved: add it to files/ yourself, or use a generated file.` until it is dismissed, `samurai record` prints the same line, and `RecordResult.missingFiles` lists them (as does `recordSpec`'s `onMissingFile`). A file that can't be read is handled the same way. Add the file to the folder before running the test, or use `generatedFile` (see [Locators](locators.md#generatedfile)).
+- While a file is being copied the toolbar shows `Saving <name>…`. Stopping the recording finishes the transfers already started.
+- When the folder is git-ignored, `samurai record` prints `files/ is ignored by git; CI won't have these files.` (`RecordResult.filesIgnored`). The first time files are stored, it says `Recorded files are stored in files/ and committed with your tests.` (`RecordResult.firstFiles`).
+- Events the person did not cause (a script calling `click()` or dispatching a `drop`) are ignored: only trusted events are recorded. Nothing is recorded while paused.
 
 ### Recording from the middle of a test
 
@@ -174,4 +188,4 @@ Pass `at` (the number of steps before the new ones) and `initialGoto: false`. Th
 
 ### Limits
 
-Not recorded yet: `<select>` choices, other key presses (arrows, shortcuts), hover, drag, contenteditable typing, file uploads and dialogs. The recorder and the toolbar cover top-level documents only: clicks inside iframes are not recorded and the toolbar is not shown in them. A modal dialog the page opens can cover the toolbar (a known limitation): close it, or use Alt+click and the keyboard. One recorder per page at a time. Recording uses a browser window of its own.
+Not recorded yet: `<select>` choices, other key presses (arrows, shortcuts), hover, drag, contenteditable typing and dialogs. The recorder and the toolbar cover top-level documents only: clicks inside iframes are not recorded and the toolbar is not shown in them. A modal dialog the page opens can cover the toolbar (a known limitation): close it, or use Alt+click and the keyboard. One recorder per page at a time. Recording uses a browser window of its own.

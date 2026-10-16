@@ -94,8 +94,9 @@ Recording. Alt+click an element to assert on it. Press Stop in the toolbar, Ctrl
   + await page.getByRole("button", { name: "Sign in" }).click();
   + await page.waitForNetworkIdle();
   + await expect(page.getByTestId("welcome")).toHaveText("Welcome back");
+  + await page.getByLabel("Avatar").setInputFiles("files/avatar.png");
 
-Recorded 5 steps into "signs in" in /work/shop/tests/login.spec.ts
+Recorded 6 steps into "signs in" in /work/shop/tests/login.spec.ts
 ```
 
 `+` is a new step, `~` a step that was rewritten (typing grows one `fill`). The page shows a [toolbar](recorder.md#the-toolbar) with Pause, Assert, Insert, Wait, Screenshot and Stop. Pausing or resuming prints `Paused` or `Recording`. If the toolbar can't load on a page, the command prints `The toolbar couldn't load on this page. Alt+click still records assertions.` once. What each action becomes, and what isn't recorded yet, is in [Steps and the recorder](recorder.md).
@@ -113,6 +114,7 @@ Recorded 5 steps into "signs in" in /work/shop/tests/login.spec.ts
 Details:
 
 - The file is rewritten after every step, as a minimal edit: the rest of the file, comments included, is untouched. Without `--new`, the spec must already exist.
+- Picking or dropping a file prints `+ await page…setInputFiles(…)` (or `dropFiles`) and stores the file in `files/` (`filesDir` in the config). A click that opened the file picker is replaced by the upload step; a cancelled picker removes it, printed as `- step N (the click that opened the file picker)`. A file over 50 MB gets a step but isn't stored: the command prints `<name> is <size>. Files over 50 MB aren't saved: add it to files/ yourself, or use a generated file.`, and at the end `Add files/<name> before running it (or use generatedFile).` When the folder is git-ignored it prints `files/ is ignored by git; CI won't have these files.`, and after the first files `Recorded files are stored in files/ and committed with your tests.` See [Files](recorder.md#files).
 - A password field is recorded as `secrets.<FIELD_NAME>`, and the value never leaves the page. The command ends by telling you which `SAMURAI_SECRET_*` to set: those without a value in the environment yet (`RecordResult.unsetSecrets`).
 - With `--at n` the window starts on `--url` or the base URL, **not** where steps `0…n-1` would leave it. Get the page to that state yourself before you act.
 - Recording is meant for a window: a person has to use it. `--headless` is only for tests of the recorder itself, and on CI (where `CI` is set) you must pass `--no-headless` to get one. `recordSpec` takes `headless` too.

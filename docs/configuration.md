@@ -34,6 +34,7 @@ export default defineConfig({
 | `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                                           |
 | `browserPaths`          | none                                     | Executables to launch instead of the downloaded builds, see [Browser paths](#browser-paths)          |
 | `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                                 |
+| `filesDir`              | `"files"`                                | Folder (relative to the project) where the recorder stores uploaded files and steps point at them    |
 | `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                                      |
 | `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)                  |
 | `bidi.commandTimeout`   | `30000`                                  | Time (ms) a protocol command may wait for its reply                                                  |
