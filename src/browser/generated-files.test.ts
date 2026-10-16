@@ -1,4 +1,3 @@
-// src/browser/generated-files.test.ts
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
@@ -49,7 +48,11 @@ describe("generated files", () => {
     setActiveProject({ dir });
     const entry = generatedFile({ name: "big.bin", size: 3 * 1024 * 1024 + 5 });
     const [file] = await resolveFileInputs(entry, "setInputFiles");
-    assert.equal(path.dirname(file!), path.join(dir, "result", "files"));
+    assert.equal(
+      path.dirname(file!),
+      path.join(dir, "result", "files", String(3 * 1024 * 1024 + 5)),
+    );
+    assert.equal(path.basename(file!), "big.bin");
     assert.equal(statSync(file!).size, 3 * 1024 * 1024 + 5);
     const first = sha(file!);
     assert.deepEqual(

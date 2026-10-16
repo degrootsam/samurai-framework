@@ -105,7 +105,7 @@ test(
     const sizes = await evaluate(
       `Array.from(document.getElementById("f").files, (f) => f.name + ":" + f.size).join()`,
     );
-    assert.equal(sizes, "a.txt:5,10-g.bin:10");
+    assert.equal(sizes, "a.txt:5,g.bin:10");
   },
 );
 
