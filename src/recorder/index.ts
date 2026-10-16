@@ -3,6 +3,9 @@ export {
   type RecorderOptions,
   type RecorderEvent,
   type ToolbarOptions,
+  type FileRecording,
+  type MissingFile,
+  missingFileText,
 } from "./recorder.js";
 export { applyRecorderEvent } from "./apply.js";
 export {
