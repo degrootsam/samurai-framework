@@ -96,6 +96,11 @@ export interface SamuraiTestConfig {
    * @default "result/downloads"
    */
   downloadsDir?: string;
+  /**
+   * Folder, relative to the project folder, where recorded uploads are stored and committed with the tests
+   * @default "files"
+   */
+  filesDir?: string;
   /** How pages are opened */
   use?: {
     /**

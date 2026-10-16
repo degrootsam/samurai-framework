@@ -7,3 +7,10 @@ export {
 } from "./config-edit.js";
 export { addVariable, ExistsError, VARIABLE_NAME } from "./variables.js";
 export { isGitIgnored, SECRET_NAME, setSecret } from "./secrets-file.js";
+export {
+  cleanFileName,
+  filesFolder,
+  isFolderIgnored,
+  RECORD_LIMIT,
+  storeFile,
+} from "./files-store.js";
