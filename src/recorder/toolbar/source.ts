@@ -22,7 +22,7 @@ import { TOOLBAR_CSS } from "./styles.js";
  *   `matcher { matcher }`, `not`, `assert-add` (Assert panel);
  *   `insert-item { kind, name }`, `insert-first`, `insert-new { kind }` (Insert list);
  *   `new-kind { kind }`, `new-save`, `new-cancel` (New variable or secret);
- *   `wait-add`, `screenshot-add`; `escape` (the Esc key).
+ *   `wait-add`, `screenshot-add`; `escape` (the Esc key); `dismiss { id }` (a warning's Dismiss button).
  *   Form inputs carry `data-field` (`expected`, `attribute`, `countIndex`, `filter`, `name`, `value`,
  *   `waitKind`, `seconds`, `shotName`, `fullPage`) and update on `input`/`change`.
  * - `rebind(send)`: used by a second run in the same document (a new recording), which keeps the host and
@@ -47,6 +47,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
   const DEFAULTS = {
     status: "recording", collapsed: false, position: null, steps: 0, environment: "", canAddVariables: false,
     variables: [], secrets: [], secretsIgnored: true, resumeQuestion: false, nextScreenshot: "screenshot-1",
+    warnings: [],
   };
   const MATCHERS = [
     ["toBeVisible", "Visible"], ["toHaveText", "Has text"], ["toContainText", "Contains text"],
@@ -110,6 +111,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
   const container = h("div", { class: "ui" });
   const outline = h("div", { class: "outline", hidden: true });
   const toast = h("div", { class: "toast ui", hidden: true });
+  const notices = h("div", { class: "notices ui" });
   let adopted = false;
   try {
     const sheet = new CSSStyleSheet();
@@ -120,7 +122,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     adopted = false;
   }
   // Without constructed sheets: a <style> element, which a strict CSP blocks
-  root.append(...(adopted ? [] : [h("style", null, CSS)]), frame, outline, container, toast);
+  root.append(...(adopted ? [] : [h("style", null, CSS)]), frame, outline, container, toast, notices);
 
   const viewport = () => ({ w: frame.clientWidth || innerWidth, h: frame.clientHeight || innerHeight });
 
@@ -367,6 +369,14 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
   ];
   const PANELS = { assert: assertPanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
 
+  const renderNotices = () => {
+    notices.replaceChildren(
+      ...state.warnings.map((w) =>
+        h("div", { class: "notice warning", "data-warning": String(w.id), role: "alert" },
+          h("span", null, w.text),
+          h("button", { class: "dismiss", "data-action": "dismiss", "data-id": String(w.id) }, "Dismiss"))),
+      ...(state.saving ? [h("div", { class: "notice saving" }, "Saving " + state.saving + "…")] : []));
+  };
   const render = () => {
     const active = root.activeElement;
     const kept = active && active.type !== "radio" ? active.getAttribute("data-field") : null;
@@ -374,6 +384,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
     try { selection = kept ? [active.selectionStart, active.selectionEnd] : null; } catch (err) { selection = null; }
     const panel = ui.panel && !state.collapsed ? h("div", { class: ui.panel === "new" || ui.panel === "insert" ? "panel wide" : "panel" }, PANELS[ui.panel]()) : null;
     container.replaceChildren(state.collapsed ? chipView() : railView(), ...(panel ? [panel] : []));
+    renderNotices();
     placeAll();
     const focus = ui.focus || kept;
     ui.focus = null;
@@ -458,6 +469,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
 
   // Every action is what a click on its control does; press() runs the same functions
   const handlers = {
+    dismiss: (d) => post({ action: "dismiss", id: Number(d.id) }),
     pause: () => { if (!paused()) post({ action: "pause" }); },
     resume: () => { if (paused()) post({ action: "resume" }); },
     stop: () => {
@@ -671,6 +683,7 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
       kind: control.getAttribute("data-kind"),
       name: control.getAttribute("data-name"),
       matcher: control.getAttribute("data-matcher"),
+      id: control.getAttribute("data-id"),
     });
   });
   root.addEventListener("pointerdown", (event) => {
