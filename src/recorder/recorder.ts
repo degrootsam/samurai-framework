@@ -149,6 +149,8 @@ export class Recorder {
   private readonly queue: { tail: Promise<void> } = { tail: Promise.resolve() };
   private readonly known = new Map<string, LocatorSpec | undefined>();
   private stopped = false;
+  /** Set when stopping begins: files messages after it are not taken */
+  private ending = false;
   private stopping: Promise<void> | undefined;
   private controller: ToolbarController | undefined;
 
@@ -231,6 +233,7 @@ export class Recorder {
       return;
     }
     if (params.channel === this.filesChannel) {
+      if (this.ending) return;
       const realm = params.source.realm ?? "";
       const data = params.data;
       // In order with the page's messages: a picker follows the click that opened it
@@ -665,6 +668,7 @@ export class Recorder {
 
   private async end(): Promise<void> {
     if (this.stopped) return;
+    this.ending = true;
     this.controller?.dispose();
     await runInLoadedContexts(this.connector, {
       source: CAPTURE_OFF,
@@ -682,11 +686,12 @@ export class Recorder {
         onRunError: "log",
       }).catch(() => undefined);
     }
+    await this.queue.tail;
+    // Only now: started and queued transfers need the kept Files
     if (this.filesPreload)
       await disposeFilesCapture(this.connector, this.context).catch(
         () => undefined,
       );
-    await this.queue.tail;
     this.stopped = true;
     await this.release();
   }

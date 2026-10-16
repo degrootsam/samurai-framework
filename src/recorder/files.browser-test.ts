@@ -42,7 +42,7 @@ after(async () => {
 async function record(
   html: string,
   act: () => Promise<void>,
-  options: { trustSynthetic?: boolean } = {},
+  options: { trustSynthetic?: boolean; settle?: boolean } = {},
 ) {
   await setContent(page, html);
   const projectDir = mkdtempSync(path.join(tmpdir(), "samurai-rec-files-"));
@@ -51,10 +51,16 @@ async function record(
   const recorder = await page.record({
     onEvent: (event) => events.push(event),
     initialGoto: false,
-    files: { projectDir, onMissing: (m) => missing.push(m), ...options },
+    files: {
+      projectDir,
+      onMissing: (m) => missing.push(m),
+      ...(options.trustSynthetic !== undefined && {
+        trustSynthetic: options.trustSynthetic,
+      }),
+    },
   });
   await act();
-  await pause(800);
+  if (options.settle !== false) await pause(800);
   await recorder.stop();
   let spec = `test("t", async ({ page }) => {\n});\n`;
   for (const event of events) spec = applyRecorderEvent(spec, 0, event);
@@ -208,3 +214,21 @@ test(
     ]);
   },
 );
+
+test("a file picked just before Stop is still stored", OPTIONS, async () => {
+  const bytes = Buffer.alloc(4 * 1024 * 1024, "x");
+  const file = path.join(source, "late.bin");
+  writeFileSync(file, bytes);
+  const { projectDir, steps, recorder } = await record(
+    `<input type="file" id="f" aria-label="Late">`,
+    () => page.getByLabel("Late").setInputFiles(file),
+    { settle: false },
+  );
+  assert.deepEqual((steps[0] as { files: unknown }).files, [
+    { path: "files/late.bin" },
+  ]);
+  assert.ok(
+    bytes.equals(readFileSync(path.join(projectDir, "files", "late.bin"))),
+  );
+  assert.deepEqual(recorder.missingFiles, []);
+});
