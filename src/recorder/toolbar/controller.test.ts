@@ -177,6 +177,7 @@ describe("ToolbarController", () => {
       secretsIgnored: true,
       resumeQuestion: false,
       nextScreenshot: "screenshot-1",
+      warnings: [],
     });
     noSecretLeaks();
     controller.dispose();
@@ -922,5 +923,33 @@ describe("ToolbarController", () => {
         `type ${NEW_SECRET}`,
       ]);
     });
+  });
+});
+
+describe("files", () => {
+  it("shows the file being saved, then clears it", () => {
+    const { controller, pushes } = setup();
+    controller.saving("avatar.png");
+    assert.equal(lastOf(pushes)?.saving, "avatar.png");
+    controller.saving(undefined);
+    assert.equal(lastOf(pushes)?.saving, undefined);
+  });
+
+  it("keeps warnings until each is dismissed, also across page loads", async () => {
+    const { controller, pushes } = setup();
+    controller.warn("big.mov is 300 MB.");
+    controller.warn("huge.iso is 4 GB.");
+    controller.loaded();
+    const warnings = lastOf(pushes)!.warnings;
+    assert.deepEqual(
+      warnings.map((w) => w.text),
+      ["big.mov is 300 MB.", "huge.iso is 4 GB."],
+    );
+    await controller.handle(msg({ action: "dismiss", id: warnings[0]!.id }));
+    assert.deepEqual(
+      lastOf(pushes)!.warnings.map((w) => w.text),
+      ["huge.iso is 4 GB."],
+    );
+    controller.dispose();
   });
 });

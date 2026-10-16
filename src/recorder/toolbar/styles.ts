@@ -91,5 +91,36 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .outline { position: fixed; z-index: 1; pointer-events: none; outline: 2px solid #2f6fed; outline-offset: 2px; border-radius: 4px; background: rgba(47,111,237,.06); }
 .toast { position: fixed; z-index: 4; left: 50%; bottom: 14px; transform: translateX(-50%); background: #17181c; color: #e9eaee; border-radius: 8px; padding: 6px 12px; box-shadow: 0 6px 20px rgba(0,0,0,.28); pointer-events: none; transition: opacity .3s; }
 .toast.gone { opacity: 0; }
+.notices {
+  position: fixed;
+  z-index: 4;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(520px, calc(100vw - 32px));
+}
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #17181c;
+  color: #e9eaee;
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+}
+.notice.warning {
+  background: #3b2a06;
+  color: #ffe7b0;
+  border: 1px solid #8a6514;
+}
+.notice .dismiss {
+  margin-left: auto;
+  text-decoration: underline;
+  white-space: nowrap;
+}
 .frame { position: fixed; inset: 0; pointer-events: none; visibility: hidden; }
 `;

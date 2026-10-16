@@ -33,6 +33,10 @@ export interface ToolbarState {
   nextScreenshot: string;
   /** Shown once per id */
   toast?: { id: number; text: string };
+  /** The name of the file being saved to the project, while a transfer runs */
+  saving?: string;
+  /** Shown until the tester dismisses each (a file that wasn't saved) */
+  warnings: { id: number; text: string }[];
 }
 
 /** Element-carrying messages send the element itself (it arrives as a handle) and its candidates */
@@ -46,6 +50,7 @@ export type ToolbarMessage = { type: "toolbar" } &
     | { action: "stop" }
     | { action: "move"; x: number; y: number }
     | { action: "collapse"; collapsed: boolean }
+    | { action: "dismiss"; id: number }
     | { action: "pick"; id: number; target: unknown; candidates: LocatorCall[] }
     | {
         action: "assert";
