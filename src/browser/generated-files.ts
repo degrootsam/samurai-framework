@@ -1,4 +1,3 @@
-// src/browser/generated-files.ts
 import { createHash } from "node:crypto";
 import { mkdir, open, rm, stat } from "node:fs/promises";
 import path from "node:path";
@@ -95,13 +94,13 @@ async function write(
 /** The generated file on disk; written once per run for the same name and size */
 function generatedPath(file: GeneratedFile): Promise<string> {
   folder ??= path.join(projectDir(), "result", "files");
-  const key = `${file.size}-${file.name}`;
+  const key = `${file.size}/${file.name}`;
   let pending = written.get(key);
   if (!pending) {
     const dir = folder;
     pending = (async () => {
-      await mkdir(dir, { recursive: true });
       const target = path.join(dir, key);
+      await mkdir(path.dirname(target), { recursive: true });
       await write(target, file.size, seedOf(file));
       return target;
     })();

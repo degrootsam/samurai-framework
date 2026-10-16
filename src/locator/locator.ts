@@ -110,14 +110,13 @@ const DROP_INPUT = `() => {
   ${DROP_KEY} = input;
   return input;
 }`;
-/** Fires dragenter, dragover and drop at the element's centre with the input's files (generated ones renamed and retyped) */
-const DROP_EVENTS = `(el, wrapped) => {
+/** Fires dragenter, dragover and drop at the element's centre with the input's files (retyped where asked) */
+const DROP_EVENTS = `(el, types) => {
   const input = ${DROP_KEY};
   delete ${DROP_KEY};
   const data = new DataTransfer();
   Array.from(input.files).forEach((file, i) => {
-    const as = wrapped[i];
-    data.items.add(as ? new File([file], as.name, { type: as.type || file.type, lastModified: file.lastModified }) : file);
+    data.items.add(types[i] ? new File([file], file.name, { type: types[i], lastModified: file.lastModified }) : file);
   });
   const box = el.getBoundingClientRect();
   const at = { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
@@ -712,9 +711,8 @@ export default class Locator {
   ): Promise<void> {
     const list = Array.isArray(files) ? files : [files];
     const paths = await resolveFileInputs(list, "dropFiles");
-    // Generated files sit on disk as `<size>-<name>`; the page gets them under their own name (and type)
-    const wrapped = list.map((file) =>
-      isGeneratedFile(file) ? { name: file.name, type: file.type ?? "" } : null,
+    const types = list.map((file) =>
+      isGeneratedFile(file) ? (file.type ?? "") : "",
     );
     await this.waitForActionable(
       "dropFiles",
@@ -734,7 +732,7 @@ export default class Locator {
       element: { sharedId: input.sharedId },
       files: paths,
     });
-    await this.call(DROP_EVENTS, [el, wrapped], DROP_SANDBOX);
+    await this.call(DROP_EVENTS, [el, types], DROP_SANDBOX);
   }
 
   /**
