@@ -129,6 +129,18 @@ describe("storeFile", () => {
     assert.equal(stored.path, "test-data/uploads/file");
   });
 
+  it('filesDir "." stores in the project root, with no leading slash', async () => {
+    const dir = project();
+    const stored = await storeFile({
+      projectDir: dir,
+      filesDir: ".",
+      name: "a.png",
+      content: content("x"),
+    });
+    assert.equal(stored.path, "a.png");
+    assert.equal(readFileSync(path.join(dir, "a.png"), "utf8"), "x");
+  });
+
   it("only hashes files of the same size", async () => {
     const dir = project();
     mkdirSync(path.join(dir, "files"));

@@ -534,30 +534,40 @@ export class Recorder {
         this.emit(this.normaliser.observe(message, now));
       return;
     }
-    const release = () =>
+    const release = (from: number) =>
       Promise.allSettled(
-        message.files.map((file) =>
-          releasePageFile(this.connector, this.context, file.id),
+        message.files
+          .slice(from)
+          .map((file) =>
+            releasePageFile(this.connector, this.context, file.id),
+          ),
+      );
+    if (this.controller?.paused) return void (await release(0));
+    // storePageFile releases its own file; whatever it never reached is released here, on any exit
+    let started = 0;
+    try {
+      const locator = await this.locatorFor(message);
+      if (!locator) {
+        logger.warn(
+          "Recorder found no locator that matches only the element the files were %s; the upload was skipped",
+          message.via === "drop" ? "dropped on" : "set on",
+        );
+        return;
+      }
+      const files: FileEntry[] = [];
+      for (const file of message.files) {
+        started++;
+        files.push({ path: await this.storePageFile(file) });
+      }
+      this.emit(
+        this.normaliser.observe(
+          { type: "files", via: message.via, locator, files },
+          now,
         ),
       );
-    if (this.controller?.paused) return void (await release());
-    const locator = await this.locatorFor(message);
-    if (!locator) {
-      logger.warn(
-        "Recorder found no locator that matches only the element the files were %s; the upload was skipped",
-        message.via === "drop" ? "dropped on" : "set on",
-      );
-      return void (await release());
+    } finally {
+      await release(started);
     }
-    const files: FileEntry[] = [];
-    for (const file of message.files)
-      files.push({ path: await this.storePageFile(file) });
-    this.emit(
-      this.normaliser.observe(
-        { type: "files", via: message.via, locator, files },
-        now,
-      ),
-    );
   }
 
   /** Saves one kept file to the files folder; returns the path its step gets */
@@ -570,7 +580,9 @@ export class Recorder {
     const folder = filesFolder(recording.projectDir, recording.filesDir);
     const notSaved = (reason: MissingFile["reason"]) => {
       const missing: MissingFile = {
-        path: `${folder.relative}/${cleanFileName(file.name)}`,
+        path: folder.relative
+          ? `${folder.relative}/${cleanFileName(file.name)}`
+          : cleanFileName(file.name),
         name: file.name,
         size: file.size,
         reason,
@@ -587,8 +599,9 @@ export class Recorder {
       return notSaved("too-big");
     }
     this.controller?.saving(file.name);
-    const temp = await mkdtemp(path.join(tmpdir(), "samurai-upload-"));
+    let temp: string | undefined;
     try {
+      temp = await mkdtemp(path.join(tmpdir(), "samurai-upload-"));
       const content = path.join(temp, "content");
       const out = await open(content, "w");
       try {
@@ -617,7 +630,8 @@ export class Recorder {
       return notSaved("unreadable");
     } finally {
       this.controller?.saving(undefined);
-      await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+      if (temp)
+        await rm(temp, { recursive: true, force: true }).catch(() => undefined);
       await releasePageFile(this.connector, this.context, file.id).catch(
         () => undefined,
       );

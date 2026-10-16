@@ -125,7 +125,7 @@ const chooser = await page.waitForFileChooser({
 await chooser.setFiles("./fixtures/avatar.png");
 ```
 
-Downloads are saved under `downloadsDir` (default `result/downloads`), in a folder per browser that is removed again when nothing was downloaded. A failed download makes `path()` throw `DownloadError`; `download.failure()` returns the reason or `null`. File pickers never show on screen; answer them with `setFiles`. For a visible `<input type=file>`, `locator.setInputFiles` is simpler.
+Downloads are saved under `downloadsDir` (default `result/downloads`), in a folder per browser that is removed again when nothing was downloaded. A failed download makes `path()` throw `DownloadError`; `download.failure()` returns the reason or `null`. File pickers never show on screen; answer them with `setFiles`, which takes paths (relative ones resolve against the project folder) or `generatedFile(…)`. For a visible `<input type=file>`, `locator.setInputFiles` is simpler.
 
 ## Init scripts
 

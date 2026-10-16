@@ -184,6 +184,7 @@ export class Normaliser {
 
     // The sandbox reports a picker for any click on a file input, including ones a page script fires:
     // it is only a hint, and only the very last step, recorded just before, may be replaced or removed
+    // (a page's own input.click() also counts as the opening click, bounded to the last step within PICKER_WINDOW)
     if (observation.type === "picker") {
       const click = this.lastClick;
       this.picker =

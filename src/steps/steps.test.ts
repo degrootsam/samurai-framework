@@ -585,6 +585,25 @@ describe("file steps", () => {
     );
   });
 
+  it("adds a framework import when test comes from elsewhere, and when generatedFile is only aliased", () => {
+    const step: Step = {
+      kind: "dropFiles",
+      locator: input,
+      files: [generated("a.bin", 1)],
+    };
+    const other = `import { test } from "./fixtures";\n\ntest("t", async ({ page }) => {\n});\n`;
+    const next = applyEdit(other, { op: "insert", test: 0, index: 0, step });
+    assert.match(
+      next,
+      /^import \{ generatedFile \} from "@itmetsam\/samurai-framework";\nimport \{ test \} from "\.\/fixtures";/,
+    );
+    const aliased = `import { test, generatedFile as gf } from "@itmetsam/samurai-framework";\n\ntest("t", async ({ page }) => {\n});\n`;
+    assert.match(
+      applyEdit(aliased, { op: "insert", test: 0, index: 0, step }),
+      /^import \{ test, generatedFile as gf, generatedFile \} from "@itmetsam\/samurai-framework";/,
+    );
+  });
+
   it("a path-only step adds no import", () => {
     const source = `import { test } from "x";\n\ntest("t", async ({ page }) => {\n});\n`;
     const next = applyEdit(source, {

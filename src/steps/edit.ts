@@ -116,7 +116,9 @@ const usesGeneratedFile = (step: Step) =>
   (step.kind === "setInputFiles" || step.kind === "dropFiles") &&
   step.files.some((file) => "generate" in file);
 
-/** Adds `generatedFile` to the import `test` comes from (or a new import) unless the file imports it */
+const FRAMEWORK = "@itmetsam/samurai-framework";
+
+/** Adds `generatedFile` to the framework import (or a new one) unless the file already imports it under its own name */
 function withGeneratedFileImport(source: string): string {
   const file = ts.createSourceFile(
     "spec.ts",
@@ -125,18 +127,29 @@ function withGeneratedFileImport(source: string): string {
     true,
     ts.ScriptKind.TS,
   );
-  let testImport: ts.NamedImports | undefined;
+  let frameworkImport: ts.NamedImports | undefined;
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
+    if (
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== FRAMEWORK
+    )
+      continue;
     const named = statement.importClause?.namedBindings;
     if (!named || !ts.isNamedImports(named)) continue;
-    const names = named.elements.map((e) => (e.propertyName ?? e.name).text);
-    if (names.includes("generatedFile")) return source;
-    if (names.includes("test")) testImport ??= named;
+    if (
+      named.elements.some(
+        (e) =>
+          e.name.text === "generatedFile" &&
+          (!e.propertyName || e.propertyName.text === e.name.text),
+      )
+    )
+      return source;
+    frameworkImport ??= named;
   }
-  if (!testImport)
-    return `import { generatedFile } from "@itmetsam/samurai-framework";\n${source}`;
-  const last = testImport.elements[testImport.elements.length - 1]!;
+  if (!frameworkImport || frameworkImport.elements.length === 0)
+    return `import { generatedFile } from "${FRAMEWORK}";\n${source}`;
+  const last = frameworkImport.elements[frameworkImport.elements.length - 1]!;
   return splice(source, last.end, last.end, ", generatedFile");
 }
 

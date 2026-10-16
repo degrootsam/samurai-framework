@@ -6,10 +6,15 @@ import { after, afterEach, describe, it } from "node:test";
 import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import { ContextTree } from "./context-tree.js";
+import { generatedFile, removeGeneratedFiles } from "./generated-files.js";
 import { FileChooser, FileChooserTracker } from "./file-chooser.js";
 
 const TREE = [
-  { context: "top", parent: null, children: [{ context: "frame", parent: "top", children: [] }] },
+  {
+    context: "top",
+    parent: null,
+    children: [{ context: "frame", parent: "top", children: [] }],
+  },
   { context: "other", parent: null, children: [] },
 ];
 const stops: Array<() => void> = [];
@@ -22,21 +27,44 @@ const file = (name: string) => {
   return full;
 };
 
-async function setup(handlers: Record<string, (params: any) => object | Error> = {}) {
+async function setup(
+  handlers: Record<string, (params: any) => object | Error> = {},
+) {
   const ws = new FakeWebSocket();
   const connector = new BiDiConnector(ws as unknown as WebSocket);
-  stops.push(autoReply(ws, { "browsingContext.getTree": () => ({ contexts: TREE }), "input.setFiles": () => ({}), ...handlers }));
+  stops.push(
+    autoReply(ws, {
+      "browsingContext.getTree": () => ({ contexts: TREE }),
+      "input.setFiles": () => ({}),
+      ...handlers,
+    }),
+  );
   const tree = await ContextTree.create(connector);
   const tracker = await FileChooserTracker.start(connector, tree, "top");
   const seen: FileChooser[] = [];
   tracker.on("filechooser", (chooser) => seen.push(chooser));
-  const open = (extra: { context?: string; multiple?: boolean; element?: object | null } = {}) =>
+  const open = (
+    extra: {
+      context?: string;
+      multiple?: boolean;
+      element?: object | null;
+    } = {},
+  ) =>
     ws.emitEvent("input.fileDialogOpened", {
       context: extra.context ?? "top",
       multiple: extra.multiple ?? false,
-      ...(extra.element !== null && { element: extra.element ?? { type: "node", sharedId: "input-1", value: {} } }),
+      ...(extra.element !== null && {
+        element: extra.element ?? {
+          type: "node",
+          sharedId: "input-1",
+          value: {},
+        },
+      }),
     });
-  const setFiles = () => ws.sent.filter((m) => m.method === "input.setFiles").map((m) => m.params as any);
+  const setFiles = () =>
+    ws.sent
+      .filter((m) => m.method === "input.setFiles")
+      .map((m) => m.params as any);
   return { ws, tracker, seen, open, setFiles };
 }
 
@@ -47,7 +75,10 @@ describe("FileChooserTracker", () => {
     open({ multiple: false });
     assert.equal(seen.length, 2);
     assert.ok(seen[0] instanceof FileChooser);
-    assert.deepEqual(seen.map((chooser) => chooser.isMultiple()), [true, false]);
+    assert.deepEqual(
+      seen.map((chooser) => chooser.isMultiple()),
+      [true, false],
+    );
   });
 
   it("takes iframes, ignores other pages", async () => {
@@ -75,7 +106,13 @@ describe("FileChooserTracker", () => {
 
   it("subscribes to the event and lets go of it on dispose", async () => {
     const { ws, tracker, open, seen } = await setup();
-    assert.ok(ws.sent.some((m) => m.method === "session.subscribe" && (m.params as any).events[0] === "input.fileDialogOpened"));
+    assert.ok(
+      ws.sent.some(
+        (m) =>
+          m.method === "session.subscribe" &&
+          (m.params as any).events[0] === "input.fileDialogOpened",
+      ),
+    );
     await tracker.dispose();
     await tick(10);
     open();
@@ -90,7 +127,19 @@ describe("FileChooser.setFiles", () => {
     open({ context: "frame", element: { type: "node", sharedId: "in-frame" } });
     const a = file("a.txt");
     await seen[0]!.setFiles(a);
-    assert.deepEqual(setFiles(), [{ context: "frame", element: { sharedId: "in-frame" }, files: [a] }]);
+    assert.deepEqual(setFiles(), [
+      { context: "frame", element: { sharedId: "in-frame" }, files: [a] },
+    ]);
+  });
+
+  it("accepts generatedFile(…)", async () => {
+    const { seen, open, setFiles } = await setup();
+    open({});
+    await seen[0]!.setFiles(generatedFile({ name: "gen.bin", size: "1 KB" }));
+    const files = setFiles()[0].files as string[];
+    assert.equal(files.length, 1);
+    assert.match(files[0]!, /result[\\/]files[\\/]1024[\\/]gen\.bin$/);
+    await removeGeneratedFiles();
   });
 
   it("takes a list, and resolves relative paths", async () => {
@@ -104,7 +153,10 @@ describe("FileChooser.setFiles", () => {
   it("refuses several files for a chooser that takes one, and sends nothing", async () => {
     const { seen, open, setFiles } = await setup();
     open({ multiple: false });
-    await assert.rejects(seen[0]!.setFiles([file("x1.txt"), file("x2.txt")]), /file chooser does not accept multiple files/);
+    await assert.rejects(
+      seen[0]!.setFiles([file("x1.txt"), file("x2.txt")]),
+      /file chooser does not accept multiple files/,
+    );
     assert.deepEqual(setFiles(), []);
   });
 
@@ -119,24 +171,38 @@ describe("FileChooser.setFiles", () => {
     const { seen, open, setFiles } = await setup();
     open();
     const missing = path.join(dir, "nope.txt");
-    await assert.rejects(seen[0]!.setFiles(missing), new Error(`setFiles(): file not found: ${missing}`));
+    await assert.rejects(
+      seen[0]!.setFiles(missing),
+      new Error(`setFiles(): file not found: ${missing}`),
+    );
     const folder = path.join(dir, "folder");
     mkdirSync(folder);
-    await assert.rejects(seen[0]!.setFiles(folder), new Error(`setFiles(): not a file: ${folder}`));
+    await assert.rejects(
+      seen[0]!.setFiles(folder),
+      new Error(`setFiles(): not a file: ${folder}`),
+    );
     assert.deepEqual(setFiles(), []);
   });
 
   it("without an element reference it cannot set anything", async () => {
     const { seen, open, setFiles } = await setup();
     open({ element: null });
-    await assert.rejects(seen[0]!.setFiles(file("e.txt")), /file chooser has no element reference/);
+    await assert.rejects(
+      seen[0]!.setFiles(file("e.txt")),
+      /file chooser has no element reference/,
+    );
     assert.deepEqual(setFiles(), []);
   });
 
   it("rethrows what the browser answers", async () => {
-    const failing = Object.assign(new Error("read-only"), { code: "unable to set file input" });
+    const failing = Object.assign(new Error("read-only"), {
+      code: "unable to set file input",
+    });
     const { seen, open } = await setup({ "input.setFiles": () => failing });
     open();
-    await assert.rejects(seen[0]!.setFiles(file("f.txt")), { name: "BiDiError", code: "unable to set file input" });
+    await assert.rejects(seen[0]!.setFiles(file("f.txt")), {
+      name: "BiDiError",
+      code: "unable to set file input",
+    });
   });
 });

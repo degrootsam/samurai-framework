@@ -190,12 +190,11 @@ export async function main(argv: string[], io: Io): Promise<number> {
             `Add ${result.missingFiles.map((f) => f.path).join(", ")} before running it (or use generatedFile).\n`,
           );
         }
-        const folder =
-          result.files[0]?.split("/").slice(0, -1).join("/") ??
-          result.missingFiles[0]?.path.split("/").slice(0, -1).join("/");
-        if (folder && result.filesIgnored)
+        const hasFiles = result.files.length + result.missingFiles.length > 0;
+        const folder = result.filesFolder === "" ? "." : result.filesFolder;
+        if (hasFiles && result.filesIgnored)
           io.out(`${folder}/ is ignored by git; CI won't have these files.\n`);
-        if (folder && result.firstFiles)
+        if (hasFiles && result.firstFiles)
           io.out(
             `Recorded files are stored in ${folder}/ and committed with your tests.\n`,
           );

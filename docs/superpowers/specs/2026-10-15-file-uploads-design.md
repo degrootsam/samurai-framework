@@ -25,18 +25,18 @@ are stored once in the project and committed with the tests. Tests that need a f
 
 ## Decisions
 
-| Question                     | Decision                                                                                                   |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| What is captured             | The file's name, type and contents. The path on disk is not available to pages and is not needed           |
-| Interactions                 | `<input type=file>` changes (also hidden inputs behind a button) and drops of files                        |
-| How the bytes leave the page | Read in the recorder's sandbox (`file.arrayBuffer()`), sent over the toolbar channel in 1 MB base64 chunks |
-| Where files live             | One shared `files/` folder at the project root; `filesDir` in `samurai.config.ts` changes it               |
-| Duplicates                   | Content dedupe by SHA-256: identical content is stored once, whatever its name                             |
-| Name clashes                 | Same name, other content: `<name>-2.<ext>`, `-3`, …; an existing file is never overwritten                 |
-| Size cap                     | 50 MB per file while recording. Bigger files get a step but are not stored, with a warning                 |
-| Drop replay                  | Temporary sandbox `<input type=file>` + `input.setFiles`, then synthetic `dragenter`, `dragover`, `drop`   |
-| Generated files              | `generatedFile({ name, size, type? })`: seeded pseudo-random bytes written at run time, never stored       |
-| Version                      | Framework 0.8.0                                                                                            |
+| Question                     | Decision                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What is captured             | The file's name, type and contents. The path on disk is not available to pages and is not needed                                                                                                              |
+| Interactions                 | `<input type=file>` changes (also hidden inputs behind a button) and drops of files                                                                                                                           |
+| How the bytes leave the page | Read in the recorder's sandbox with `FileReader` as base64 data URLs (Firefox forbids TypedArray access over Xrays, so `arrayBuffer()` bytes can't be read there), sent over the files channel in 1 MB chunks |
+| Where files live             | One shared `files/` folder at the project root; `filesDir` in `samurai.config.ts` changes it                                                                                                                  |
+| Duplicates                   | Content dedupe by SHA-256: identical content is stored once, whatever its name                                                                                                                                |
+| Name clashes                 | Same name, other content: `<name>-2.<ext>`, `-3`, …; an existing file is never overwritten                                                                                                                    |
+| Size cap                     | 50 MB per file while recording. Bigger files get a step but are not stored, with a warning                                                                                                                    |
+| Drop replay                  | Temporary sandbox `<input type=file>` + `input.setFiles`, then synthetic `dragenter`, `dragover`, `drop`                                                                                                      |
+| Generated files              | `generatedFile({ name, size, type? })`: seeded pseudo-random bytes written at run time, never stored                                                                                                          |
+| Version                      | Framework 0.8.0                                                                                                                                                                                               |
 
 ## Steps
 
@@ -82,7 +82,7 @@ await page.getByLabel("Avatar").setInputFiles([]);
 - **Paths** resolve against the project folder (not the working directory), so a run works from any
   directory. Absolute paths are used as they are. A path that does not exist fails the step:
   `files/a.png doesn't exist in the project` (absolute: `<path> doesn't exist`).
-- **Generated files** are written to `result/files/<size>-<name>` in 1 MB chunks, at most once per
+- **Generated files** are written to `result/files/<size>/<name>` (so the page sees the generated name) in 1 MB chunks, at most once per
   run for the same name, size and type, and removed when the run ends. The bytes come from a
   pseudo-random generator seeded with the name and size: the same in every run, and not compressible.
   The browser gets the path, so a 2 GB file never sits in memory.

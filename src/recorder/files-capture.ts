@@ -48,7 +48,7 @@ export function filesCaptureSource(
     el instanceof Element && el.tagName === "INPUT" && (el.getAttribute("type") || "").toLowerCase() === "file";
   const listening = [];
   const listen = (type, handler) => {
-    document.addEventListener(type, handler, true);
+    window.addEventListener(type, handler, true);
     listening.push([type, handler]);
   };
 
@@ -87,7 +87,7 @@ export function filesCaptureSource(
     },
     release: (id) => { files.delete(id); },
     dispose: () => {
-      for (const [type, handler] of listening.splice(0)) document.removeEventListener(type, handler, true);
+      for (const [type, handler] of listening.splice(0)) window.removeEventListener(type, handler, true);
       files.clear();
       if (globalThis[KEY] && globalThis[KEY].read) delete globalThis[KEY];
     },
