@@ -8,7 +8,7 @@ import {
   type RecorderEvent,
 } from "./normalise.js";
 import { parseSpec } from "../steps/parse.js";
-import type { LocatorSpec } from "../steps/model.js";
+import type { LocatorSpec, Step } from "../steps/model.js";
 
 const loc = (testId: string): LocatorSpec => ({
   chain: [{ method: "getByTestId", testId }],
@@ -27,6 +27,12 @@ const input = (key: string, value: string): Observation => ({
   value,
 });
 
+/** The step an insert or replace event carries */
+function stepOf(event: RecorderEvent | undefined): Step {
+  assert.ok(event && event.op !== "remove");
+  return event.step;
+}
+
 describe("Normaliser", () => {
   it("merges typing into one fill that is rewritten as the text grows", () => {
     const n = new Normaliser({ at: 0 });
@@ -41,7 +47,7 @@ describe("Normaliser", () => {
         ["replace", 0],
       ],
     );
-    assert.deepEqual(events[2]!.step, {
+    assert.deepEqual(stepOf(events[2]), {
       kind: "fill",
       locator: loc("f"),
       value: { kind: "literal", value: "abc" },
@@ -76,7 +82,7 @@ describe("Normaliser", () => {
       },
       0,
     );
-    assert.deepEqual((event!.step as { value: unknown }).value, {
+    assert.deepEqual((stepOf(event) as { value: unknown }).value, {
       kind: "secret",
       name: "USER_PASSWORD",
     });
@@ -89,8 +95,8 @@ describe("Normaliser", () => {
     const n = new Normaliser({ at: 0 });
     n.observe(click("b"), 1000);
     const [wait] = n.navigated("https://x.test/next", 1300);
-    assert.deepEqual(wait!.step, { kind: "waitForNetworkIdle" });
-    assert.deepEqual(n.navigated("https://x.test/redirect", 1400)[0]!.step, {
+    assert.deepEqual(stepOf(wait), { kind: "waitForNetworkIdle" });
+    assert.deepEqual(stepOf(n.navigated("https://x.test/redirect", 1400)[0]), {
       kind: "goto",
       url: "https://x.test/redirect",
     });
@@ -101,7 +107,7 @@ describe("Normaliser", () => {
     n.observe(click("b"), 0);
     const [goto] = n.navigated("https://x.test/a?b=1#c", 10_000);
     assert.deepEqual(
-      [goto!.index, goto!.step],
+      [goto!.index, stepOf(goto)],
       [4, { kind: "goto", url: "/a?b=1#c" }],
     );
     assert.equal(n.relative("https://x.test"), "/");
@@ -119,16 +125,18 @@ describe("Normaliser", () => {
     const n = new Normaliser({ at: 0 });
     const expectation = (text: string, value?: string) =>
       (
-        n.observe(
-          {
-            type: "assert",
-            key: "k",
-            locator: loc("k"),
-            text,
-            ...(value !== undefined && { value }),
-          },
-          0,
-        )[0]!.step as {
+        stepOf(
+          n.observe(
+            {
+              type: "assert",
+              key: "k",
+              locator: loc("k"),
+              text,
+              ...(value !== undefined && { value }),
+            },
+            0,
+          )[0],
+        ) as {
           expectation: unknown;
         }
       ).expectation;
@@ -165,7 +173,7 @@ describe("Normaliser with key presses", () => {
       ...n.observe(press("todo", "Enter"), 300),
     ];
     assert.deepEqual(
-      events.map(({ op, index, step }) => [op, index, step.kind]),
+      events.map((e) => [e.op, e.index, stepOf(e).kind]),
       [
         ["insert", 0, "fill"],
         ["insert", 1, "press"],
@@ -173,8 +181,8 @@ describe("Normaliser with key presses", () => {
         ["insert", 3, "press"],
       ],
     );
-    assert.deepEqual((events[1]!.step as { key: string }).key, "Enter");
-    assert.deepEqual((events[2]!.step as { value: unknown }).value, {
+    assert.deepEqual((stepOf(events[1]) as { key: string }).key, "Enter");
+    assert.deepEqual((stepOf(events[2]) as { value: unknown }).value, {
       kind: "literal",
       value: "walk dog",
     });
@@ -184,7 +192,7 @@ describe("Normaliser with key presses", () => {
     const n = new Normaliser({ at: 0 });
     n.observe(input("search", "samurai"), 0);
     n.observe(press("search", "Enter"), 100);
-    assert.deepEqual(n.navigated("https://x.test/results", 400)[0]!.step, {
+    assert.deepEqual(stepOf(n.navigated("https://x.test/results", 400)[0]), {
       kind: "waitForNetworkIdle",
     });
   });
@@ -238,7 +246,7 @@ describe("toolbar observations", () => {
       ...n.observe({ type: "wait-time", ms: 2000 }, 4),
       ...n.observe({ type: "screenshot", name: "x", fullPage: true }, 5),
       ...n.observe({ type: "goto", url: "https://app.test/admin" }, 6),
-    ].map((e) => e.step);
+    ].map(stepOf);
     assert.deepEqual(steps, [
       {
         kind: "expect",
@@ -280,5 +288,106 @@ describe("toolbar observations", () => {
       events.map((e) => e.op),
       ["insert"],
     );
+  });
+});
+
+describe("file uploads", () => {
+  const button: LocatorSpec = {
+    chain: [{ method: "getByRole", role: "button", name: "Upload" }],
+    fallbacks: [],
+  };
+  const input: LocatorSpec = {
+    chain: [{ method: "getByLabel", text: "Avatar" }],
+    fallbacks: [],
+  };
+  const zone: LocatorSpec = {
+    chain: [{ method: "getByTestId", testId: "zone" }],
+    fallbacks: [],
+  };
+  const files = [{ path: "files/a.png" }];
+  const click = () =>
+    ({ type: "click", key: "b", locator: button, textEntry: false }) as const;
+
+  it("records a change without a picker click as a new step", () => {
+    const n = new Normaliser({ at: 0 });
+    assert.deepEqual(
+      n.observe({ type: "files", via: "input", locator: input, files }, 0),
+      [
+        {
+          op: "insert",
+          index: 0,
+          step: { kind: "setInputFiles", locator: input, files },
+        },
+      ],
+    );
+  });
+
+  it("replaces the click that opened the picker", () => {
+    const n = new Normaliser({ at: 0 });
+    n.observe(click(), 0);
+    assert.deepEqual(n.observe({ type: "picker" }, 50), []);
+    assert.deepEqual(
+      n.observe({ type: "files", via: "input", locator: input, files }, 9000),
+      [
+        {
+          op: "replace",
+          index: 0,
+          step: { kind: "setInputFiles", locator: input, files },
+        },
+      ],
+    );
+    assert.equal(n.nextIndex, 1);
+  });
+
+  it("removes the click when the picker is cancelled", () => {
+    const n = new Normaliser({ at: 3 });
+    n.observe(click(), 0);
+    n.observe({ type: "picker" }, 10);
+    assert.deepEqual(n.observe({ type: "picker-cancel" }, 5000), [
+      { op: "remove", index: 3 },
+    ]);
+    assert.equal(n.nextIndex, 3);
+  });
+
+  it("ignores a picker long after the click, or after another step", () => {
+    const late = new Normaliser({ at: 0 });
+    late.observe(click(), 0);
+    late.observe({ type: "picker" }, 5000);
+    assert.equal(
+      late.observe(
+        { type: "files", via: "input", locator: input, files },
+        6000,
+      )[0]!.op,
+      "insert",
+    );
+
+    const other = new Normaliser({ at: 0 });
+    other.observe(click(), 0);
+    other.observe({ type: "picker" }, 10);
+    other.observe({ type: "wait-idle" }, 20);
+    assert.deepEqual(other.observe({ type: "picker-cancel" }, 30), []);
+  });
+
+  it("records a drop as dropFiles, never replacing a click", () => {
+    const n = new Normaliser({ at: 0 });
+    n.observe(click(), 0);
+    n.observe({ type: "picker" }, 10);
+    assert.deepEqual(
+      n.observe({ type: "files", via: "drop", locator: zone, files }, 20),
+      [
+        {
+          op: "insert",
+          index: 1,
+          step: { kind: "dropFiles", locator: zone, files },
+        },
+      ],
+    );
+  });
+
+  it("a navigation right after an upload is a wait, not a goto", () => {
+    const n = new Normaliser({ at: 0 });
+    n.observe({ type: "files", via: "input", locator: input, files }, 0);
+    const [event] = n.navigated("http://x/next", 500);
+    assert.equal(stepOf(event).kind, "waitForNetworkIdle");
   });
 });

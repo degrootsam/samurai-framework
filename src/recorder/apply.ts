@@ -7,10 +7,12 @@ export function applyRecorderEvent(
   test: number,
   event: RecorderEvent,
 ): string {
-  return applyEdit(source, {
-    op: event.op,
-    test,
-    index: event.index,
-    step: event.step,
-  });
+  return event.op === "remove"
+    ? applyEdit(source, { op: "remove", test, index: event.index })
+    : applyEdit(source, {
+        op: event.op,
+        test,
+        index: event.index,
+        step: event.step,
+      });
 }

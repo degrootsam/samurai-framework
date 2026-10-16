@@ -273,6 +273,12 @@ export class ToolbarController {
     this.push();
   }
 
+  /** A recorded step was taken out again (a cancelled file picker's click) */
+  public stepRemoved(): void {
+    this.steps = Math.max(0, this.steps - 1);
+    this.push();
+  }
+
   /** The recording ended: no more pushes, replies or status */
   public dispose(): void {
     this.disposed = true;

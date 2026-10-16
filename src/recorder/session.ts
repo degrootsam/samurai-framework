@@ -111,14 +111,16 @@ export async function toolbarOptions(
 
 /** The secrets a recording needs set: those its steps read, then those added from the panel, once each */
 export function resultSecrets(
-  events: readonly Pick<RecorderEvent, "step">[],
+  events: readonly RecorderEvent[],
   added: Iterable<string>,
 ): string[] {
   return [
     ...new Set([
-      ...events.flatMap(({ step }) =>
-        step.kind === "fill" && step.value.kind === "secret"
-          ? [step.value.name]
+      ...events.flatMap((event) =>
+        event.op !== "remove" &&
+        event.step.kind === "fill" &&
+        event.step.value.kind === "secret"
+          ? [event.step.value.name]
           : [],
       ),
       ...added,

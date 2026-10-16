@@ -90,3 +90,12 @@ describe("resultSecrets", () => {
     assert.deepEqual(resultSecrets([], ["ONLY_ADDED"]), ["ONLY_ADDED"]);
   });
 });
+
+describe("resultSecrets with remove events", () => {
+  it("skips remove events", () => {
+    assert.deepEqual(
+      resultSecrets([{ op: "remove", index: 0 } as never], []),
+      [],
+    );
+  });
+});
