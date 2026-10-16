@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp, open, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import logger from "../logger/index.js";
 import type Page from "../browser/page.js";
 import { addPreload, runInLoadedContexts } from "../script/preload.js";
@@ -6,15 +9,29 @@ import { callFunction } from "../script/call-function.js";
 import { ChannelArg, fromRemoteValue, type Arg } from "../script/serialize.js";
 import { ElementHandle } from "../script/element-handle.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
-import type { LocatorCall, LocatorSpec } from "../steps/model.js";
+import type { FileEntry, LocatorCall, LocatorSpec } from "../steps/model.js";
 import { locatorFromSpec } from "../steps/build.js";
-import { addVariable, setSecret } from "../project/index.js";
+import {
+  addVariable,
+  cleanFileName,
+  filesFolder,
+  RECORD_LIMIT,
+  setSecret,
+  storeFile,
+} from "../project/index.js";
+import { humanSize } from "../steps/files.js";
 import {
   CAPTURE_MUTE,
   CAPTURE_OFF,
   CAPTURE_SOURCE,
   CAPTURE_UNMUTE,
 } from "./capture.js";
+import { FILES_SANDBOX, filesCaptureSource } from "./files-capture.js";
+import {
+  disposeFilesCapture,
+  readPageFile,
+  releasePageFile,
+} from "./files-reader.js";
 import {
   Normaliser,
   type Observation,
@@ -55,6 +72,38 @@ export type ToolbarOptions = ControllerOptions & {
   onStop?: () => void;
 };
 
+/** Where uploads made while recording are stored */
+export interface FileRecording {
+  /** The project folder */
+  projectDir: string;
+  /** Relative to the project folder. @default "files" */
+  filesDir?: string;
+  /** A file that isn't stored (over 50 MB, or unreadable): its step points at `path`, which doesn't exist */
+  onMissing?: (file: MissingFile) => void;
+  /** @internal Tests only: also record events no person caused (`isTrusted` false) */
+  trustSynthetic?: boolean;
+}
+
+export interface MissingFile {
+  /** Project-relative, as the step has it */
+  path: string;
+  name: string;
+  size: number;
+  reason: "too-big" | "unreadable";
+}
+
+/** What the files capture script sends */
+type FilesMessage =
+  | { type: "picker" }
+  | { type: "picker-cancel" }
+  | {
+      type: "files";
+      via: "input" | "drop";
+      target: ElementHandle;
+      candidates: LocatorCall[];
+      files: { id: number; name: string; type: string; size: number }[];
+    };
+
 export interface RecorderOptions {
   /** Called for every step the tester produces, in order. Steps get indexes from `at` on */
   onEvent: (event: RecorderEvent) => void;
@@ -70,6 +119,8 @@ export interface RecorderOptions {
   baseURL?: string;
   /** Shows the recorder toolbar in the page (pause, assert, insert, wait, screenshot, stop). Without it, no toolbar */
   toolbar?: ToolbarOptions;
+  /** Records uploads (file inputs and drops) into the project's files folder. Without it, uploads aren't recorded */
+  files?: FileRecording;
 }
 
 /** The toolbar's hook in its sandbox */
@@ -112,6 +163,23 @@ export class Recorder {
     /** The toolbar's channel, handed only to the toolbar's sandbox: toolbar messages only */
     private readonly toolbarChannel: string,
   ) {}
+
+  /** The files capture script's channel, handed only to its sandbox */
+  private readonly filesChannel = `samurai-files-${randomUUID()}`;
+  private filesPreload: { dispose(): Promise<void> } | undefined;
+  private filesRealms = new Set<string>();
+  private readonly stored = new Set<string>();
+  private readonly missing: MissingFile[] = [];
+
+  /** Files stored or reused in the files folder by this recording, project-relative */
+  public get storedFiles(): string[] {
+    return [...this.stored];
+  }
+
+  /** Files whose steps point at a path that wasn't written */
+  public get missingFiles(): MissingFile[] {
+    return [...this.missing];
+  }
 
   /** The context's `samurai-toolbar` sandbox realms, as last listed: the only realms toolbar messages are taken from */
   private toolbarRealms = new Set<string>();
@@ -162,6 +230,26 @@ export class Recorder {
         this.enqueue(async () => this.handle(message));
       return;
     }
+    if (params.channel === this.filesChannel) {
+      const realm = params.source.realm ?? "";
+      const data = params.data;
+      // In order with the page's messages: a picker follows the click that opened it
+      this.enqueue(async () => {
+        if (!this.filesRealms.has(realm)) await this.listFilesRealms();
+        if (!this.filesRealms.has(realm)) {
+          logger.warn(
+            "Recorder ignored a files message from outside the files sandbox",
+          );
+          return;
+        }
+        await this.fromFiles(
+          fromRemoteValue(
+            data as Parameters<typeof fromRemoteValue>[0],
+          ) as FilesMessage,
+        );
+      });
+      return;
+    }
     if (params.channel !== this.toolbarChannel || !this.controller) return;
     const realm = params.source.realm ?? "";
     if (this.toolbarWaiting === 0 && this.toolbarRealms.has(realm)) {
@@ -184,6 +272,20 @@ export class Recorder {
       })
       .finally(() => this.toolbarWaiting--);
   };
+
+  private async listFilesRealms(): Promise<void> {
+    const { realms } = await this.connector.send("script.getRealms", {
+      context: this.context,
+      type: "window",
+    });
+    this.filesRealms = new Set(
+      realms
+        .filter(
+          (info) => info.type === "window" && info.sandbox === FILES_SANDBOX,
+        )
+        .map((info) => info.realm),
+    );
+  }
 
   private async listToolbarRealms(): Promise<void> {
     const { realms } = await this.connector.send("script.getRealms", {
@@ -264,6 +366,17 @@ export class Recorder {
         arguments: [new ChannelArg(this.channel)],
         onRunError: "log",
       });
+      if (this.options.files) {
+        this.filesPreload = await addPreload(this.connector, {
+          source: filesCaptureSource({
+            trustSynthetic: this.options.files.trustSynthetic === true,
+          }),
+          sandbox: FILES_SANDBOX,
+          contexts: [this.context],
+          arguments: [new ChannelArg(this.filesChannel)],
+          onRunError: "log",
+        });
+      }
       if (this.controller) {
         this.toolbarPreload = await addPreload(this.connector, {
           source: TOOLBAR_SOURCE,
@@ -358,9 +471,10 @@ export class Recorder {
     }
   }
 
-  private async locatorFor(
-    message: PageMessage,
-  ): Promise<LocatorSpec | undefined> {
+  private async locatorFor(message: {
+    target: ElementHandle;
+    candidates: LocatorCall[];
+  }): Promise<LocatorSpec | undefined> {
     const { sharedId } = message.target;
     if (this.known.has(sharedId)) return this.known.get(sharedId);
     const spec = await rankLocator(
@@ -410,6 +524,103 @@ export class Recorder {
     this.emit(this.normaliser.observe(observation, Date.now()));
   }
 
+  private async fromFiles(message: FilesMessage): Promise<void> {
+    const now = Date.now();
+    if (message.type !== "files") {
+      if (!this.controller?.paused)
+        this.emit(this.normaliser.observe(message, now));
+      return;
+    }
+    const release = () =>
+      Promise.allSettled(
+        message.files.map((file) =>
+          releasePageFile(this.connector, this.context, file.id),
+        ),
+      );
+    if (this.controller?.paused) return void (await release());
+    const locator = await this.locatorFor(message);
+    if (!locator) {
+      logger.warn(
+        "Recorder found no locator that matches only the element the files were %s; the upload was skipped",
+        message.via === "drop" ? "dropped on" : "set on",
+      );
+      return void (await release());
+    }
+    const files: FileEntry[] = [];
+    for (const file of message.files)
+      files.push({ path: await this.storePageFile(file) });
+    this.emit(
+      this.normaliser.observe(
+        { type: "files", via: message.via, locator, files },
+        now,
+      ),
+    );
+  }
+
+  /** Saves one kept file to the files folder; returns the path its step gets */
+  private async storePageFile(file: {
+    id: number;
+    name: string;
+    size: number;
+  }): Promise<string> {
+    const recording = this.options.files!;
+    const folder = filesFolder(recording.projectDir, recording.filesDir);
+    const notSaved = (reason: MissingFile["reason"]) => {
+      const missing: MissingFile = {
+        path: `${folder.relative}/${cleanFileName(file.name)}`,
+        name: file.name,
+        size: file.size,
+        reason,
+      };
+      this.missing.push(missing);
+      recording.onMissing?.(missing);
+      this.controller?.warn(missingFileText(missing, folder.relative));
+      return missing.path;
+    };
+    if (file.size > RECORD_LIMIT) {
+      await releasePageFile(this.connector, this.context, file.id).catch(
+        () => undefined,
+      );
+      return notSaved("too-big");
+    }
+    this.controller?.saving(file.name);
+    const temp = await mkdtemp(path.join(tmpdir(), "samurai-upload-"));
+    try {
+      const content = path.join(temp, "content");
+      const out = await open(content, "w");
+      try {
+        await readPageFile(
+          this.connector,
+          this.context,
+          file.id,
+          file.size,
+          (bytes) => out.write(bytes),
+        );
+      } finally {
+        await out.close();
+      }
+      const stored = await storeFile({
+        projectDir: recording.projectDir,
+        ...(recording.filesDir !== undefined && {
+          filesDir: recording.filesDir,
+        }),
+        name: file.name,
+        content,
+      });
+      this.stored.add(stored.path);
+      return stored.path;
+    } catch (err) {
+      logger.warn("Recorder could not save %s", file.name, { err });
+      return notSaved("unreadable");
+    } finally {
+      this.controller?.saving(undefined);
+      await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+      await releasePageFile(this.connector, this.context, file.id).catch(
+        () => undefined,
+      );
+    }
+  }
+
   private async release(): Promise<void> {
     this.connector.offEvent("script.message", this.onMessage);
     this.connector.offEvent(
@@ -421,6 +632,7 @@ export class Recorder {
       this.subscription?.unsubscribe(),
       this.preload?.dispose(),
       this.toolbarPreload?.dispose(),
+      this.filesPreload?.dispose(),
     ]);
   }
 
@@ -470,8 +682,19 @@ export class Recorder {
         onRunError: "log",
       }).catch(() => undefined);
     }
+    if (this.filesPreload)
+      await disposeFilesCapture(this.connector, this.context).catch(
+        () => undefined,
+      );
     await this.queue.tail;
     this.stopped = true;
     await this.release();
   }
+}
+
+/** The warning for a file that isn't saved, as the toolbar and the CLI show it */
+export function missingFileText(file: MissingFile, folder: string): string {
+  return file.reason === "too-big"
+    ? `${file.name} is ${humanSize(file.size)}. Files over 50 MB aren't saved: add it to ${folder}/ yourself, or use a generated file.`
+    : `${file.name} couldn't be read, so it isn't saved: add it to ${folder}/ yourself, or use a generated file.`;
 }
