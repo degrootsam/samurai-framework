@@ -82,7 +82,8 @@ Actions wait until the element is **actionable** before they act, then fail with
 | `fill(value, options?)`          | attached, visible, enabled, editable, not covered            | Clicks the field, selects its content and types `value`; `""` clears it                                                                                                                                                           |
 | `focus(options?)`                | attached                                                     | Focuses the element                                                                                                                                                                                                               |
 | `press(key, options?)`           | attached, visible, enabled                                   | Focuses the element and presses one key with real keyboard input. Named keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Home`, `End`, `PageUp`, `PageDown`, the arrows; anything else must be a single character |
-| `setInputFiles(files, options?)` | attached, enabled (need not be visible)                      | Sets the files of an `<input type=file>`; `[]` clears them                                                                                                                                                                        |
+| `setInputFiles(files, options?)` | attached, enabled (need not be visible)                      | Sets the files of an `<input type=file>`; `[]` clears them. Paths are relative to the project folder; `generatedFile(…)` entries are allowed                                                                                      |
+| `dropFiles(files, options?)`     | attached, visible                                            | Drops files on the element with synthetic `dragenter`, `dragover` and `drop` events (`isTrusted` is false, so a page that only accepts trusted drops rejects them). Same file entries as `setInputFiles`                          |
 | `screenshot(options?)`           | attached, visible                                            | Screenshot of just this element                                                                                                                                                                                                   |
 
 Options for `click`, `fill` and `focus`:
@@ -93,12 +94,31 @@ await button.click({ force: true }); // skip every check except "attached"
 await button.click({ timeout: 0 }); // check once, don't wait
 ```
 
-`fill` types key by key, so the page's `input` and `keydown` handlers run. `setInputFiles` paths are resolved against the working directory and must exist on the machine the browser runs on:
+`fill` types key by key, so the page's `input` and `keydown` handlers run. `setInputFiles` and `dropFiles` paths are relative to the project folder (absolute paths are used as they are) and must exist on the machine the browser runs on:
 
 ```ts
-await page.getByLabel("Avatar").setInputFiles("./fixtures/avatar.png");
-await page.locator("input[@type='file']").setInputFiles(["a.png", "b.png"]); // needs `multiple`
+await page.getByLabel("Avatar").setInputFiles("files/avatar.png");
+await page
+  .locator("input[@type='file']")
+  .setInputFiles(["files/a.png", "files/b.png"]); // needs `multiple`
+await page.getByTestId("dropzone").dropFiles(["files/a.png", "files/b.png"]);
 ```
+
+### generatedFile
+
+`generatedFile({ name, size, type? })` stands in for a big file you don't want in the repository. The bytes are pseudo-random, the same in every run (seeded with the name and size), and written at run time to `result/files/`, then removed when the run ends. `size` is a number of bytes or a string with a unit (`B`, `KB`, `MB`, `GB`, powers of 1024, for example `"60 MB"`).
+
+```ts
+import { generatedFile } from "@itmetsam/samurai-framework";
+
+await page
+  .getByLabel("Upload")
+  .setInputFiles(
+    generatedFile({ name: "huge.pdf", size: "60 MB", type: "application/pdf" }),
+  );
+```
+
+`type` reaches the page through `dropFiles` only. `setInputFiles` hands the browser a path, so the browser takes the type from the file name's extension.
 
 ## Reading
 
