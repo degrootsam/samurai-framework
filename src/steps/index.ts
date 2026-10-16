@@ -4,11 +4,15 @@ export {
   stepToSource,
   locatorToSource,
   callToSource,
+  filesToSource,
   valueToSource,
 } from "./emit.js";
+export { formatSize, humanSize, parseSize, sizeFromSource } from "./files.js";
 export { locatorFromSpec } from "./build.js";
 export type {
   Expectation,
+  FileEntry,
+  GeneratedFileSpec,
   LocatorCall,
   LocatorSpec,
   ParsedStep,

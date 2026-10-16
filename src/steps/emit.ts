@@ -1,5 +1,7 @@
+import { formatSize, sizeFromSource } from "./files.js";
 import type {
   Expectation,
+  FileEntry,
   LocatorCall,
   LocatorSpec,
   Step,
@@ -8,6 +10,23 @@ import type {
 } from "./model.js";
 
 const str = (value: string) => JSON.stringify(value);
+
+function fileEntryToSource(entry: FileEntry): string {
+  if ("path" in entry) return str(entry.path);
+  const { name, size, type, sizeSource } = entry.generate;
+  const sizeText =
+    sizeSource !== undefined && sizeFromSource(sizeSource) === size
+      ? sizeSource
+      : str(formatSize(size));
+  return `generatedFile({ name: ${str(name)}, size: ${sizeText}${type === undefined ? "" : `, type: ${str(type)}`} })`;
+}
+
+/** The argument of `setInputFiles` / `dropFiles`: one entry bare, else an array */
+export function filesToSource(files: readonly FileEntry[]): string {
+  return files.length === 1
+    ? fileEntryToSource(files[0]!)
+    : `[${files.map(fileEntryToSource).join(", ")}]`;
+}
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 function textOptions(call: {
@@ -93,6 +112,9 @@ export function stepToSource(step: Step): string {
       return `await page.waitForTimeout(${step.ms});`;
     case "screenshot":
       return `await page.screenshot({ name: ${str(step.name)}${step.fullPage ? ", fullPage: true" : ""} });`;
+    case "setInputFiles":
+    case "dropFiles":
+      return `await ${locatorToSource(step.locator)}.${step.kind}(${filesToSource(step.files)});`;
     case "custom":
       return step.code;
   }

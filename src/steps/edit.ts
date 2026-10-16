@@ -1,3 +1,4 @@
+import ts from "typescript";
 import { stepToSource } from "./emit.js";
 import type { ParsedTest, Step } from "./model.js";
 import { parseSpec } from "./parse.js";
@@ -111,6 +112,34 @@ function withFixtures(source: string, parsed: ParsedTest, step: Step): string {
   return splice(source, fixtures.at, fixtures.at, text);
 }
 
+const usesGeneratedFile = (step: Step) =>
+  (step.kind === "setInputFiles" || step.kind === "dropFiles") &&
+  step.files.some((file) => "generate" in file);
+
+/** Adds `generatedFile` to the import `test` comes from (or a new import) unless the file imports it */
+function withGeneratedFileImport(source: string): string {
+  const file = ts.createSourceFile(
+    "spec.ts",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let testImport: ts.NamedImports | undefined;
+  for (const statement of file.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    const named = statement.importClause?.namedBindings;
+    if (!named || !ts.isNamedImports(named)) continue;
+    const names = named.elements.map((e) => (e.propertyName ?? e.name).text);
+    if (names.includes("generatedFile")) return source;
+    if (names.includes("test")) testImport ??= named;
+  }
+  if (!testImport)
+    return `import { generatedFile } from "@itmetsam/samurai-framework";\n${source}`;
+  const last = testImport.elements[testImport.elements.length - 1]!;
+  return splice(source, last.end, last.end, ", generatedFile");
+}
+
 /**
  * Applies one edit and returns the new source. Only the touched statement changes, plus the test's parameters
  * when the step reads a fixture (`env`, `secrets`) they don't have yet: everything else, formatting and
@@ -122,18 +151,26 @@ export function applyEdit(source: string, edit: StepEdit): string {
     case "replace": {
       const { start, end } = pickStep(parsed, edit.index);
       // The parameters come before the body: adding to them leaves the step's offsets valid
-      return withFixtures(
+      const next = withFixtures(
         splice(source, start, end, stepToSource(edit.step)),
         parsed,
         edit.step,
       );
+      // Last: the import shifts every offset
+      return usesGeneratedFile(edit.step)
+        ? withGeneratedFileImport(next)
+        : next;
     }
-    case "insert":
-      return withFixtures(
+    case "insert": {
+      const next = withFixtures(
         insertCode(source, parsed, edit.index, stepToSource(edit.step)),
         parsed,
         edit.step,
       );
+      return usesGeneratedFile(edit.step)
+        ? withGeneratedFileImport(next)
+        : next;
+    }
     case "remove":
       return removeStep(source, parsed, edit.index);
     case "move": {
