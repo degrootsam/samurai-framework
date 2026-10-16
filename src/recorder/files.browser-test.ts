@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdtempSync,
@@ -175,16 +176,22 @@ test(
       },
       { trustSynthetic: true },
     );
+    const twoHash = createHash("sha256")
+      .update("two")
+      .digest("hex")
+      .slice(0, 8);
     assert.deepEqual(
       steps.map((s) => s.kind),
       ["dropFiles"],
     );
     assert.deepEqual((steps[0] as { files: unknown }).files, [
       { path: "files/a.png" },
-      { path: "files/a-2.png" },
+      { path: `files/${twoHash}/a.png` },
     ]);
     assert.deepEqual(readdirSync(path.join(projectDir, "files")).sort(), [
-      "a-2.png",
+      ...["a.png", twoHash].sort(),
+    ]);
+    assert.deepEqual(readdirSync(path.join(projectDir, "files", twoHash)), [
       "a.png",
     ]);
   },
