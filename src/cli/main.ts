@@ -161,9 +161,15 @@ export async function main(argv: string[], io: Io): Promise<number> {
         },
         onEvent: (event) => {
           if (values.json) return void io.out(`${JSON.stringify(event)}\n`);
-          if (event.op === "insert")
-            io.out(`  + ${stepToSource(event.step)}\n`);
-          else io.out(`  ~ ${stepToSource(event.step)}\n`);
+          if (event.op === "remove") {
+            count--;
+            return void io.out(
+              `  - step ${event.index + 1} (the click that opened the file picker)\n`,
+            );
+          }
+          io.out(
+            `  ${event.op === "insert" ? "+" : "~"} ${stepToSource(event.step)}\n`,
+          );
           if (event.op === "insert") count++;
         },
       });

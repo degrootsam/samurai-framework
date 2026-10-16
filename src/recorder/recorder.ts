@@ -354,6 +354,7 @@ export class Recorder {
     for (const event of events) {
       this.options.onEvent(event);
       if (event.op === "insert") this.controller?.stepAdded(event.step);
+      else if (event.op === "remove") this.controller?.stepRemoved();
     }
   }
 
