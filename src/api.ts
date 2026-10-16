@@ -8,3 +8,8 @@ export {
   type StepRunInput,
 } from "./flows/steps/index.js";
 export type { TestFixtures } from "./types/test.js";
+export {
+  generatedFile,
+  type GeneratedFile,
+  type FileInput,
+} from "./browser/generated-files.js";
