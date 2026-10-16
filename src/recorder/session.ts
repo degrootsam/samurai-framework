@@ -77,6 +77,8 @@ export interface RecordResult {
   missingFiles: MissingFile[];
   /** The files folder is git-ignored: CI won't have the files */
   filesIgnored: boolean;
+  /** The files folder, relative to the project with forward slashes ("" for the project root) */
+  filesFolder: string;
   /** The files folder was created by this recording */
   firstFiles: boolean;
 }
@@ -314,6 +316,7 @@ export async function recordSpec(
       unsetSecrets,
       files,
       missingFiles,
+      filesFolder: folder.relative,
       filesIgnored:
         files.length + missingFiles.length > 0 &&
         (await isFolderIgnored(projectDir(), folder.relative)),

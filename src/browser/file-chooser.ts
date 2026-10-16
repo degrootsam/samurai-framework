@@ -4,7 +4,7 @@ import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
 import type { FileDialogInfo } from "../types/bidi-modules/input.js";
 import type { ContextTree } from "./context-tree.js";
-import { assertIsFile, resolveFiles } from "./file-paths.js";
+import { type FileInput, resolveFileInputs } from "./generated-files.js";
 
 /**
  * A native file picker the page asked for (a click on an `<input type=file>` or its label). Nothing appears on screen:
@@ -22,14 +22,14 @@ export class FileChooser {
   }
 
   /**
-   * Picks the files (an empty list picks none). Paths resolve against the working directory and must exist on the
-   * machine the browser runs on.
+   * Picks the files (an empty list picks none). Relative paths resolve against the project folder and must exist on
+   * the machine the browser runs on; `generatedFile(…)` is accepted too.
    */
-  public async setFiles(files: string | string[]): Promise<void> {
-    const sharedId = (this.info.element as { sharedId?: string } | undefined)?.sharedId;
+  public async setFiles(files: FileInput | FileInput[]): Promise<void> {
+    const sharedId = (this.info.element as { sharedId?: string } | undefined)
+      ?.sharedId;
     if (!sharedId) throw new Error("file chooser has no element reference");
-    const paths = resolveFiles(files);
-    for (const file of paths) await assertIsFile(file, "setFiles");
+    const paths = await resolveFileInputs(files, "setFiles");
     if (paths.length > 1 && !this.info.multiple) {
       throw new Error("file chooser does not accept multiple files");
     }
@@ -57,11 +57,17 @@ export class FileChooserTracker {
     private contextId: string,
   ) {}
 
-  public static async start(connector: BiDiConnector, tree: ContextTree, contextId: string): Promise<FileChooserTracker> {
+  public static async start(
+    connector: BiDiConnector,
+    tree: ContextTree,
+    contextId: string,
+  ): Promise<FileChooserTracker> {
     const tracker = new FileChooserTracker(connector, tree, contextId);
     connector.onEvent("input.fileDialogOpened", tracker.onOpened);
     try {
-      tracker.subscription = await connector.subscribe(["input.fileDialogOpened"]);
+      tracker.subscription = await connector.subscribe([
+        "input.fileDialogOpened",
+      ]);
     } catch (err) {
       connector.offEvent("input.fileDialogOpened", tracker.onOpened);
       throw err;
@@ -69,11 +75,17 @@ export class FileChooserTracker {
     return tracker;
   }
 
-  public on(event: "filechooser", listener: (...args: EventMap["filechooser"]) => void): void {
+  public on(
+    event: "filechooser",
+    listener: (...args: EventMap["filechooser"]) => void,
+  ): void {
     this.events.on(event, listener as (...args: unknown[]) => void);
   }
 
-  public off(event: "filechooser", listener: (...args: EventMap["filechooser"]) => void): void {
+  public off(
+    event: "filechooser",
+    listener: (...args: EventMap["filechooser"]) => void,
+  ): void {
     this.events.off(event, listener as (...args: unknown[]) => void);
   }
 

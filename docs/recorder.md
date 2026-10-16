@@ -180,7 +180,7 @@ Files a person picks or drops are copied into one folder shared by the whole pro
 - Files over 50 MB are not stored. The step is still written, pointing at the path the file would have, and the person is told: the toolbar shows `<name> is <size>. Files over 50 MB aren't saved: add it to files/ yourself, or use a generated file.` until it is dismissed, `samurai record` prints the same line, and `RecordResult.missingFiles` lists them (as does `recordSpec`'s `onMissingFile`). A file that can't be read is handled the same way. Add the file to the folder before running the test, or use `generatedFile` (see [Locators](locators.md#generatedfile)).
 - While a file is being copied the toolbar shows `Saving <name>…`. Stopping the recording finishes the transfers already started.
 - When the folder is git-ignored, `samurai record` prints `files/ is ignored by git; CI won't have these files.` (`RecordResult.filesIgnored`). The first time files are stored, it says `Recorded files are stored in files/ and committed with your tests.` (`RecordResult.firstFiles`).
-- Events the person did not cause (a script calling `click()` or dispatching a `drop`) are ignored: only trusted events are recorded. Nothing is recorded while paused.
+- Events the person did not cause (a script calling `click()` or dispatching a `drop`) are ignored: only trusted events are recorded. The one exception is a hint: a page's own `input.click()` on a file input also counts as "the click that opened the picker", but it can only replace or remove the last recorded step, and only within 1 s of it. Nothing is recorded while paused.
 
 ### Recording from the middle of a test
 

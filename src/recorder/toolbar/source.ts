@@ -369,13 +369,33 @@ export const TOOLBAR_SOURCE = String.raw`(send) => {
   ];
   const PANELS = { assert: assertPanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
 
+  // Notice nodes live as long as their warning: rebuilding them would make screen readers announce each alert again
+  const noticeNodes = new Map();
+  let savingNode = null;
+  let savingText = null;
   const renderNotices = () => {
-    notices.replaceChildren(
-      ...state.warnings.map((w) =>
-        h("div", { class: "notice warning", "data-warning": String(w.id), role: "alert" },
-          h("span", null, w.text),
-          h("button", { class: "dismiss", "data-action": "dismiss", "data-id": String(w.id) }, "Dismiss"))),
-      ...(state.saving ? [h("div", { class: "notice saving" }, "Saving " + state.saving + "…")] : []));
+    const ids = new Set(state.warnings.map((w) => w.id));
+    for (const [id, node] of noticeNodes) {
+      if (ids.has(id)) continue;
+      node.remove();
+      noticeNodes.delete(id);
+    }
+    for (const w of state.warnings) {
+      if (noticeNodes.has(w.id)) continue;
+      const node = h("div", { class: "notice warning", "data-warning": String(w.id), role: "alert" },
+        h("span", null, w.text),
+        h("button", { class: "dismiss", "data-action": "dismiss", "data-id": String(w.id) }, "Dismiss"));
+      noticeNodes.set(w.id, node);
+      // Before the saving line, which stays last
+      notices.insertBefore(node, savingNode);
+    }
+    const saving = state.saving || null;
+    if (saving !== savingText) {
+      savingText = saving;
+      if (savingNode) savingNode.remove();
+      savingNode = saving ? h("div", { class: "notice saving" }, "Saving " + saving + "…") : null;
+      if (savingNode) notices.append(savingNode);
+    }
   };
   const render = () => {
     const active = root.activeElement;

@@ -59,7 +59,8 @@ export async function storeFile(options: {
     options.projectDir,
     options.filesDir,
   );
-  const projectPath = (file: string) => `${relative}/${path.basename(file)}`;
+  const projectPath = (file: string) =>
+    relative ? `${relative}/${path.basename(file)}` : path.basename(file);
   const { size } = await stat(options.content);
   await mkdir(absolute, { recursive: true });
 
@@ -97,6 +98,7 @@ export async function isFolderIgnored(
   projectDir: string,
   relative: string,
 ): Promise<boolean> {
+  if (relative === "") return false;
   let text: string;
   try {
     text = await readFile(path.join(projectDir, ".gitignore"), "utf8");

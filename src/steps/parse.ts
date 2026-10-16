@@ -199,7 +199,6 @@ function readExpectation(
   return undefined;
 }
 
-/** The step a statement stands for, or undefined when it is outside the recorder's set */
 /** `"path"` or `generatedFile({ name, size, type? })`; undefined for anything else */
 function readFileEntry(node: ts.Expression): FileEntry | undefined {
   const path = stringOf(node);
@@ -268,6 +267,7 @@ function readFiles(node: ts.Expression | undefined): FileEntry[] | undefined {
   return entry && [entry];
 }
 
+/** The step a statement stands for, or undefined when it is outside the recorder's set */
 function readStep(statement: ts.Statement): Step | undefined {
   if (
     !ts.isExpressionStatement(statement) ||
