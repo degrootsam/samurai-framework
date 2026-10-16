@@ -41,6 +41,20 @@ export type Expectation =
   | { matcher: "toHaveAttribute"; name: string; expected: TextMatcher }
   | { matcher: "toHaveCount"; expected: number };
 
+/** A file generated when the step runs: seeded random bytes of `size`, never stored in the project */
+export interface GeneratedFileSpec {
+  name: string;
+  /** Bytes */
+  size: number;
+  /** MIME type; `dropFiles` gives it to the page, `setInputFiles` gets it from the name's extension */
+  type?: string;
+  /** How the size is written in the source (`"60 MB"`, `1048576`); written back while it still means `size` */
+  sizeSource?: string;
+}
+
+/** A file a step sets or drops: one stored in the project (relative to the project folder), or a generated one */
+export type FileEntry = { path: string } | { generate: GeneratedFileSpec };
+
 /** The restricted set of statements the recorder writes. Anything else in a test is a `custom` step */
 export type Step =
   | { kind: "goto"; url: string }
@@ -59,6 +73,10 @@ export type Step =
   | { kind: "waitForTimeout"; ms: number }
   /** Saves the page as evidence under the run's results; never compares */
   | { kind: "screenshot"; name: string; fullPage: boolean }
+  /** Sets the files of an `<input type=file>`; no files clears it */
+  | { kind: "setInputFiles"; locator: LocatorSpec; files: FileEntry[] }
+  /** Drops files on an element, as dragging them from the desktop does */
+  | { kind: "dropFiles"; locator: LocatorSpec; files: FileEntry[] }
   /** A statement the codec does not understand, kept verbatim */
   | { kind: "custom"; code: string };
 
