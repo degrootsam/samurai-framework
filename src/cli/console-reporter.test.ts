@@ -96,3 +96,43 @@ test("skipped tests are not listed among the failures", () => {
   assert.match(out, /1 failed, 0 passed, 1 skipped/);
   assert.match(out, /boom/);
 });
+
+test("a retried test says how it ended, and flaky passes are counted inside the passed", () => {
+  const out = print(
+    [
+      {
+        ...identity,
+        name: "flaky",
+        status: "success",
+        duration: 2100,
+        retry: 2,
+        flaky: true,
+        previousAttempts: [
+          { message: "a", type: "error" },
+          { message: "b", type: "error" },
+        ],
+      },
+      {
+        ...identity,
+        name: "solid",
+        status: "success",
+        duration: 900,
+      },
+      {
+        ...identity,
+        name: "broken",
+        status: "failed",
+        duration: 1500,
+        message: "boom",
+        type: "error",
+        retry: 1,
+        previousAttempts: [{ message: "a", type: "error" }],
+      },
+    ],
+    "failed",
+  );
+  assert.match(out, /✔ flaky \(2\.1s, passed on retry 2\)/);
+  assert.match(out, /✔ solid \(0\.9s\)/);
+  assert.match(out, /✖ broken \(1\.5s, failed after 1 retry\)/);
+  assert.match(out, /1 failed, 2 passed \(1 flaky\)/);
+});

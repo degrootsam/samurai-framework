@@ -9,6 +9,13 @@ export interface ConsoleReporterOptions {
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
+/** What a result says about its retries: `passed on retry 2`, `failed after 2 retries`, or nothing */
+function retried(result: TestResult): string | undefined {
+  if (!("retry" in result) || !result.retry) return undefined;
+  if (result.status === "success") return `passed on retry ${result.retry}`;
+  return `failed after ${result.retry} ${result.retry === 1 ? "retry" : "retries"}`;
+}
+
 /** Prints a run for a person: one line per test as it ends, then every failure in full and a count */
 export class ConsoleReporter {
   private readonly write: (text: string) => void;
@@ -48,7 +55,7 @@ export class ConsoleReporter {
   private line(name: string, result: TestResult, browser: string): string {
     const took =
       "duration" in result
-        ? ` ${this.paint(90, `(${seconds(result.duration)})`)}`
+        ? ` ${this.paint(90, `(${[seconds(result.duration), retried(result)].filter(Boolean).join(", ")})`)}`
         : "";
     if (result.status === "skipped")
       return this.paint(
@@ -80,9 +87,12 @@ export class ConsoleReporter {
       if ("file" in test) this.write(`    ${this.paint(90, test.file)}\n`);
     }
     const passed = summary.tests.length - failed.length - skipped.length;
+    const flaky = summary.tests.filter(
+      (test) => "flaky" in test && test.flaky,
+    ).length;
     const parts = [
       failed.length > 0 && this.paint(31, `${failed.length} failed`),
-      this.paint(32, `${passed} passed`),
+      this.paint(32, `${passed} passed${flaky > 0 ? ` (${flaky} flaky)` : ""}`),
       skipped.length > 0 && this.paint(90, `${skipped.length} skipped`),
     ].filter(Boolean);
     this.write(

@@ -81,6 +81,8 @@ export interface WorkerResources {
   profileDir?: string;
   /** The `workerIndex` fixture. @default 0 */
   workerIndex?: number;
+  /** Which attempt this is, counting from 0: screenshots of a retry go to a `retry-<n>` folder of their own. @default 0 */
+  attempt?: number;
   /** The `beforeAll` / `afterAll` hooks of this worker: kept across tests, closed when the worker is done */
   allHooks?: AllHooks;
 }
@@ -180,7 +182,7 @@ export async function runOneTest(
       page = launched.page;
       outcome.evidence = new Evidence(
         resultDir,
-        `${browserName}/${testDirOf(test, srcDir)}`,
+        `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`,
       );
       launched.page.setEvidence(outcome.evidence);
       const fixtures: TestFixtures = {
