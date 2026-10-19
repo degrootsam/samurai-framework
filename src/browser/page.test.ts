@@ -1720,10 +1720,28 @@ describe("Page API", () => {
       }),
     };
 
+    /** The probe answers with the element's state; the box lookup (it reads `scrollX`) with a box in the document */
+    const calls = (params: any) =>
+      String(params.functionDeclaration).includes("scrollX")
+        ? {
+            type: "success",
+            realm: "r",
+            result: {
+              type: "object",
+              value: [
+                ["x", { type: "number", value: 8 }],
+                ["y", { type: "number", value: 2008 }],
+                ["width", { type: "number", value: 90 }],
+                ["height", { type: "number", value: 50 }],
+              ],
+            },
+          }
+        : state();
+
     test("captures just the element, after waiting until it is attached and visible", async () => {
       const { page, stop, commands } = apiPage({
         ...located,
-        "script.callFunction": () => state(),
+        "script.callFunction": calls,
       });
       const image = await page
         .locator("div[@id='card']")
@@ -1732,7 +1750,8 @@ describe("Page API", () => {
       assert.deepEqual(commands("browsingContext.captureScreenshot"), [
         {
           context: "ctx-1",
-          clip: { type: "element", element: { sharedId: "node-9" } },
+          origin: "document",
+          clip: { type: "box", x: 8, y: 2008, width: 90, height: 50 },
         },
       ]);
       stop();
@@ -1741,7 +1760,7 @@ describe("Page API", () => {
     test("scrolls the element into view first", async () => {
       const { page, stop, ws } = apiPage({
         ...located,
-        "script.callFunction": () => state(),
+        "script.callFunction": calls,
       });
       await page.locator("div").screenshot({ timeout: 1000 });
       const probe = ws.sent.find(
@@ -1779,7 +1798,7 @@ describe("Page API", () => {
     test("takes a type, a quality and a path like the page does", async () => {
       const { page, stop, commands } = apiPage({
         ...located,
-        "script.callFunction": () => state(),
+        "script.callFunction": calls,
       });
       const dir = tmp();
       try {
