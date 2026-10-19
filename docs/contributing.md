@@ -65,7 +65,7 @@ The table reads top to bottom: a folder mostly uses the ones below it. It is tak
 | `network`, `steps`         | `browser` (`ContextTree`, `Page` types), `locator`, `transport`, `wait`                        |
 | `assert`                   | `locator`, `wait`                                                                              |
 | `locator`                  | `script`, `browser` (screenshots, generated files), `transport`, `wait`                        |
-| `script`                   | `transport`, `logger`, `locator` (the probe in `script/helpers.ts`)                            |
+| `script`                   | `transport`, `logger`                                                                          |
 | `transport`                | `wait`, `logger`                                                                               |
 | `wait`, `logger`, `config` | `wait` reads `config` (timeouts); `config` and `logger` import each other; nothing else        |
 | `project`, `browsers`      | `config`, `logger`                                                                             |
@@ -78,7 +78,7 @@ Rules that keep it modular:
 - `transport/` knows nothing of pages, locators or the recorder.
 - `import type` between files of one folder is fine; a value import that closes a loop is not. `npx madge --circular src` lists loops; `.madgerc` makes it ignore type-only imports and the generated BiDi `.d.ts` files, so it reports none today and a new one is a regression. `Page.record` loads the recorder with a dynamic `import()` for that reason: the recorder is built on `Page`.
 
-Known exceptions to the direction, the places to untangle next: `browser` imports `steps` and, lazily, the recorder (`Page.record`); `script/helpers.ts` imports the locator's probe; `locator` imports `screenshot` and `generated-files` from `browser/`; `network` imports `ContextTree` from `browser/`; `wait` reads `config/` for timeouts; `config` and `logger` import each other; `flows/steps` and `flows/run` import each other.
+Known exceptions to the direction, the places to untangle next: `browser` imports `steps` and, lazily, the recorder (`Page.record`); `locator` imports `screenshot` and `generated-files` from `browser/`; `network` imports `ContextTree` from `browser/`; `wait` reads `config/` for timeouts; `config` and `logger` import each other; `flows/steps` and `flows/run` import each other.
 
 ## Keeping the code tidy
 

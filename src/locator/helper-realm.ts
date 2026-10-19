@@ -1,6 +1,10 @@
 import type { BiDiConnector } from "../transport/bidi-connection.js";
-import { PROBE_ELEMENT } from "../locator/element-state.js";
-import { addPreload, runInLoadedContexts, type PreloadHandle } from "./preload.js";
+import {
+  addPreload,
+  runInLoadedContexts,
+  type PreloadHandle,
+} from "../script/preload.js";
+import { PROBE_ELEMENT } from "./element-state.js";
 
 /** Sandbox realm holding the framework's helpers: same DOM as the page, separate JS globals */
 export const HELPER_SANDBOX = "samurai";
@@ -37,10 +41,12 @@ export class HelperRealm implements HelperInstaller {
   ) {}
 
   public ensureInstalled(): Promise<void> {
-    this.installed ??= addPreload(this.connector, this.options()).catch((err) => {
-      this.installed = undefined;
-      throw err;
-    });
+    this.installed ??= addPreload(this.connector, this.options()).catch(
+      (err) => {
+        this.installed = undefined;
+        throw err;
+      },
+    );
     return this.installed.then(() => undefined);
   }
 

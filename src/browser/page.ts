@@ -57,14 +57,14 @@ import {
   toPredicate,
   type NetworkMatch,
 } from "../network/network-wait.js";
-import { UnsupportedOperationError } from "../locator/selector-errors.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
 import type { UrlPattern } from "../network/url-match.js";
 import type {
   UserPromptClosedParameters,
   UserPromptOpenedParameters,
 } from "../types/bidi-modules/browsing-context.js";
 import { toFunctionDeclaration } from "../script/call-function.js";
-import { HelperRealm } from "../script/helpers.js";
+import { HelperRealm } from "../locator/helper-realm.js";
 import { addPreload, type PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { BiDiCommands } from "../types/bidi.js";

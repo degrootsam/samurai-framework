@@ -14,7 +14,7 @@ import {
   HELPER_SANDBOX,
   HELPERS_MISSING,
   type HelperInstaller,
-} from "../script/helpers.js";
+} from "./helper-realm.js";
 import { ElementHandle } from "../script/element-handle.js";
 import {
   takeScreenshot,
@@ -46,10 +46,8 @@ import {
   type WaitForState,
 } from "./element-state.js";
 
-import {
-  InvalidSelectorError,
-  UnsupportedOperationError,
-} from "./selector-errors.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
+import { InvalidSelectorError } from "./selector-errors.js";
 import { LABEL_LOCATE } from "./label-locator.js";
 import { TEXT_LOCATE } from "./text-locator.js";
 import {
