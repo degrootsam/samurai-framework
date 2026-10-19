@@ -123,7 +123,14 @@ const chooser = await page.waitForFileChooser({
   trigger: () => page.getByText("Upload").click(),
 });
 await chooser.setFiles("./fixtures/avatar.png");
+
+// Playwright style: same waits under one name, with an optional predicate
+const same = await page.waitForEvent("filechooser", {
+  trigger: () => page.getByText("Upload").click(),
+});
 ```
+
+`waitForEvent` accepts `download`, `filechooser`, `request` and `response`.
 
 Downloads are saved under `downloadsDir` (default `result/downloads`), in a folder per browser that is removed again when nothing was downloaded. A failed download makes `path()` throw `DownloadError`; `download.failure()` returns the reason or `null`. File pickers never show on screen; answer them with `setFiles`, which takes paths (relative ones resolve against the project folder) or `generatedFile(…)`. For a visible `<input type=file>`, `locator.setInputFiles` is simpler.
 

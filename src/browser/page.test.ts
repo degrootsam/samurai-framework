@@ -2042,6 +2042,37 @@ describe("Page downloads and file choosers", () => {
     stop();
   });
 
+  test("waitForEvent(filechooser) works like waitForFileChooser, without or with trigger", async () => {
+    const { page, stop, chooser } = transferPage();
+    const pending = page.waitForEvent("filechooser", { timeout: 1000 });
+    await tick(40);
+    chooser(true);
+    assert.equal((await pending).isMultiple(), true);
+    const viaTrigger = await page.waitForEvent("filechooser", {
+      timeout: 1000,
+      predicate: (c) => !c.isMultiple(),
+      trigger: async () => {
+        chooser(true);
+        chooser(false);
+      },
+    });
+    assert.equal(viaTrigger.isMultiple(), false);
+    await assert.rejects(
+      page.waitForEvent("filechooser", { timeout: 40, predicate: () => false }),
+      /no file chooser opened within 40ms/,
+    );
+    stop();
+  });
+
+  test("waitForEvent rejects events it cannot wait for", async () => {
+    const { page, stop } = transferPage();
+    await assert.rejects(
+      page.waitForEvent("dialog" as never),
+      /does not support "dialog"/,
+    );
+    stop();
+  });
+
   test("page.on(filechooser) starts tracking by itself", async () => {
     const { page, stop, chooser } = transferPage();
     let count = 0;
