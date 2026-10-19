@@ -35,7 +35,13 @@ function inProject<T>(
       timeout,
       expectTimeout,
     } as ProjectOptions,
-    async (run: PreparedRun) => work(await TestRunner.init(run, runner)),
+    async (run: PreparedRun) =>
+      work(
+        await TestRunner.init(run, runner, {
+          inlineConfig: config !== undefined,
+          ...(dataDir !== undefined && { dataDir }),
+        }),
+      ),
   );
 }
 
@@ -78,6 +84,7 @@ export async function listGroups(
 }
 
 export { BROWSER_NAMES, checkBrowserList } from "../config/browsers.js";
+export { parseWorkers } from "../config/workers.js";
 export type { RunEvent } from "./reporter.js";
 export type { TestError, TestResult, TestSummary } from "../types/test.js";
 export type { ResolvedGroup } from "./groups.js";

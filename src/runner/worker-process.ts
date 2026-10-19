@@ -13,7 +13,8 @@ function workerEntry(): { file: string; execArgv: string[] } {
   if (existsSync(compiled)) return { file: compiled, execArgv: [] };
   return {
     file: fileURLToPath(new URL("./worker.ts", import.meta.url)),
-    execArgv: ["--import", "tsx"],
+    // Resolved from here, not from the project folder: the sources run from a checkout that has tsx
+    execArgv: ["--import", import.meta.resolve("tsx")],
   };
 }
 
@@ -26,6 +27,8 @@ export function processWorkerFactory(): WorkerFactory {
       execArgv,
       stdio: ["ignore", "inherit", "inherit", "ipc"],
     });
+    // A write to a worker that already died fails here; its `exit` event follows and is what the pool acts on
+    child.on("error", () => {});
     return {
       send: (message) => void child.send(message),
       onMessage: (listener) =>

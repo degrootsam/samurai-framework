@@ -26,7 +26,7 @@ export class ConsoleReporter {
       case "run-start":
         this.labelled = event.browsers.length > 1;
         this.write(
-          `Running ${event.total} ${event.total === 1 ? "test" : "tests"} against ${event.environment}${this.labelled ? ` in ${event.browsers.join(", ")}` : ""}\n`,
+          `Running ${event.total} ${event.total === 1 ? "test" : "tests"}${event.workers ? ` with ${event.workers} workers` : ""} against ${event.environment}${this.labelled ? ` in ${event.browsers.join(", ")}` : ""}\n`,
         );
         return;
       case "test-end":

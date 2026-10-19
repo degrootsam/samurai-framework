@@ -20,6 +20,8 @@ export type RunEvent =
       /** Every selected test in every browser */
       total: number;
       browsers: SupportedBrowser[];
+      /** How many tests run at the same time; absent when they run one after the other */
+      workers?: number;
     }
   | {
       type: "test-start";
@@ -77,6 +79,8 @@ export default class TestReporter implements TestSink {
   private browsers: SupportedBrowser[];
   private output: string | false;
   private listener: ((event: RunEvent) => void) | undefined;
+  /** Keys of the run's tests in the order the report lists them; unset: the order they started in */
+  private order: string[] | undefined;
 
   constructor(options: ReporterOptions) {
     this.environment = options.environment;
@@ -94,7 +98,14 @@ export default class TestReporter implements TestSink {
     }
   }
 
-  public onStart(total: number) {
+  /** Lists the tests of the run in the order the report shows them, whichever order they end in */
+  public setOrder(
+    tests: { test: RegisteredTestCase; browser: SupportedBrowser }[],
+  ) {
+    this.order = tests.map(({ test, browser }) => keyOf(test, browser));
+  }
+
+  public onStart(total: number, workers = 1) {
     const t = performance.mark("run-start");
     this.summary = {
       duration: 0,
@@ -109,6 +120,7 @@ export default class TestReporter implements TestSink {
       environment: this.environment,
       total,
       browsers: this.browsers,
+      ...(workers > 1 && { workers }),
     });
   }
 
@@ -119,7 +131,14 @@ export default class TestReporter implements TestSink {
       "run-start",
       "run-end",
     ).duration;
-    const tests = [...this.testResults.values()];
+    const tests = this.order
+      ? [
+          ...this.order.flatMap((key) => this.testResults.get(key) ?? []),
+          ...[...this.testResults]
+            .filter(([key]) => !this.order!.includes(key))
+            .map(([, result]) => result),
+        ]
+      : [...this.testResults.values()];
 
     this.summary = {
       ...this.summary,
@@ -157,6 +176,31 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+    });
+  }
+
+  /**
+   * Ends a test that ran in a worker: the worker built the result (masked, with its own duration), this keeps the
+   * start time from this process's clock, as the worker's clock has another origin
+   */
+  public onRemoteEnd(
+    test: RegisteredTestCase,
+    browser: SupportedBrowser,
+    result: TestResult,
+  ) {
+    const key = keyOf(test, browser);
+    const started = this.testResults.get(key);
+    const ended = {
+      ...result,
+      ...(started && { startTime: started.startTime }),
+    } as TestResult;
+    this.testResults.set(key, ended);
+    this.emit({
+      type: "test-end",
+      name: test.name,
+      file: test.file,
+      browser,
+      result: ended,
     });
   }
 

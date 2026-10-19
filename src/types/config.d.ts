@@ -26,6 +26,11 @@ export interface SamuraiGroup {
   tests?: SamuraiTest[];
   /** The browsers this group's tests run in, instead of the project's `browsers` */
   browsers?: SupportedBrowser[];
+  /**
+   * How many of this group's tests may run at the same time. Only `1` has an effect: the group's tests run one
+   * after the other, even when the run uses more workers (for tests that share an account or data).
+   */
+  workers?: number;
 }
 
 export interface SamuraiEnvironment {
@@ -51,6 +56,13 @@ export interface SamuraiTestConfig {
    * @default ["firefox"]
    */
   browsers?: SupportedBrowser[];
+  /**
+   * How many tests run at the same time, each in a worker process of its own: a whole number from 1, or a share of
+   * the CPUs like `"50%"`. `--workers` and `SAMURAI_WORKERS` win over it. A config passed as an object, not read
+   * from `samurai.config.ts`, runs on one worker.
+   * @default half the CPUs
+   */
+  workers?: number | string;
   /**
    * Browser binaries to launch instead of the builds SAMURAI downloads, relative to the project.
    * `SAMURAI_FIREFOX_PATH` / `SAMURAI_CHROME_PATH` win over these.

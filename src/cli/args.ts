@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import {
   checkBrowserList,
+  parseWorkers,
   type ProjectOptions,
   type RunnerOptions,
 } from "../runner/run.js";
@@ -20,6 +21,7 @@ const FLAGS = {
   "expect-timeout": { type: "string" },
   headless: { type: "boolean" },
   port: { type: "string" },
+  workers: { type: "string" },
   grep: { type: "string" },
   group: { type: "string" },
   browser: { type: "string", multiple: true },
@@ -61,6 +63,8 @@ const valuesOf = (source: string[] | CommandValues): CommandValues =>
 export interface RunnerFlags {
   headless?: boolean;
   port?: number;
+  /** `--workers`: a whole number or a percentage like `50%`, as typed */
+  workers?: string;
   grep?: string;
   group?: string;
   files?: string[];
@@ -68,7 +72,7 @@ export interface RunnerFlags {
   browsers?: SupportedBrowser[];
 }
 
-/** Reads `--headless`, `--port <n>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
+/** Reads `--headless`, `--port <n>`, `--workers <n|n%>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
 export function parseRunnerFlags(
   source: string[] | CommandValues,
 ): RunnerFlags {
@@ -83,6 +87,10 @@ export function parseRunnerFlags(
       );
     }
     flags.port = port;
+  }
+  if (values.workers !== undefined) {
+    parseWorkers(values.workers, "--workers");
+    flags.workers = values.workers;
   }
   if (values.grep !== undefined) flags.grep = values.grep;
   if (values.group !== undefined) flags.group = values.group;
