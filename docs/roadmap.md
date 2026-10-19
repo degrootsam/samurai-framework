@@ -1,6 +1,6 @@
 # Roadmap: what is built and what is open
 
-Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-roadmap.md) and [`superpowers/bidi-roadmap.md`](superpowers/bidi-roadmap.md). This page is the overview.
+This page is the overview of what is built and what is open.
 
 ## Built
 
@@ -23,7 +23,7 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 | #   | Item                                 | Notes                                                                                                                                                                                                                        |
 | --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. The toolbar inside the browser window is done. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done |
-| 7   | **Embedded recording browser**       | Recording inside the Electron editor panel through `chromium-bidi`. Chrome support (done) is its first step; see the [recorder roadmap](superpowers/recorder-roadmap.md)                                                     |
+| 7   | **Embedded recording browser**       | Recording inside the Electron editor panel through `chromium-bidi`. Chrome support (done) is its first step                                                                                                                  |
 | –   | **Record more interactions**         | `<select>` choices, other key presses (arrows, shortcuts), hover, drag, dialogs, contenteditable, iframes (the toolbar is not shown in them either). Each needs a step kind in the codec first                               |
 | –   | **Files manager in the app**         | Which tests use a file, and delete unused ones (in the separate `samurai` repository)                                                                                                                                        |
 | –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                                                                 |

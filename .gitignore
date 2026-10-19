@@ -8,3 +8,5 @@ result/*
 .env.*
 !.env.example
 .DS_Store
+
+docs/superpowers/

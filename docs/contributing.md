@@ -32,7 +32,6 @@ src/
   testing/               stubs and helpers for the framework's own tests
   tests/                 the project's own spec files (run by `bun run dev`)
 docs/                    these guides
-docs/superpowers/        design specs, plans and roadmaps
 ```
 
 ## Running the framework's tests
@@ -79,7 +78,7 @@ Rules that keep it modular:
 - `transport/` knows nothing of pages, locators or the recorder.
 - `import type` between files of one folder is fine; a value import that closes a loop is not. `npx madge --circular --extensions ts --ts-config tsconfig.json src` lists loops (the generated BiDi `.d.ts` files form type-only loops that are harmless).
 
-Known exceptions to the direction, tracked in the [codebase review](superpowers/codebase-review-2026-10-19.md): `browser` imports the recorder (`Page.record`) and `steps`; `script/helpers.ts` imports the locator's probe; `locator` imports `screenshot` and `generated-files` from `browser/`; `network` imports `ContextTree` from `browser/`; `wait` reads `config/` for timeouts; `config` and `logger` import each other; `flows/steps` and `flows/run` import each other.
+Known exceptions to the direction: `browser` imports the recorder (`Page.record`) and `steps`; `script/helpers.ts` imports the locator's probe; `locator` imports `screenshot` and `generated-files` from `browser/`; `network` imports `ContextTree` from `browser/`; `wait` reads `config/` for timeouts; `config` and `logger` import each other; `flows/steps` and `flows/run` import each other.
 
 ## Keeping the code tidy
 
@@ -87,20 +86,20 @@ Known exceptions to the direction, tracked in the [codebase review](superpowers/
 
 ## Conventions
 
-- **Spec first.** Every feature has a design note in `docs/superpowers/specs/` and, for bigger ones, a plan in `docs/superpowers/plans/`. Roadmaps in `docs/superpowers/` track what is done.
+- **Design first.** Write down the design (goal, non-goals, decisions) before a feature of any size, and keep the guide in `docs/` in step with the code.
 - **Test first.** Write the failing test, then the code.
 - **Everything the browser is sent is typed** in `src/types/bidi-modules/`.
 - **Events go through the refcounted subscription API** (`connector.subscribe`), never a bare `session.subscribe`.
 - **No unbounded waits.** Timeouts resolve through `resolveTimeout` (actions, assertions), the navigation timeout, or the BiDi command timeout.
 - **Code that runs in the page is a string** (or a plain arrow function with no inner named functions), because the transpiler can inject helpers that don't exist there.
 - **Secrets never reach logs or reports unmasked.** Anything that writes text goes through the masking in `src/config/mask.ts`.
-- **Small modules.** A file does one job. Past about 400 lines, or a function past about 60, look for the seam (the [codebase review](superpowers/codebase-review-2026-10-19.md) lists the files that are over).
+- **Small modules.** A file does one job. Past about 400 lines, or a function past about 60, look for the seam.
 - **Commits** use conventional prefixes (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`). A Trunk pre-commit hook formats staged files; commit what it formats.
-- A command Firefox lacks is documented in its spec and surfaced as `UnsupportedOperationError`, never as a hang.
+- A command Firefox lacks is documented in its guide and surfaced as `UnsupportedOperationError`, never as a hang.
 
 ## Adding a feature
 
-1. Write or extend a spec in `docs/superpowers/specs/`.
+1. Write down the design: goal, non-goals, decisions.
 2. Add the BiDi typings you need.
 3. Write unit tests against the stub connector, then the implementation.
 4. Add a browser test for what only a real browser can show.
