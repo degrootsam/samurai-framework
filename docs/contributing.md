@@ -31,7 +31,7 @@ src/
   types/                 hand-written BiDi typings and public types
   testing/               stubs and helpers for the framework's own tests
   tests/                 the project's own spec files (run by `bun run dev`)
-docs/                    these guides
+docs/                    this guide (the other guides are in the wiki)
 ```
 
 ## Where the big classes live
@@ -101,7 +101,7 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 
 ## Conventions
 
-- **Design first.** Write down the design (goal, non-goals, decisions) before a feature of any size, and keep the guide in `docs/` in step with the code.
+- **Design first.** Write down the design (goal, non-goals, decisions) before a feature of any size, and keep the guide in the [wiki](https://github.com/degrootsam/samurai-framework/wiki) in step with the code.
 - **Test first.** Write the failing test, then the code.
 - **Everything the browser is sent is typed** in `src/types/bidi-modules/`.
 - **Events go through the refcounted subscription API** (`connector.subscribe`), never a bare `session.subscribe`.
@@ -119,7 +119,7 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 2. Add the BiDi typings you need.
 3. Write unit tests against the stub connector, then the implementation.
 4. Add a browser test for what only a real browser can show.
-5. Document it in the matching guide in `docs/` and tick the roadmap.
+5. Document it in the matching wiki page and tick the Roadmap page.
 
 ## The command line stays separable
 

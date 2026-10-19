@@ -19,12 +19,12 @@ test("Visitor can sign in", async ({ page, env, secrets }) => {
 - **Auto-waiting.** Actions wait until the element is attached, visible, stable, enabled and not covered. Assertions retry until they pass or time out.
 - **Semantic locators.** By role, label, text, test id, CSS or XPath, with ordered fallbacks.
 - **Environments and secrets.** One test file runs against `dev`, `staging` or `production`; secrets come from the environment or a `.env.<name>` file and are masked in logs and reports.
-- **Parallel runs.** Tests run side by side in worker processes (`--workers`, `workers` in the config; half the CPUs by default), and a flow's Parallel node runs its branches at the same time (see [Running tests and reports](docs/running-and-reports.md#parallel-runs)).
+- **Parallel runs.** Tests run side by side in worker processes (`--workers`, `workers` in the config; half the CPUs by default), and a flow's Parallel node runs its branches at the same time (see [Running tests and reports](https://github.com/degrootsam/samurai-framework/wiki/Running-tests-and-reports#parallel-runs)).
 - **Network control.** Mock, block or modify requests; wait for requests, responses and network idle; read response bodies.
-- **Flows.** Chain tests and groups into a graph with conditions, variables, waits and HTTP requests, and run it from the command line or CI (see [Flows](docs/flows.md)).
-- **Recorder building blocks.** Specs are parsed into steps and edited back with minimal diffs, and an engine records what a person does in the browser. A toolbar in the recorded page adds assertions, variables and secrets, waits, screenshots and pause (see [Steps and the recorder](docs/recorder.md)). The Electron app that ties them together lives in a separate repository (see the [roadmap](docs/roadmap.md)).
+- **Flows.** Chain tests and groups into a graph with conditions, variables, waits and HTTP requests, and run it from the command line or CI (see [Flows](https://github.com/degrootsam/samurai-framework/wiki/Flows)).
+- **Recorder building blocks.** Specs are parsed into steps and edited back with minimal diffs, and an engine records what a person does in the browser. A toolbar in the recorded page adds assertions, variables and secrets, waits, screenshots and pause (see [Steps and the recorder](https://github.com/degrootsam/samurai-framework/wiki/Steps-and-the-recorder)). The Electron app that ties them together lives in a separate repository (see the [roadmap](https://github.com/degrootsam/samurai-framework/wiki/Roadmap)).
 
-> **Status:** early. Firefox only. See [what is still open](docs/roadmap.md).
+> **Status:** early. Firefox only. See [what is still open](https://github.com/degrootsam/samurai-framework/wiki/Roadmap).
 
 ## Getting started
 
@@ -39,14 +39,14 @@ npx samurai browsers install firefox             # once per machine
 npx samurai run
 ```
 
-Specs and the config then import from `@itmetsam/samurai-framework` instead of the relative paths used below. See [Command line](docs/cli.md).
+Specs and the config then import from `@itmetsam/samurai-framework` instead of the relative paths used below. See [Command line](https://github.com/degrootsam/samurai-framework/wiki/Command-line).
 
 The rest of this section works in a checkout of this repository.
 
 ### 1. Requirements
 
 - [Node.js](https://nodejs.org) 24 or newer (`engines` in `package.json`; CI uses 26) and, to work on the framework, [Bun](https://bun.sh) 1.3 or newer
-- Firefox, downloaded by the framework: run `bun run dev browsers install firefox` once in this checkout (`npx samurai browsers install firefox` in a project; see [Which browser runs](docs/pages-and-browsers.md#which-browser-runs)). The Firefox installed on the machine is not used.
+- Firefox, downloaded by the framework: run `bun run dev browsers install firefox` once in this checkout (`npx samurai browsers install firefox` in a project; see [Which browser runs](https://github.com/degrootsam/samurai-framework/wiki/Pages-and-browsers#which-browser-runs)). The Firefox installed on the machine is not used.
 
 ### 2. Install
 
@@ -103,13 +103,13 @@ bun run dev --env production   # another environment (or SAMURAI_ENV=production)
 bun run dev --timeout 60000    # per-test timeout in ms; also --expect-timeout
 ```
 
-`bun run dev` is `samurai run` straight from the sources, so it takes the same options (`--grep`, `--file`, `--group`, `--headless`, `--json`, …) and the other commands too (`bun run dev list`, `bun run dev browsers install firefox`). See [Command line](docs/cli.md).
+`bun run dev` is `samurai run` straight from the sources, so it takes the same options (`--grep`, `--file`, `--group`, `--headless`, `--json`, …) and the other commands too (`bun run dev list`, `bun run dev browsers install firefox`). See [Command line](https://github.com/degrootsam/samurai-framework/wiki/Command-line).
 
-A browser window opens for each test and closes when the test ends (`--headless` hides it; on CI it is the default, see [Configuration](docs/configuration.md#headless)). Each test's result is printed as it finishes, followed by a summary, and the full report is written to `result/report.json`. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error. Framework logs go to stderr and `logs/`.
+A browser window opens for each test and closes when the test ends (`--headless` hides it; on CI it is the default, see [Configuration](https://github.com/degrootsam/samurai-framework/wiki/Configuration#headless)). Each test's result is printed as it finishes, followed by a summary, and the full report is written to `result/report.json`. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error. Framework logs go to stderr and `logs/`.
 
 ### Flows (optional)
 
-A project can also keep flows in `flows/*.flow.json` (edited in the Samurai app) that chain tests and groups with conditions and variables. `samurai flow check` validates them and `samurai flow run <flow>` runs them, with a report in `result/flows/`. See [Flows](docs/flows.md).
+A project can also keep flows in `flows/*.flow.json` (edited in the Samurai app) that chain tests and groups with conditions and variables. `samurai flow check` validates them and `samurai flow run <flow>` runs them, with a report in `result/flows/`. See [Flows](https://github.com/degrootsam/samurai-framework/wiki/Flows).
 
 ### 6. Secrets (optional)
 
@@ -119,29 +119,29 @@ cp .env.example .env.staging
 # SAMURAI_SECRET_TEST_PASSWORD=...
 ```
 
-Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win over the file, and `.env.*` files are git-ignored. See [Environments and secrets](docs/environments-and-secrets.md).
+Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win over the file, and `.env.*` files are git-ignored. See [Environments and secrets](https://github.com/degrootsam/samurai-framework/wiki/Environments-and-secrets).
 
 ## Documentation
 
-| Guide                                                        | What it covers                                                                                        |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| [Writing tests](docs/writing-tests.md)                       | `test`, `describe`, fixtures, how a test passes or fails                                              |
-| [Locators](docs/locators.md)                                 | Finding elements, chaining, fallbacks, actions and their auto-waiting                                 |
-| [Assertions](docs/assertions.md)                             | `expect` for elements and for plain values                                                            |
-| [Pages and browsers](docs/pages-and-browsers.md)             | Navigation, waits, screenshots, PDF, viewport, emulation, dialogs, downloads, contexts, cookies       |
-| [Network](docs/network.md)                                   | Waiting for traffic, mocking, blocking, response bodies                                               |
-| [Configuration](docs/configuration.md)                       | Every option in `samurai.config.ts`, CLI flags and precedence                                         |
-| [Environments and secrets](docs/environments-and-secrets.md) | Per-environment settings, variables, secrets and masking                                              |
-| [Command line](docs/cli.md)                                  | `samurai run`, `list`, `record` and `init`, options, output, exit codes, `--json`                     |
-| [Flows](docs/flows.md)                                       | `samurai flow list`, `check` and `run`: graphs of tests, groups and steps, reports, CI                |
-| [Writing a step](docs/steps.md)                              | `defineStep`: flow steps of your own, the built-in steps                                              |
-| [Running tests and reports](docs/running-and-reports.md)     | What a run does, `report.json`, page logs, timeouts                                                   |
-| [Steps and the recorder](docs/recorder.md)                   | The step codec, the recording engine and the recorder toolbar                                         |
-| [Embedding the framework](docs/embedding.md)                 | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
-| [Contributing](docs/contributing.md)                         | Project layout, running the framework's own tests, conventions                                        |
-| [Roadmap](docs/roadmap.md)                                   | What is built and what is still open                                                                  |
+| Guide                                                                                                       | What it covers                                                                                        |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [Writing tests](https://github.com/degrootsam/samurai-framework/wiki/Writing-tests)                         | `test`, `describe`, fixtures, how a test passes or fails                                              |
+| [Locators](https://github.com/degrootsam/samurai-framework/wiki/Locators)                                   | Finding elements, chaining, fallbacks, actions and their auto-waiting                                 |
+| [Assertions](https://github.com/degrootsam/samurai-framework/wiki/Assertions)                               | `expect` for elements and for plain values                                                            |
+| [Pages and browsers](https://github.com/degrootsam/samurai-framework/wiki/Pages-and-browsers)               | Navigation, waits, screenshots, PDF, viewport, emulation, dialogs, downloads, contexts, cookies       |
+| [Network](https://github.com/degrootsam/samurai-framework/wiki/Network)                                     | Waiting for traffic, mocking, blocking, response bodies                                               |
+| [Configuration](https://github.com/degrootsam/samurai-framework/wiki/Configuration)                         | Every option in `samurai.config.ts`, CLI flags and precedence                                         |
+| [Environments and secrets](https://github.com/degrootsam/samurai-framework/wiki/Environments-and-secrets)   | Per-environment settings, variables, secrets and masking                                              |
+| [Command line](https://github.com/degrootsam/samurai-framework/wiki/Command-line)                           | `samurai run`, `list`, `record` and `init`, options, output, exit codes, `--json`                     |
+| [Flows](https://github.com/degrootsam/samurai-framework/wiki/Flows)                                         | `samurai flow list`, `check` and `run`: graphs of tests, groups and steps, reports, CI                |
+| [Writing a step](https://github.com/degrootsam/samurai-framework/wiki/Writing-a-step)                       | `defineStep`: flow steps of your own, the built-in steps                                              |
+| [Running tests and reports](https://github.com/degrootsam/samurai-framework/wiki/Running-tests-and-reports) | What a run does, `report.json`, page logs, timeouts                                                   |
+| [Steps and the recorder](https://github.com/degrootsam/samurai-framework/wiki/Steps-and-the-recorder)       | The step codec, the recording engine and the recorder toolbar                                         |
+| [Embedding the framework](https://github.com/degrootsam/samurai-framework/wiki/Embedding-the-framework)     | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
+| [Contributing](docs/contributing.md)                                                                        | Project layout, running the framework's own tests, conventions                                        |
+| [Roadmap](https://github.com/degrootsam/samurai-framework/wiki/Roadmap)                                     | What is built and what is still open                                                                  |
 
-The [documentation index](docs/README.md) lists every guide by topic.
+The [documentation index](https://github.com/degrootsam/samurai-framework/wiki/Home) lists every guide by topic.
 
 ## Scripts
 
