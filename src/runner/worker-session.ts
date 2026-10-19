@@ -45,7 +45,14 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
               test,
               browser,
               run,
-              { ...(headless !== undefined && { headless }), port, signal },
+              {
+                ...(headless !== undefined && { headless }),
+                ...(init.reportPath !== undefined && {
+                  reportPath: init.reportPath,
+                }),
+                port,
+                signal,
+              },
               loaded.srcDir,
               reporter,
               {
