@@ -83,7 +83,7 @@ await page.grantPermission("geolocation");
 await page.emulate({ geolocation: { latitude: 52.37, longitude: 4.9 } });
 ```
 
-Options: `locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientation`, `screen`, `touch`, `javaScriptEnabled`. An option the browser doesn't support throws `EmulationUnsupportedError`; if a later option fails, the earlier ones stay applied and `EmulationError` lists which. Geolocation only answers once the permission is granted. `page.emulate` wins over the context's emulation.
+Options: `locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientation`, `screen`, `touch`, `javaScriptEnabled`. An option the browser doesn't support throws `EmulationUnsupportedError`: Firefox 158 does not support `touch` and `javaScriptEnabled`, Chrome 155 supports every option above; if a later option fails, the earlier ones stay applied and `EmulationError` lists which. Geolocation only answers once the permission is granted. `page.emulate` wins over the context's emulation.
 
 ## Console output and page errors
 
@@ -167,7 +167,7 @@ await page.goto("https://example.com");
 await browser.close();
 ```
 
-Launch options: `port` (remote debugging port, default 9222), `headless` (default `true`), `profileDir`. The browser must be installed by the framework or set on purpose; see [Which browser runs](#which-browser-runs).
+Launch options: `port` (remote debugging port, default 9222; Chrome picks its own and ignores it), `headless` (default `true`), `profileDir`. Pass `"chrome"` instead of `"firefox"` to launch Chrome. The browser must be installed by the framework or set on purpose; see [Which browser runs](#which-browser-runs).
 
 ## Which browser runs
 
@@ -178,7 +178,7 @@ These builds are pinned by this framework version:
 | Browser            | Build                            | Launchable |
 | ------------------ | -------------------------------- | ---------- |
 | Firefox            | Firefox 158.0                    | yes        |
-| Chrome for Testing | Chrome for Testing 155.0.8059.79 | not yet    |
+| Chrome for Testing | Chrome for Testing 155.0.8059.79 | yes        |
 
 Download them once per machine:
 
@@ -200,6 +200,17 @@ Builds go in a per-user cache folder, shared by all projects:
 `SAMURAI_BROWSERS_BASE_URL` is for tests only: it points the downloads at another server, and nothing checks what that server sends. `samurai browsers install` prints `Downloading from <url>` when it is set.
 
 The first start of a freshly downloaded build can be slow (macOS checks the new app). `samurai run` and `samurai record` therefore start a new build once, headless, before the first test or recording, and remember that in the build folder. If the browser still takes more than two minutes to start, the launch stops with `Firefox 158.0 did not finish starting within 120s. The first start after an install can be slow; run again.`
+
+### Chrome
+
+Set `browser: "chrome"` in `samurai.config.ts` (see [Configuration](configuration.md)) to run, record and replay on Chrome. Chrome has no BiDi endpoint of its own, so the framework starts the `chromedriver` that comes with the pinned Chrome (`samurai browsers install chrome` downloads both), asks it for a session with a BiDi socket, and connects to that. Everything above the connection is the same as on Firefox; the differences you can notice:
+
+- Headless Chrome hides its scrollbars, so the viewport is the size you asked for. Headed Chrome keeps them.
+- `port` is ignored: chromedriver picks the port.
+- `touch` and `javaScriptEnabled` emulation work on Chrome and throw `UnsupportedOperationError` on Firefox.
+- A download that finishes under a name that is taken is saved as `name(1).ext`, as on Firefox.
+- `SAMURAI_CHROMEDRIVER_PATH` points a launch at another chromedriver. It must match the major version of the Chrome it starts; with `SAMURAI_CHROME_PATH` or `browserPaths.chrome` set to a different Chrome, set this too.
+- A Chrome that is still running on the project's profile (`browsers/profiles/chrome`, for instance left by a killed run) stops the next launch at once with `Chrome is already running on the profile … (process <pid>)`; close it or end that process. The check reads Chrome's `SingletonLock` link, so it works on Linux and macOS; on Windows the launch still waits for the start timeout.
 
 A launch picks the browser in this order:
 

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import Locator from "./locator.js";
+import { BiDiError } from "../transport/bidi-error.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
 import type { ElementState } from "./element-state.js";
 import {
@@ -441,4 +442,25 @@ test("all() items keep using the helpers", async () => {
     context: "ctx",
     sandbox: "samurai",
   });
+});
+
+test("a page that is swapping documents matches nothing for now instead of failing (Chrome)", async () => {
+  const { locator, failLocate } = locatorWith("button", state());
+  for (const message of [
+    "Cannot find context with specified id",
+    "execution contexts cleared",
+  ]) {
+    failLocate(
+      new BiDiError("browsingContext.locateNodes", "unknown error", message),
+    );
+    assert.equal(await locator.count(), 0, message);
+  }
+  failLocate(
+    new BiDiError(
+      "browsingContext.locateNodes",
+      "unknown error",
+      "something else",
+    ),
+  );
+  await assert.rejects(locator.count(), /something else/);
 });

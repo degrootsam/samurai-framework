@@ -1,6 +1,6 @@
 {
   "name": "@itmetsam/samurai-framework",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Browser test framework over WebDriver BiDi: auto-waiting locators, environments and secrets, a recorder, and a command line.",
   "main": "dist/api.js",
   "exports": {
@@ -54,7 +54,8 @@
     "dev": "tsx src/index.ts",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-types.mjs",
     "test": "tsx --test --test-timeout=10000 \"src/**/*.test.ts\"",
-    "test:browser": "tsx --test --test-concurrency=1 \"src/**/*.browser-test.ts\"",
+    "test:browser": "tsx --test --test-concurrency=1 --test-timeout=60000 \"src/**/*.browser-test.ts\"",
+    "test:browser:chrome": "SAMURAI_TEST_BROWSER=chrome npm run test:browser",
     "test:cli": "tsx --test --test-concurrency=1 \"src/**/*.cli-test.ts\""
   },
   "keywords": [

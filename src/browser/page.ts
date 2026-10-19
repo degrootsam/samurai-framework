@@ -77,6 +77,8 @@ import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js"
 
 /** Time (ms) a navigation or a wait for a load state may take */
 const DEFAULT_NAVIGATION_TIMEOUT = 30000;
+/** Time (ms) a history traversal may go without a sign that the entry is shown before it is taken as done */
+const HISTORY_SETTLE_TIMEOUT = 1000;
 /** Time (ms) without requests in flight that counts as idle */
 const DEFAULT_IDLE_TIME = 500;
 
@@ -556,17 +558,88 @@ export default class Page {
 
   private async traverse(delta: -1 | 1): Promise<boolean> {
     this.assertOpen();
+    if (delta === -1 && (await this.atFirstEntry())) return false;
+    const settled = await this.watchHistoryTraversal();
     try {
       await this.biDiConnector.send("browsingContext.traverseHistory", {
         context: this.id,
         delta,
       });
+      // Firefox answers once the entry is shown; Chrome answers before, and a script call in between can hit the
+      // document that is going away
+      await settled.done;
       return true;
     } catch (err) {
       if (err instanceof BiDiError && err.code === "no such history entry")
         return false;
       throw err;
+    } finally {
+      await settled.stop();
     }
+  }
+
+  /**
+   * Whether going back would only reach the blank page a tab starts with. Firefox does not keep that page in the
+   * history, Chrome does; the Navigation API (Chrome only) lets Chrome say the same as Firefox.
+   */
+  private async atFirstEntry(): Promise<boolean> {
+    try {
+      return await callFunction<boolean>(
+        this.biDiConnector,
+        this.id,
+        `() => {
+          const nav = globalThis.navigation;
+          if (!nav) return false;
+          const entries = nav.entries();
+          const index = nav.currentEntry.index;
+          return index === 0 || (index === 1 && entries[0].url === "about:blank");
+        }`,
+        [],
+        { awaitPromise: false },
+      );
+    } catch (err) {
+      logger.debug("Could not read the history position", { err });
+      return false;
+    }
+  }
+
+  /**
+   * Starts listening for the end of a history traversal (the new entry committed, or the history or fragment changed
+   * within the document). `done` resolves at the first such event, or after a second without one (a page restored from
+   * the back-forward cache may say nothing); it never rejects.
+   */
+  private async watchHistoryTraversal(): Promise<{
+    done: Promise<void>;
+    stop(): Promise<void>;
+  }> {
+    const events = [
+      "browsingContext.navigationCommitted",
+      "browsingContext.historyUpdated",
+      "browsingContext.fragmentNavigated",
+    ] as const;
+    let subscription: Subscription | undefined;
+    try {
+      subscription = await this.biDiConnector.subscribe([...events]);
+    } catch (err) {
+      logger.debug("Could not watch a history traversal", { err });
+      return { done: Promise.resolve(), stop: async () => {} };
+    }
+    let finish!: () => void;
+    const done = new Promise<void>((resolve) => (finish = resolve));
+    const timer = setTimeout(finish, HISTORY_SETTLE_TIMEOUT);
+    const listener = (info: { context: string }) => {
+      if (info.context === this.id) finish();
+    };
+    for (const event of events) this.biDiConnector.onEvent(event, listener);
+    return {
+      done,
+      stop: async () => {
+        clearTimeout(timer);
+        for (const event of events)
+          this.biDiConnector.offEvent(event, listener);
+        await subscription?.unsubscribe().catch(() => undefined);
+      },
+    };
   }
 
   /** The URL of the page now */
@@ -607,11 +680,13 @@ export default class Page {
   ): Promise<void> {
     this.assertOpen();
     if (viewport === null) {
-      await this.biDiConnector.send("browsingContext.setViewport", {
-        context: this.id,
-        viewport: null,
-        devicePixelRatio: null,
-      });
+      await this.untilResized(() =>
+        this.biDiConnector.send("browsingContext.setViewport", {
+          context: this.id,
+          viewport: null,
+          devicePixelRatio: null,
+        }),
+      );
       return;
     }
     const { width, height, devicePixelRatio } = viewport;
@@ -638,6 +713,50 @@ export default class Page {
       viewport: { width, height },
       ...(devicePixelRatio !== undefined && { devicePixelRatio }),
     });
+  }
+
+  /**
+   * Runs `change`, then waits until the page has stopped resizing. Chrome answers a viewport reset before the window
+   * has its own size back, so a read right after it can still show the old size. The wait ends 50 ms after the last
+   * `resize` event, and after 300 ms when the size does not change at all (no event comes). Never fails: a page that
+   * cannot be watched is simply not waited for.
+   */
+  private async untilResized(change: () => Promise<unknown>): Promise<void> {
+    const sandbox = { sandbox: "samurai-viewport" };
+    const watching = await callFunction(
+      this.biDiConnector,
+      this.id,
+      `() => {
+        globalThis.__resized = new Promise((resolve) => {
+          let timer;
+          const finish = () => {
+            clearTimeout(timer);
+            removeEventListener("resize", onResize);
+            resolve();
+          };
+          const onResize = () => {
+            clearTimeout(timer);
+            timer = setTimeout(finish, 50);
+          };
+          addEventListener("resize", onResize);
+          timer = setTimeout(finish, 300);
+        });
+      }`,
+      [],
+      { ...sandbox, awaitPromise: false },
+    ).then(
+      () => true,
+      () => false,
+    );
+    await change();
+    if (!watching) return;
+    await callFunction(
+      this.biDiConnector,
+      this.id,
+      "() => globalThis.__resized",
+      [],
+      sandbox,
+    ).catch(() => undefined);
   }
 
   /** Gives the page the size from config `use.viewport` (1280x720 by default); the browser does this when it opens a page */

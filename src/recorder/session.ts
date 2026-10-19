@@ -3,7 +3,7 @@ import path from "node:path";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { ensureWarm } from "../browser/warm-up.js";
-import { loadConfig, projectDir } from "../config/config.js";
+import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import { loadSecrets } from "../config/secrets.js";
 import {
   filesFolder,
@@ -208,7 +208,12 @@ export async function recordSpec(
       );
     }
     // Before the spec is touched: a recording without its browser changes nothing
-    await ensureWarm("firefox", { port: options.port ?? 9223 }, options.signal);
+    const browserName = (await readConfig("browser")) ?? "firefox";
+    await ensureWarm(
+      browserName,
+      { port: options.port ?? 9223 },
+      options.signal,
+    );
     options.signal?.throwIfAborted();
     source ??= "";
     if (
@@ -231,7 +236,7 @@ export async function recordSpec(
     }
 
     const { browser, page } = await Browser.launch(
-      "firefox",
+      browserName,
       {
         port: options.port ?? 9223,
         headless: options.headless ?? settings.headless,

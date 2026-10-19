@@ -34,9 +34,13 @@ jobs:
         run: bun run test
 
   browser:
-    name: Browser tests (Firefox)
+    name: Browser tests (${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, chrome]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
@@ -45,16 +49,18 @@ jobs:
         with:
           path: ~/.cache/samurai/browsers
           key: browsers-${{ runner.os }}-${{ hashFiles('src/browsers/pins.ts') }}
-      - name: Install Firefox
-        run: bunx tsx src/index.ts browsers install firefox
+      - name: Install ${{ matrix.browser }}
+        run: bunx tsx src/index.ts browsers install ${{ matrix.browser }}
       - name: Browser tests
         timeout-minutes: 12
+        env:
+          SAMURAI_TEST_BROWSER: ${{ matrix.browser }}
         run: bun run test:browser
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: browser-test-logs
+          name: browser-test-logs-${{ matrix.browser }}
           path: |
             logs/
             result/

@@ -1,6 +1,6 @@
 # Samurai
 
-A browser test framework written in TypeScript. It drives a real browser over the [WebDriver BiDi](https://www.w3.org/TR/webdriver-bidi/) protocol, with no WebDriver server and no Playwright or Puppeteer underneath.
+A browser test framework written in TypeScript. It drives a real browser over the [WebDriver BiDi](https://www.w3.org/TR/webdriver-bidi/) protocol, with no Playwright or Puppeteer underneath. Firefox speaks BiDi itself; Chrome is driven through its own `chromedriver`, which the framework starts for you.
 
 [![CI](https://github.com/degrootsam/samurai-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/degrootsam/samurai-framework/actions/workflows/ci.yml)
 
@@ -146,10 +146,10 @@ The [documentation index](docs/README.md) lists every guide and design note by t
 
 ## Scripts
 
-| Command                | Does                                            |
-| ---------------------- | ----------------------------------------------- |
-| `bun run dev`          | `samurai` from the sources (`tsx src/index.ts`) |
-| `bun run test`         | Unit tests of the framework (no browser needed) |
-| `bun run test:browser` | Browser tests of the framework (needs Firefox)  |
-| `bun run test:cli`     | Tests of the `samurai` command (build first)    |
-| `bun run build`        | Typechecks and compiles to `dist/`              |
+| Command                | Does                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `bun run dev`          | `samurai` from the sources (`tsx src/index.ts`)                                                                     |
+| `bun run test`         | Unit tests of the framework (no browser needed)                                                                     |
+| `bun run test:browser` | Browser tests of the framework (Firefox; `SAMURAI_TEST_BROWSER=chrome` or `bun run test:browser:chrome` for Chrome) |
+| `bun run test:cli`     | Tests of the `samurai` command (build first)                                                                        |
+| `bun run build`        | Typechecks and compiles to `dist/`                                                                                  |

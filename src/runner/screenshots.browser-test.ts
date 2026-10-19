@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { runTests } from "./run.js";
+import { browserConfig } from "../testing/test-browser.js";
 
 const API = path.resolve("src/api.ts");
 
@@ -33,7 +34,7 @@ test(
     writeFileSync(path.join(dir, "specs/shots.spec.ts"), SPEC);
     const summary = await runTests({
       projectDir: dir,
-      config: { srcDir: "./specs", timeout: 30000 },
+      config: { ...browserConfig(), srcDir: "./specs", timeout: 30000 },
       dataDir: path.join(dir, "data"),
       headless: true,
       port: 9254,

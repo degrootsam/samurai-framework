@@ -45,7 +45,7 @@ export interface SamuraiTestConfig {
    */
   srcDir?: string;
   /**
-   * The browser to use for all tests. Only "firefox" can launch today
+   * The browser to use for all tests: "firefox" or "chrome"
    * @default "firefox"
    */
   browser?: SupportedBrowser;

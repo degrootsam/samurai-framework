@@ -57,6 +57,8 @@ export class BiDiConnector {
   private currentId: number = 0;
   /** Set once the socket closed or failed: nothing sent after that gets an answer */
   private closed = false;
+  /** Which browser is on the other end, when the launcher says; code that must treat browsers apart asks this */
+  public browserName?: "firefox" | "chrome";
   private webSocket: WebSocket;
   private eventEmitter: EventEmitter;
   private commandTimeout: number;
@@ -92,8 +94,22 @@ export class BiDiConnector {
     });
   }
 
+  /** Calls `listener` once when the socket closes or fails (not when `kill()` ends it) */
+  public onClosed(listener: () => void): void {
+    this.closeListeners.add(listener);
+  }
+
+  private closeListeners = new Set<() => void>();
+
+  private notifyClosed() {
+    const listeners = [...this.closeListeners];
+    this.closeListeners.clear();
+    for (const listener of listeners) listener();
+  }
+
   private onWebsocketClose = () => {
     this.closed = true;
+    this.notifyClosed();
     this.rejectAll(
       (pending) =>
         new ConnectionClosedError(`Websocket closed${pendingSuffix(pending)}`),
@@ -102,6 +118,7 @@ export class BiDiConnector {
 
   private onWebsocketError = (ev: Event) => {
     this.closed = true;
+    this.notifyClosed();
     this.rejectAll(
       (pending) =>
         new ConnectionClosedError(`Websocket error${pendingSuffix(pending)}`, {
@@ -295,7 +312,35 @@ const PRIVATE_CHANNEL = /^samurai-(recorder|toolbar)-/;
  * action only, so a value the tester types or a secret added from the recorder toolbar never reaches the log
  * (an added secret is only registered for masking after it is saved).
  */
-function forLog(message: {
+export function forLog(message: {
+  type?: string;
+  method?: string;
+  params?: { channel?: unknown; data?: unknown };
+}): unknown {
+  return shortened(redacted(message));
+}
+
+/** A string longer than this is cut in the log: a file's bytes travel in 1 MB chunks, 50 MB makes 70 MB of debug log */
+const LOG_STRING_LIMIT = 1000;
+
+/** A copy of `value` with every long string cut to its start and its length; short values come back as they are */
+function shortened(value: unknown, depth = 0): unknown {
+  if (typeof value === "string")
+    return value.length > LOG_STRING_LIMIT
+      ? `${value.slice(0, 200)}… (${value.length} characters)`
+      : value;
+  if (value === null || typeof value !== "object" || depth > 30) return value;
+  if (Array.isArray(value))
+    return value.map((item) => shortened(item, depth + 1));
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      shortened(item, depth + 1),
+    ]),
+  );
+}
+
+function redacted(message: {
   type?: string;
   method?: string;
   params?: { channel?: unknown; data?: unknown };

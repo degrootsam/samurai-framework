@@ -767,6 +767,18 @@ describe("ToolbarController", () => {
     controller.dispose();
   });
 
+  it("stops waiting for a pick whose commands are never answered once the page is left (Chrome)", async () => {
+    const { controller, replies } = setup(
+      {},
+      { rank: () => new Promise<never>(() => {}) },
+    );
+    const picking = controller.handle(pick(31));
+    controller.navigating();
+    await picking; // resolves although rank never does
+    assert.deepEqual(replies, []);
+    controller.dispose();
+  });
+
   it("drops the toast on a new page so it isn't shown again", async () => {
     const { controller, last } = setup();
     await controller.handle(msg({ action: "wait", kind: "idle" }));

@@ -5,6 +5,13 @@ import type { Collector } from "../types/bidi-modules/network.js";
 /** How large a response body may be to be kept: 10 MiB */
 const DEFAULT_MAX_BODY_SIZE = 10 * 1024 * 1024;
 
+/**
+ * Chrome counts the headers of a response in the size it compares with the collector's limit (a 14-byte body
+ * arrives as about 200 bytes), Firefox counts the body. Chrome's limit is raised by this much and the body is
+ * measured after it is read.
+ */
+const CHROME_HEADER_ALLOWANCE = 64 * 1024;
+
 /** The body of a response cannot be read */
 export class ResponseBodyUnavailableError extends Error {
   public readonly url: string;
@@ -28,6 +35,7 @@ export class DataCollector {
   private constructor(
     private connector: BiDiConnector,
     private id: Collector,
+    private maxBodySize: number,
   ) {}
 
   public static async start(
@@ -35,12 +43,16 @@ export class DataCollector {
     contextId: string,
     options: { maxBodySize?: number } = {},
   ): Promise<DataCollector> {
+    const maxBodySize = options.maxBodySize ?? DEFAULT_MAX_BODY_SIZE;
     const { collector } = await connector.send("network.addDataCollector", {
       dataTypes: ["response"],
-      maxEncodedDataSize: options.maxBodySize ?? DEFAULT_MAX_BODY_SIZE,
+      maxEncodedDataSize:
+        connector.browserName === "chrome"
+          ? maxBodySize + CHROME_HEADER_ALLOWANCE
+          : maxBodySize,
       contexts: [contextId],
     });
-    return new DataCollector(connector, collector);
+    return new DataCollector(connector, collector, maxBodySize);
   }
 
   /** The body of the response to request `requestId`; `url` only names it in errors */
@@ -51,7 +63,17 @@ export class DataCollector {
         request: requestId,
         collector: this.id,
       });
-      return bytes.type === "base64" ? Buffer.from(bytes.value, "base64") : Buffer.from(bytes.value, "utf8");
+      const body =
+        bytes.type === "base64"
+          ? Buffer.from(bytes.value, "base64")
+          : Buffer.from(bytes.value, "utf8");
+      if (body.length > this.maxBodySize) {
+        throw new ResponseBodyUnavailableError(
+          url,
+          `the response is larger than maxBodySize (${this.maxBodySize} bytes)`,
+        );
+      }
+      return body;
     } catch (err) {
       if (err instanceof BiDiError && err.code === "no such network data") {
         throw new ResponseBodyUnavailableError(
@@ -60,7 +82,10 @@ export class DataCollector {
         );
       }
       if (err instanceof BiDiError && err.code === "unavailable network data") {
-        throw new ResponseBodyUnavailableError(url, "the body is not available yet");
+        throw new ResponseBodyUnavailableError(
+          url,
+          "the body is not available yet",
+        );
       }
       throw err;
     }
@@ -84,9 +109,14 @@ export class DataCollector {
     if (this.disposed) return;
     this.disposed = true;
     try {
-      await this.connector.send("network.removeDataCollector", { collector: this.id });
+      await this.connector.send("network.removeDataCollector", {
+        collector: this.id,
+      });
     } catch (err) {
-      if (!(err instanceof BiDiError && err.code === "no such network collector")) throw err;
+      if (!(
+        err instanceof BiDiError && err.code === "no such network collector"
+      ))
+        throw err;
     }
   }
 }

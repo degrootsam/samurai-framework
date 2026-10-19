@@ -339,8 +339,8 @@ describe("Page network tracking", () => {
       page.startNetworkTracking(),
     ]);
     await page.waitForNetworkIdle({ idleTime: 5, timeout: 1000 });
-    // contextCreated + contextDestroyed for the tree, three for the network
-    assert.equal(subscribes(), 5);
+    // contextCreated + contextDestroyed for the tree; three network events and navigationCommitted for the network
+    assert.equal(subscribes(), 6);
     stop();
   });
 
@@ -1333,6 +1333,11 @@ describe("Page API", () => {
         data: PNG.toString("base64"),
       }),
       "browsingContext.print": () => ({ data: PDF.toString("base64") }),
+      "script.callFunction": () => ({
+        type: "success",
+        realm: "realm-1",
+        result: { type: "undefined" },
+      }),
       "browsingContext.reload": () => ({
         navigation: "nav-2",
         url: "https://example.test/",
@@ -1370,6 +1375,35 @@ describe("Page API", () => {
       assert.deepEqual(commands("browsingContext.setViewport"), [
         { context: "ctx-1", viewport: null, devicePixelRatio: null },
       ]);
+      stop();
+    });
+
+    test("null waits for the page to stop resizing: watch first, reset, then wait", async () => {
+      const { ws, page, stop } = apiPage();
+      await page.setViewport(null);
+      assert.deepEqual(
+        ws.sent
+          .filter((m) =>
+            ["script.callFunction", "browsingContext.setViewport"].includes(
+              m.method,
+            ),
+          )
+          .map((m) => m.method),
+        [
+          "script.callFunction",
+          "browsingContext.setViewport",
+          "script.callFunction",
+        ],
+      );
+      stop();
+    });
+
+    test("null still resets a page that cannot be watched", async () => {
+      const { page, stop, commands } = apiPage({
+        "script.callFunction": () => bidiError("no such frame"),
+      });
+      await page.setViewport(null);
+      assert.equal(commands("browsingContext.setViewport").length, 1);
       stop();
     });
 
@@ -1488,16 +1522,65 @@ describe("Page API", () => {
       stop();
     });
 
+    const committed = (ws: FakeWebSocket) =>
+      ws.emitEvent("browsingContext.navigationCommitted", {
+        context: "ctx-1",
+        navigation: "nav",
+        url: "https://example.test/",
+        timestamp: 0,
+      });
+
     test("goBack and goForward move one entry and say true", async () => {
-      const { page, stop, commands } = apiPage({
+      const { ws, page, stop, commands } = apiPage({
         "browsingContext.traverseHistory": () => ({}),
       });
-      assert.equal(await page.goBack(), true);
-      assert.equal(await page.goForward(), true);
+      for (const go of [() => page.goBack(), () => page.goForward()]) {
+        const pending = go();
+        await tick(10);
+        committed(ws);
+        assert.equal(await pending, true);
+      }
       assert.deepEqual(commands("browsingContext.traverseHistory"), [
         { context: "ctx-1", delta: -1 },
         { context: "ctx-1", delta: 1 },
       ]);
+      stop();
+    });
+
+    test("they wait until the new entry is committed, and not for other pages", async () => {
+      const { ws, page, stop } = apiPage({
+        "browsingContext.traverseHistory": () => ({}),
+      });
+      let done = false;
+      const pending = page.goBack().then((result) => {
+        done = true;
+        return result;
+      });
+      await tick(30);
+      ws.emitEvent("browsingContext.navigationCommitted", {
+        context: "ctx-other",
+        navigation: "nav",
+        url: "https://example.test/",
+        timestamp: 0,
+      });
+      await tick(30);
+      assert.equal(done, false, "another page's navigation is no sign");
+      committed(ws);
+      assert.equal(await pending, true);
+      stop();
+    });
+
+    test("goBack says false without asking when only the tab's blank page is behind (Chrome's Navigation API)", async () => {
+      const { page, stop, commands } = apiPage({
+        "script.callFunction": () => ({
+          type: "success",
+          realm: "r",
+          result: { type: "boolean", value: true },
+        }),
+        "browsingContext.traverseHistory": () => ({}),
+      });
+      assert.equal(await page.goBack(), false);
+      assert.equal(commands("browsingContext.traverseHistory").length, 0);
       stop();
     });
 
@@ -1686,10 +1769,28 @@ describe("Page API", () => {
       }),
     };
 
+    /** The probe answers with the element's state; the box lookup (it reads `scrollX`) with a box in the document */
+    const calls = (params: any) =>
+      String(params.functionDeclaration).includes("scrollX")
+        ? {
+            type: "success",
+            realm: "r",
+            result: {
+              type: "object",
+              value: [
+                ["x", { type: "number", value: 8 }],
+                ["y", { type: "number", value: 2008 }],
+                ["width", { type: "number", value: 90 }],
+                ["height", { type: "number", value: 50 }],
+              ],
+            },
+          }
+        : state();
+
     test("captures just the element, after waiting until it is attached and visible", async () => {
       const { page, stop, commands } = apiPage({
         ...located,
-        "script.callFunction": () => state(),
+        "script.callFunction": calls,
       });
       const image = await page
         .locator("div[@id='card']")
@@ -1698,7 +1799,8 @@ describe("Page API", () => {
       assert.deepEqual(commands("browsingContext.captureScreenshot"), [
         {
           context: "ctx-1",
-          clip: { type: "element", element: { sharedId: "node-9" } },
+          origin: "document",
+          clip: { type: "box", x: 8, y: 2008, width: 90, height: 50 },
         },
       ]);
       stop();
@@ -1707,7 +1809,7 @@ describe("Page API", () => {
     test("scrolls the element into view first", async () => {
       const { page, stop, ws } = apiPage({
         ...located,
-        "script.callFunction": () => state(),
+        "script.callFunction": calls,
       });
       await page.locator("div").screenshot({ timeout: 1000 });
       const probe = ws.sent.find(
@@ -1745,7 +1847,7 @@ describe("Page API", () => {
     test("takes a type, a quality and a path like the page does", async () => {
       const { page, stop, commands } = apiPage({
         ...located,
-        "script.callFunction": () => state(),
+        "script.callFunction": calls,
       });
       const dir = tmp();
       try {
