@@ -331,3 +331,21 @@ test("a secret in a skip reason is masked", async () => {
   assert.ok(summary.tests[0].reason.includes(MASK));
   assert.ok(!summary.tests[0].reason.includes("s3cret-value"));
 });
+
+test("a test that skips itself after it started does not start twice", async () => {
+  const events: string[] = [];
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["firefox"],
+    output: false,
+    onEvent: (event) => events.push(event.type),
+  });
+  const t = testCase("a.spec.ts", "needs chrome");
+  reporter.onStart(1);
+  reporter.onTestStart(t, "firefox");
+  reporter.onTestSkipped(t, "firefox", {
+    annotation: "skip",
+    reason: "needs Chrome",
+  });
+  assert.deepEqual(events, ["run-start", "test-start", "test-end"]);
+});

@@ -198,8 +198,10 @@ export default class TestReporter implements TestSink {
     browser: SupportedBrowser,
     { annotation, reason }: TestSkip,
   ) {
-    this.onTestStart(test, browser);
     const key = keyOf(test, browser);
+    // A test skipped from inside already started; one that never ran starts and ends at once
+    if (this.testResults.get(key)?.status !== "started")
+      this.onTestStart(test, browser);
     const result = maskDeep({
       ...(this.testResults.get(key) as PartialTestResult),
       status: "skipped",

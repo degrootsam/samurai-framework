@@ -4,6 +4,7 @@ import type { RegisteredTestCase, TestResult } from "../types/test.js";
 import type { ResolvedGroup } from "./groups.js";
 import type TestReporter from "./reporter.js";
 import { idOf } from "./select.js";
+import { staticSkip } from "./skip.js";
 import type { RunHooks } from "./worker-pool.js";
 import type { WorkItem } from "./worker-protocol.js";
 
@@ -30,15 +31,19 @@ export function planItems(
   const planned = browsers.flatMap((browser) =>
     selected.map((test) => ({ test, browser })),
   );
-  const items = planned.map(({ test, browser }, index): WorkItem => {
+  // A test that does not run (skip, fixme) is in the plan but not in the queue; `index` is its place in the plan
+  const items = planned.flatMap(({ test, browser }, index): WorkItem[] => {
+    if (staticSkip(test)) return [];
     const key = serialKey(test);
-    return {
-      index,
-      file: test.file,
-      testName: test.name,
-      browser,
-      ...(key !== undefined && { serialKey: key }),
-    };
+    return [
+      {
+        index,
+        file: test.file,
+        testName: test.name,
+        browser,
+        ...(key !== undefined && { serialKey: key }),
+      },
+    ];
   });
   return { items, planned };
 }
@@ -89,7 +94,8 @@ export function poolMode(input: {
 }
 
 /**
- * Runs the planned items on the pool and reports them as they happen. An item the pool answers without events
+ * Runs the planned items on the pool and reports them as they happen. Tests that do not run (skip, fixme) are
+ * reported first, here, and never reach a worker. An item the pool answers without events
  * (a queued one cut short by an abort, or one whose worker died before it began) is reported here at the end.
  */
 export async function runPooled(
@@ -100,6 +106,10 @@ export async function runPooled(
   signal?: AbortSignal,
 ): Promise<void> {
   reporter.setOrder(planned);
+  for (const { test, browser } of planned) {
+    const annotation = staticSkip(test);
+    if (annotation) reporter.onTestSkipped(test, browser, { annotation });
+  }
   const started = new Set<number>();
   const ended = new Set<number>();
   const begin = (index: number) => {
@@ -122,7 +132,8 @@ export async function runPooled(
         ? begin(event.item.index)
         : end(event.item.index, event.result),
   });
-  results.forEach((result, index) => {
+  results.forEach((result, position) => {
+    const index = items[position]!.index;
     if (!ended.has(index)) end(index, result);
   });
 }

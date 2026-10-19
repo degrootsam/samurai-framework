@@ -82,3 +82,56 @@ describe("forbidOnly", () => {
     );
   });
 });
+
+describe("skipped tests", () => {
+  it("are reported without a browser, and a run of only skipped tests succeeds", async () => {
+    const skipDir = mkdtempSync(path.join(tmpdir(), "samurai-skip-"));
+    try {
+      writeFileSync(path.join(skipDir, "package.json"), '{"type":"module"}');
+      mkdirSync(path.join(skipDir, "src"));
+      writeFileSync(
+        path.join(skipDir, "src/a.spec.ts"),
+        `import { test, describe } from ${API};
+test.skip("skipped", async () => {});
+test.fixme("broken", async () => {});
+describe.skip("block", () => { test("inside", async () => {}); });`,
+      );
+      const events: { type: string; name?: string }[] = [];
+      const summary = await runTests({
+        projectDir: skipDir,
+        config: {},
+        reportPath: false,
+        onEvent: (event) =>
+          events.push({
+            type: event.type,
+            ...("name" in event && { name: event.name }),
+          }),
+      });
+
+      assert.equal(summary.status, "success");
+      assert.deepEqual(
+        summary.tests.map((t) => [t.name, t.status]),
+        [
+          ["skipped", "skipped"],
+          ["broken", "skipped"],
+          ["block > inside", "skipped"],
+        ],
+      );
+      assert.deepEqual(
+        events.map((e) => e.type),
+        [
+          "run-start",
+          "test-start",
+          "test-end",
+          "test-start",
+          "test-end",
+          "test-start",
+          "test-end",
+          "run-end",
+        ],
+      );
+    } finally {
+      rmSync(skipDir, { recursive: true, force: true });
+    }
+  });
+});

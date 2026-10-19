@@ -18,6 +18,7 @@ import type {
 import type { RunnerOptions } from "./options.js";
 import { judgePageLogs, type LogsConfig } from "./page-logs-report.js";
 import { DEFAULT_PORT } from "./ports.js";
+import { isSkipSignal, type SkipSignal } from "./skip.js";
 import type { PreparedRun } from "./prepare-run.js";
 import type { TestSink } from "./reporter.js";
 import { testDirOf } from "./test-dir.js";
@@ -47,6 +48,16 @@ class TestOutcome {
 
   public get isEnded(): boolean {
     return this.ended;
+  }
+
+  /** The test skipped itself (`test.skip(condition)`): reported as skipped, not as a failure */
+  public skip(signal: SkipSignal): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.reporter.onTestSkipped(this.test, this.browser, {
+      annotation: signal.annotation,
+      reason: signal.reason,
+    });
   }
 
   public finish(error?: TestError, logs?: Logs): void {
@@ -178,6 +189,7 @@ export async function runOneTest(
       outcome.finish(verdict.error, verdict);
     } catch (err) {
       if (timeoutController.signal.aborted) return;
+      if (isSkipSignal(err)) return outcome.skip(err);
       outcome.finish(
         outcome.browserClosed || err instanceof ConnectionClosedError
           ? {
