@@ -6,6 +6,7 @@ import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import { forbidsOnly } from "../config/forbid-only.js";
 import logger from "../logger/index.js";
 import type { RegisteredTestCase } from "../types/test.js";
+import { AllHooks } from "./all-hooks.js";
 import { assertNoOnly, narrowToOnly } from "./focus.js";
 import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "./groups.js";
 import type { ResolvedGroup } from "./groups.js";
@@ -21,7 +22,7 @@ import {
   serialKeyOf,
   type PooledRunner,
 } from "./pooled-run.js";
-import { runOneTest } from "./run-test.js";
+import { allHookFixtures, runOneTest } from "./run-test.js";
 import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveWorkers } from "./workers-option.js";
@@ -149,7 +150,8 @@ export default class TestRunner {
 
     // A missing browser is one clear error before the run, not a failure per test, and before any browser has run a
     // test; a fresh build's slow first start happens here too, outside any test's timeout
-    if (selected.length > 0) {
+    // Skipped tests need no browser, so a run of only those needs none installed
+    if (selected.some((test) => !staticSkip(test))) {
       for (const browser of browsers) await projectBrowser(browser);
       for (const browser of browsers)
         await ensureWarm(
@@ -172,30 +174,41 @@ export default class TestRunner {
     }
 
     reporter.onStart(selected.length * browsers.length);
-    for (const browser of browsers) {
-      for (const test of selected) {
-        const annotation = staticSkip(test);
-        if (annotation) {
-          reporter.onTestSkipped(test, browser, { annotation });
-          continue;
+    // The `afterAll` hooks run when the last test is done, before the run ends
+    const allHooks = new AllHooks({
+      timeout: this.run.settings.timeout,
+      fixtures: (browser) => allHookFixtures(this.run, browser),
+    });
+    try {
+      for (const browser of browsers) {
+        for (const test of selected) {
+          const annotation = staticSkip(test);
+          if (annotation) {
+            reporter.onTestSkipped(test, browser, { annotation });
+            continue;
+          }
+          if (signal?.aborted) {
+            reporter.onTestStart(test, browser);
+            reporter.onTestEnd(test, browser, {
+              message: "Run aborted",
+              type: "error",
+            });
+            continue;
+          }
+          await runOneTest(
+            test,
+            browser,
+            this.run,
+            this.options,
+            loaded.srcDir,
+            reporter,
+            { allHooks },
+          );
         }
-        if (signal?.aborted) {
-          reporter.onTestStart(test, browser);
-          reporter.onTestEnd(test, browser, {
-            message: "Run aborted",
-            type: "error",
-          });
-          continue;
-        }
-        await runOneTest(
-          test,
-          browser,
-          this.run,
-          this.options,
-          loaded.srcDir,
-          reporter,
-        );
       }
+    } finally {
+      for (const error of await allHooks.closeAll())
+        logger.error("%s", error.message);
     }
     return reporter.onEnd();
   }

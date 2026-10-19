@@ -86,6 +86,9 @@ describe("forbidOnly", () => {
 describe("skipped tests", () => {
   it("are reported without a browser, and a run of only skipped tests succeeds", async () => {
     const skipDir = mkdtempSync(path.join(tmpdir(), "samurai-skip-"));
+    // No browser is installed: a run that only skips must not ask for one (as on a CI runner)
+    const cache = process.env.SAMURAI_BROWSERS_PATH;
+    process.env.SAMURAI_BROWSERS_PATH = path.join(skipDir, "no-browsers");
     try {
       writeFileSync(path.join(skipDir, "package.json"), '{"type":"module"}');
       mkdirSync(path.join(skipDir, "src"));
@@ -131,6 +134,8 @@ describe.skip("block", () => { test("inside", async () => {}); });`,
         ],
       );
     } finally {
+      if (cache === undefined) delete process.env.SAMURAI_BROWSERS_PATH;
+      else process.env.SAMURAI_BROWSERS_PATH = cache;
       rmSync(skipDir, { recursive: true, force: true });
     }
   });

@@ -25,7 +25,7 @@ function project(spec: string, config: object = {}) {
   writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
   writeFileSync(
     path.join(dir, "samurai.config.ts"),
-    `export default ${JSON.stringify({ srcDir: "./specs", timeout: 30000, expect: { timeout: 1000 }, ...browserConfig(), ...config })};`,
+    `export default ${JSON.stringify({ srcDir: "./specs", timeout: 30000, expect: { timeout: 1000 }, forbidOnly: false, ...browserConfig(), ...config })};`,
   );
   mkdirSync(path.join(dir, "specs"));
   writeFileSync(path.join(dir, "specs/shop.spec.ts"), spec);
