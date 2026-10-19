@@ -1522,16 +1522,65 @@ describe("Page API", () => {
       stop();
     });
 
+    const committed = (ws: FakeWebSocket) =>
+      ws.emitEvent("browsingContext.navigationCommitted", {
+        context: "ctx-1",
+        navigation: "nav",
+        url: "https://example.test/",
+        timestamp: 0,
+      });
+
     test("goBack and goForward move one entry and say true", async () => {
-      const { page, stop, commands } = apiPage({
+      const { ws, page, stop, commands } = apiPage({
         "browsingContext.traverseHistory": () => ({}),
       });
-      assert.equal(await page.goBack(), true);
-      assert.equal(await page.goForward(), true);
+      for (const go of [() => page.goBack(), () => page.goForward()]) {
+        const pending = go();
+        await tick(10);
+        committed(ws);
+        assert.equal(await pending, true);
+      }
       assert.deepEqual(commands("browsingContext.traverseHistory"), [
         { context: "ctx-1", delta: -1 },
         { context: "ctx-1", delta: 1 },
       ]);
+      stop();
+    });
+
+    test("they wait until the new entry is committed, and not for other pages", async () => {
+      const { ws, page, stop } = apiPage({
+        "browsingContext.traverseHistory": () => ({}),
+      });
+      let done = false;
+      const pending = page.goBack().then((result) => {
+        done = true;
+        return result;
+      });
+      await tick(30);
+      ws.emitEvent("browsingContext.navigationCommitted", {
+        context: "ctx-other",
+        navigation: "nav",
+        url: "https://example.test/",
+        timestamp: 0,
+      });
+      await tick(30);
+      assert.equal(done, false, "another page's navigation is no sign");
+      committed(ws);
+      assert.equal(await pending, true);
+      stop();
+    });
+
+    test("goBack says false without asking when only the tab's blank page is behind (Chrome's Navigation API)", async () => {
+      const { page, stop, commands } = apiPage({
+        "script.callFunction": () => ({
+          type: "success",
+          realm: "r",
+          result: { type: "boolean", value: true },
+        }),
+        "browsingContext.traverseHistory": () => ({}),
+      });
+      assert.equal(await page.goBack(), false);
+      assert.equal(commands("browsingContext.traverseHistory").length, 0);
       stop();
     });
 
