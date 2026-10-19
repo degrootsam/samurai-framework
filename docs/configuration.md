@@ -27,6 +27,7 @@ export default defineConfig({
 | ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                                                                |
 | `browsers`              | `["firefox"]`                            | Browsers every test runs in, one after the other: `firefox`, `chrome` or both; a group can name its own, see [Browsers](#browsers) |
+| `workers`               | half the CPUs                            | Tests that run at the same time, each in its own worker process: a number from 1 or a share like `"50%"`; see [Workers](#workers)  |
 | `timeout`               | `30000`                                  | Time (ms) one test may take                                                                                                        |
 | `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                                                                            |
 | `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying                                               |
@@ -90,6 +91,19 @@ Each entry of `environments` can set:
 | `variables`      | Test data available as `env.<name>` in tests. Never put secrets here               |
 | `headless`       | Overrides `use.headless` for this environment (e.g. `true` for a `ci` environment) |
 
+### Workers
+
+`workers` is how many tests run at the same time. Each test (in one browser) runs in a worker process of its own, with its own browser, so tests do not share state. The default is half the CPUs (`max(1, floor(cpus / 2))`); `workers: 1` runs the tests one after the other.
+
+```ts
+workers: 4,        // four at a time
+workers: "50%",    // half the CPUs
+```
+
+A group can hold back its own tests: `{ name: "checkout", workers: 1 }` means no two tests of that group run at the same time, even when the run uses more workers (for tests that share an account or data). Only `1` has an effect on a group; any other whole number is accepted and ignored. Tests outside the group still run beside it.
+
+The first that is set wins: `--workers`, then `SAMURAI_WORKERS`, then `workers` in the config, then the default. A run with one test, or with a config passed as an object (not read from `samurai.config.ts`), stays on one worker. See [Parallel runs](running-and-reports.md#parallel-runs).
+
 ### Groups
 
 `groups` names sets of tests. Run one with `samurai run --group <name>` or `runTests({ group })`.
@@ -109,6 +123,7 @@ groups: [
 | `testMatch` | Glob matched against the spec path below `src`; default `**/*.spec.ts`                                                                                                                                                      |
 | `tests`     | Tests picked by hand: `file` relative to `srcDir`, `title` the full name (`describe` titles joined with `>`). Overrides `src` and `testMatch`; a picked test that no longer exists is reported as `missing` by `listGroups` |
 | `browsers`  | The browsers this group's tests run in, instead of the project's `browsers` (see [Browsers](#browsers))                                                                                                                     |
+| `workers`   | `1`: the group's tests never run at the same time as each other (see [Workers](#workers))                                                                                                                                   |
 
 A test's id is `<file relative to srcDir, with />::<full name>`. An unknown group name is an error that lists the groups.
 
@@ -118,11 +133,12 @@ A test's id is `<file relative to srcDir, with />::<full name>`. An unknown grou
 bun run dev --env staging --timeout 60000 --expect-timeout 10000
 ```
 
-| Flag                    | Meaning                               | Also                 |
-| ----------------------- | ------------------------------------- | -------------------- |
-| `--env <name>`          | Environment to run against            | `SAMURAI_ENV=<name>` |
-| `--timeout <ms>`        | Per-test timeout                      |                      |
-| `--expect-timeout <ms>` | Retry time for actions and assertions |                      |
+| Flag                    | Meaning                               | Also                  |
+| ----------------------- | ------------------------------------- | --------------------- |
+| `--env <name>`          | Environment to run against            | `SAMURAI_ENV=<name>`  |
+| `--timeout <ms>`        | Per-test timeout                      |                       |
+| `--expect-timeout <ms>` | Retry time for actions and assertions |                       |
+| `--workers <n\|n%>`     | Tests that run at the same time       | `SAMURAI_WORKERS=<n>` |
 
 Unknown flags are an error, and the millisecond flags must be whole numbers. Every flag of the command (`--file`, `--grep`, `--group`, `--headless`, `--port`, `--json`, …) is in [Command line](cli.md).
 
@@ -134,6 +150,8 @@ For timeouts, the first that is set wins:
 2. the environment (`environments.<name>.timeout`, `.expect.timeout`)
 3. the project (`timeout`, `expect.timeout`)
 4. the built-in default (30 000 and 5000 ms)
+
+`workers` follows its own order: `--workers`, `SAMURAI_WORKERS`, `workers` in the config, then half the CPUs.
 
 `baseURL` follows environment, then project. A timeout passed to one call (`click({ timeout })`, `expect(...).toBeVisible({ timeout })`) always wins for that call.
 

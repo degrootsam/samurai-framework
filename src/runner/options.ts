@@ -13,6 +13,12 @@ export interface RunnerOptions {
   group?: string;
   /** The browsers to run in, instead of the group's or the project's `browsers` (the command line's `--browser`) */
   browsers?: SupportedBrowser[];
+  /**
+   * How many tests run at the same time, each in a worker process: a whole number from 1 or a share of the CPUs
+   * like `"50%"` (the command line's `--workers`). Beats `SAMURAI_WORKERS` and the config's `workers`.
+   * @default the config's `workers`, else half the CPUs
+   */
+  workers?: number | string;
   /** Run the browser without a window. @default false */
   headless?: boolean;
   /** Remote debugging port of the browser. @default DEFAULT_PORT (9223) */

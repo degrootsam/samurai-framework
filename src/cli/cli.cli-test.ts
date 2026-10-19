@@ -50,6 +50,34 @@ describe("main", () => {
     const port = io();
     assert.equal(await main(["run", "--port", "abc"], port.target), 2);
     assert.match(port.err(), /--port/);
+    const workers = io();
+    assert.equal(await main(["run", "--workers", "0"], workers.target), 2);
+    assert.match(workers.err(), /--workers must be a whole number from 1/);
+  });
+
+  it("documents --workers in the usage", () => {
+    assert.match(USAGE, /--workers <n\|n%>/);
+  });
+
+  it("exits 2 for a config whose workers is not a count or a percentage, naming the key", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      'export default { workers: 0, groups: [{ name: "a", workers: "2%" }] };',
+    );
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      const { target, err } = io();
+      assert.equal(await main(["list"], target), 2);
+      assert.match(
+        err(),
+        /^workers must be a whole number from 1 or a percentage/,
+      );
+    } finally {
+      process.chdir(previous);
+    }
   });
 
   it("exits 2 when the project has no config", async () => {
@@ -297,6 +325,22 @@ describe("ConsoleReporter", () => {
     assert.match(text, /✔ a \[firefox\] \(1\.0s\)/);
     assert.match(text, /✔ a \[chrome\] \(1\.0s\)/);
     assert.match(text, /\nb > c \[chrome\]\n/);
+  });
+
+  it("names the workers of a run that uses more than one", () => {
+    let text = "";
+    const reporter = new ConsoleReporter({
+      write: (t) => (text += t),
+      color: false,
+    });
+    reporter.handle({
+      type: "run-start",
+      environment: "staging",
+      total: 6,
+      browsers: ["firefox"],
+      workers: 3,
+    });
+    assert.equal(text, "Running 6 tests with 3 workers against staging\n");
   });
 
   it("prints no label for a run with one browser", () => {

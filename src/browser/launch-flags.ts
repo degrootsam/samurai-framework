@@ -22,6 +22,15 @@ const baseBrowserLaunchFlags: Record<SupportedBrowser, string[]> = {
   firefox: ["--no-sandbox", "--no-remote"],
 };
 
+/** The profile folder of a worker: worker 0 keeps the browser's own folder, worker N gets `<browser>-wN` beside it */
+export const workerProfileDir = (
+  browserName: SupportedBrowser,
+  workerIndex: number,
+): string =>
+  workerIndex === 0
+    ? path.dirname(browserProfilePath(browserName))
+    : path.join(browsersDir(), "profiles", `${browserName}-w${workerIndex}`);
+
 /** Read when a browser launches, since the profile folder depends on the active project */
 export const defaultLaunchOptions = (
   browserName: SupportedBrowser,

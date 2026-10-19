@@ -154,3 +154,99 @@ test("run-start carries the total and the browsers", async () => {
     },
   ]);
 });
+
+test("run-start names the workers only when there is more than one", () => {
+  const seen: unknown[] = [];
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["chrome"],
+    output: false,
+    onEvent: (event) => event.type === "run-start" && seen.push(event),
+  });
+  reporter.onStart(6, 1);
+  reporter.onStart(6, 3);
+  assert.deepEqual(
+    seen.map((e) => (e as { workers?: number }).workers),
+    [undefined, 3],
+  );
+});
+
+test("results from workers are listed in the order the run planned, whichever ends first", async () => {
+  const a = testCase("a.spec.ts", "first");
+  const b = testCase("a.spec.ts", "second");
+  const c = testCase("a.spec.ts", "third");
+  const events: string[] = [];
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["firefox"],
+    output: false,
+    onEvent: (event) =>
+      events.push(event.type === "test-end" ? `end:${event.name}` : event.type),
+  });
+  reporter.onStart(3, 2);
+  reporter.setOrder([
+    { test: a, browser: "firefox" },
+    { test: b, browser: "firefox" },
+    { test: c, browser: "firefox" },
+  ]);
+  reporter.onTestStart(b, "firefox");
+  reporter.onTestStart(a, "firefox");
+  reporter.onRemoteEnd(b, "firefox", {
+    name: "second",
+    file: "a.spec.ts",
+    browser: "firefox",
+    status: "success",
+    startTime: 999999,
+    duration: 12,
+    worker: 1,
+  });
+  reporter.onRemoteEnd(a, "firefox", {
+    name: "first",
+    file: "a.spec.ts",
+    browser: "firefox",
+    status: "failed",
+    startTime: 999999,
+    duration: 30,
+    worker: 0,
+    message: "boom",
+    type: "error",
+  } as never);
+  reporter.onTestStart(c, "firefox");
+  reporter.onRemoteEnd(c, "firefox", {
+    name: "third",
+    file: "a.spec.ts",
+    browser: "firefox",
+    status: "success",
+    startTime: 1,
+    duration: 5,
+    worker: 1,
+  });
+  const summary = await reporter.onEnd();
+  assert.deepEqual(
+    summary.tests.map((t) => [t.name, t.status, "worker" in t && t.worker]),
+    [
+      ["first", "failed", 0],
+      ["second", "success", 1],
+      ["third", "success", 1],
+    ],
+  );
+  assert.deepEqual(
+    summary.tests.map((t) => ("duration" in t ? t.duration : undefined)),
+    [30, 12, 5],
+    "a worker's own duration is kept",
+  );
+  assert.ok(
+    summary.tests.every((t) => t.startTime !== 999999 && t.startTime !== 1),
+    "the start time is the one this process saw, not the worker's clock",
+  );
+  assert.deepEqual(events, [
+    "run-start",
+    "test-start",
+    "test-start",
+    "end:second",
+    "end:first",
+    "test-start",
+    "end:third",
+    "run-end",
+  ]);
+});

@@ -54,7 +54,7 @@ async function registerAll(testFiles: string[]): Promise<RegisteredTestCase[]> {
 }
 
 /** Id of a registered test: its spec file relative to `srcDir`, then its name */
-function idOf(test: RegisteredTestCase, srcDir: string): string {
+export function idOf(test: RegisteredTestCase, srcDir: string): string {
   return testId(toPosix(path.relative(srcDir, test.file)), test.name);
 }
 

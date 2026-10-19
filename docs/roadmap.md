@@ -14,6 +14,7 @@ This page is the overview of what is built and what is open.
 - **Flows.** `samurai flow list|check|run`: graphs of tests, groups, conditions, variables, waits and parallel branches, checked before they run, with a report per run. Wait, Set variable and HTTP request run, and you can write more steps, and a project can list its own steps in `samurai.config.ts` (see [Flows](flows.md) and [Writing a step](steps.md)).
 - **Packaging.** Published on npm as `@itmetsam/samurai-framework`, with subpath exports (see [Embedding](embedding.md)) and the `samurai` command (see [Command line](cli.md)).
 - **Browser management.** `samurai browsers install|list|uninstall` downloads pinned Firefox and Chrome for Testing builds into a per-user cache.
+- **Parallel runs.** `workers` in the config (default half the CPUs), `--workers` and `SAMURAI_WORKERS`: tests run at the same time in worker processes, each with its own browser, port and profile, and a flow's Parallel node runs its branches concurrently on the same pool (see [Parallel runs](running-and-reports.md#parallel-runs)).
 - **Several browsers.** `browsers: ["firefox", "chrome"]` in the config and on each group, `--browser` on the command line: every test runs once per browser, with a result, events and a screenshot folder per browser.
 - **Chrome.** Runs, records and replays on Chrome 155 through its chromedriver (BiDi over the `webSocketUrl` capability); the browser tests run on both browsers (`SAMURAI_TEST_BROWSER`). See [Chrome support](pages-and-browsers.md#chrome).
 - **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request (the `samurai` command's own tests, `bun run test:cli`, are run locally).
@@ -47,7 +48,6 @@ This page is the overview of what is built and what is open.
 Gaps in the runner today, found while writing these docs:
 
 - **Report formats.** Only `result/report.json` and the console output; no HTML or JUnit report.
-- **Parallel runs.** Tests run one at a time, and browsers one after the other; running several at once is missing. (`--headless`, `--port`, `--grep` and `--file` exist.) A test in one browser is the unit a scheduler can take, so parallel runs need no change to the config, the events or the report.
 - **Tags.** Tests can be selected by file and by name, but not by tag.
 - **Hooks and modifiers.** No `beforeEach`, `afterEach`, `beforeAll`, `afterAll`, `test.skip`, `test.only`, `test.fixme`, or retries.
 - **Failure artefacts.** No automatic screenshot, video or trace when a test fails.

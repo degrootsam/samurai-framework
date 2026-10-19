@@ -106,6 +106,20 @@ describe("parseRunnerFlags", () => {
     assert.deepEqual(parseRunOverrides(parsed.values), { environment: "dev" });
   });
 
+  test("reads --workers as typed, and refuses what is not a count or a percentage", () => {
+    assert.deepEqual(parseRunnerFlags(["--workers", "4"]), { workers: "4" });
+    assert.deepEqual(parseRunnerFlags(["--workers", "50%"]), {
+      workers: "50%",
+    });
+    for (const bad of ["0", "abc", "1.5", "150%", ""])
+      assert.throws(
+        () => parseRunnerFlags(["--workers", bad]),
+        new RegExp(
+          `--workers must be a whole number from 1 or a percentage like 50%, got "${bad}"`,
+        ),
+      );
+  });
+
   test("rejects a port that is not a port number", () => {
     assert.throws(() => parseRunnerFlags(["--port", "0"]), /--port/);
     assert.throws(() => parseRunnerFlags(["--port", "abc"]), /--port/);
