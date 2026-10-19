@@ -133,6 +133,49 @@ test.only("focus", async () => {});`,
     }
   });
 
+  it("a run of only skipped tests exits 0, prints them as dashes and counts them", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-skip-"));
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      'export default { srcDir: "./specs" };',
+    );
+    mkdirSync(path.join(dir, "specs"));
+    writeFileSync(
+      path.join(dir, "specs/a.spec.ts"),
+      `import { test } from ${JSON.stringify(path.resolve("src/api.ts"))};
+test.skip("later", async () => {});
+test.fixme("broken", async () => {});`,
+    );
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      const human = io();
+      assert.equal(await main(["run"], human.target), 0);
+      assert.match(human.out(), /- later \(skipped\)/);
+      assert.match(human.out(), /- broken \(fixme\)/);
+      assert.match(human.out(), /0 passed, 2 skipped/);
+
+      const json = io();
+      assert.equal(await main(["run", "--json"], json.target), 0);
+      const types = json
+        .out()
+        .trim()
+        .split("\n")
+        .map((line) => (JSON.parse(line) as { type: string }).type);
+      assert.deepEqual(types, [
+        "run-start",
+        "test-start",
+        "test-end",
+        "test-start",
+        "test-end",
+        "run-end",
+      ]);
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
   it("exits 2 when the project has no config", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
     const previous = process.cwd();
