@@ -7,7 +7,11 @@ import { BiDiConnector } from "../transport/bidi-connection.js";
 import { Router, type Route } from "./router.js";
 
 const TREE = [
-  { context: "top", parent: null, children: [{ context: "frame", parent: "top", children: [] }] },
+  {
+    context: "top",
+    parent: null,
+    children: [{ context: "frame", parent: "top", children: [] }],
+  },
   { context: "other", parent: null, children: [] },
 ];
 
@@ -26,11 +30,17 @@ afterEach(() => {
 interface Options {
   routeTimeout?: number;
   handlers?: Record<string, (params: any) => object | Error>;
+  browser?: "firefox" | "chrome";
 }
 
-async function setup({ routeTimeout = 5000, handlers = {} }: Options = {}) {
+async function setup({
+  routeTimeout = 5000,
+  handlers = {},
+  browser,
+}: Options = {}) {
   const ws = new FakeWebSocket();
   const connector = new BiDiConnector(ws as unknown as WebSocket);
+  if (browser) connector.browserName = browser;
   let intercepts = 0;
   stops.push(
     autoReply(ws, {
@@ -41,8 +51,19 @@ async function setup({ routeTimeout = 5000, handlers = {} }: Options = {}) {
   );
   const tree = await ContextTree.create(connector);
   const router = new Router(connector, tree, "top", { routeTimeout });
-  const commands = (method: string) => ws.sent.filter((m) => m.method === method).map((m) => m.params as any);
-  const blocked = (id: string, url: string, extra: { context?: string; intercepts?: string[]; isBlocked?: boolean; method?: string; headers?: Array<{ name: string; value: object }> } = {}) =>
+  const commands = (method: string) =>
+    ws.sent.filter((m) => m.method === method).map((m) => m.params as any);
+  const blocked = (
+    id: string,
+    url: string,
+    extra: {
+      context?: string;
+      intercepts?: string[];
+      isBlocked?: boolean;
+      method?: string;
+      headers?: Array<{ name: string; value: object }>;
+    } = {},
+  ) =>
     ws.emitEvent("network.beforeRequestSent", {
       context: extra.context ?? "top",
       isBlocked: extra.isBlocked ?? true,
@@ -54,7 +75,9 @@ async function setup({ routeTimeout = 5000, handlers = {} }: Options = {}) {
         request: id,
         url,
         method: extra.method ?? "GET",
-        headers: extra.headers ?? [{ name: "Accept", value: { type: "string", value: "*/*" } }],
+        headers: extra.headers ?? [
+          { name: "Accept", value: { type: "string", value: "*/*" } },
+        ],
         cookies: [],
         headersSize: 0,
         bodySize: null,
@@ -66,19 +89,28 @@ async function setup({ routeTimeout = 5000, handlers = {} }: Options = {}) {
   return { ws, router, commands, blocked };
 }
 
-const header = (name: string, value: string) => ({ name, value: { type: "string", value } });
+const header = (name: string, value: string) => ({
+  name,
+  value: { type: "string", value },
+});
 
 describe("registering routes", () => {
   it("sends one intercept, for this page, however many routes", async () => {
     const { router, commands } = await setup();
     await router.route("**/api/**", () => {});
     await router.route(/\.png$/, () => {});
-    assert.deepEqual(commands("network.addIntercept"), [{ phases: ["beforeRequestSent"], contexts: ["top"] }]);
+    assert.deepEqual(commands("network.addIntercept"), [
+      { phases: ["beforeRequestSent"], contexts: ["top"] },
+    ]);
   });
 
   it("concurrent route() calls share one intercept", async () => {
     const { router, commands } = await setup();
-    await Promise.all([router.route("**/a", () => {}), router.route("**/b", () => {}), router.route(/c/, () => {})]);
+    await Promise.all([
+      router.route("**/a", () => {}),
+      router.route("**/b", () => {}),
+      router.route(/c/, () => {}),
+    ]);
     assert.equal(commands("network.addIntercept").length, 1);
   });
 
@@ -86,23 +118,45 @@ describe("registering routes", () => {
     const { router, commands } = await setup();
     await router.route("https://example.test/api/users", () => {});
     await router.route("https://example.test/api/items?page=1", () => {});
-    assert.deepEqual(commands("network.addIntercept").map((c) => c.urlPatterns), [
-      [{ type: "string", pattern: "https://example.test/api/users" }],
+    assert.deepEqual(
+      commands("network.addIntercept").map((c) => c.urlPatterns),
       [
-        { type: "string", pattern: "https://example.test/api/users" },
-        { type: "string", pattern: "https://example.test/api/items?page=1" },
+        [{ type: "string", pattern: "https://example.test/api/users" }],
+        [
+          { type: "string", pattern: "https://example.test/api/users" },
+          { type: "string", pattern: "https://example.test/api/items?page=1" },
+        ],
       ],
-    ]);
+    );
   });
 
   it("adding a glob widens the intercept: the new one is added before the old one is removed", async () => {
     const { ws, router } = await setup();
     await router.route("https://example.test/api/users", () => {});
     await router.route("**/images/*", () => {});
-    const order = ws.sent.filter((m) => m.method === "network.addIntercept" || m.method === "network.removeIntercept").map((m) => m.method);
-    assert.deepEqual(order, ["network.addIntercept", "network.addIntercept", "network.removeIntercept"]);
-    assert.equal((ws.sent.filter((m) => m.method === "network.addIntercept")[1]!.params as any).urlPatterns, undefined);
-    assert.deepEqual(ws.sent.find((m) => m.method === "network.removeIntercept")!.params, { intercept: "i1" });
+    const order = ws.sent
+      .filter(
+        (m) =>
+          m.method === "network.addIntercept" ||
+          m.method === "network.removeIntercept",
+      )
+      .map((m) => m.method);
+    assert.deepEqual(order, [
+      "network.addIntercept",
+      "network.addIntercept",
+      "network.removeIntercept",
+    ]);
+    assert.equal(
+      (
+        ws.sent.filter((m) => m.method === "network.addIntercept")[1]!
+          .params as any
+      ).urlPatterns,
+      undefined,
+    );
+    assert.deepEqual(
+      ws.sent.find((m) => m.method === "network.removeIntercept")!.params,
+      { intercept: "i1" },
+    );
   });
 
   it("an exact string that is not in URL-normal form is not handed to the browser as a pattern", async () => {
@@ -112,7 +166,9 @@ describe("registering routes", () => {
   });
 
   it("falls back to blocking everything when the browser rejects url patterns, and remembers", async () => {
-    const rejected = Object.assign(new Error("urlPatterns not supported"), { code: "invalid argument" });
+    const rejected = Object.assign(new Error("urlPatterns not supported"), {
+      code: "invalid argument",
+    });
     let attempts = 0;
     const { router, commands } = await setup({
       handlers: {
@@ -125,7 +181,9 @@ describe("registering routes", () => {
     await router.route("https://example.test/a", () => {});
     await router.unrouteAll();
     await router.route("https://example.test/b", () => {});
-    const withPatterns = commands("network.addIntercept").filter((c) => c.urlPatterns);
+    const withPatterns = commands("network.addIntercept").filter(
+      (c) => c.urlPatterns,
+    );
     assert.equal(withPatterns.length, 1, "asked once, then remembered");
   });
 });
@@ -138,7 +196,10 @@ describe("what a blocked request does", () => {
       seen = route;
       return route.continue();
     });
-    blocked("r1", "https://example.test/api/users", { method: "POST", headers: [header("Content-Type", "application/json")] });
+    blocked("r1", "https://example.test/api/users", {
+      method: "POST",
+      headers: [header("Content-Type", "application/json")],
+    });
     await tick(20);
     const request = seen.request();
     assert.equal(request.url, "https://example.test/api/users");
@@ -153,7 +214,11 @@ describe("what a blocked request does", () => {
     blocked("r1", "https://example.test/other.css");
     await tick(20);
     assert.deepEqual(commands("network.continueRequest"), [{ request: "r1" }]);
-    assert.equal(commands("network.failRequest").length + commands("network.provideResponse").length, 0);
+    assert.equal(
+      commands("network.failRequest").length +
+        commands("network.provideResponse").length,
+      0,
+    );
   });
 
   it("the newest matching route answers first; fallback passes to the next", async () => {
@@ -171,7 +236,11 @@ describe("what a blocked request does", () => {
     await tick(30);
     assert.deepEqual(order, ["new", "old"]);
     assert.equal(commands("network.provideResponse")[0].statusCode, 201);
-    assert.equal(commands("network.continueRequest").length, 0, "answered once");
+    assert.equal(
+      commands("network.continueRequest").length,
+      0,
+      "answered once",
+    );
   });
 
   it("fallback on the last matching route continues the request unchanged", async () => {
@@ -228,27 +297,47 @@ describe("Route.fulfill", () => {
   it("json becomes the body, with its content type and length", async () => {
     const sent = await fulfilled({ json: [{ id: 1 }] });
     assert.deepEqual(sent.body, { type: "string", value: '[{"id":1}]' });
-    assert.deepEqual(sent.headers, [header("content-type", "application/json"), header("content-length", "10")]);
+    assert.deepEqual(sent.headers, [
+      header("content-type", "application/json"),
+      header("content-length", "10"),
+    ]);
   });
 
   it("a string body is sent as text, its length counted in bytes", async () => {
-    const sent = await fulfilled({ status: 404, body: "héllo", contentType: "text/plain" });
+    const sent = await fulfilled({
+      status: 404,
+      body: "héllo",
+      contentType: "text/plain",
+    });
     assert.equal(sent.statusCode, 404);
     assert.equal(sent.reasonPhrase, "Not Found");
     assert.deepEqual(sent.body, { type: "string", value: "héllo" });
-    assert.deepEqual(sent.headers, [header("content-type", "text/plain"), header("content-length", "6")]);
+    assert.deepEqual(sent.headers, [
+      header("content-type", "text/plain"),
+      header("content-length", "6"),
+    ]);
   });
 
   it("a Buffer body is sent as base64", async () => {
     const sent = await fulfilled({ body: Buffer.from([0, 1, 2, 255]) });
-    assert.deepEqual(sent.body, { type: "base64", value: Buffer.from([0, 1, 2, 255]).toString("base64") });
-    assert.deepEqual(sent.headers.find((h: any) => h.name === "content-length"), header("content-length", "4"));
+    assert.deepEqual(sent.body, {
+      type: "base64",
+      value: Buffer.from([0, 1, 2, 255]).toString("base64"),
+    });
+    assert.deepEqual(
+      sent.headers.find((h: any) => h.name === "content-length"),
+      header("content-length", "4"),
+    );
   });
 
   it("your headers win: content-type and content-length are only added when missing, whatever their case", async () => {
     const sent = await fulfilled({
       json: { a: 1 },
-      headers: { "Content-Type": "application/vnd.api+json", "CONTENT-LENGTH": "99", "x-mock": "1" },
+      headers: {
+        "Content-Type": "application/vnd.api+json",
+        "CONTENT-LENGTH": "99",
+        "x-mock": "1",
+      },
     });
     assert.deepEqual(sent.headers, [
       header("Content-Type", "application/vnd.api+json"),
@@ -261,7 +350,9 @@ describe("Route.fulfill", () => {
     const { router, blocked } = await setup();
     let failure: unknown;
     await router.route("**", async (route) => {
-      failure = await route.fulfill({ json: 1, body: "x" }).catch((err: Error) => err);
+      failure = await route
+        .fulfill({ json: 1, body: "x" })
+        .catch((err: Error) => err);
       await route.abort();
     });
     blocked("r1", "https://example.test/x");
@@ -302,7 +393,9 @@ describe("Route.continue and Route.abort", () => {
 
   it("a new body brings its own content-length: the browser would keep the old one and cut the body off", async () => {
     const { router, blocked, commands } = await setup();
-    await router.route("**", (route) => route.continue({ postData: "héllo body" }));
+    await router.route("**", (route) =>
+      route.continue({ postData: "héllo body" }),
+    );
     blocked("r1", "https://example.test/x", {
       method: "POST",
       headers: [header("Accept", "*/*"), header("Content-Length", "4")],
@@ -317,24 +410,64 @@ describe("Route.continue and Route.abort", () => {
     ]);
   });
 
+  it("on Chrome a new body goes without a content-length: Chrome sets it, and hangs the request when given one", async () => {
+    const { router, blocked, commands } = await setup({ browser: "chrome" });
+    await router.route("**", (route) =>
+      route.continue({ postData: "héllo body" }),
+    );
+    blocked("r1", "https://example.test/x", {
+      method: "POST",
+      headers: [header("Accept", "*/*"), header("Content-Length", "4")],
+    });
+    await tick(20);
+    assert.deepEqual(commands("network.continueRequest"), [
+      {
+        request: "r1",
+        headers: [header("accept", "*/*")],
+        body: { type: "string", value: "héllo body" },
+      },
+    ]);
+  });
+
   it("the content-length of a new body replaces one in the headers you pass, whatever its case", async () => {
     const { router, blocked, commands } = await setup();
     await router.route("**", (route) =>
-      route.continue({ postData: "12345", headers: { ...route.request().headers, "Content-Length": "999", "x-a": "1" } }),
+      route.continue({
+        postData: "12345",
+        headers: {
+          ...route.request().headers,
+          "Content-Length": "999",
+          "x-a": "1",
+        },
+      }),
     );
-    blocked("r1", "https://example.test/x", { method: "POST", headers: [header("Content-Length", "4")] });
+    blocked("r1", "https://example.test/x", {
+      method: "POST",
+      headers: [header("Content-Length", "4")],
+    });
     await tick(20);
-    assert.deepEqual(commands("network.continueRequest")[0].headers, [header("x-a", "1"), header("content-length", "5")]);
+    assert.deepEqual(commands("network.continueRequest")[0].headers, [
+      header("x-a", "1"),
+      header("content-length", "5"),
+    ]);
   });
 
   it("continue() sends a Buffer as base64, counted in bytes", async () => {
     const { router, blocked, commands } = await setup();
-    await router.route("**", (route) => route.continue({ postData: Buffer.from([1, 2, 3, 255]) }));
+    await router.route("**", (route) =>
+      route.continue({ postData: Buffer.from([1, 2, 3, 255]) }),
+    );
     blocked("r1", "https://example.test/x", { method: "POST" });
     await tick(20);
     const sent = commands("network.continueRequest")[0];
-    assert.deepEqual(sent.body, { type: "base64", value: Buffer.from([1, 2, 3, 255]).toString("base64") });
-    assert.deepEqual(sent.headers.find((h: any) => h.name === "content-length"), header("content-length", "4"));
+    assert.deepEqual(sent.body, {
+      type: "base64",
+      value: Buffer.from([1, 2, 3, 255]).toString("base64"),
+    });
+    assert.deepEqual(
+      sent.headers.find((h: any) => h.name === "content-length"),
+      header("content-length", "4"),
+    );
   });
 
   it("abort() fails the request", async () => {
@@ -352,8 +485,18 @@ describe("every blocked request is resolved exactly once", () => {
     const outcomes: string[] = [];
     await router.route("**", async (route) => {
       await route.fulfill({});
-      for (const second of [() => route.continue(), () => route.abort(), () => route.fulfill({}), () => route.fallback()]) {
-        outcomes.push(await second().then(() => "ok", (err: Error) => err.message));
+      for (const second of [
+        () => route.continue(),
+        () => route.abort(),
+        () => route.fulfill({}),
+        () => route.fallback(),
+      ]) {
+        outcomes.push(
+          await second().then(
+            () => "ok",
+            (err: Error) => err.message,
+          ),
+        );
       }
     });
     blocked("r1", "https://example.test/x");
@@ -371,7 +514,10 @@ describe("every blocked request is resolved exactly once", () => {
     await tick(30);
     assert.deepEqual(commands("network.failRequest"), [{ request: "r1" }]);
     assert.equal(router.errors.length, 1);
-    assert.match(router.errors[0]!.message, /route handler for https:\/\/example\.test\/x threw: handler bug/);
+    assert.match(
+      router.errors[0]!.message,
+      /route handler for https:\/\/example\.test\/x threw: handler bug/,
+    );
     assert.ok(error.mock.callCount() >= 1);
   });
 
@@ -394,7 +540,10 @@ describe("every blocked request is resolved exactly once", () => {
     await tick(30);
     assert.deepEqual(commands("network.continueRequest"), [{ request: "r1" }]);
     assert.equal(warn.mock.callCount(), 1);
-    assert.match(String((warn.mock.calls[0]!.arguments as unknown[])[0]), /did not answer/);
+    assert.match(
+      String((warn.mock.calls[0]!.arguments as unknown[])[0]),
+      /did not answer/,
+    );
   });
 
   it("an async handler is awaited: answering later is not overtaken by the default", async () => {
@@ -405,7 +554,11 @@ describe("every blocked request is resolved exactly once", () => {
     });
     blocked("r1", "https://example.test/x");
     await tick(15);
-    assert.equal(commands("network.continueRequest").length, 0, "still waiting for the handler");
+    assert.equal(
+      commands("network.continueRequest").length,
+      0,
+      "still waiting for the handler",
+    );
     await tick(60);
     assert.equal(commands("network.provideResponse")[0].statusCode, 202);
     assert.equal(commands("network.continueRequest").length, 0);
@@ -429,8 +582,12 @@ describe("every blocked request is resolved exactly once", () => {
   });
 
   it("the browser refusing an answer reaches the handler as a BiDiError", async () => {
-    const gone = Object.assign(new Error("request is gone"), { code: "no such request" });
-    const { router, blocked } = await setup({ handlers: { "network.provideResponse": () => gone } });
+    const gone = Object.assign(new Error("request is gone"), {
+      code: "no such request",
+    });
+    const { router, blocked } = await setup({
+      handlers: { "network.provideResponse": () => gone },
+    });
     let caught: unknown;
     await router.route("**", async (route) => {
       caught = await route.fulfill({}).catch((err: Error) => err);
@@ -447,7 +604,9 @@ describe("removing routes", () => {
     const { ws, router, commands, blocked } = await setup();
     await router.route("**/a", () => {});
     await router.unroute("**/a");
-    assert.deepEqual(commands("network.removeIntercept"), [{ intercept: "i1" }]);
+    assert.deepEqual(commands("network.removeIntercept"), [
+      { intercept: "i1" },
+    ]);
     await tick(10);
     assert.ok(ws.sent.some((m) => m.method === "session.unsubscribe"));
     const before = ws.sent.length;
@@ -466,7 +625,11 @@ describe("removing routes", () => {
     blocked("r1", "https://e.test/a");
     await tick(30);
     assert.equal(commands("network.failRequest").length, 0);
-    assert.equal(commands("network.removeIntercept").length, 0, "one route is left");
+    assert.equal(
+      commands("network.removeIntercept").length,
+      0,
+      "one route is left",
+    );
   });
 
   it("unroute without a handler removes every route for that pattern", async () => {
@@ -477,7 +640,11 @@ describe("removing routes", () => {
     await router.unroute(/a/);
     blocked("r1", "https://e.test/b");
     await tick(30);
-    assert.equal(commands("network.continueRequest").length, 1, "the b route is still here (it did not answer, so the request continues)");
+    assert.equal(
+      commands("network.continueRequest").length,
+      1,
+      "the b route is still here (it did not answer, so the request continues)",
+    );
     assert.equal(commands("network.removeIntercept").length, 0);
   });
 
@@ -523,6 +690,9 @@ describe("removing routes", () => {
   it("route() after dispose is refused", async () => {
     const { router } = await setup();
     await router.dispose();
-    await assert.rejects(router.route("**", () => {}), /disposed/);
+    await assert.rejects(
+      router.route("**", () => {}),
+      /disposed/,
+    );
   });
 });

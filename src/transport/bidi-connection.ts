@@ -57,6 +57,8 @@ export class BiDiConnector {
   private currentId: number = 0;
   /** Set once the socket closed or failed: nothing sent after that gets an answer */
   private closed = false;
+  /** Which browser is on the other end, when the launcher says; code that must treat browsers apart asks this */
+  public browserName?: "firefox" | "chrome";
   private webSocket: WebSocket;
   private eventEmitter: EventEmitter;
   private commandTimeout: number;

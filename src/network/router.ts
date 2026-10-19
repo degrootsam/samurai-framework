@@ -11,7 +11,12 @@ import type {
   UrlPattern as BiDiUrlPattern,
 } from "../types/bidi-modules/network.js";
 import { toRequest, type NetworkRequest } from "./network-tracker.js";
-import { isExactString, matchUrl, samePattern, type UrlPattern } from "./url-match.js";
+import {
+  isExactString,
+  matchUrl,
+  samePattern,
+  type UrlPattern,
+} from "./url-match.js";
 
 /** Time (ms) a handler may take to answer a request before the router lets it continue */
 const DEFAULT_ROUTE_TIMEOUT = 30000;
@@ -55,10 +60,18 @@ interface RouteDeps {
   next: () => Promise<void>;
   /** Called once the route is answered, whichever way */
   settled: (route: Route) => void;
+  /**
+   * Whether a replaced body needs a `content-length` of its own. Firefox keeps the old one and cuts the new body
+   * off; Chrome sets the right one itself and hangs the request when it is given one.
+   */
+  sendsContentLength: boolean;
 }
 
 function toHeaders(headers: Record<string, string>): Header[] {
-  return Object.entries(headers).map(([name, value]) => ({ name, value: { type: "string", value } }));
+  return Object.entries(headers).map(([name, value]) => ({
+    name,
+    value: { type: "string", value },
+  }));
 }
 
 function toBytes(data: string | Buffer): BytesValue {
@@ -100,13 +113,19 @@ export class Route {
     if (options.json !== undefined && options.body !== undefined) {
       throw new TypeError("route.fulfill(): use either json or body, not both");
     }
-    const text = options.json !== undefined ? JSON.stringify(options.json) : undefined;
+    const text =
+      options.json !== undefined ? JSON.stringify(options.json) : undefined;
     const body = options.body ?? text;
     const headers: Record<string, string> = { ...options.headers };
-    const contentType = options.contentType ?? (text !== undefined ? "application/json" : undefined);
-    if (contentType && !hasHeader(headers, "content-type")) headers["content-type"] = contentType;
+    const contentType =
+      options.contentType ??
+      (text !== undefined ? "application/json" : undefined);
+    if (contentType && !hasHeader(headers, "content-type"))
+      headers["content-type"] = contentType;
     if (!hasHeader(headers, "content-length")) {
-      headers["content-length"] = String(body === undefined ? 0 : Buffer.byteLength(body));
+      headers["content-length"] = String(
+        body === undefined ? 0 : Buffer.byteLength(body),
+      );
     }
     const status = options.status ?? 200;
     await this.answer("network.provideResponse", {
@@ -126,16 +145,25 @@ export class Route {
     let headers = options.headers;
     if (options.postData !== undefined) {
       const withoutLength = Object.fromEntries(
-        Object.entries(headers ?? this.info.headers).filter(([name]) => name.toLowerCase() !== "content-length"),
+        Object.entries(headers ?? this.info.headers).filter(
+          ([name]) => name.toLowerCase() !== "content-length",
+        ),
       );
-      headers = { ...withoutLength, "content-length": String(Buffer.byteLength(options.postData)) };
+      headers = this.deps.sendsContentLength
+        ? {
+            ...withoutLength,
+            "content-length": String(Buffer.byteLength(options.postData)),
+          }
+        : withoutLength;
     }
     await this.answer("network.continueRequest", {
       request: this.info.id,
       ...(options.url !== undefined && { url: options.url }),
       ...(options.method !== undefined && { method: options.method }),
       ...(headers !== undefined && { headers: toHeaders(headers) }),
-      ...(options.postData !== undefined && { body: toBytes(options.postData) }),
+      ...(options.postData !== undefined && {
+        body: toBytes(options.postData),
+      }),
     });
   }
 
@@ -177,10 +205,12 @@ export class Route {
     this.deps.settled(this);
   }
 
-  private async answer<M extends "network.provideResponse" | "network.continueRequest" | "network.failRequest">(
-    method: M,
-    params: Parameters<BiDiConnector["send"]>[1],
-  ) {
+  private async answer<
+    M extends
+      | "network.provideResponse"
+      | "network.continueRequest"
+      | "network.failRequest",
+  >(method: M, params: Parameters<BiDiConnector["send"]>[1]) {
     this.claim();
     await this.deps.send(method, params as never);
   }
@@ -220,7 +250,10 @@ export class Router {
   }
 
   /** Sends matching requests to `handler`. Later routes are asked first */
-  public async route(pattern: UrlPattern, handler: RouteHandler): Promise<void> {
+  public async route(
+    pattern: UrlPattern,
+    handler: RouteHandler,
+  ): Promise<void> {
     if (this.disposed) throw new Error("router disposed");
     const entry: RouteEntry = { pattern, handler };
     this.routes.push(entry);
@@ -233,9 +266,14 @@ export class Router {
   }
 
   /** Removes the routes for `pattern` (only the one with `handler`, when given) */
-  public async unroute(pattern: UrlPattern, handler?: RouteHandler): Promise<void> {
+  public async unroute(
+    pattern: UrlPattern,
+    handler?: RouteHandler,
+  ): Promise<void> {
     const removed = this.routes.filter(
-      (route) => samePattern(route.pattern, pattern) && (handler === undefined || route.handler === handler),
+      (route) =>
+        samePattern(route.pattern, pattern) &&
+        (handler === undefined || route.handler === handler),
     );
     await this.remove(removed);
   }
@@ -255,7 +293,11 @@ export class Router {
     if (removed.length === 0) return;
     this.routes = this.routes.filter((route) => !removed.includes(route));
     // Requests a removed route still holds would wait for nobody
-    await Promise.all([...this.pending].filter((route) => removed.includes(route.entry)).map((route) => route.release()));
+    await Promise.all(
+      [...this.pending]
+        .filter((route) => removed.includes(route.entry))
+        .map((route) => route.release()),
+    );
     await this.enqueue(() => this.sync());
   }
 
@@ -277,7 +319,8 @@ export class Router {
     const id = await this.addIntercept(patterns);
     const previous = this.currentId;
     this.currentId = id;
-    this.currentKey = patterns && !patternsUnsupported.has(this.connector) ? key : "all";
+    this.currentKey =
+      patterns && !patternsUnsupported.has(this.connector) ? key : "all";
     this.interceptIds.add(id);
     // The new intercept is in place before the old one goes: nothing slips through in between
     if (previous !== undefined) await this.removeIntercept(previous);
@@ -290,14 +333,21 @@ export class Router {
     for (const { pattern } of this.routes) {
       // The browser reads a URL string in normal form; anything else could mean something else to it
       if (!isExactString(pattern) || !isNormalUrl(pattern)) return undefined;
-      if (!patterns.some((existing) => existing.type === "string" && existing.pattern === pattern)) {
+      if (
+        !patterns.some(
+          (existing) =>
+            existing.type === "string" && existing.pattern === pattern,
+        )
+      ) {
         patterns.push({ type: "string", pattern });
       }
     }
     return patterns;
   }
 
-  private async addIntercept(patterns: BiDiUrlPattern[] | undefined): Promise<string> {
+  private async addIntercept(
+    patterns: BiDiUrlPattern[] | undefined,
+  ): Promise<string> {
     const params = {
       phases: ["beforeRequestSent" as const],
       contexts: [this.contextId],
@@ -309,7 +359,11 @@ export class Router {
       });
       return intercept;
     } catch (err) {
-      if (patterns && err instanceof BiDiError && err.code === "invalid argument") {
+      if (
+        patterns &&
+        err instanceof BiDiError &&
+        err.code === "invalid argument"
+      ) {
         patternsUnsupported.add(this.connector);
         return this.addIntercept(undefined);
       }
@@ -321,7 +375,8 @@ export class Router {
     try {
       await this.connector.send("network.removeIntercept", { intercept: id });
     } catch (err) {
-      if (!(err instanceof BiDiError && err.code === "no such intercept")) throw err;
+      if (!(err instanceof BiDiError && err.code === "no such intercept"))
+        throw err;
     } finally {
       this.interceptIds.delete(id);
     }
@@ -329,11 +384,19 @@ export class Router {
 
   private async listen(): Promise<void> {
     if (this.subscription) return;
-    this.connector.onEvent("network.beforeRequestSent", this.onBeforeRequestSent);
+    this.connector.onEvent(
+      "network.beforeRequestSent",
+      this.onBeforeRequestSent,
+    );
     try {
-      this.subscription = await this.connector.subscribe(["network.beforeRequestSent"]);
+      this.subscription = await this.connector.subscribe([
+        "network.beforeRequestSent",
+      ]);
     } catch (err) {
-      this.connector.offEvent("network.beforeRequestSent", this.onBeforeRequestSent);
+      this.connector.offEvent(
+        "network.beforeRequestSent",
+        this.onBeforeRequestSent,
+      );
       throw err;
     }
   }
@@ -344,7 +407,10 @@ export class Router {
     this.currentKey = undefined;
     if (id !== undefined) await this.removeIntercept(id);
     if (this.subscription) {
-      this.connector.offEvent("network.beforeRequestSent", this.onBeforeRequestSent);
+      this.connector.offEvent(
+        "network.beforeRequestSent",
+        this.onBeforeRequestSent,
+      );
       const subscription = this.subscription;
       this.subscription = undefined;
       await subscription.unsubscribe();
@@ -355,17 +421,29 @@ export class Router {
     if (!params.isBlocked || params.context === null) return;
     if (!this.tree.isWithin(params.context, this.contextId)) return;
     // Held by an intercept of ours, not someone else's
-    if (!(params.intercepts ?? []).some((id) => this.interceptIds.has(id))) return;
+    if (!(params.intercepts ?? []).some((id) => this.interceptIds.has(id)))
+      return;
 
-    const info = toRequest(params.request, params.navigation, params.isBlocked, null);
-    const matching = this.routes.filter((entry) => matchUrl(entry.pattern, info.url)).reverse();
+    const info = toRequest(
+      params.request,
+      params.navigation,
+      params.isBlocked,
+      null,
+    );
+    const matching = this.routes
+      .filter((entry) => matchUrl(entry.pattern, info.url))
+      .reverse();
     this.dispatch(info, matching, 0).catch((err) =>
       logger.error("Handling the request to %s failed", info.url, { err }),
     );
   };
 
   /** Runs the `index`-th matching route; past the last one the request continues unchanged */
-  private async dispatch(info: NetworkRequest, matching: RouteEntry[], index: number): Promise<void> {
+  private async dispatch(
+    info: NetworkRequest,
+    matching: RouteEntry[],
+    index: number,
+  ): Promise<void> {
     const entry = matching[index];
     const deps: RouteDeps = {
       send: (method, params) => this.connector.send(method, params),
@@ -373,6 +451,7 @@ export class Router {
       settled: (settled) => {
         this.pending.delete(settled);
       },
+      sendsContentLength: this.connector.browserName !== "chrome",
     };
     if (!entry) {
       // Nobody (left) to ask: an unmatched request, or every route fell back
@@ -384,7 +463,11 @@ export class Router {
     this.pending.add(route);
     route.timer = setTimeout(() => {
       if (route.isAnswered) return;
-      logger.error("A route for %s did not answer within %dms; letting the request continue", info.url, this.routeTimeout);
+      logger.error(
+        "A route for %s did not answer within %dms; letting the request continue",
+        info.url,
+        this.routeTimeout,
+      );
       void route.release();
     }, this.routeTimeout);
     route.timer.unref?.();
@@ -397,14 +480,20 @@ export class Router {
       return;
     }
     if (!route.isAnswered) {
-      logger.warn("The route for %s did not answer the request; letting it continue", info.url);
+      logger.warn(
+        "The route for %s did not answer the request; letting it continue",
+        info.url,
+      );
       await route.release();
     }
   }
 
   private record(info: NetworkRequest, err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    const error = Object.assign(new Error(`route handler for ${info.url} threw: ${message}`), { cause: err });
+    const error = Object.assign(
+      new Error(`route handler for ${info.url} threw: ${message}`),
+      { cause: err },
+    );
     this.failures.push(error);
     if (this.failures.length > MAX_ERRORS) this.failures.shift();
     logger.error("A route handler threw for %s", info.url, { err });
