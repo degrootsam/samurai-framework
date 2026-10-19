@@ -10,7 +10,6 @@ import {
 import EventEmitter from "node:events";
 import path from "node:path";
 import { projectDir } from "../config/config.js";
-import { peekRunSettings } from "../config/run-settings.js";
 import logger from "../logger/index.js";
 import type { NetworkRequest } from "../network/network-tracker.js";
 import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
@@ -31,11 +30,16 @@ import { Lazy } from "./lazy.js";
 import type { RouteHandler } from "../network/router.js";
 import { Response } from "../network/response.js";
 import type { NetworkMatch } from "../network/network-wait.js";
-import { UnsupportedOperationError } from "../transport/unsupported.js";
 import type { UrlPattern } from "../network/url-match.js";
 import { traverseHistory } from "./history.js";
 import { DialogHandling } from "./dialog-handling.js";
 import { DocumentWatcher } from "./document-watcher.js";
+import { PageNavigation } from "./page-navigation.js";
+import type {
+  LoadState,
+  NavigateOptions,
+  NavigationResult,
+} from "./page-navigation.js";
 import { PageNetwork } from "./page-network.js";
 import { PageTransfers } from "./page-transfers.js";
 import { initScriptSource } from "./init-script.js";
@@ -66,24 +70,10 @@ import { HelperRealm } from "../locator/helper-realm.js";
 import { addPreload, type PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import { WaitTimeoutError } from "../wait/wait-until.js";
-import { LoadStateTimeoutError, NavigationError } from "./navigation-error.js";
 import { callFunction } from "../script/call-function.js";
 import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js";
 
-export type LoadState = "load" | "domcontentloaded" | "networkidle";
-
-export interface NavigateOptions {
-  /** When navigateTo resolves. @default config `navigation.waitUntil`, then "complete" */
-  wait?: ReadinessState;
-  /** Time (ms) the navigation may take. @default config `navigation.timeout`, then 30000 */
-  timeout?: number;
-  /** Scheme added to a URL without one. @default "https" */
-  protocol?: "http" | "https";
-}
-
-/** What a navigation answers with: its id (null when the browser gave none) and the URL it ended on */
-export type NavigationResult = { navigation: string | null; url: string };
+export type { LoadState, NavigateOptions, NavigationResult };
 
 export default class Page {
   private biDiConnector: BiDiConnector;
@@ -93,11 +83,8 @@ export default class Page {
   private initScripts = new Set<PreloadHandle>();
   private pageConfig: PageConfig;
   private pageEvents = new EventEmitter();
-  /** The navigation started by the last navigateTo; failures of it fail a wait */
-  private lastNavigation: string | undefined;
-  /** Base for relative page.goto URLs; falls back to the active run's baseURL */
-  private baseURL: string | undefined;
   private documents: DocumentWatcher;
+  private nav: PageNavigation;
   private net: PageNetwork;
   private dialogs: DialogHandling;
   private lazyLogs = new Lazy<PageLogs>();
@@ -124,6 +111,13 @@ export default class Page {
       emitter: this.pageEvents,
       waitForEvent: (event, matches, options, onTimeout) =>
         this.waitForPageEvent(event, matches, options, onTimeout),
+    });
+    this.nav = new PageNavigation(biDiConnector, contextId, {
+      config: this.pageConfig,
+      documents: this.documents,
+      assertOpen: () => this.assertOpen(),
+      url: () => this.url(),
+      waitForNetworkIdle: (options) => this.net.waitForIdle(options),
     });
     this.transfers = new PageTransfers(biDiConnector, contextId, {
       config: this.pageConfig,
@@ -256,7 +250,7 @@ export default class Page {
 
   /** Sets the base that relative `goto` URLs resolve against; `undefined` falls back to the run's baseURL */
   public setBaseURL(url: string | undefined): void {
-    this.baseURL = url;
+    this.nav.setBaseURL(url);
   }
 
   /**
@@ -266,18 +260,11 @@ export default class Page {
    *  await page.goto("/products");
    *  await page.goto("https://example.com", { wait: "interactive" });
    */
-  public async goto(
+  public goto(
     url: string,
     options?: NavigateOptions,
   ): Promise<NavigationResult> {
-    if (!/^\.{0,2}\//.test(url)) return this.navigateTo(url, options);
-    const base = this.baseURL ?? peekRunSettings()?.baseURL;
-    if (!base) {
-      throw new Error(
-        `goto(): "${url}" needs a baseURL; set one in samurai.config.ts or the environment`,
-      );
-    }
-    return this.navigateTo(new URL(url, base).href, options);
+    return this.nav.goto(url, options);
   }
 
   /**
@@ -288,122 +275,26 @@ export default class Page {
    *  await page.navigateTo("example.com");
    *  await page.navigateTo("localhost:3000", { wait: "interactive", protocol: "http" });
    */
-  public async navigateTo(
+  public navigateTo(
     url: string,
     options?: NavigateOptions | ReadinessState,
     protocol?: "http" | "https",
   ): Promise<NavigationResult> {
-    const given: NavigateOptions =
-      typeof options === "string" ? { wait: options } : (options ?? {});
-    const wait = await this.pageConfig.navigationWait(given.wait);
-    const timeout = await this.pageConfig.navigationTimeout(given.timeout);
-    // A scheme is letters followed by ":" not directly followed by a digit, so "localhost:3000" is a host
-    const hasScheme = /^[a-z][a-z\d+.-]*:(?!\d)/i.test(url);
-    const parsedURL = hasScheme
-      ? url
-      : `${given.protocol ?? protocol ?? "https"}://${url}`;
-    this.assertOpen();
-    return this.navigation(
-      "navigateTo",
-      async () => parsedURL,
-      wait,
-      timeout,
-      async (sendOptions) => {
-        const result = await this.biDiConnector.send(
-          "browsingContext.navigate",
-          { context: this.id, url: parsedURL, wait },
-          sendOptions,
-        );
-        return {
-          navigation: result.navigation ?? null,
-          url: result.url ?? parsedURL,
-        };
-      },
-    );
-  }
-
-  /**
-   * Runs a navigation command and settles what waiting for it means: failures become NavigationErrors, and a
-   * navigation that did not wait for the load is watched so `waitForLoadState` can tell it from the old page.
-   */
-  private async navigation(
-    operation: string,
-    describe: () => Promise<string>,
-    wait: ReadinessState,
-    timeout: number,
-    send: (options: { timeout: number }) => Promise<NavigationResult>,
-  ): Promise<NavigationResult> {
-    // A navigation that does not wait for the load needs watching, or waitForLoadState cannot tell it from the old page
-    if (wait !== "complete") await this.documents.watch();
-    try {
-      const result = await send({ timeout });
-      this.lastNavigation = result.navigation ?? undefined;
-      if (result.navigation && wait !== "complete") {
-        // Tracked from now on: the document still showing is the old one until this navigation commits
-        const progress = this.documents.progressOf(result.navigation);
-        if (wait === "interactive") progress.domContentLoaded = true;
-      }
-      return result;
-    } catch (err) {
-      if (err instanceof BiDiError) {
-        const reason =
-          err.code === "timeout" ? `timeout after ${timeout}ms` : err.message;
-        throw new NavigationError(
-          await describe(),
-          reason,
-          err.code,
-          operation,
-        );
-      }
-      throw err;
-    }
+    return this.nav.navigateTo(url, options, protocol);
   }
 
   /**
    * Reloads the page and resolves when it reached `wait` (default like `navigateTo`). Firefox does not support
    * `ignoreCache`; asking for it throws UnsupportedOperationError.
    */
-  public async reload(
+  public reload(
     options: {
       wait?: ReadinessState;
       timeout?: number;
       ignoreCache?: boolean;
     } = {},
   ): Promise<NavigationResult> {
-    this.assertOpen();
-    const wait = await this.pageConfig.navigationWait(options.wait);
-    const timeout = await this.pageConfig.navigationTimeout(options.timeout);
-    return this.navigation(
-      "reload",
-      () => this.url().catch(() => "the page"),
-      wait,
-      timeout,
-      async (sendOptions) => {
-        try {
-          const result = await this.biDiConnector.send(
-            "browsingContext.reload",
-            {
-              context: this.id,
-              wait,
-              ...(options.ignoreCache && { ignoreCache: true }),
-            },
-            sendOptions,
-          );
-          return { navigation: result.navigation ?? null, url: result.url };
-        } catch (err) {
-          if (
-            options.ignoreCache &&
-            err instanceof BiDiError &&
-            err.code === "unsupported operation"
-          ) {
-            throw new UnsupportedOperationError(
-              "reload(): ignoreCache is not supported by the browser",
-            );
-          }
-          throw err;
-        }
-      },
-    );
+    return this.nav.reload(options);
   }
 
   /** Goes back one entry in the history. False when there is none to go back to */
@@ -607,24 +498,11 @@ export default class Page {
    *  await page.locator("a[@id='next']").click();
    *  await page.waitForLoadState("domcontentloaded");
    */
-  public async waitForLoadState(
+  public waitForLoadState(
     state: LoadState = "load",
     options: { timeout?: number } = {},
   ): Promise<void> {
-    this.assertOpen();
-    const timeout = await this.pageConfig.navigationTimeout(options.timeout);
-    try {
-      await this.documents.waitForState(
-        state === "domcontentloaded" ? "domcontentloaded" : "load",
-        timeout,
-        this.lastNavigation,
-      );
-    } catch (err) {
-      if (err instanceof WaitTimeoutError)
-        throw new LoadStateTimeoutError(state, timeout);
-      throw err;
-    }
-    if (state === "networkidle") await this.net.waitForIdle({ timeout });
+    return this.nav.waitForLoadState(state, options);
   }
 
   /**
