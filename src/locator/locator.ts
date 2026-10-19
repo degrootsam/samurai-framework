@@ -5,26 +5,34 @@ import type {
   ElementRectangle,
 } from "../types/bidi-modules/browsing-context.js";
 import { callFunction, ScriptError } from "../script/call-function.js";
-import {
-  CALL_PROBE,
-  HELPER_SANDBOX,
-  HELPERS_MISSING,
-  type HelperInstaller,
-} from "./helper-realm.js";
 import { ElementHandle } from "../script/element-handle.js";
+import type { Arg } from "../script/serialize.js";
 import {
   takeScreenshot,
   type ElementScreenshotOptions,
 } from "../browser/screenshot.js";
+import type { FileInput } from "../browser/generated-files.js";
 import {
-  isGeneratedFile,
-  resolveFileInputs,
-  type FileInput,
-} from "../browser/generated-files.js";
-import type { Arg } from "../script/serialize.js";
-import { resolveTimeout } from "../config/timeouts.js";
-import { waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
-import { ActionTimeoutError } from "./action-timeout-error.js";
+  probeState,
+  waitForActionable,
+  waitForState,
+  type ActionabilityContext,
+  type ActionOptions,
+} from "./actionability.js";
+import { ChainResolver } from "./chain-resolver.js";
+import {
+  dropFiles,
+  setInputFiles,
+  type ElementContext,
+} from "./file-actions.js";
+import {
+  describeType,
+  type CheckName,
+  type ElementState,
+  type ProbeOptions,
+  type WaitForState,
+} from "./element-state.js";
+import type { HelperInstaller } from "./helper-realm.js";
 import {
   clickRect,
   DEFAULT_PAUSE_MS,
@@ -34,36 +42,12 @@ import {
   typeText,
 } from "./input-actions.js";
 import {
-  ATTACHED_ONLY,
   CLICK_CHECKS,
-  DROP_CHECKS,
-  DROP_EVENTS,
-  DROP_INPUT,
-  DROP_SANDBOX,
-  FILE_INPUT_CHECKS,
-  FILE_INPUT_INFO,
   FILL_CHECKS,
   PRESS_CHECKS,
   SCREENSHOT_CHECKS,
+  ATTACHED_ONLY,
 } from "./page-scripts.js";
-import {
-  allPass,
-  DETACHED_STATE,
-  describeType,
-  evaluateChecks,
-  parseElementState,
-  PROBE_ELEMENT,
-  type CheckName,
-  type CheckResults,
-  type ElementState,
-  type ProbeOptions,
-  type WaitForState,
-} from "./element-state.js";
-
-import { UnsupportedOperationError } from "../transport/unsupported.js";
-import { InvalidSelectorError } from "./selector-errors.js";
-import { LABEL_LOCATE } from "./label-locator.js";
-import { TEXT_LOCATE } from "./text-locator.js";
 import {
   cssSelector,
   describeChain,
@@ -72,45 +56,12 @@ import {
   roleSelector,
   testIdSelector,
   textSelector,
-  toBiDiLocator,
   xpathSelector,
   type Selector,
   type TextOptions,
 } from "./selector.js";
 
-export interface ActionOptions {
-  /**
-   * Time (ms) to wait for the element to become actionable. Defaults to config `expect.timeout`, then 5000.
-   * 0 checks once without waiting; the stability check is skipped because it needs two probes
-   */
-  timeout?: number;
-  /** Skip every actionability check except "attached" */
-  force?: boolean;
-}
-
-/** Locator types a connection's browser rejected, so they are not tried again on every poll */
-const unsupportedByConnector = new WeakMap<BiDiConnector, Set<string>>();
-
-function unsupportedTypes(connector: BiDiConnector): Set<string> {
-  let types = unsupportedByConnector.get(connector);
-  if (!types) unsupportedByConnector.set(connector, (types = new Set()));
-  return types;
-}
-
-/**
- * Chrome answers a command sent while the page swaps documents with an unknown error that says the context
- * is gone for the moment; the same call a moment later works.
- */
-const DOCUMENT_SWAP =
-  /Cannot find context with specified id|execution contexts? (was |were )?(cleared|destroyed)/i;
-
-function isDocumentSwap(err: unknown): boolean {
-  return (
-    err instanceof BiDiError &&
-    err.code === "unknown error" &&
-    DOCUMENT_SWAP.test(err.message)
-  );
-}
+export type { ActionOptions } from "./actionability.js";
 
 export default class Locator {
   private biDiConnector: BiDiConnector;
@@ -119,6 +70,11 @@ export default class Locator {
   private helpers: HelperInstaller | undefined;
   private alternatives: readonly Locator[];
   private matched: { index: number; selector: string } | undefined;
+  private resolver: ChainResolver;
+  /** What the actionability waits use of this locator */
+  private actionability: ActionabilityContext;
+  /** What the file actions use of this locator */
+  private elementContext: ElementContext;
 
   /**
    * `selector` is an xpath, or a chain of selector steps that each search inside the previous step's matches.
@@ -139,6 +95,32 @@ export default class Locator {
     this.contextId = contextId;
     this.helpers = helpers;
     this.alternatives = alternatives;
+    const locator = this;
+    this.actionability = {
+      resolveOne: () => this.resolveOne(),
+      call: (fn, args, sandbox) => this.call(fn, args as Arg[], sandbox),
+      get selector() {
+        return locator.selector;
+      },
+      helpers,
+    };
+    this.elementContext = {
+      connector: biDiConnector,
+      contextId,
+      get selector() {
+        return locator.selector;
+      },
+      call: (fn, args, sandbox) => this.call(fn, args, sandbox),
+      waitForActionable: (action, checks, probe, options) =>
+        this.waitForActionable(action, checks, probe, options),
+      requireElement: () => this.requireElement(),
+      noElementError: () => this.noElementError(),
+    };
+    this.resolver = new ChainResolver(
+      biDiConnector,
+      contextId,
+      (fn, args, sandbox) => this.call(fn, args, sandbox),
+    );
   }
 
   /**
@@ -248,7 +230,7 @@ export default class Locator {
    */
   private async resolve(max?: number): Promise<ElementHandle[]> {
     this.matched = undefined;
-    const own = await this.resolveChain(max);
+    const own = await this.resolver.resolveChain(this.chain, max);
     if (own.length > 0) {
       this.matched = { index: 0, selector: describeChain(this.chain) };
       return own;
@@ -265,7 +247,8 @@ export default class Locator {
 
   /** The primary or the first fallback that currently matches, without its own fallbacks */
   private async firstMatching(): Promise<Locator | undefined> {
-    if ((await this.resolveChain(1)).length > 0) return this.withoutFallbacks();
+    if ((await this.resolver.resolveChain(this.chain, 1)).length > 0)
+      return this.withoutFallbacks();
     for (const alternative of this.alternatives) {
       const found = await alternative.firstMatching();
       if (found) return found;
@@ -282,114 +265,8 @@ export default class Locator {
     );
   }
 
-  private async resolveChain(max?: number): Promise<ElementHandle[]> {
-    let nodes: ElementHandle[] | undefined;
-    for (const [index, selector] of this.chain.entries()) {
-      if (selector.kind === "nth") {
-        const picked = nodes?.[selector.index];
-        nodes = picked ? [picked] : [];
-      } else {
-        try {
-          nodes = await this.locateStep(
-            selector,
-            index > 0,
-            nodes,
-            index === this.chain.length - 1 ? max : undefined,
-          );
-        } catch (err) {
-          // The page is swapping documents: nothing matches right now, and the waits that poll try again
-          if (isDocumentSwap(err)) return [];
-          throw err;
-        }
-      }
-      if (nodes.length === 0) return [];
-    }
-    return nodes ?? [];
-  }
-
   private async resolveOne(): Promise<ElementHandle | null> {
     return (await this.resolve(1))[0] ?? null;
-  }
-
-  private async locateStep(
-    selector: Selector,
-    scoped: boolean,
-    startNodes: ElementHandle[] | undefined,
-    max: number | undefined,
-  ): Promise<ElementHandle[]> {
-    if (selector.kind === "label")
-      return this.locateInPage(LABEL_LOCATE, selector, startNodes, max);
-    if (
-      selector.kind === "text" &&
-      unsupportedTypes(this.biDiConnector).has("innerText")
-    ) {
-      return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
-    }
-    try {
-      return await this.locateNatively(selector, scoped, startNodes, max);
-    } catch (err) {
-      if (err instanceof BiDiError && err.code === "invalid selector") {
-        throw new InvalidSelectorError(
-          describeSelector(selector, scoped),
-          err.message,
-        );
-      }
-      if (err instanceof BiDiError && err.code === "unsupported operation") {
-        if (selector.kind === "text") {
-          // The browser has no innerText locator (Firefox): remember that and search in the page instead
-          unsupportedTypes(this.biDiConnector).add("innerText");
-          return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
-        }
-        throw new UnsupportedOperationError(
-          `${describeSelector(selector, scoped)}: this kind of locator is not supported by the browser (${err.message})`,
-        );
-      }
-      throw err;
-    }
-  }
-
-  private async locateNatively(
-    selector: Selector,
-    scoped: boolean,
-    startNodes: ElementHandle[] | undefined,
-    max: number | undefined,
-  ): Promise<ElementHandle[]> {
-    const { nodes } = await this.biDiConnector.send(
-      "browsingContext.locateNodes",
-      {
-        context: this.contextId,
-        locator: toBiDiLocator(selector, scoped),
-        ...(max !== undefined && { maxNodeCount: max }),
-        // Only the references are needed; skip serializing the matched subtrees
-        serializationOptions: { maxDomDepth: 0 },
-        ...(startNodes && {
-          startNodes: startNodes.map(({ sharedId }) => ({ sharedId })),
-        }),
-      },
-    );
-    const found = new Map<string, ElementHandle>();
-    for (const node of nodes) {
-      if (node.sharedId !== undefined && !found.has(node.sharedId)) {
-        found.set(node.sharedId, new ElementHandle(node.sharedId));
-      }
-    }
-    return [...found.values()];
-  }
-
-  /** Runs a page-side search `(starts, value, match, ignoreCase) => elements` */
-  private async locateInPage(
-    fn: string,
-    selector: Extract<Selector, { kind: "text" | "label" }>,
-    startNodes: ElementHandle[] | undefined,
-    max: number | undefined,
-  ): Promise<ElementHandle[]> {
-    const found = await this.call<ElementHandle[]>(fn, [
-      startNodes ?? [],
-      selector.value,
-      selector.match,
-      selector.ignoreCase,
-    ]);
-    return max === undefined ? found : found.slice(0, max);
   }
 
   /** Calls `fn` in the page; a throwing function becomes a "Failed to locate element" error */
@@ -461,92 +338,23 @@ export default class Locator {
     return el;
   }
 
-  /** Reads the element's actionability state: one search, one probe */
-  private async probeState(options: ProbeOptions): Promise<ElementState> {
-    const el = await this.resolveOne();
-    if (!el) return DETACHED_STATE;
-    try {
-      return parseElementState(await this.callProbe(el, options));
-    } catch (err) {
-      // The document changed between the search and the probe
-      if (
-        (err instanceof BiDiError && err.code === "no such node") ||
-        isDocumentSwap(err)
-      )
-        return DETACHED_STATE;
-      throw err;
-    }
+  private probeState(options: ProbeOptions): Promise<ElementState> {
+    return probeState(this.actionability, options);
   }
 
-  private async callProbe(
-    el: ElementHandle,
-    options: ProbeOptions,
-  ): Promise<unknown> {
-    const args = [el, { ...options }];
-    if (!this.helpers) return this.call(PROBE_ELEMENT, args);
-
-    await this.helpers.ensureInstalled();
-    let result = await this.call(CALL_PROBE, args, HELPER_SANDBOX);
-    if (result === HELPERS_MISSING) {
-      // A document got past the registration (e.g. created while it was being set up): install again once
-      await this.helpers.reinstall();
-      result = await this.call(CALL_PROBE, args, HELPER_SANDBOX);
-      if (result === HELPERS_MISSING) {
-        throw new ScriptError(
-          "the samurai helpers are missing in the page after reinstalling",
-          "probeElement",
-        );
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Probes until every required check passes and returns that state.
-   * Throws ActionTimeoutError describing the last probe on timeout.
-   */
-  private async waitForActionable(
+  private waitForActionable(
     action: string,
     checks: readonly CheckName[],
     probe: ProbeOptions,
     options: ActionOptions | undefined,
   ): Promise<ElementState> {
-    const timeout = await resolveTimeout(options?.timeout);
-    // Stability compares two probes; with timeout 0 there is only one
-    const required = options?.force
-      ? ATTACHED_ONLY
-      : timeout === 0
-        ? checks.filter((check) => check !== "stable")
-        : checks;
-    let lastChecks: CheckResults | undefined;
-    try {
-      return await waitUntil(
-        () => this.probeState(probe),
-        (current, previous) => {
-          lastChecks = evaluateChecks(required, current, previous);
-          return allPass(lastChecks);
-        },
-        { timeout },
-      );
-    } catch (err) {
-      if (!(err instanceof WaitTimeoutError)) throw err;
-      const last = err.last as ElementState | undefined;
-      throw new ActionTimeoutError({
-        action,
-        selector: this.selector,
-        timeout,
-        reason: !last
-          ? "unreadable"
-          : last.attached
-            ? "not-actionable"
-            : "not-attached",
-        checks: lastChecks,
-        coveredBy:
-          lastChecks?.["hit target"] === "fail"
-            ? (last?.hitTarget ?? undefined)
-            : undefined,
-      });
-    }
+    return waitForActionable(
+      this.actionability,
+      action,
+      checks,
+      probe,
+      options,
+    );
   }
 
   /** Waits until the element is attached, visible, stable, enabled and not covered, then clicks its centre with real pointer input */
@@ -573,45 +381,7 @@ export default class Locator {
     files: FileInput | FileInput[],
     options?: { timeout?: number },
   ): Promise<void> {
-    const paths = await resolveFileInputs(files, "setInputFiles");
-
-    await this.waitForActionable(
-      "setInputFiles",
-      FILE_INPUT_CHECKS,
-      { scroll: false, hitTest: false },
-      options,
-    );
-
-    const el = await this.requireElement();
-    let info: { tag: string; type: string; multiple: boolean };
-    try {
-      info = await this.call(FILE_INPUT_INFO, [el]);
-    } catch (err) {
-      if (err instanceof BiDiError && err.code === "no such node")
-        throw this.noElementError();
-      throw err;
-    }
-
-    if (info.tag !== "input" || info.type !== "file") {
-      const found =
-        info.tag === "input"
-          ? `<input type="${info.type || "text"}">`
-          : `<${info.tag}>`;
-      throw new Error(
-        `setInputFiles(): ${this.selector} is not an <input type=file> (found ${found})`,
-      );
-    }
-    if (paths.length > 1 && !info.multiple) {
-      throw new Error(
-        `setInputFiles(): ${this.selector} does not accept multiple files`,
-      );
-    }
-
-    await this.biDiConnector.send("input.setFiles", {
-      context: this.contextId,
-      element: { sharedId: el.sharedId },
-      files: paths,
-    });
+    await setInputFiles(this.elementContext, files, options);
   }
 
   /**
@@ -626,26 +396,7 @@ export default class Locator {
     files: FileInput | FileInput[],
     options?: { timeout?: number },
   ): Promise<void> {
-    const list = Array.isArray(files) ? files : [files];
-    const paths = await resolveFileInputs(list, "dropFiles");
-    const types = list.map((file) =>
-      isGeneratedFile(file) ? (file.type ?? "") : "",
-    );
-    await this.waitForActionable(
-      "dropFiles",
-      DROP_CHECKS,
-      { scroll: true, hitTest: false },
-      options,
-    );
-    const el = await this.requireElement();
-    // A file input of our own, made in a sandbox and never attached: the page doesn't see it
-    const input = await this.call<ElementHandle>(DROP_INPUT, [], DROP_SANDBOX);
-    await this.biDiConnector.send("input.setFiles", {
-      context: this.contextId,
-      element: { sharedId: input.sharedId },
-      files: paths,
-    });
-    await this.call(DROP_EVENTS, [el, types], DROP_SANDBOX);
+    await dropFiles(this.elementContext, files, options);
   }
 
   /**
@@ -682,35 +433,10 @@ export default class Locator {
   }
 
   /** Waits until the element reaches `state` (default "visible"); does not scroll */
-  public async waitFor({
-    state = "visible",
-    timeout,
-  }: { state?: WaitForState; timeout?: number } = {}): Promise<void> {
-    const resolved = await resolveTimeout(timeout);
-    const reached: Record<WaitForState, (current: ElementState) => boolean> = {
-      attached: (current) => current.attached,
-      detached: (current) => !current.attached,
-      visible: (current) => current.attached && current.visible,
-      hidden: (current) => !current.attached || !current.visible,
-    };
-    try {
-      await waitUntil(
-        () => this.probeState({ scroll: false, hitTest: false }),
-        reached[state],
-        {
-          timeout: resolved,
-        },
-      );
-    } catch (err) {
-      if (!(err instanceof WaitTimeoutError)) throw err;
-      throw new ActionTimeoutError({
-        action: "waitFor",
-        selector: this.selector,
-        timeout: resolved,
-        reason: err.last === undefined ? "unreadable" : "wrong-state",
-        state,
-      });
-    }
+  public async waitFor(
+    options: { state?: WaitForState; timeout?: number } = {},
+  ): Promise<void> {
+    await waitForState(this.actionability, options);
   }
 
   /** Returns the browser's getBoundingClientRect result for the given element */
