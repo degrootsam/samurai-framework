@@ -1,7 +1,7 @@
 # Unhandled rejection text differs
 
 Date: 2026-10-19
-Status: approved
+Status: implemented (Task 3)
 Part of: [Chrome support](../chrome-support-todo.md), item 11
 
 ## Evidence
