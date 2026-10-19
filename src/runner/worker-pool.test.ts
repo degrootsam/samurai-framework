@@ -19,10 +19,14 @@ class FakeWorker implements WorkerHandle {
   constructor(
     readonly init: WorkerInit,
     private readonly autoReady: boolean,
+    /** Leaves when it is told to exit, as a real worker does; a stubborn one never does */
+    private readonly leavesOnExit = true,
   ) {}
 
   send(message: ToWorker) {
     this.sent.push(message);
+    if (message.type === "exit" && this.leavesOnExit)
+      queueMicrotask(() => this.exit(0));
     if (message.type === "init" && this.autoReady) {
       queueMicrotask(() => this.emit({ type: "ready" }));
     }
@@ -60,19 +64,30 @@ class FakeWorker implements WorkerHandle {
 }
 
 function setup(
-  options: { workers?: number; autoReady?: boolean; graceMs?: number } = {},
+  options: {
+    workers?: number;
+    autoReady?: boolean;
+    graceMs?: number;
+    shutdownMs?: number;
+    leavesOnExit?: boolean;
+  } = {},
 ) {
   const workers: FakeWorker[] = [];
   const pool = new WorkerPool({
     workers: options.workers ?? 2,
     graceMs: options.graceMs ?? 20,
+    ...(options.shutdownMs !== undefined && { shutdownMs: options.shutdownMs }),
     init: {
       projectDir: "/project",
       files: ["/project/a.spec.ts"],
       basePort: 9300,
     },
     factory: (init) => {
-      const worker = new FakeWorker(init, options.autoReady ?? true);
+      const worker = new FakeWorker(
+        init,
+        options.autoReady ?? true,
+        options.leavesOnExit ?? true,
+      );
       workers.push(worker);
       return worker;
     },
@@ -331,6 +346,41 @@ describe("WorkerPool", () => {
       workers[0]?.pass();
     }
     assert.equal((await done).length, 3);
+  });
+
+  it("dispose gives an idle worker time to leave on its own, and it is not taken for a crash", async () => {
+    const { pool, workers } = setup();
+    const first = pool.run([item(0)]);
+    await settle();
+    workers[0]?.pass();
+    await first;
+    await pool.dispose();
+    assert.equal(last(workers[0]?.sent)?.type, "exit");
+    assert.equal(workers.length, 1, "no replacement was started");
+  });
+
+  it("dispose waits for the exit of an idle worker, up to shutdownMs, then kills it", async () => {
+    const { pool, workers } = setup({ leavesOnExit: false, shutdownMs: 30 });
+    const first = pool.run([item(0)]);
+    await settle();
+    workers[0]?.pass();
+    await first;
+    const begun = Date.now();
+    await pool.dispose();
+    assert.ok(Date.now() - begun >= 25, "it waited");
+    assert.equal(workers[0]?.killed, true);
+  });
+
+  it("dispose kills a busy worker at once, without asking it to exit", async () => {
+    const { pool, workers } = setup({ leavesOnExit: false, shutdownMs: 5000 });
+    const run = pool.run([item(0)]);
+    run.catch(() => {});
+    await settle();
+    const begun = Date.now();
+    await pool.dispose();
+    assert.ok(Date.now() - begun < 1000);
+    assert.equal(workers[0]?.killed, true);
+    assert.ok(!workers[0]?.sent.some((m) => m.type === "exit"));
   });
 
   it("dispose sends exit, kills the workers, is idempotent, and run() rejects after", async () => {
