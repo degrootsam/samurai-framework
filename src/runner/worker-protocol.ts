@@ -44,7 +44,7 @@ export type ToWorker =
 /** Messages from a worker to the pool */
 export type FromWorker =
   | { type: "ready" }
-  | { type: "test-start"; id: number }
+  | { type: "test-start"; id: number; retry?: number }
   | { type: "test-end"; id: number; result: TestResult }
   | { type: "fatal"; message: string };
 

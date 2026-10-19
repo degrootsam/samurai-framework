@@ -412,3 +412,56 @@ describe("runPooled with skipped tests", () => {
     assert.equal(summary.status, "success");
   });
 });
+
+describe("runPooled with retries", () => {
+  it("reports the start of each attempt, and the end once", async () => {
+    const events: RunEvent[] = [];
+    const reporter = new TestReporter({
+      environment: "staging",
+      browsers: ["firefox"],
+      output: false,
+      onEvent: (event) => events.push(event),
+    });
+    const a = testCase("/p/src/a.spec.ts", "flaky");
+    const { items, planned } = planItems([a], ["firefox"], () => undefined);
+    reporter.onStart(1, 2);
+    await runPooled(
+      {
+        async run(list, hooks) {
+          const item = list[0]!;
+          hooks?.onEvent?.({ type: "test-start", item, worker: 0 });
+          hooks?.onEvent?.({ type: "test-start", item, worker: 0, retry: 1 });
+          const result = {
+            name: item.testName,
+            file: item.file,
+            browser: item.browser,
+            status: "success",
+            startTime: 1,
+            duration: 2,
+            retry: 1,
+            flaky: true,
+          } as TestResult;
+          hooks?.onEvent?.({ type: "test-end", item, worker: 0, result });
+          return [result];
+        },
+      },
+      planned,
+      items,
+      reporter,
+    );
+    const summary = await reporter.onEnd();
+
+    assert.deepEqual(
+      events.map((e) => [e.type, (e as { retry?: number }).retry]),
+      [
+        ["run-start", undefined],
+        ["test-start", undefined],
+        ["test-start", 1],
+        ["test-end", undefined],
+        ["run-end", undefined],
+      ],
+    );
+    assert.equal(summary.tests.length, 1);
+    assert.equal((summary.tests[0] as { flaky?: boolean }).flaky, true);
+  });
+});
