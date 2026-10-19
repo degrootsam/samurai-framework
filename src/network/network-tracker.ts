@@ -6,11 +6,26 @@ import type { Subscription } from "../transport/subscriptions.js";
 import type {
   BeforeRequestSentParameters,
   FetchErrorParameters,
-  Header,
   RequestData,
   ResponseCompletedParameters,
 } from "../types/bidi-modules/network.js";
-import { WaitTimeoutError } from "../wait/wait-until.js";
+import { headersFromBidi, toRequest } from "./bidi-wire.js";
+import { NetworkIdleTimeoutError } from "./network-wait.js";
+import {
+  type EventMap,
+  type FailedRequest,
+  type NetworkEventName,
+  type NetworkRequest,
+  type NetworkResponse,
+} from "./network-types.js";
+
+export type {
+  FailedRequest,
+  NetworkEventName,
+  NetworkRequest,
+  NetworkResponse,
+} from "./network-types.js";
+export { NetworkIdleTimeoutError } from "./network-wait.js";
 
 /** The error text of a request that the page left before it finished, when the browser says none */
 const ABORTED_BY_NAVIGATION = "aborted by navigation";
@@ -18,56 +33,9 @@ const ABORTED_BY_NAVIGATION = "aborted by navigation";
 /** How many URLs a timeout message names */
 const URLS_IN_MESSAGE = 5;
 
-export interface NetworkRequest {
-  /** The browser's id; the same for every hop of a redirect chain */
-  id: string;
-  url: string;
-  method: string;
-  /** Header names lower-cased; repeated headers joined with ", " */
-  headers: Record<string, string>;
-  /** "document", "script", "image", …; falls back to the initiator type, then "other" */
-  resourceType: string;
-  navigation: string | null;
-  /** The request this one is the redirect of, or null */
-  redirectedFrom: NetworkRequest | null;
-  /** True while a network intercept holds it */
-  isBlocked: boolean;
-}
-
-export interface NetworkResponse {
-  url: string;
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  fromCache: boolean;
-  request: NetworkRequest;
-}
-
-export type FailedRequest = NetworkRequest & { errorText: string };
-
-interface EventMap {
-  request: [NetworkRequest];
-  response: [NetworkResponse];
-  requestfailed: [FailedRequest];
-}
-export type NetworkEventName = keyof EventMap;
-
 export interface TrackerOptions {
   /** Requests it returns true for are neither counted nor emitted. Default: none */
   ignore?: (request: NetworkRequest) => boolean;
-}
-
-/** waitForIdle ran out of time with requests still in flight; `last` holds (up to five of) their URLs */
-export class NetworkIdleTimeoutError extends WaitTimeoutError<string[]> {
-  constructor(timeout: number, inflight: number, urls: string[]) {
-    super(timeout, urls);
-    this.name = "NetworkIdleTimeoutError";
-    this.message = `waitForNetworkIdle(): still ${inflight} request(s) in flight after ${timeout}ms: ${urls.join(", ")}`;
-  }
-}
-
-interface Waiter {
-  reject: (reason: unknown) => void;
 }
 
 /**
@@ -78,12 +46,16 @@ interface Waiter {
 export class NetworkTracker {
   private events = new EventEmitter();
   private subscription: Subscription | undefined;
-  private active = new Map<string, string>();
-  /** The context each request in flight belongs to, by the same key */
-  private contexts = new Map<string, string>();
-  /** Requests that may still be the source of a redirect, by hop key */
-  private hops = new Map<string, NetworkRequest>();
-  private waiters = new Set<Waiter>();
+  /**
+   * Every hop that is in flight or may still be the source of a redirect, by hop key. A redirect response ends a
+   * hop's flight (`live` false) but keeps it, for the next hop's `redirectedFrom`.
+   */
+  private hops = new Map<
+    string,
+    { request: NetworkRequest; context: string; live: boolean }
+  >();
+  /** Rejects a pending `waitForIdle`; each wait adds its own */
+  private waiters = new Set<(reason: unknown) => void>();
   private disposed = false;
 
   private constructor(
@@ -129,12 +101,16 @@ export class NetworkTracker {
 
   /** Requests currently in flight */
   public get inflight(): number {
-    return this.active.size;
+    return this.liveHops().length;
   }
 
   /** URLs of the requests currently in flight, oldest first */
   public get inflightUrls(): string[] {
-    return [...this.active.values()];
+    return this.liveHops().map(({ request }) => request.url);
+  }
+
+  private liveHops() {
+    return [...this.hops.values()].filter(({ live }) => live);
   }
 
   /** Waits that have not finished yet */
@@ -169,9 +145,7 @@ export class NetworkTracker {
   }): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       let idleTimer: ReturnType<typeof setTimeout> | undefined;
-      const waiter: Waiter = {
-        reject: (reason) => finish(() => reject(reason)),
-      };
+      const waiter = (reason: unknown) => finish(() => reject(reason));
       const finish = (settle: () => void) => {
         clearTimeout(idleTimer);
         clearTimeout(deadline);
@@ -181,7 +155,7 @@ export class NetworkTracker {
       };
       const check = () => {
         clearTimeout(idleTimer);
-        if (this.active.size === 0)
+        if (this.inflight === 0)
           idleTimer = setTimeout(() => finish(resolve), idleTime);
       };
       const deadline = setTimeout(
@@ -190,7 +164,7 @@ export class NetworkTracker {
             reject(
               new NetworkIdleTimeoutError(
                 timeout,
-                this.active.size,
+                this.inflight,
                 this.inflightUrls.slice(0, URLS_IN_MESSAGE),
               ),
             ),
@@ -208,12 +182,8 @@ export class NetworkTracker {
     if (this.disposed) return;
     this.disposed = true;
     this.removeListeners();
-    this.active.clear();
-    this.contexts.clear();
     this.hops.clear();
-    [...this.waiters].forEach((waiter) =>
-      waiter.reject(new Error("page closed")),
-    );
+    [...this.waiters].forEach((reject) => reject(new Error("page closed")));
     await this.subscription?.unsubscribe();
   }
 
@@ -247,7 +217,7 @@ export class NetworkTracker {
     const { redirectCount } = params;
     const previousKey = `${params.request.request}:${redirectCount - 1}`;
     const redirectedFrom =
-      redirectCount > 0 ? (this.hops.get(previousKey) ?? null) : null;
+      redirectCount > 0 ? (this.hops.get(previousKey)?.request ?? null) : null;
     this.hops.delete(previousKey);
 
     const request = toRequest(
@@ -257,9 +227,7 @@ export class NetworkTracker {
       redirectedFrom,
     );
     if (this.ignore(request)) return;
-    this.hops.set(key, request);
-    this.active.set(key, request.url);
-    if (params.context) this.contexts.set(key, params.context);
+    this.hops.set(key, { request, context: params.context!, live: true });
     this.emit("request", request);
     this.events.emit("change");
   };
@@ -267,17 +235,18 @@ export class NetworkTracker {
   private onResponseCompleted = (params: ResponseCompletedParameters) => {
     if (!this.owns(params.context)) return;
     const key = NetworkTracker.key(params.request, params.redirectCount);
-    const request = this.hops.get(key);
-    if (!this.active.delete(key) || !request) return;
-    this.contexts.delete(key);
+    const hop = this.hops.get(key);
+    if (!hop?.live) return;
+    const { request } = hop;
     const { response } = params;
     // A redirect response keeps its request around: the next hop links back to it
     if (response.status < 300 || response.status >= 400) this.hops.delete(key);
+    else hop.live = false;
     this.emit("response", {
       url: response.url,
       status: response.status,
       statusText: response.statusText,
-      headers: toHeaders(response.headers),
+      headers: headersFromBidi(response.headers),
       fromCache: response.fromCache,
       request,
     });
@@ -287,13 +256,12 @@ export class NetworkTracker {
   private onFetchError = (params: FetchErrorParameters) => {
     if (!this.owns(params.context)) return;
     const key = NetworkTracker.key(params.request, params.redirectCount);
-    const request = this.hops.get(key);
-    if (!this.active.delete(key) || !request) return;
-    this.contexts.delete(key);
+    const hop = this.hops.get(key);
+    if (!hop?.live) return;
     this.hops.delete(key);
     this.emit(
       "requestfailed",
-      Object.assign(request, { errorText: params.errorText }),
+      Object.assign(hop.request, { errorText: params.errorText }),
     );
     this.events.emit("change");
   };
@@ -308,12 +276,9 @@ export class NetworkTracker {
   }) => {
     if (!this.owns(params.context)) return;
     let changed = false;
-    for (const [key, requestContext] of [...this.contexts]) {
-      const request = this.hops.get(key);
-      if (!request || request.navigation === params.navigation) continue;
-      if (!this.tree.isWithin(requestContext, params.context)) continue;
-      this.contexts.delete(key);
-      this.active.delete(key);
+    for (const [key, { request, context, live }] of [...this.hops]) {
+      if (!live || request.navigation === params.navigation) continue;
+      if (!this.tree.isWithin(context, params.context)) continue;
       this.hops.delete(key);
       this.emit(
         "requestfailed",
@@ -334,36 +299,4 @@ export class NetworkTracker {
       }
     }
   }
-}
-
-export function toRequest(
-  data: RequestData,
-  navigation: string | null,
-  isBlocked: boolean,
-  redirectedFrom: NetworkRequest | null,
-): NetworkRequest {
-  return {
-    id: data.request,
-    url: data.url,
-    method: data.method,
-    headers: toHeaders(data.headers),
-    resourceType: data.destination || data.initiatorType || "other",
-    navigation,
-    redirectedFrom,
-    isBlocked,
-  };
-}
-
-/** Header list to a lower-cased record; repeated names are joined, base64 values decoded */
-function toHeaders(headers: Header[]): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const { name, value } of headers) {
-    const text =
-      value.type === "base64"
-        ? Buffer.from(value.value, "base64").toString("utf8")
-        : value.value;
-    const key = name.toLowerCase();
-    result[key] = key in result ? `${result[key]}, ${text}` : text;
-  }
-  return result;
 }

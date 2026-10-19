@@ -4,13 +4,13 @@ import logger from "../logger/index.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import type { Subscription } from "../transport/subscriptions.js";
+import type { BiDiCommands } from "../types/bidi.js";
 import type {
   BeforeRequestSentParameters,
-  BytesValue,
-  Header,
   UrlPattern as BiDiUrlPattern,
 } from "../types/bidi-modules/network.js";
-import { toRequest, type NetworkRequest } from "./network-tracker.js";
+import { headersToBidi, toBytes, toRequest } from "./bidi-wire.js";
+import type { NetworkRequest } from "./network-types.js";
 import {
   isExactString,
   matchUrl,
@@ -67,19 +67,6 @@ interface RouteDeps {
   sendsContentLength: boolean;
 }
 
-function toHeaders(headers: Record<string, string>): Header[] {
-  return Object.entries(headers).map(([name, value]) => ({
-    name,
-    value: { type: "string", value },
-  }));
-}
-
-function toBytes(data: string | Buffer): BytesValue {
-  return typeof data === "string"
-    ? { type: "string", value: data }
-    : { type: "base64", value: data.toString("base64") };
-}
-
 const hasHeader = (headers: Record<string, string>, name: string) =>
   Object.keys(headers).some((key) => key.toLowerCase() === name);
 
@@ -94,9 +81,9 @@ export class Route {
 
   constructor(
     private readonly info: NetworkRequest,
-    /** @internal */
-    public readonly entry: RouteEntry,
     private readonly deps: RouteDeps,
+    /** @internal The route that holds the request; none for one nobody asked for */
+    public readonly entry?: RouteEntry,
   ) {}
 
   public request(): NetworkRequest {
@@ -132,7 +119,7 @@ export class Route {
       request: this.info.id,
       statusCode: status,
       reasonPhrase: STATUS_CODES[status] ?? "",
-      headers: toHeaders(headers),
+      headers: headersToBidi(headers),
       ...(body !== undefined && { body: toBytes(body) }),
     });
   }
@@ -160,7 +147,7 @@ export class Route {
       request: this.info.id,
       ...(options.url !== undefined && { url: options.url }),
       ...(options.method !== undefined && { method: options.method }),
-      ...(headers !== undefined && { headers: toHeaders(headers) }),
+      ...(headers !== undefined && { headers: headersToBidi(headers) }),
       ...(options.postData !== undefined && {
         body: toBytes(options.postData),
       }),
@@ -210,9 +197,9 @@ export class Route {
       | "network.provideResponse"
       | "network.continueRequest"
       | "network.failRequest",
-  >(method: M, params: Parameters<BiDiConnector["send"]>[1]) {
+  >(method: M, params: BiDiCommands[M]["params"]) {
     this.claim();
-    await this.deps.send(method, params as never);
+    await this.deps.send(method, params);
   }
 }
 
@@ -295,7 +282,7 @@ export class Router {
     // Requests a removed route still holds would wait for nobody
     await Promise.all(
       [...this.pending]
-        .filter((route) => removed.includes(route.entry))
+        .filter((route) => route.entry && removed.includes(route.entry))
         .map((route) => route.release()),
     );
     await this.enqueue(() => this.sync());
@@ -455,11 +442,11 @@ export class Router {
     };
     if (!entry) {
       // Nobody (left) to ask: an unmatched request, or every route fell back
-      await new Route(info, { pattern: "", handler: () => {} }, deps).release();
+      await new Route(info, deps).release();
       return;
     }
 
-    const route = new Route(info, entry, deps);
+    const route = new Route(info, deps, entry);
     this.pending.add(route);
     route.timer = setTimeout(() => {
       if (route.isAnswered) return;

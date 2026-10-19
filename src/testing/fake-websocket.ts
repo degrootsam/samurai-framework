@@ -1,10 +1,19 @@
+import {
+  BiDiConnector,
+  type ConnectorOptions,
+} from "../transport/bidi-connection.js";
+
 /**
  * Minimal WebSocket stand-in for BiDiConnector unit tests. Commands the connector sends are
  * recorded in `sent`; tests answer them with `reply` and push events with `emitEvent`.
  */
 export class FakeWebSocket extends EventTarget {
   /** Every command the connector sent, parsed */
-  public readonly sent: Array<{ id: number; method: string; params?: unknown }> = [];
+  public readonly sent: Array<{
+    id: number;
+    method: string;
+    params?: unknown;
+  }> = [];
   public closed = false;
 
   send(data: string) {
@@ -16,14 +25,21 @@ export class FakeWebSocket extends EventTarget {
   }
 
   private receive(message: object) {
-    this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(message) }));
+    this.dispatchEvent(
+      new MessageEvent("message", { data: JSON.stringify(message) }),
+    );
   }
 
   reply(id: number, result: object = {}) {
     this.receive({ type: "success", id, result });
   }
 
-  replyError(id: number | null, error: string, message = "boom", stacktrace?: string) {
+  replyError(
+    id: number | null,
+    error: string,
+    message = "boom",
+    stacktrace?: string,
+  ) {
     this.receive({ type: "error", id, error, message, stacktrace });
   }
 
@@ -63,10 +79,24 @@ export function autoReply(
       }
       const result = handler?.(params) ?? {};
       // An Error with a `code` answers with that BiDi error code
-      if (result instanceof Error) ws.replyError(id, (result as { code?: string }).code ?? "unknown error", result.message);
-      else if (method === "session.subscribe") ws.reply(id, { subscription: `sub-${++subscriptions}`, ...result });
+      if (result instanceof Error)
+        ws.replyError(
+          id,
+          (result as { code?: string }).code ?? "unknown error",
+          result.message,
+        );
+      else if (method === "session.subscribe")
+        ws.reply(id, { subscription: `sub-${++subscriptions}`, ...result });
       else ws.reply(id, result);
     }
   }, 1).unref();
   return () => clearInterval(pump);
+}
+
+/** A connector over a fake socket (the line every connector unit test needs) */
+export function makeConnector(
+  ws: FakeWebSocket,
+  options?: ConnectorOptions,
+): BiDiConnector {
+  return new BiDiConnector(ws as unknown as WebSocket, options);
 }
