@@ -49,10 +49,23 @@ export async function addPreload(
     }),
   });
 
+  let stopRerun: (() => Promise<void>) | undefined;
+  if (needsRerun(connector, options)) {
+    try {
+      stopRerun = await rerunInNewRealms(connector, options);
+    } catch (err) {
+      await connector
+        .send("script.removePreloadScript", { script })
+        .catch(() => undefined);
+      throw err;
+    }
+  }
+
   let removed = false;
   const dispose = async () => {
     if (removed) return;
     removed = true;
+    await stopRerun?.();
     try {
       await connector.send("script.removePreloadScript", { script });
     } catch (err) {
@@ -73,6 +86,76 @@ export async function addPreload(
     throw err;
   }
   return { id: script, dispose };
+}
+
+/**
+ * Chrome drops the messages of a channel that a preload script in a sandbox was given, while a channel handed to a
+ * call into the same sandbox works. So there the script is also run, with its channels, in every new sandbox realm.
+ */
+function needsRerun(connector: BiDiConnector, options: RunOptions): boolean {
+  return (
+    connector.browserName === "chrome" &&
+    options.sandbox !== undefined &&
+    (options.arguments?.length ?? 0) > 0
+  );
+}
+
+async function rerunInNewRealms(
+  connector: BiDiConnector,
+  options: RunOptions,
+): Promise<() => Promise<void>> {
+  const { contexts, sandbox, source } = options;
+  const inScope = async (context: string): Promise<boolean> => {
+    if (!contexts) return true;
+    if (contexts.includes(context)) return true;
+    const trees = await Promise.all(
+      contexts.map((root) =>
+        connector.send("browsingContext.getTree", { root }),
+      ),
+    );
+    return trees.some((tree) =>
+      tree.contexts.flatMap(flatten).includes(context),
+    );
+  };
+  const onRealm = (realm: {
+    type: string;
+    context?: string;
+    sandbox?: string;
+  }) => {
+    if (realm.type !== "window" || realm.sandbox !== sandbox || !realm.context)
+      return;
+    const context = realm.context;
+    void (async () => {
+      try {
+        if (!(await inScope(context))) return;
+        await callFunction(
+          connector,
+          context,
+          source,
+          options.arguments ?? [],
+          {
+            awaitPromise: false,
+            ...(sandbox !== undefined && { sandbox }),
+          },
+        );
+      } catch (err) {
+        // The document went away again, or the script threw: the registration covers what it can
+        logger.debug("Could not run a preload script in a new realm", { err });
+      }
+    })();
+  };
+  connector.onEvent("script.realmCreated", onRealm);
+  let subscription;
+  try {
+    subscription = await connector.subscribe(["script.realmCreated"]);
+  } catch (err) {
+    connector.offEvent("script.realmCreated", onRealm);
+    throw err;
+  }
+  return async () => {
+    connector.offEvent("script.realmCreated", onRealm);
+    await subscription.unsubscribe().catch(() => undefined);
+  };
 }
 
 /** Runs `source` once in every loaded context (iframes included) under `contexts` */
