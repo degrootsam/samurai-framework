@@ -57,6 +57,16 @@ function callbackBody(node: ts.Expression | undefined): ts.Block | undefined {
     : undefined;
 }
 
+/** `describe.skip`, `describe.fixme` and `describe.only`: tests written inside keep their place in the title */
+function isDescribeWithModifier(expression: ts.Expression): boolean {
+  return (
+    ts.isPropertyAccessExpression(expression) &&
+    ts.isIdentifier(expression.expression) &&
+    expression.expression.text === "describe" &&
+    ["skip", "fixme", "only"].includes(expression.name.text)
+  );
+}
+
 /** The tests in a spec file, with their steps and where each statement sits */
 export function parseSpec(source: string): ParsedTest[] {
   const sourceFile = ts.createSourceFile(
@@ -69,6 +79,15 @@ export function parseSpec(source: string): ParsedTest[] {
   const tests: ParsedTest[] = [];
 
   const visit = (node: ts.Node, titles: string[]) => {
+    if (ts.isCallExpression(node) && isDescribeWithModifier(node.expression)) {
+      // `describe.skip("Old", () => ...)`: a describe block for the names of the tests inside it
+      const title = stringOf(node.arguments[0]);
+      const body = callbackBody(node.arguments[1]);
+      if (title !== undefined && body) {
+        ts.forEachChild(body, (child) => visit(child, [...titles, title]));
+        return;
+      }
+    }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       const title = stringOf(node.arguments[0]);
       const body = callbackBody(node.arguments[1]);
