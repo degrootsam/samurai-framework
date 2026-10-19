@@ -10,7 +10,7 @@ export type Selector =
       match: "full" | "partial";
       ignoreCase: boolean;
     }
-  | { kind: "role"; role?: string; name?: string }
+  | { kind: "role"; role: string; name?: string }
   /** Form controls named by a `<label>`, `aria-labelledby` or `aria-label` whose text matches */
   | {
       kind: "label";
@@ -115,7 +115,7 @@ export function toBiDiLocator(
       return {
         type: "accessibility",
         value: {
-          ...(selector.role !== undefined && { role: selector.role }),
+          role: selector.role,
           ...(selector.name !== undefined && { name: selector.name }),
         },
       };
@@ -124,6 +124,7 @@ export function toBiDiLocator(
         type: "css",
         value: `[data-testid="${selector.value.replace(/["\\]/g, "\\$&")}"]`,
       };
+    // The locator resolves these two itself, so a chain never hands them to the browser
     case "label":
       throw new Error("label is resolved by the framework, not by the browser");
     case "nth":
@@ -150,7 +151,7 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
       return `testid=${JSON.stringify(selector.value)}`;
     case "role":
       return (
-        `role=${selector.role ?? ""}` +
+        `role=${selector.role}` +
         (selector.name === undefined
           ? ""
           : `[name=${JSON.stringify(selector.name)}]`)

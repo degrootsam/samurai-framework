@@ -14,7 +14,7 @@ export interface CallOptions {
    * carrying it, and the caller must `disown` it. @default "none"
    */
   ownership?: "none" | "root";
-  /** Named sandbox realm to run in (see the preload-scripts spec) */
+  /** Named sandbox realm to run in */
   sandbox?: string;
   thisArg?: Arg;
 }
@@ -48,7 +48,9 @@ export class ScriptSerializationError extends Error {
 }
 
 /** The source to send for `fn`; a function object must not depend on transpiler helpers */
-export function toFunctionDeclaration(fn: string | ((...args: any[]) => unknown)): string {
+export function toFunctionDeclaration(
+  fn: string | ((...args: any[]) => unknown),
+): string {
   if (typeof fn === "string") return fn;
   const source = fn.toString();
   // tsx/esbuild wrap named functions in a __name() helper that does not exist in the page
@@ -73,7 +75,8 @@ export async function callFunction<T = unknown>(
   const ownership = options.ownership ?? "none";
   // Serialize first: a bad argument must fail before anything is sent
   const serialized = args.map(toLocalValue);
-  const thisValue = "thisArg" in options ? toLocalValue(options.thisArg) : undefined;
+  const thisValue =
+    "thisArg" in options ? toLocalValue(options.thisArg) : undefined;
 
   const result = await connector.send("script.callFunction", {
     functionDeclaration,
@@ -94,7 +97,9 @@ export async function callFunction<T = unknown>(
       result.exceptionDetails.stackTrace,
     );
   }
-  return fromRemoteValue(result.result, { keepHandles: ownership === "root" }) as T;
+  return fromRemoteValue(result.result, {
+    keepHandles: ownership === "root",
+  }) as T;
 }
 
 /** Releases handles obtained with `ownership: "root"`; a handle that is already gone is fine */

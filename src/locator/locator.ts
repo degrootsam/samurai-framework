@@ -35,6 +35,7 @@ import { ActionTimeoutError } from "./action-timeout-error.js";
 import {
   allPass,
   DETACHED_STATE,
+  describeType,
   evaluateChecks,
   parseElementState,
   PROBE_ELEMENT,
@@ -64,13 +65,6 @@ import {
   type Selector,
   type TextOptions,
 } from "./selector.js";
-
-export type { WaitForState } from "./element-state.js";
-export {
-  InvalidSelectorError,
-  UnsupportedOperationError,
-} from "./selector-errors.js";
-export type { TextOptions } from "./selector.js";
 
 export interface ActionOptions {
   /**
@@ -160,9 +154,6 @@ const NAMED_KEYS: Readonly<Record<string, string>> = {
   PageUp: "\uE00E",
   PageDown: "\uE00F",
 };
-
-/** Unicode code point WebDriver uses for the Backspace key */
-const BACKSPACE = "";
 
 /**
  * Chrome answers a command sent while the page swaps documents with an unknown error that says the context
@@ -390,7 +381,7 @@ export default class Locator {
       selector.kind === "text" &&
       unsupportedTypes(this.biDiConnector).has("innerText")
     ) {
-      return this.locateByText(selector, startNodes, max);
+      return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
     }
     try {
       return await this.locateNatively(selector, scoped, startNodes, max);
@@ -405,7 +396,7 @@ export default class Locator {
         if (selector.kind === "text") {
           // The browser has no innerText locator (Firefox): remember that and search in the page instead
           unsupportedTypes(this.biDiConnector).add("innerText");
-          return this.locateByText(selector, startNodes, max);
+          return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
         }
         throw new UnsupportedOperationError(
           `${describeSelector(selector, scoped)}: this kind of locator is not supported by the browser (${err.message})`,
@@ -441,15 +432,6 @@ export default class Locator {
       }
     }
     return [...found.values()];
-  }
-
-  /** Text search done in the page, for browsers without BiDi's innerText locator */
-  private locateByText(
-    selector: Extract<Selector, { kind: "text" }>,
-    startNodes: ElementHandle[] | undefined,
-    max: number | undefined,
-  ): Promise<ElementHandle[]> {
-    return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
   }
 
   /** Runs a page-side search `(starts, value, match, ignoreCase) => elements` */
@@ -519,12 +501,22 @@ export default class Locator {
   private async callOnExistingElement<T>(body: string): Promise<T> {
     const missing = Symbol("missing");
     const result = await this.callOnElement<T | typeof missing>(missing, body);
-    if (result === missing) {
-      throw new Error(
-        `Failed to locate element ${this.selector}. Details: no element matches`,
-      );
-    }
+    if (result === missing) throw this.noElementError();
     return result;
+  }
+
+  /** The error for an operation that needs an element when none matches */
+  private noElementError(): Error {
+    return new Error(
+      `Failed to locate element ${this.selector}. Details: no element matches`,
+    );
+  }
+
+  /** The element the locator matches now; throws when none does */
+  private async requireElement(): Promise<ElementHandle> {
+    const el = await this.resolveOne();
+    if (!el) throw this.noElementError();
+    return el;
   }
 
   /** Reads the element's actionability state: one search, one probe */
@@ -627,14 +619,8 @@ export default class Locator {
     await this.clickRect(state.box!);
   }
 
-  /** Simulate a click event on the center off a page element.
-   * This is mostly used internally to focus input elements when using the `fill()` method
-   * @example
-   *  const container = page.locator("div[@id=['clickable-element']");
-   *  const rect = await container.getBoundingClientRect();
-   *  await container.clickRect(rect);
-   */
-  public async clickRect(
+  /** Clicks the centre of `rect` (viewport pixels) with real pointer input; `click()` and `fill()` use it */
+  private async clickRect(
     rect: Pick<ElementRectangle, "x" | "y" | "width" | "height">,
   ) {
     await this.biDiConnector.send("input.performActions", {
@@ -681,21 +667,16 @@ export default class Locator {
       "setInputFiles",
       FILE_INPUT_CHECKS,
       { scroll: false, hitTest: false },
-      options?.timeout === undefined ? undefined : { timeout: options.timeout },
+      options,
     );
 
-    const missing = () =>
-      new Error(
-        `Failed to locate element ${this.selector}. Details: no element matches`,
-      );
-    const el = await this.resolveOne();
-    if (!el) throw missing();
+    const el = await this.requireElement();
     let info: { tag: string; type: string; multiple: boolean };
     try {
       info = await this.call(FILE_INPUT_INFO, [el]);
     } catch (err) {
       if (err instanceof BiDiError && err.code === "no such node")
-        throw missing();
+        throw this.noElementError();
       throw err;
     }
 
@@ -742,13 +723,9 @@ export default class Locator {
       "dropFiles",
       DROP_CHECKS,
       { scroll: true, hitTest: false },
-      options?.timeout === undefined ? undefined : { timeout: options.timeout },
+      options,
     );
-    const el = await this.resolveOne();
-    if (!el)
-      throw new Error(
-        `Failed to locate element ${this.selector}. Details: no element matches`,
-      );
+    const el = await this.requireElement();
     // A file input of our own, made in a sandbox and never attached: the page doesn't see it
     const input = await this.call<ElementHandle>(DROP_INPUT, [], DROP_SANDBOX);
     await this.biDiConnector.send("input.setFiles", {
@@ -775,12 +752,7 @@ export default class Locator {
       { scroll: true, hitTest: false },
       timeout === undefined ? undefined : { timeout },
     );
-    const el = await this.resolveOne();
-    if (!el) {
-      throw new Error(
-        `Failed to locate element ${this.selector}. Details: no element matches`,
-      );
-    }
+    const el = await this.requireElement();
     return takeScreenshot(this.biDiConnector, this.contextId, capture, {
       sharedId: el.sharedId,
     });
@@ -843,14 +815,6 @@ export default class Locator {
     return rect as ElementRectangle;
   }
 
-  private stringOrNull(value: unknown): string | null {
-    if (typeof value === "string") return value;
-    if (value === null) return null;
-    throw new Error(
-      `Expected a string or null but received "${describeType(value)}"`,
-    );
-  }
-
   /** Whether the element exists, has a non-empty box and is not hidden by CSS */
   public async isVisible(): Promise<boolean> {
     const result = await this.callOnElement<unknown>(
@@ -867,14 +831,14 @@ export default class Locator {
 
   /** Trimmed text content, or null when the element is missing */
   public async textContent(): Promise<string | null> {
-    return this.stringOrNull(
+    return stringOrNull(
       await this.callOnElement<unknown>(null, `return el.textContent.trim();`),
     );
   }
 
   /** Value of an input/textarea/select, or null when missing */
   public async inputValue(): Promise<string | null> {
-    return this.stringOrNull(
+    return stringOrNull(
       await this.callOnElement<unknown>(
         null,
         `return typeof el.value === "string" ? el.value : null;`,
@@ -884,7 +848,7 @@ export default class Locator {
 
   /** Attribute value, or null when the element or attribute is missing */
   public async getAttribute(name: string): Promise<string | null> {
-    return this.stringOrNull(
+    return stringOrNull(
       await this.callOnElement<unknown>(
         null,
         `return el.getAttribute(name);`,
@@ -981,7 +945,7 @@ export default class Locator {
     );
 
     // Typing over the selected existing value replaces it; Backspace clears it for an empty value
-    const keys = value === "" ? BACKSPACE : value;
+    const keys = value === "" ? NAMED_KEYS.Backspace! : value;
     const actions: Array<KeyDownAction | KeyUpAction> = Array.from(
       keys,
     ).flatMap((char) => [
@@ -1017,6 +981,10 @@ export default class Locator {
   }
 }
 
-function describeType(value: unknown): string {
-  return value === null ? "null" : typeof value;
+function stringOrNull(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (value === null) return null;
+  throw new Error(
+    `Expected a string or null but received "${describeType(value)}"`,
+  );
 }
