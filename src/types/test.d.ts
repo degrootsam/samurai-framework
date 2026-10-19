@@ -71,6 +71,8 @@ interface TestResultIdentity {
   file: string;
   /** The browser the test ran in */
   browser: SupportedBrowser;
+  /** The worker process that ran the test; absent when the run had no workers */
+  worker?: number;
   startTime: number;
 }
 
@@ -78,6 +80,7 @@ interface TestResultBase {
   name: string;
   file: string;
   browser: SupportedBrowser;
+  worker?: number;
   startTime: number;
   status: "started";
 }
