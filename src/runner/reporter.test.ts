@@ -250,3 +250,77 @@ test("results from workers are listed in the order the run planned, whichever en
     "run-end",
   ]);
 });
+
+test("a skipped test reports a start and an end, is listed as skipped, and does not fail the run", async () => {
+  const events: { type: string; result?: { status: string } }[] = [];
+  const output = path.join(dir, `${Math.random()}.json`);
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["firefox"],
+    output,
+    onEvent: (event) => events.push(event),
+  });
+  const ran = testCase("a.spec.ts", "Checkout > pays");
+  const skipped = testCase("a.spec.ts", "Checkout > old flow");
+  reporter.onStart(2);
+  reporter.onTestSkipped(skipped, "firefox", {
+    annotation: "fixme",
+    reason: "broken on staging",
+  });
+  reporter.onTestStart(ran, "firefox");
+  reporter.onTestEnd(ran, "firefox");
+  const summary = await reporter.onEnd();
+
+  assert.deepEqual(
+    events.map((e) => e.type),
+    [
+      "run-start",
+      "test-start",
+      "test-end",
+      "test-start",
+      "test-end",
+      "run-end",
+    ],
+  );
+  assert.equal(events[2]?.result?.status, "skipped");
+  assert.equal(summary.status, "success");
+  const written = JSON.parse(readFileSync(output, "utf8"));
+  assert.deepEqual(
+    written.tests.map((t: { name: string; status: string }) => [
+      t.name,
+      t.status,
+    ]),
+    [
+      ["Checkout > old flow", "skipped"],
+      ["Checkout > pays", "success"],
+    ],
+  );
+  assert.equal(written.tests[0].annotation, "fixme");
+  assert.equal(written.tests[0].reason, "broken on staging");
+  assert.equal(written.tests[0].duration, 0);
+});
+
+test("a run with a failing test and a skipped one is failed", async () => {
+  const bad = testCase("a.spec.ts", "bad");
+  const skipped = testCase("a.spec.ts", "later");
+  const summary = await report((reporter) => {
+    reporter.onTestStart(bad, "firefox");
+    reporter.onTestEnd(bad, "firefox", { message: "boom", type: "error" });
+    reporter.onTestSkipped(skipped, "firefox", { annotation: "skip" });
+  });
+  assert.equal(summary.status, "failed");
+  assert.equal(summary.tests.length, 2);
+});
+
+test("a secret in a skip reason is masked", async () => {
+  registerSecret("TOKEN", "s3cret-value");
+  const t = testCase("a.spec.ts", "needs token");
+  const summary = await report((reporter) => {
+    reporter.onTestSkipped(t, "firefox", {
+      annotation: "skip",
+      reason: "no s3cret-value here",
+    });
+  });
+  assert.ok(summary.tests[0].reason.includes(MASK));
+  assert.ok(!summary.tests[0].reason.includes("s3cret-value"));
+});

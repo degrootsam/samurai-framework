@@ -36,7 +36,8 @@ export interface PartialTestResult extends TestResultBase {
   file: string;
 }
 
-export type TestResult = TestResultSuccess | TestResultFailed | TestResultBase;
+export type TestResult =
+  TestResultSuccess | TestResultFailed | TestResultSkipped | TestResultBase;
 
 interface TestResultSuccess extends TestResultIdentity {
   status: "success";
@@ -56,6 +57,15 @@ interface TestResultFailed extends TestResultIdentity, TestError {
   logsDropped?: number;
   /** Named screenshots the test saved, relative to the result folder */
   screenshots?: { name: string; path: string }[];
+}
+
+/** A test that was not run: marked `skip` or `fixme`, or skipped from inside with `test.skip(condition)` */
+interface TestResultSkipped extends TestResultIdentity {
+  status: "skipped";
+  duration: 0;
+  /** `"fixme"` for a test known to be broken, `"skip"` for the rest */
+  annotation: "skip" | "fixme";
+  reason?: string;
 }
 
 /** One line of the browser's log, as stored in the report */
@@ -100,6 +110,7 @@ export interface TestError {
 export type TestSummary = TestSummarySuccess | TestSummaryFailed;
 
 interface TestSummarySuccess extends TestSummaryBase {
+  /** No test failed (skipped tests do not count as failed) */
   status: "success";
 }
 
