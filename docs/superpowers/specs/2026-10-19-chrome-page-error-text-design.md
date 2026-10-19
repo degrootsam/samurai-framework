@@ -14,7 +14,7 @@ Affects: page-logs (1 test).
 
 ## Cause
 
-- Chrome prefixes a rejection's text with `Uncaught (in promise) `. A format difference, not a missing event.
+- Chrome starts a rejection's text with `Uncaught (in promise)` and a space. A format difference, not a missing event.
 
 ## Proposal
 
