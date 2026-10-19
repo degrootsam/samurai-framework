@@ -1,0 +1,26 @@
+import type { SupportedBrowser } from "../types/browser.js";
+import type { RunEvent } from "./reporter.js";
+
+/** What decides which tests of the found files run, and how the browser starts */
+export interface RunnerOptions {
+  /** Spec files to run, absolute or relative to the project folder. Default: every `*.spec.ts` under `srcDir` */
+  files?: string[];
+  /** Only tests whose full name matches (a string must be contained in it) */
+  grep?: string | RegExp;
+  /** Only tests with exactly one of these full names (`describe` titles joined with " > ") */
+  testNames?: string[];
+  /** Only the tests of this group of the config's `groups` (unknown name: an error). Combines with the other filters */
+  group?: string;
+  /** The browsers to run in, instead of the group's or the project's `browsers` (the command line's `--browser`) */
+  browsers?: SupportedBrowser[];
+  /** Run the browser without a window. @default false */
+  headless?: boolean;
+  /** Remote debugging port of the browser. @default DEFAULT_PORT (9223) */
+  port?: number;
+  /** Where the report is written; `false` writes none. @default `<project>/result/report.json` */
+  reportPath?: string | false;
+  /** Receives start and end of the run and of every test, as they happen */
+  onEvent?: (event: RunEvent) => void;
+  /** Aborting stops the running test (its browser is closed), skips the rest and reports the run as failed */
+  signal?: AbortSignal;
+}

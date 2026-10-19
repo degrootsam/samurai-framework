@@ -1,94 +1,26 @@
 import { glob } from "node:fs/promises";
 import path from "path";
-import { pathToFileURL } from "url";
-import { Browser } from "../browser/browser.js";
 import { ensureWarm } from "../browser/warm-up.js";
 import { projectBrowser } from "../browsers/resolve.js";
-import { browsersFor } from "./browsers.js";
-import { DEFAULT_PORT } from "./ports.js";
-import { loadConfig, projectDir, readConfig } from "../config/config.js";
+import { projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
-import type { SupportedBrowser } from "../types/browser.js";
-import type {
-  RegisteredTestCase,
-  TestError,
-  TestFixtures,
-  TestLogEntry,
-} from "../types/test.js";
-import { assertModuleProject } from "./module-type.js";
-import { clearRegistry, registeredTests } from "./registry.js";
-import type { PreparedRun } from "./prepare-run.js";
-import { createEnvFixture } from "../config/variables.js";
-import { createSecretsFixture } from "../config/secrets.js";
-import TestReporter, { type RunEvent } from "./reporter.js";
-import Page from "../browser/page.js";
-import { cleanName, Evidence } from "../browser/evidence.js";
-import { takePendingAssertions } from "../assert/expect.js";
-import { toTestError } from "./test-error.js";
-import { ConnectionClosedError } from "../transport/bidi-connection.js";
-import {
-  DEFAULT_SRC_DIR,
-  DEFAULT_TEST_MATCH,
-  findGroup,
-  realPath,
-  resolveGroups,
-  testId,
-  toPosix,
-} from "./groups.js";
+import type { RegisteredTestCase } from "../types/test.js";
+import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "./groups.js";
 import type { ResolvedGroup } from "./groups.js";
-import { judgePageLogs } from "./page-logs-report.js";
-import type { LogsConfig } from "./page-logs-report.js";
+import type { RunnerOptions } from "./options.js";
+import { DEFAULT_PORT } from "./ports.js";
+import type { PreparedRun } from "./prepare-run.js";
+import TestReporter from "./reporter.js";
+import { runOneTest } from "./run-test.js";
+import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 
-/** The specs a run imported, with the config's groups resolved against them */
-interface LoadedSpecs {
-  all: RegisteredTestCase[];
-  groups: ResolvedGroup[];
-  /** The real `srcDir` the groups were resolved against */
-  srcDir: string;
-}
+export type { RunnerOptions } from "./options.js";
 
-/** What decides which tests of the found files run, and how the browser starts */
-export interface RunnerOptions {
-  /** Spec files to run, absolute or relative to the project folder. Default: every `*.spec.ts` under `srcDir` */
-  files?: string[];
-  /** Only tests whose full name matches (a string must be contained in it) */
-  grep?: string | RegExp;
-  /** Only tests with exactly one of these full names (`describe` titles joined with " > ") */
-  testNames?: string[];
-  /** Only the tests of this group of the config's `groups` (unknown name: an error). Combines with the other filters */
-  group?: string;
-  /** The browsers to run in, instead of the group's or the project's `browsers` (the command line's `--browser`) */
-  browsers?: SupportedBrowser[];
-  /** Run the browser without a window. @default false */
-  headless?: boolean;
-  /** Remote debugging port of the browser. @default DEFAULT_PORT (9223) */
-  port?: number;
-  /** Where the report is written; `false` writes none. @default `<project>/result/report.json` */
-  reportPath?: string | false;
-  /** Receives start and end of the run and of every test, as they happen */
-  onEvent?: (event: RunEvent) => void;
-  /** Aborting stops the running test (its browser is closed), skips the rest and reports the run as failed */
-  signal?: AbortSignal;
-}
-
-/** Whether a test with this full name is selected by the options */
-export function isSelected(
-  name: string,
-  { grep, testNames }: Pick<RunnerOptions, "grep" | "testNames">,
-): boolean {
-  if (testNames && !testNames.includes(name)) return false;
-  if (grep === undefined) return true;
-  if (typeof grep === "string") return name.includes(grep);
-  grep.lastIndex = 0;
-  return grep.test(name);
-}
-
+/** Finds the spec files, picks the tests and browsers of a run and runs each test in each browser */
 export default class TestRunner {
   private testFiles: string[];
   private run: PreparedRun;
   private options: RunnerOptions;
-  /** The real `srcDir` of this run, set by `start`; test screenshots are saved under paths relative to it */
-  private srcDir = "";
 
   constructor(
     testFiles: string[],
@@ -127,95 +59,23 @@ export default class TestRunner {
     );
   }
 
-  /**
-   * Imports the spec files and returns every test they register. A fresh registry and a fresh import of each
-   * file, so a second run in this process registers its tests again (and sees edited specs, for files loaded as
-   * ES modules; CommonJS files stay cached until the process ends)
-   */
-  private async registerAll(): Promise<RegisteredTestCase[]> {
-    clearRegistry();
-    const stamp = `?run=${Date.now().toString(36)}`;
-    for (const file of this.testFiles) assertModuleProject(file);
-    for (const file of this.testFiles) {
-      logger.verbose("Trying to register file: %s", file);
-      await import(pathToFileURL(file).href + stamp);
-    }
-    return [...registeredTests()];
-  }
-
-  /** Id of a registered test: its spec file relative to `srcDir`, then its name */
-  private idOf(test: RegisteredTestCase, srcDir: string): string {
-    return testId(toPosix(path.relative(srcDir, test.file)), test.name);
-  }
-
-  /** The config's groups, resolved against the tests the specs register */
-  private async resolveAll(tests: RegisteredTestCase[]) {
-    const config = await loadConfig();
-    const { dir, srcDir } = realDirs(config.srcDir);
-    const groups = resolveGroups(
-      config,
-      tests.map(({ file, name }) => ({
-        file: toPosix(path.relative(srcDir, file)),
-        name,
-      })),
-      dir,
-      srcDir,
-    );
-    return { groups, srcDir };
-  }
-
-  /** Imports the spec files once and resolves the config's groups against what they registered */
-  private async load(): Promise<LoadedSpecs> {
-    const all = await this.registerAll();
-    return { all, ...(await this.resolveAll(all)) };
-  }
-
-  /** The tests the options select: by `group`, `testNames` and `grep` */
-  private select({ all, groups, srcDir }: LoadedSpecs): RegisteredTestCase[] {
-    const { group } = this.options;
-    let inGroup: (test: RegisteredTestCase) => boolean = () => true;
-    if (group !== undefined) {
-      const members = new Set(findGroup(groups, group).testIds);
-      inGroup = (test) => members.has(this.idOf(test, srcDir));
-    }
-    return all.filter(
-      (test) => inGroup(test) && isSelected(test.name, this.options),
-    );
-  }
-
   /** The groups of the config with the tests each holds; see `listGroups` */
   public async groups(): Promise<ResolvedGroup[]> {
-    return (await this.load()).groups;
+    return (await loadSpecs(this.testFiles)).groups;
   }
 
   /** Imports the spec files and returns the tests the options select: by `group`, `testNames` and `grep` */
   public async register(): Promise<RegisteredTestCase[]> {
-    return this.select(await this.load());
-  }
-
-  /**
-   * The browsers the run uses: the options' (`--browser`), else the selected group's, else the project's, else
-   * Firefox
-   */
-  private async browsersOfRun(
-    groups: ResolvedGroup[],
-  ): Promise<SupportedBrowser[]> {
-    const { browsers: flag, group } = this.options;
-    const config = await loadConfig();
-    const ofGroup =
-      group !== undefined && !(flag && flag.length > 0)
-        ? findGroup(groups, group).browsers
-        : undefined;
-    return browsersFor({ flag, group: ofGroup, project: config.browsers });
+    return selectTests(await loadSpecs(this.testFiles), this.options);
   }
 
   /** Runs the selected tests in every browser of the run, one browser after the other, and returns the summary that was also written to the report */
   public async start() {
     const { reportPath, onEvent, signal } = this.options;
     // The specs are imported once: their top-level code runs once per run
-    const loaded = await this.load();
-    const selected = this.select(loaded);
-    const browsers = await this.browsersOfRun(loaded.groups);
+    const loaded = await loadSpecs(this.testFiles);
+    const selected = selectTests(loaded, this.options);
+    const browsers = await browsersOfRun(loaded.groups, this.options);
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
       browsers,
@@ -223,7 +83,6 @@ export default class TestRunner {
       ...(onEvent && { onEvent }),
     });
 
-    this.srcDir = realDirs((await loadConfig()).srcDir).srcDir;
     // A missing browser is one clear error before the run, not a failure per test, and before any browser has run a
     // test; a fresh build's slow first start happens here too, outside any test's timeout
     if (selected.length > 0) {
@@ -246,207 +105,16 @@ export default class TestRunner {
           });
           continue;
         }
-        await this.executeTestCase(test, browser, reporter);
+        await runOneTest(
+          test,
+          browser,
+          this.run,
+          this.options,
+          loaded.srcDir,
+          reporter,
+        );
       }
     }
     return reporter.onEnd();
   }
-
-  private async executeTestCase(
-    test: RegisteredTestCase,
-    selectedBrowser: SupportedBrowser,
-    reporter: TestReporter,
-  ) {
-    logger.verbose("Starting test: %s in %s", test.name, selectedBrowser);
-    reporter.onTestStart(test, selectedBrowser);
-    // A test ends once, whichever of finishing, failing, timing out, an abort or a closed browser comes first
-    let ended = false;
-    let evidence: Evidence | undefined;
-    const finish = (
-      error?: TestError,
-      logs?: { logs?: TestLogEntry[]; logsDropped?: number },
-    ) => {
-      if (ended) return;
-      ended = true;
-      reporter.onTestEnd(test, selectedBrowser, error, {
-        ...logs,
-        screenshots: evidence?.screenshots,
-      });
-    };
-    let browserClosed = false;
-    /** Set once the runner itself closes the browser */
-    let closing = false;
-    const { settings, secrets } = this.run;
-    const timeout = settings.timeout;
-    const { reportPath } = this.options;
-    const resultDir =
-      typeof reportPath === "string"
-        ? path.dirname(reportPath)
-        : path.join(projectDir(), "result");
-
-    let browser: Browser | undefined;
-    let page: Page | undefined;
-    let timeoutTimer: NodeJS.Timeout | undefined;
-    let onRunAborted: (() => void) | undefined;
-    const timeoutController = new AbortController();
-
-    await Promise.race([
-      new Promise<void>((resolve) => {
-        timeoutTimer = setTimeout(() => {
-          finish({
-            message: `Test timed out after ${timeout / 1000} seconds`,
-            type: "timeout",
-          });
-          timeoutController.abort(new Error("Test timed out"));
-          resolve();
-        }, timeout);
-        onRunAborted = () => {
-          if (timeoutController.signal.aborted) return;
-          finish({ message: "Run aborted", type: "error" });
-          timeoutController.abort(new Error("Run aborted"));
-          resolve();
-        };
-        this.options.signal?.addEventListener("abort", onRunAborted, {
-          once: true,
-        });
-      }),
-      new Promise<void>(async (resolve) => {
-        try {
-          const launched = await Browser.launch(
-            selectedBrowser,
-            {
-              port: this.options.port ?? DEFAULT_PORT,
-              headless: this.options.headless ?? settings.headless,
-            },
-            timeoutController.signal,
-          );
-          browser = launched.browser;
-          // A person closing the window, or the browser crashing: end the test now instead of waiting for a
-          // command to time out
-          void launched.browser.exited.then(() => {
-            if (ended || closing) return;
-            browserClosed = true;
-            finish({
-              message: "The browser was closed while the test was running",
-              type: "error",
-            });
-            timeoutController.abort(new Error("Browser closed"));
-            resolve();
-          });
-          page = launched.page;
-          evidence = new Evidence(
-            resultDir,
-            `${selectedBrowser}/${testDirOf(test, this.srcDir)}`,
-          );
-          launched.page.setEvidence(evidence);
-          const fixtures: TestFixtures = {
-            page: launched.page,
-            browser: launched.browser,
-            browserName: selectedBrowser,
-            env: createEnvFixture(settings.environment, settings.variables),
-            secrets: createSecretsFixture(settings.environment, secrets),
-          };
-          await test.function(fixtures);
-          // Already reported as timed out
-          if (timeoutController.signal.aborted) return resolve();
-          const unawaited = takePendingAssertions();
-          if (unawaited.length > 0) {
-            finish(
-              {
-                message: unawaited
-                  .map(
-                    (matcher) => `expect(locator).${matcher}() was not awaited`,
-                  )
-                  .join("\n"),
-                type: "assertion",
-              },
-              await judgeLogs(page, true),
-            );
-            return resolve();
-          }
-          const verdict = await judgeLogs(page, false);
-          finish(verdict.error, verdict);
-          resolve();
-        } catch (err) {
-          if (timeoutController.signal.aborted) return resolve();
-          finish(
-            browserClosed || err instanceof ConnectionClosedError
-              ? {
-                  message: "The browser was closed while the test was running",
-                  type: "error",
-                }
-              : toTestError(err),
-            await judgeLogs(page, true),
-          );
-          resolve();
-        }
-      }),
-    ]);
-
-    clearTimeout(timeoutTimer);
-    if (onRunAborted)
-      this.options.signal?.removeEventListener("abort", onRunAborted);
-    takePendingAssertions();
-    logger.verbose("Closing browser for test: %s", test.name);
-    closing = true;
-    await browser?.close();
-  }
 }
-
-/** The project and source folders as real paths: registered test files come from stack traces, which resolve symlinks */
-function realDirs(configuredSrcDir: string | undefined) {
-  const dir = realPath(projectDir());
-  const srcDir = realPath(
-    path.resolve(dir, configuredSrcDir ?? DEFAULT_SRC_DIR),
-  );
-  return { dir, srcDir };
-}
-
-/**
- * The folder of a test's screenshots below `screenshots/`: its spec file without extension, then its cleaned
- * name. A spec outside srcDir loses the `..` (and a drive or root) its relative path starts with, so it stays
- * below `screenshots/`.
- * @internal Exported for tests
- */
-export function testDirOf(test: RegisteredTestCase, srcDir: string): string {
-  const file = toPosix(path.relative(srcDir, test.file))
-    .replace(/\.[cm]?[jt]sx?$/, "")
-    .split("/")
-    .filter(
-      (segment) =>
-        segment !== "" &&
-        segment !== "." &&
-        segment !== ".." &&
-        !/^[A-Za-z]:$/.test(segment),
-    )
-    .join("/");
-  return `${file}/${cleanName(test.name)}`;
-}
-
-/** Reads the page's log once the test body is done and applies config `logs` (see judgePageLogs) */
-async function judgeLogs(page: Page | undefined, testFailed: boolean) {
-  if (!page) return {};
-  try {
-    // Events and command replies share one ordered connection: after this, everything logged so far is in
-    await page.syncLogs();
-  } catch (err) {
-    logger.debug("Could not sync the page's logs", { err });
-  }
-  let config: LogsConfig | undefined;
-  try {
-    config = await readConfig("logs");
-  } catch (err) {
-    logger.debug("Could not read logs config, using defaults", { err });
-  }
-  return judgePageLogs({
-    config,
-    entries: page.getLogs(),
-    errors: page.pageErrors(),
-    dropped: page.logsDropped,
-    testFailed,
-    allowPageErrors: page.pageErrorsAllowed,
-    routeErrors: page.routeErrors(),
-  });
-}
-
-export { describe, test } from "./registry.js";
