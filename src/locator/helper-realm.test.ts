@@ -8,21 +8,32 @@ import {
   HELPERS_MISSING,
   HELPERS_SOURCE,
   HelperRealm,
-} from "./helpers.js";
+} from "./helper-realm.js";
 
 const ok = { type: "success", realm: "r", result: { type: "undefined" } };
 
-function setup(overrides: Record<string, (params: any) => object | Error> = {}) {
+function setup(
+  overrides: Record<string, (params: any) => object | Error> = {},
+) {
   const ws = new FakeWebSocket();
   const connector = new BiDiConnector(ws as unknown as WebSocket);
   const stop = autoReply(ws, {
     "script.addPreloadScript": () => ({ script: "helpers-1" }),
-    "browsingContext.getTree": () => ({ contexts: [{ context: "top", parent: null, children: [] }] }),
+    "browsingContext.getTree": () => ({
+      contexts: [{ context: "top", parent: null, children: [] }],
+    }),
     "script.callFunction": () => ok,
     ...overrides,
   });
-  const count = (method: string) => ws.sent.filter((m) => m.method === method).length;
-  return { ws, connector, stop, count, realm: new HelperRealm(connector, "top") };
+  const count = (method: string) =>
+    ws.sent.filter((m) => m.method === method).length;
+  return {
+    ws,
+    connector,
+    stop,
+    count,
+    realm: new HelperRealm(connector, "top"),
+  };
 }
 
 describe("helper source", () => {
@@ -34,12 +45,20 @@ describe("helper source", () => {
 
   it("the call wrapper forwards to probeElement, or answers with the missing marker", () => {
     const wrapper = (globalScope: object) =>
-      new Function("globalThis", `return (${CALL_PROBE})`)(globalScope) as (...args: unknown[]) => unknown;
-    const probeElement = (xpath: string, options: unknown) => ({ xpath, options });
-    assert.deepEqual(wrapper({ __samurai: { probeElement } })("//a", { scroll: true }), {
-      xpath: "//a",
-      options: { scroll: true },
+      new Function("globalThis", `return (${CALL_PROBE})`)(globalScope) as (
+        ...args: unknown[]
+      ) => unknown;
+    const probeElement = (xpath: string, options: unknown) => ({
+      xpath,
+      options,
     });
+    assert.deepEqual(
+      wrapper({ __samurai: { probeElement } })("//a", { scroll: true }),
+      {
+        xpath: "//a",
+        options: { scroll: true },
+      },
+    );
     assert.equal(wrapper({})("//a", {}), HELPERS_MISSING);
   });
 
@@ -71,7 +90,8 @@ describe("HelperRealm", () => {
   it("a failed install can be retried", async () => {
     let attempts = 0;
     const { realm, count, stop } = setup({
-      "script.addPreloadScript": () => (++attempts === 1 ? new Error("first fails") : { script: "helpers-1" }),
+      "script.addPreloadScript": () =>
+        ++attempts === 1 ? new Error("first fails") : { script: "helpers-1" },
     });
     await assert.rejects(realm.ensureInstalled());
     await realm.ensureInstalled();
@@ -85,7 +105,9 @@ describe("HelperRealm", () => {
     const before = count("script.addPreloadScript");
     await realm.reinstall();
     assert.equal(count("script.addPreloadScript"), before);
-    const last = ws.sent.filter((m) => m.method === "script.callFunction").pop()!.params as any;
+    const last = ws.sent
+      .filter((m) => m.method === "script.callFunction")
+      .pop()!.params as any;
     assert.equal(last.functionDeclaration, HELPERS_SOURCE);
     assert.deepEqual(last.target, { context: "top", sandbox: "samurai" });
     stop();
@@ -99,7 +121,9 @@ describe("HelperRealm", () => {
   });
 
   it("dispose removes the registration", async () => {
-    const { realm, count, stop } = setup({ "script.removePreloadScript": () => ({}) });
+    const { realm, count, stop } = setup({
+      "script.removePreloadScript": () => ({}),
+    });
     await realm.ensureInstalled();
     await realm.dispose();
     await tick(5);

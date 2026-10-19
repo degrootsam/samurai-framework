@@ -10,7 +10,7 @@ import { ResponseTimeoutError } from "../network/network-wait.js";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { UnsupportedOperationError } from "../locator/selector-errors.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
 import { ActionTimeoutError } from "../locator/action-timeout-error.js";
 import { Evidence } from "./evidence.js";
 

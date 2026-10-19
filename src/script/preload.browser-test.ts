@@ -5,7 +5,7 @@ import type Page from "../browser/page.js";
 import { setContent } from "../testing/browser-fixture.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { callFunction } from "./call-function.js";
-import { HELPER_SANDBOX } from "./helpers.js";
+import { HELPER_SANDBOX } from "../locator/helper-realm.js";
 import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
