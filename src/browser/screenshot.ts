@@ -1,5 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { callFunction } from "../script/call-function.js";
+import { ElementHandle } from "../script/element-handle.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 
 export interface ScreenshotOptions {
@@ -55,18 +57,40 @@ export async function takeScreenshot(
   element?: { sharedId: string },
 ): Promise<Buffer> {
   const format = imageFormat(options);
+  // An element is captured as its box in the document: Chrome cannot capture an `element` clip that is not
+  // wholly in the viewport, and this works the same for an element taller than the viewport
   const clip = element
-    ? { type: "element" as const, element: { sharedId: element.sharedId } }
+    ? {
+        type: "box" as const,
+        ...(await documentBox(connector, context, element)),
+      }
     : options.clip && { type: "box" as const, ...options.clip };
   const { data } = await connector.send("browsingContext.captureScreenshot", {
     context,
-    ...(options.fullPage && { origin: "document" as const }),
+    ...((options.fullPage || element) && { origin: "document" as const }),
     ...(format && { format }),
     ...(clip && { clip }),
   });
   const image = Buffer.from(data, "base64");
   await writeOutput(options.path, image);
   return image;
+}
+
+/** The element's box in document coordinates (CSS pixels) */
+async function documentBox(
+  connector: BiDiConnector,
+  context: string,
+  element: { sharedId: string },
+): Promise<{ x: number; y: number; width: number; height: number }> {
+  return callFunction(
+    connector,
+    context,
+    `(el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height };
+    }`,
+    [new ElementHandle(element.sharedId)],
+  );
 }
 
 /** Writes `data` to `file`, creating the folders; nothing happens without a path */

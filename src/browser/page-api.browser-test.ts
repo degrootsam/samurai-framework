@@ -197,6 +197,23 @@ test(
   },
 );
 
+test(
+  "a locator's screenshot of an element taller than the viewport captures all of it",
+  OPTIONS,
+  async () => {
+    await setContent(
+      page,
+      `<div style="height:300px"></div><div id="tall" style="width:90px;height:700px;background:#36c"></div><div style="height:300px"></div>`,
+    );
+    await page.setViewport({ width: 400, height: 300 });
+    const image = await page
+      .locator("div[@id='tall']")
+      .screenshot({ timeout: 5000 });
+    assert.deepEqual(png(image), { magic: PNG_MAGIC, width: 90, height: 700 });
+    await page.navigateTo(`${base}/one`);
+  },
+);
+
 /** The page box of the first page, looked up in the PDF text and in its compressed streams */
 function mediaBox(pdf: Buffer): number[] | undefined {
   const pattern =
