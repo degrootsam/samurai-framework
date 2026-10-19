@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { ConsoleReporter } from "./console-reporter.js";
 import { initProject, scaffold } from "./init.js";
 import { main, USAGE, type Io } from "./main.js";
-import type { TestSummary } from "../runner/run.js";
+import type { TestResult, TestSummary } from "../runner/run.js";
 
 function io() {
   const out: string[] = [];
@@ -135,6 +135,27 @@ describe("main", () => {
     }
   });
 
+  it("exits 2 for a config that still has the removed browser key, saying what to write", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      'export default { browser: "chrome" };',
+    );
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      const { target, err } = io();
+      assert.equal(await main(["run"], target), 2);
+      assert.match(
+        err(),
+        /"browser" was replaced by "browsers": use browsers: \["chrome"\]/,
+      );
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
   it("init scaffolds a project and never overwrites", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-init-"));
     writeFileSync(path.join(dir, "package.json"), '{"name":"mine"}');
@@ -185,10 +206,12 @@ describe("ConsoleReporter", () => {
     duration: 2300,
     startTime: 0,
     environment: "staging",
+    browsers: ["firefox"],
     tests: [
       {
         name: "a",
         file: "/x/a.spec.ts",
+        browser: "firefox",
         startTime: 0,
         status: "success",
         duration: 1000,
@@ -196,6 +219,7 @@ describe("ConsoleReporter", () => {
       {
         name: "b > c",
         file: "/x/a.spec.ts",
+        browser: "firefox",
         startTime: 0,
         status: "failed",
         duration: 1300,
@@ -211,13 +235,24 @@ describe("ConsoleReporter", () => {
       write: (t) => (text += t),
       color: false,
     });
-    reporter.handle({ type: "run-start", environment: "staging", total: 2 });
-    reporter.handle({ type: "test-start", name: "a", file: "/x/a.spec.ts" });
+    reporter.handle({
+      type: "run-start",
+      environment: "staging",
+      total: 2,
+      browsers: ["firefox"],
+    });
+    reporter.handle({
+      type: "test-start",
+      name: "a",
+      file: "/x/a.spec.ts",
+      browser: "firefox",
+    });
     for (const result of summary.tests)
       reporter.handle({
         type: "test-end",
         name: "name" in result ? result.name : "",
         file: "/x/a.spec.ts",
+        browser: "firefox",
         result,
       });
     reporter.handle({ type: "run-end", summary });
@@ -227,6 +262,62 @@ describe("ConsoleReporter", () => {
     assert.match(text, /\n {4}boom\n {4}second line\n/);
     assert.match(text, /1 failed, 1 passed \(2\.3s\)/);
     assert.ok(!text.includes("\u001b"), "no colour codes when colour is off");
+  });
+
+  it("labels each test with its browser when the run has more than one", () => {
+    let text = "";
+    const reporter = new ConsoleReporter({
+      write: (t) => (text += t),
+      color: false,
+    });
+    reporter.handle({
+      type: "run-start",
+      environment: "staging",
+      total: 4,
+      browsers: ["firefox", "chrome"],
+    });
+    for (const browser of ["firefox", "chrome"] as const)
+      reporter.handle({
+        type: "test-end",
+        name: "a",
+        file: "/x/a.spec.ts",
+        browser,
+        result: { ...summary.tests[0]!, browser } as TestResult,
+      });
+    reporter.handle({
+      type: "run-end",
+      summary: {
+        ...summary,
+        browsers: ["firefox", "chrome"],
+        tests: [{ ...summary.tests[1]!, browser: "chrome" } as TestResult],
+      },
+    });
+    assert.match(text, /Running 4 tests against staging in firefox, chrome/);
+    assert.match(text, /✔ a \[firefox\] \(1\.0s\)/);
+    assert.match(text, /✔ a \[chrome\] \(1\.0s\)/);
+    assert.match(text, /\nb > c \[chrome\]\n/);
+  });
+
+  it("prints no label for a run with one browser", () => {
+    let text = "";
+    const reporter = new ConsoleReporter({
+      write: (t) => (text += t),
+      color: false,
+    });
+    reporter.handle({
+      type: "run-start",
+      environment: "staging",
+      total: 1,
+      browsers: ["chrome"],
+    });
+    reporter.handle({
+      type: "test-end",
+      name: "a",
+      file: "/x/a.spec.ts",
+      browser: "chrome",
+      result: summary.tests[0]!,
+    });
+    assert.ok(!text.includes("["), text);
   });
 
   it("colours when asked to", () => {

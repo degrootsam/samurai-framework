@@ -22,7 +22,7 @@ describe("testBrowser", () => {
   });
 
   it("browserConfig puts it into a project config", () => {
-    assert.deepEqual(browserConfig("chrome"), { browser: "chrome" });
+    assert.deepEqual(browserConfig("chrome"), { browsers: ["chrome"] });
   });
 });
 

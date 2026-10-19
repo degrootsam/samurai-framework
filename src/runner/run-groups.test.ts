@@ -125,12 +125,14 @@ describe("groups through the runner", () => {
         pattern: "./src/checkout",
         testIds: ["checkout/cart.spec.ts::Cart > adds"],
         missing: [],
+        browsers: ["firefox"],
       },
       {
         name: "smoke",
         kind: "picked",
         testIds: ["login.spec.ts::works"],
         missing: [{ file: "login.spec.ts", title: "gone" }],
+        browsers: ["firefox"],
       },
     ]);
   });

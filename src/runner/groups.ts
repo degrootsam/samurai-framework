@@ -1,6 +1,8 @@
 import { realpathSync } from "node:fs";
 import { matchesGlob, relative, resolve } from "node:path";
+import type { SupportedBrowser } from "../types/browser.js";
 import type { SamuraiGroup } from "../types/config.js";
+import { browsersFor } from "./browsers.js";
 
 /** The test folder when the config names none */
 export const DEFAULT_SRC_DIR = "./src";
@@ -24,6 +26,8 @@ export interface ResolvedGroup {
   testIds: string[];
   /** Picked tests that no longer exist */
   missing: { file: string; title: string }[];
+  /** The browsers the group's tests run in: its own `browsers`, else the project's, else Firefox */
+  browsers: SupportedBrowser[];
 }
 
 /**
@@ -51,7 +55,12 @@ export function resolveGroup(
   tests: GroupTest[],
   projectDir: string,
   srcDir: string,
+  projectBrowsers?: readonly SupportedBrowser[],
 ): ResolvedGroup {
+  const browsers = browsersFor({
+    group: group.browsers,
+    project: projectBrowsers,
+  });
   const found = tests.map((t) => ({ ...t, id: testId(t.file, t.name) }));
 
   // Tests picked by hand override src and testMatch
@@ -69,6 +78,7 @@ export function resolveGroup(
       missing: picked
         .filter((t) => !known.has(t.id))
         .map(({ file, title }) => ({ file, title })),
+      browsers,
     };
   }
 
@@ -87,18 +97,19 @@ export function resolveGroup(
       [group.src, group.testMatch].filter(Boolean).join(" · ") || pattern,
     testIds,
     missing: [],
+    browsers,
   };
 }
 
 /** Resolves every group of the config */
 export function resolveGroups(
-  config: { groups?: SamuraiGroup[] },
+  config: { groups?: SamuraiGroup[]; browsers?: SupportedBrowser[] },
   tests: GroupTest[],
   projectDir: string,
   srcDir: string,
 ): ResolvedGroup[] {
   return (config.groups ?? []).map((group) =>
-    resolveGroup(group, tests, projectDir, srcDir),
+    resolveGroup(group, tests, projectDir, srcDir, config.browsers),
   );
 }
 

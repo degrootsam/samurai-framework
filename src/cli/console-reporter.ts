@@ -12,6 +12,8 @@ const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 export class ConsoleReporter {
   private readonly write: (text: string) => void;
   private readonly paint: (code: number, text: string) => string;
+  /** Whether the run has more than one browser: only then is each test labelled with its browser */
+  private labelled = false;
 
   constructor({ write, color }: ConsoleReporterOptions) {
     this.write = write;
@@ -22,12 +24,13 @@ export class ConsoleReporter {
   public handle(event: RunEvent): void {
     switch (event.type) {
       case "run-start":
+        this.labelled = event.browsers.length > 1;
         this.write(
-          `Running ${event.total} ${event.total === 1 ? "test" : "tests"} against ${event.environment}\n`,
+          `Running ${event.total} ${event.total === 1 ? "test" : "tests"} against ${event.environment}${this.labelled ? ` in ${event.browsers.join(", ")}` : ""}\n`,
         );
         return;
       case "test-end":
-        this.write(`  ${this.line(event.name, event.result)}\n`);
+        this.write(`  ${this.line(event.name, event.result, event.browser)}\n`);
         return;
       case "run-end":
         this.summary(event.summary);
@@ -37,14 +40,19 @@ export class ConsoleReporter {
     }
   }
 
-  private line(name: string, result: TestResult): string {
+  /** ` [chrome]` in a run with more than one browser, else nothing */
+  private tag(browser: string): string {
+    return this.labelled ? ` ${this.paint(90, `[${browser}]`)}` : "";
+  }
+
+  private line(name: string, result: TestResult, browser: string): string {
     const took =
       "duration" in result
         ? ` ${this.paint(90, `(${seconds(result.duration)})`)}`
         : "";
     return result.status === "success"
-      ? `${this.paint(32, "✔")} ${name}${took}`
-      : `${this.paint(31, "✖")} ${name}${took}`;
+      ? `${this.paint(32, "✔")} ${name}${this.tag(browser)}${took}`
+      : `${this.paint(31, "✖")} ${name}${this.tag(browser)}${took}`;
   }
 
   private summary(summary: TestSummary): void {
@@ -52,7 +60,9 @@ export class ConsoleReporter {
     for (const test of failed) {
       if (!("name" in test)) continue;
       const message = "message" in test ? test.message : "did not finish";
-      this.write(`\n${this.paint(31, `${test.name}`)}\n`);
+      this.write(
+        `\n${this.paint(31, `${test.name}`)}${"browser" in test ? this.tag(test.browser) : ""}\n`,
+      );
       this.write(
         `${message
           .split("\n")

@@ -8,12 +8,13 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - **Page API.** Navigation with real load waits, history, viewport, screenshots (also named, saved with the run), `waitForTimeout`, PDF, emulation, dialogs, downloads and file pickers, init scripts, console and page-error capture, user contexts and cookies.
 - **Network.** Request tracking, real network-idle, waiting for requests and responses, mocking, blocking and modifying, response bodies, cache control.
 - **Locators and assertions.** Role, label, text, test id, CSS and XPath locators with chaining and fallbacks; auto-waiting actions; retrying `expect`.
-- **Test API.** `describe`, `test` with `page`, `browser`, `env` and `secrets` fixtures; environments with variables, timeouts and base URLs; secrets from env vars or `.env.<environment>` with masking in logs and reports.
+- **Test API.** `describe`, `test` with `page`, `browser`, `browserName`, `env` and `secrets` fixtures; environments with variables, timeouts and base URLs; secrets from env vars or `.env.<environment>` with masking in logs and reports.
 - **Recorder foundations.** Step codec (parse a spec into steps, minimal-diff edits) and a recording engine (clicks, typing, Alt+click assertions, locator ranking, record from step N).
 - **Recorder toolbar.** A rail inside the recorded page: pause and resume, assertions with a choice of matcher, inserting and adding variables and secrets, waits, named screenshots and stop. Adds the `waitForTimeout` and `screenshot` steps and the `/project` writers (see [Steps and the recorder](recorder.md#the-toolbar)).
 - **Flows.** `samurai flow list|check|run`: graphs of tests, groups, conditions, variables, waits and parallel branches, checked before they run, with a report per run. Wait, Set variable and HTTP request run, and you can write more steps, and a project can list its own steps in `samurai.config.ts` (see [Flows](flows.md) and [Writing a step](steps.md)).
 - **Packaging.** Published on npm as `@itmetsam/samurai-framework`, with subpath exports (see [Embedding](embedding.md)) and the `samurai` command (see [Command line](cli.md)).
 - **Browser management.** `samurai browsers install|list|uninstall` downloads pinned Firefox and Chrome for Testing builds into a per-user cache.
+- **Several browsers.** `browsers: ["firefox", "chrome"]` in the config and on each group, `--browser` on the command line: every test runs once per browser, with a result, events and a screenshot folder per browser.
 - **Chrome.** Runs, records and replays on Chrome 155 through its chromedriver (BiDi over the `webSocketUrl` capability); the browser tests run on both browsers (`SAMURAI_TEST_BROWSER`). See [Chrome support](pages-and-browsers.md#chrome).
 - **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request (the `samurai` command's own tests, `bun run test:cli`, are run locally).
 
@@ -46,7 +47,7 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 Gaps in the runner today, found while writing these docs:
 
 - **Report formats.** Only `result/report.json` and the console output; no HTML or JUnit report.
-- **Parallel runs.** Tests run one at a time; running several at once is missing. (`--headless`, `--port`, `--grep` and `--file` exist.)
+- **Parallel runs.** Tests run one at a time, and browsers one after the other; running several at once is missing. (`--headless`, `--port`, `--grep` and `--file` exist.) A test in one browser is the unit a scheduler can take, so parallel runs need no change to the config, the events or the report.
 - **Tags.** Tests can be selected by file and by name, but not by tag.
 - **Hooks and modifiers.** No `beforeEach`, `afterEach`, `beforeAll`, `afterAll`, `test.skip`, `test.only`, `test.fixme`, or retries.
 - **Failure artefacts.** No automatic screenshot, video or trace when a test fails.

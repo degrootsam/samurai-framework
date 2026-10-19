@@ -82,6 +82,24 @@ describe("parseRunnerFlags", () => {
     assert.deepEqual(parseRunnerFlags([]), {});
   });
 
+  test("reads --browser, repeatable, and refuses unknown or repeated names", () => {
+    assert.deepEqual(parseRunnerFlags(["--browser", "chrome"]), {
+      browsers: ["chrome"],
+    });
+    assert.deepEqual(
+      parseRunnerFlags(["--browser", "firefox", "--browser", "chrome"]),
+      { browsers: ["firefox", "chrome"] },
+    );
+    assert.throws(
+      () => parseRunnerFlags(["--browser", "edge"]),
+      /Unknown browser "edge" in --browser\. Choose firefox or chrome\./,
+    );
+    assert.throws(
+      () => parseRunnerFlags(["--browser", "chrome", "--browser", "chrome"]),
+      /listed twice in --browser/,
+    );
+  });
+
   test("rejects a port that is not a port number", () => {
     assert.throws(() => parseRunnerFlags(["--port", "0"]), /--port/);
     assert.throws(() => parseRunnerFlags(["--port", "abc"]), /--port/);

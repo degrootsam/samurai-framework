@@ -18,7 +18,7 @@ export function testBrowser(
 
 /** Config of a test project that runs on the browser under test */
 export const browserConfig = (browser: SupportedBrowser = testBrowser()) => ({
-  browser,
+  browsers: [browser],
 });
 
 type TestFn = (...args: any[]) => unknown;
