@@ -1,3 +1,5 @@
+import { DOCUMENT_ORDER_JS, MATCHING_JS, ROOTS_JS } from "./page-search.js";
+
 /**
  * Function declaration run in the page as `(starts, value, match, ignoreCase)`; returns the elements
  * named by a label whose text matches. BiDi has no label locator, so the framework does it.
@@ -11,11 +13,7 @@
  * A string, so the transpiler cannot inject helpers that do not exist in the page.
  */
 export const LABEL_LOCATE = `(starts, value, match, ignoreCase) => {
-  const normalise = (text) => {
-    const collapsed = String(text).replace(/\\s+/g, " ").trim();
-    return ignoreCase ? collapsed.toLowerCase() : collapsed;
-  };
-  const wanted = normalise(value);
+  ${MATCHING_JS}
   const textOf = (node) => node.innerText ?? node.textContent ?? "";
   const labelsOf = (el) => {
     const texts = [];
@@ -31,19 +29,15 @@ export const LABEL_LOCATE = `(starts, value, match, ignoreCase) => {
     if (own) texts.push(own);
     return texts;
   };
-  const roots = starts.length > 0 ? starts : [document];
+  ${ROOTS_JS}
   const seen = new Set();
   const matches = [];
   for (const root of roots) {
     for (const el of root.querySelectorAll("*")) {
       if (seen.has(el)) continue;
       seen.add(el);
-      const found = labelsOf(el).some((text) => {
-        const normal = normalise(text);
-        return match === "full" ? normal === wanted : normal.includes(wanted);
-      });
-      if (found) matches.push(el);
+      if (labelsOf(el).some(textMatches)) matches.push(el);
     }
   }
-  return matches.sort((a, b) => (a === b ? 0 : a.compareDocumentPosition(b) & 4 ? -1 : 1));
+  return matches.sort(${DOCUMENT_ORDER_JS});
 }`;

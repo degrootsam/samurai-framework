@@ -23,14 +23,24 @@ test("toBe uses Object.is", () => {
   expect(1).toBe(1);
   expect(NaN).toBe(NaN);
   assertFails(() => expect(1).toBe(2), "toBe", 2, 1);
-  assertFails(() => expect({ a: 1 }).toBe({ a: 1 }), "toBe", { a: 1 }, { a: 1 });
+  assertFails(
+    () => expect({ a: 1 }).toBe({ a: 1 }),
+    "toBe",
+    { a: 1 },
+    { a: 1 },
+  );
   expect(1).not.toBe(2);
   assertFails(() => expect(1).not.toBe(1), "not.toBe", 1, 1);
 });
 
 test("toEqual compares deeply", () => {
   expect({ a: [1, 2] }).toEqual({ a: [1, 2] });
-  assertFails(() => expect({ a: 1 }).toEqual({ a: 2 }), "toEqual", { a: 2 }, { a: 1 });
+  assertFails(
+    () => expect({ a: 1 }).toEqual({ a: 2 }),
+    "toEqual",
+    { a: 2 },
+    { a: 1 },
+  );
   expect({ a: 1 }).not.toEqual({ a: 2 });
 });
 
@@ -56,7 +66,12 @@ test("toMatch accepts substrings and regexps", () => {
   expect("Contact us").toMatch(/contact/i);
   expect("aaa").toMatch(/a/g);
   expect("aaa").toMatch(/a/g); // global regexps must not keep lastIndex state
-  assertFails(() => expect("Home").toMatch(/contact/), "toMatch", /contact/, "Home");
+  assertFails(
+    () => expect("Home").toMatch(/contact/),
+    "toMatch",
+    /contact/,
+    "Home",
+  );
   expect("Home").not.toMatch("Contact");
   assert.throws(() => expect(1).toMatch("1"), TypeError);
 });
@@ -68,6 +83,11 @@ test("number comparisons", () => {
   expect(3).toBeLessThanOrEqual(3);
   expect(3n).toBeGreaterThan(2);
   assertFails(() => expect(2).toBeGreaterThan(3), "toBeGreaterThan", 3, 2);
-  assertFails(() => expect(3).not.toBeLessThanOrEqual(3), "not.toBeLessThanOrEqual", 3, 3);
+  assertFails(
+    () => expect(3).not.toBeLessThanOrEqual(3),
+    "not.toBeLessThanOrEqual",
+    3,
+    3,
+  );
   assert.throws(() => expect("3").toBeGreaterThan(2), TypeError);
 });

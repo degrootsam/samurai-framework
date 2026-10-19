@@ -1,8 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { readConfig } from "../config/config.js";
-import { peekRunSettings } from "../config/run-settings.js";
 
-const DEFAULT_TIMEOUT = 5000;
 /** Time (ms) between probes */
 const POLL_INTERVAL = 100;
 
@@ -22,14 +19,6 @@ export class WaitTimeoutError<T> extends Error {
     this.timeout = timeout;
     this.last = last;
   }
-}
-
-/** Per-call timeout, else the active run's expect timeout, else config `expect.timeout`, else 5000 */
-export async function resolveTimeout(perCall?: number): Promise<number> {
-  if (perCall !== undefined) return perCall;
-  const run = peekRunSettings();
-  if (run) return run.expectTimeout;
-  return (await readConfig("expect"))?.timeout ?? DEFAULT_TIMEOUT;
 }
 
 const DEADLINE = Symbol("deadline");

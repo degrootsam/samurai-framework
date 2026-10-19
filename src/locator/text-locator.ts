@@ -1,3 +1,5 @@
+import { DOCUMENT_ORDER_JS, MATCHING_JS, ROOTS_JS } from "./page-search.js";
+
 /**
  * Function declaration run in the page as `(starts, value, match, ignoreCase)`; returns the elements
  * whose text matches. Used when the browser does not implement BiDi's `innerText` locator
@@ -12,20 +14,15 @@
  */
 export const TEXT_LOCATE = `(starts, value, match, ignoreCase) => {
   const skipped = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD", "TITLE", "META", "LINK"]);
-  const normalise = (text) => {
-    const collapsed = String(text).replace(/\\s+/g, " ").trim();
-    return ignoreCase ? collapsed.toLowerCase() : collapsed;
-  };
-  const wanted = normalise(value);
-  const roots = starts.length > 0 ? starts : [document];
+  ${MATCHING_JS}
+  ${ROOTS_JS}
   const seen = new Set();
   const matches = [];
   for (const root of roots) {
     for (const el of root.querySelectorAll("*")) {
       if (seen.has(el) || skipped.has(el.tagName.toUpperCase())) continue;
       seen.add(el);
-      const text = normalise(el.innerText ?? el.textContent ?? "");
-      if (match === "full" ? text === wanted : text.includes(wanted)) matches.push(el);
+      if (textMatches(el.innerText ?? el.textContent ?? "")) matches.push(el);
     }
   }
   const hasMatchingDescendant = new Set();
@@ -34,5 +31,5 @@ export const TEXT_LOCATE = `(starts, value, match, ignoreCase) => {
   }
   return matches
     .filter((el) => !hasMatchingDescendant.has(el))
-    .sort((a, b) => (a.compareDocumentPosition(b) & 4 ? -1 : 1));
+    .sort(${DOCUMENT_ORDER_JS});
 }`;
