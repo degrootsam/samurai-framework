@@ -1,12 +1,15 @@
 import { fileURLToPath } from "node:url";
 import logger from "../logger/index.js";
 import type {
+  AllHook,
+  EachHook,
   Modifier,
   RegisteredTestCase,
   TestCaseBase,
 } from "../types/test.js";
 import { SkipSignal } from "./skip.js";
 import {
+  addHook,
   currentSuite,
   enterSuite,
   leaveSuite,
@@ -120,6 +123,26 @@ export const describe: DescribeFunction = Object.assign(
       openDescribe(callerFile(), title, fn, "only"),
   },
 );
+
+/** Runs before each test of the `describe` block it is written in (of the file, at the top level) */
+export function beforeEach(hook: EachHook): void {
+  addHook(currentSuite(callerFile()), "beforeEach", hook);
+}
+
+/** Runs after each test of the `describe` block it is written in, also when the test failed */
+export function afterEach(hook: EachHook): void {
+  addHook(currentSuite(callerFile()), "afterEach", hook);
+}
+
+/** Runs once per worker, before the first test of its `describe` block that the worker runs. It gets no page. */
+export function beforeAll(hook: AllHook): void {
+  addHook(currentSuite(callerFile()), "beforeAll", hook);
+}
+
+/** Runs once per worker, when the worker is done, for every `describe` block it ran a `beforeAll` for */
+export function afterAll(hook: AllHook): void {
+  addHook(currentSuite(callerFile()), "afterAll", hook);
+}
 
 export function registeredTests(): readonly RegisteredTestCase[] {
   return registered;

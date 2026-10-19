@@ -1,4 +1,11 @@
-export { test, describe } from "./runner/registry.js";
+export {
+  test,
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+} from "./runner/registry.js";
 export { expect } from "./assert/expect.js";
 export { defineConfig } from "./config/config.js";
 export {
@@ -7,7 +14,7 @@ export {
   type StepResult,
   type StepRunInput,
 } from "./flows/steps/index.js";
-export type { TestFixtures } from "./types/test.js";
+export type { AllHookFixtures, TestFixtures } from "./types/test.js";
 export {
   generatedFile,
   type GeneratedFile,
