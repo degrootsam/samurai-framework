@@ -1,7 +1,7 @@
 import { projectConfig } from "../../config/config.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { AnyNodeDefinition, StepInfo } from "../core/index.js";
-import type { Handler } from "../run/handlers/support.js";
+import type { Handler } from "../run/handlers/types.js";
 import { api } from "./api.js";
 import { checkStep, infoOf, stepNode, type StepDefinition } from "./define.js";
 import { stepHandler } from "./handler.js";

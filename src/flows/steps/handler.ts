@@ -1,5 +1,6 @@
 import { evaluateText, getPath, withDefaults } from "../core/index.js";
-import { fail, problemAt, type Handler } from "../run/handlers/support.js";
+import { fail, problemAt } from "../run/handlers/support.js";
+import type { Handler } from "../run/handlers/types.js";
 import { stepNode, type StepDefinition, type StepResult } from "./define.js";
 
 const keysOf = (o: Record<string, unknown> | undefined) => Object.keys(o ?? {});

@@ -1,5 +1,6 @@
 import { evaluateText } from "../../core/index.js";
-import { fail, problemAt, type Handler } from "./support.js";
+import { fail, problemAt } from "./support.js";
+import type { Handler } from "./types.js";
 
 export const condition: Handler = async (node, run) => {
   const text = String(node.config?.expr ?? "");

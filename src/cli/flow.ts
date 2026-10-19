@@ -5,6 +5,7 @@ import {
   parseRunOverrides,
 } from "./args.js";
 import { FlowReporter } from "./flow-reporter.js";
+import { painter } from "./paint.js";
 import { projectSteps } from "../flows/steps/index.js";
 import type { Io } from "./io.js";
 import { type FlowFile, type FlowProblem } from "../flows/core/index.js";
@@ -19,7 +20,9 @@ import {
   readFlowPath,
   runFlowInProject,
   writeFlowReport,
+  type FlowRunOptions,
 } from "../flows/run/index.js";
+import { DEFAULT_PORT } from "../runner/run.js";
 
 const FLOW_USAGE = `Usage:
   samurai flow list [--json]                    List the flows in ./flows
@@ -38,7 +41,7 @@ Options for run:
   --timeout <ms>              Time one test may take
   --expect-timeout <ms>       Time actions and assertions retry
   --headless, --no-headless   Run the browser without a window, or with one
-  --port <n>                  Browser debugging port (default 9223)
+  --port <n>                  Browser debugging port (default ${DEFAULT_PORT})
 
 Each run writes result/flows/<id>.json.
 Exit code: 0 when every node that should run passed, 1 when a node failed or the run was cancelled,
@@ -59,13 +62,8 @@ const describe = (flow: FlowFile, p: FlowProblem) => {
   } as Problem;
 };
 
-function paintWith(io: Io) {
-  return (code: number, text: string) =>
-    io.color ? `\u001b[${code}m${text}\u001b[0m` : text;
-}
-
 function problemLines(io: Io, problems: Problem[]): string {
-  const paint = paintWith(io);
+  const paint = painter(io.color);
   return problems
     .map((p) => {
       const who = p.key
@@ -119,6 +117,20 @@ async function list(io: Io, json: boolean): Promise<number> {
   return 0;
 }
 
+/** Checks one flow of the project, the same way for `check` and for the refusal before a run */
+function checkOne(
+  projectDir: string,
+  flow: FlowFile,
+  options: { unsupported: "fail" | "skip"; environment?: string },
+) {
+  return checkFlowInProject({
+    projectDir,
+    flow,
+    unsupported: options.unsupported,
+    ...(options.environment && { environment: options.environment }),
+  });
+}
+
 async function check(
   refs: string[],
   io: Io,
@@ -141,12 +153,7 @@ async function check(
       code = 2;
       continue;
     }
-    const result = await checkFlowInProject({
-      projectDir,
-      flow,
-      unsupported: options.unsupported,
-      ...(options.environment && { environment: options.environment }),
-    });
+    const result = await checkOne(projectDir, flow, options);
     const problems = result.problems.map((p) => describe(result.flow, p));
     all.push(...problems);
     if (code === 0 && problems.some((p) => p.level === "error")) code = 1;
@@ -169,7 +176,7 @@ async function run(
     json: boolean;
     environment?: string;
     unsupported: "fail" | "skip";
-    run: Omit<Parameters<typeof runFlowInProject>[0], "flow" | "flowId">;
+    run: FlowRunOptions;
   },
 ): Promise<number> {
   const projectDir = process.cwd();
@@ -191,19 +198,14 @@ async function run(
   // Several flows: refuse them all before the first one runs
   if (flows.length > 1) {
     for (const flow of flows) {
-      const { problems } = await checkFlowInProject({
-        projectDir,
-        flow,
-        unsupported: options.unsupported,
-        ...(options.environment && { environment: options.environment }),
-      });
+      const { problems } = await checkOne(projectDir, flow, options);
       const errors = problems.filter((p) => p.level === "error");
       if (errors.length) return refuse(errors, flow);
     }
   }
 
   let code = 0;
-  for (const flow of flows) {
+  for (const [index, flow] of flows.entries()) {
     if (io.signal?.aborted) {
       code = 1;
       break;
@@ -212,7 +214,7 @@ async function run(
     const human = options.json
       ? undefined
       : new FlowReporter({ flow, write: io.out, color: io.color, steps });
-    if (flows.indexOf(flow) > 0 && !options.json) io.out("\n");
+    if (index > 0 && !options.json) io.out("\n");
     let summary;
     try {
       summary = await runFlowInProject({
@@ -245,7 +247,7 @@ export async function flowCommand(argv: string[], io: Io): Promise<number> {
   const [sub, ...refs] = positionals;
   const unsupported = values["allow-unsupported"] ? "skip" : "fail";
   const json = values.json === true;
-  const overrides = parseRunOverrides(argv, io.env);
+  const overrides = parseRunOverrides(values, io.env);
   try {
     if (sub === "list" && refs.length === 0) return await list(io, json);
     if (sub === "check")
@@ -259,7 +261,7 @@ export async function flowCommand(argv: string[], io: Io): Promise<number> {
         throw new UsageError("Give flows or --all, not both.");
       if (!values.all && refs.length === 0)
         throw new UsageError("Which flow? Give a flow or --all.");
-      const flags = parseRunnerFlags(argv);
+      const flags = parseRunnerFlags(values);
       const targets = values.all ? await everyFlow(process.cwd()) : refs;
       return await run(targets, io, {
         json,

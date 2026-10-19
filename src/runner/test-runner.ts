@@ -5,6 +5,7 @@ import { Browser } from "../browser/browser.js";
 import { ensureWarm } from "../browser/warm-up.js";
 import { projectBrowser } from "../browsers/resolve.js";
 import { browsersFor } from "./browsers.js";
+import { DEFAULT_PORT } from "./ports.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
@@ -38,6 +39,14 @@ import type { ResolvedGroup } from "./groups.js";
 import { judgePageLogs } from "./page-logs-report.js";
 import type { LogsConfig } from "./page-logs-report.js";
 
+/** The specs a run imported, with the config's groups resolved against them */
+interface LoadedSpecs {
+  all: RegisteredTestCase[];
+  groups: ResolvedGroup[];
+  /** The real `srcDir` the groups were resolved against */
+  srcDir: string;
+}
+
 /** What decides which tests of the found files run, and how the browser starts */
 export interface RunnerOptions {
   /** Spec files to run, absolute or relative to the project folder. Default: every `*.spec.ts` under `srcDir` */
@@ -52,7 +61,7 @@ export interface RunnerOptions {
   browsers?: SupportedBrowser[];
   /** Run the browser without a window. @default false */
   headless?: boolean;
-  /** Remote debugging port of the browser. @default 9223 */
+  /** Remote debugging port of the browser. @default DEFAULT_PORT (9223) */
   port?: number;
   /** Where the report is written; `false` writes none. @default `<project>/result/report.json` */
   reportPath?: string | false;
@@ -155,18 +164,17 @@ export default class TestRunner {
     return { groups, srcDir };
   }
 
-  /** The groups of the config with the tests each holds; see `listGroups` */
-  public async groups(): Promise<ResolvedGroup[]> {
-    return (await this.resolveAll(await this.registerAll())).groups;
+  /** Imports the spec files once and resolves the config's groups against what they registered */
+  private async load(): Promise<LoadedSpecs> {
+    const all = await this.registerAll();
+    return { all, ...(await this.resolveAll(all)) };
   }
 
-  /** Imports the spec files and returns the tests the options select: by `group`, `testNames` and `grep` */
-  public async register(): Promise<RegisteredTestCase[]> {
-    const all = await this.registerAll();
+  /** The tests the options select: by `group`, `testNames` and `grep` */
+  private select({ all, groups, srcDir }: LoadedSpecs): RegisteredTestCase[] {
     const { group } = this.options;
     let inGroup: (test: RegisteredTestCase) => boolean = () => true;
     if (group !== undefined) {
-      const { groups, srcDir } = await this.resolveAll(all);
       const members = new Set(findGroup(groups, group).testIds);
       inGroup = (test) => members.has(this.idOf(test, srcDir));
     }
@@ -175,26 +183,39 @@ export default class TestRunner {
     );
   }
 
+  /** The groups of the config with the tests each holds; see `listGroups` */
+  public async groups(): Promise<ResolvedGroup[]> {
+    return (await this.load()).groups;
+  }
+
+  /** Imports the spec files and returns the tests the options select: by `group`, `testNames` and `grep` */
+  public async register(): Promise<RegisteredTestCase[]> {
+    return this.select(await this.load());
+  }
+
   /**
    * The browsers the run uses: the options' (`--browser`), else the selected group's, else the project's, else
-   * Firefox. A group is only looked up when there is something to look up
+   * Firefox
    */
-  private async browsersOfRun(): Promise<SupportedBrowser[]> {
+  private async browsersOfRun(
+    groups: ResolvedGroup[],
+  ): Promise<SupportedBrowser[]> {
     const { browsers: flag, group } = this.options;
     const config = await loadConfig();
-    let ofGroup: SupportedBrowser[] | undefined;
-    if (group !== undefined && !(flag && flag.length > 0)) {
-      const { groups } = await this.resolveAll(await this.registerAll());
-      ofGroup = findGroup(groups, group).browsers;
-    }
+    const ofGroup =
+      group !== undefined && !(flag && flag.length > 0)
+        ? findGroup(groups, group).browsers
+        : undefined;
     return browsersFor({ flag, group: ofGroup, project: config.browsers });
   }
 
   /** Runs the selected tests in every browser of the run, one browser after the other, and returns the summary that was also written to the report */
   public async start() {
     const { reportPath, onEvent, signal } = this.options;
-    const selected = await this.register();
-    const browsers = await this.browsersOfRun();
+    // The specs are imported once: their top-level code runs once per run
+    const loaded = await this.load();
+    const selected = this.select(loaded);
+    const browsers = await this.browsersOfRun(loaded.groups);
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
       browsers,
@@ -208,7 +229,11 @@ export default class TestRunner {
     if (selected.length > 0) {
       for (const browser of browsers) await projectBrowser(browser);
       for (const browser of browsers)
-        await ensureWarm(browser, { port: this.options.port ?? 9223 }, signal);
+        await ensureWarm(
+          browser,
+          { port: this.options.port ?? DEFAULT_PORT },
+          signal,
+        );
     }
     reporter.onStart(selected.length * browsers.length);
     for (const browser of browsers) {
@@ -290,7 +315,7 @@ export default class TestRunner {
           const launched = await Browser.launch(
             selectedBrowser,
             {
-              port: this.options.port ?? 9223,
+              port: this.options.port ?? DEFAULT_PORT,
               headless: this.options.headless ?? settings.headless,
             },
             timeoutController.signal,

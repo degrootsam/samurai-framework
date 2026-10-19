@@ -19,6 +19,7 @@ import {
   chooseEnvironment,
   runFlowInProject,
   type RunFlowInProjectOptions,
+  nodeTestsOf,
 } from "./project.js";
 
 const API = JSON.stringify(path.resolve("src/api.ts"));
@@ -408,5 +409,41 @@ describe("project steps", () => {
       }),
       /a built-in step already uses this kind/,
     );
+  });
+});
+
+describe("nodeTestsOf", () => {
+  const tests = [
+    { id: "a.spec.ts::one", file: "/p/a.spec.ts", name: "one" },
+    { id: "a.spec.ts::two", file: "/p/a.spec.ts", name: "two" },
+  ];
+  const groups = [
+    {
+      name: "cross",
+      testIds: ["a.spec.ts::one", "a.spec.ts::gone"],
+      browsers: ["firefox", "chrome"] as ("firefox" | "chrome")[],
+    },
+  ];
+  const flow = {
+    nodes: [
+      { id: "t", kind: "test", ref: { testId: "a.spec.ts::two" } },
+      { id: "g", kind: "group", ref: { group: "cross" } },
+      { id: "m", kind: "group", ref: { group: "missing" } },
+      { id: "w", kind: "wait" },
+    ],
+  } as unknown as Parameters<typeof nodeTestsOf>[0];
+
+  it("lists the tests of each Test and Group node, leaving out tests that no longer exist", () => {
+    const { nodeTests } = nodeTestsOf(flow, tests, groups);
+    assert.deepEqual(nodeTests, {
+      t: [{ file: "/p/a.spec.ts", name: "two" }],
+      g: [{ file: "/p/a.spec.ts", name: "one" }],
+      m: [],
+    });
+  });
+
+  it("gives a Group node its group's browsers and every other node none", () => {
+    const { nodeBrowsers } = nodeTestsOf(flow, tests, groups);
+    assert.deepEqual(nodeBrowsers, { g: ["firefox", "chrome"] });
   });
 });

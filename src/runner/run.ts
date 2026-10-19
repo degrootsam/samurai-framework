@@ -1,9 +1,42 @@
 import type { TestSummary } from "../types/test.js";
+import type { PreparedRun } from "./prepare-run.js";
 import { withProject, type ProjectOptions } from "./project.js";
 import type { ResolvedGroup } from "./groups.js";
 import TestRunner, { type RunnerOptions } from "./test-runner.js";
 
 export interface RunTestsOptions extends RunnerOptions, ProjectOptions {}
+
+/**
+ * Sets the project up (config, environment, secrets), builds a runner from the rest of the options and hands both to
+ * `work`. `headless` stays with the runner options on purpose: the runner reads it, and the project's run settings
+ * (`withProject`'s own `headless`) are left to the config.
+ */
+function inProject<T>(
+  options: RunTestsOptions,
+  work: (runner: TestRunner) => Promise<T>,
+): Promise<T> {
+  const {
+    projectDir,
+    config,
+    dataDir,
+    environment,
+    timeout,
+    expectTimeout,
+    ...runner
+  } = options;
+  return withProject(
+    // The cast is for `exactOptionalPropertyTypes`: these may be undefined, which the project options leave out
+    {
+      projectDir,
+      config,
+      dataDir,
+      environment,
+      timeout,
+      expectTimeout,
+    } as ProjectOptions,
+    async (run: PreparedRun) => work(await TestRunner.init(run, runner)),
+  );
+}
 
 /**
  * Runs the project's tests, one after the other, and resolves with the summary (also written to the report).
@@ -17,26 +50,7 @@ export interface RunTestsOptions extends RunnerOptions, ProjectOptions {}
 export async function runTests(
   options: RunTestsOptions = {},
 ): Promise<TestSummary> {
-  const {
-    projectDir,
-    config,
-    dataDir,
-    environment,
-    timeout,
-    expectTimeout,
-    ...runner
-  } = options;
-  return withProject(
-    {
-      projectDir,
-      config,
-      dataDir,
-      environment,
-      timeout,
-      expectTimeout,
-    } as ProjectOptions,
-    async (run) => (await TestRunner.init(run, runner)).start(),
-  );
+  return inProject(options, (runner) => runner.start());
 }
 
 /** A test found in a spec file */
@@ -50,28 +64,8 @@ export interface FoundTest {
 export async function listTests(
   options: RunTestsOptions = {},
 ): Promise<FoundTest[]> {
-  const {
-    projectDir,
-    config,
-    dataDir,
-    environment,
-    timeout,
-    expectTimeout,
-    ...runner
-  } = options;
-  return withProject(
-    {
-      projectDir,
-      config,
-      dataDir,
-      environment,
-      timeout,
-      expectTimeout,
-    } as ProjectOptions,
-    async (run) =>
-      (await (await TestRunner.init(run, runner)).register()).map(
-        ({ name, file }) => ({ name, file }),
-      ),
+  return inProject(options, async (runner) =>
+    (await runner.register()).map(({ name, file }) => ({ name, file })),
   );
 }
 
@@ -79,26 +73,7 @@ export async function listTests(
 export async function listGroups(
   options: RunTestsOptions = {},
 ): Promise<ResolvedGroup[]> {
-  const {
-    projectDir,
-    config,
-    dataDir,
-    environment,
-    timeout,
-    expectTimeout,
-    ...runner
-  } = options;
-  return withProject(
-    {
-      projectDir,
-      config,
-      dataDir,
-      environment,
-      timeout,
-      expectTimeout,
-    } as ProjectOptions,
-    async (run) => (await TestRunner.init(run, runner)).groups(),
-  );
+  return inProject(options, (runner) => runner.groups());
 }
 
 export { BROWSER_NAMES, checkBrowserList } from "../config/browsers.js";
@@ -107,3 +82,4 @@ export type { TestError, TestResult, TestSummary } from "../types/test.js";
 export type { ResolvedGroup } from "./groups.js";
 export type { RunnerOptions } from "./test-runner.js";
 export type { ProjectOptions } from "./project.js";
+export { DEFAULT_PORT } from "./ports.js";

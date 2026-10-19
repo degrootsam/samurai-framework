@@ -8,8 +8,8 @@ import {
 /** `firefox` or `chrome` */
 type SupportedBrowser = NonNullable<RunnerOptions["browsers"]>[number];
 
-/** The values a command line can override for one run */
-type RunOverrides = Pick<
+/** The values a command line can override for one run: the environment and the two timeouts */
+type EnvAndTimeouts = Pick<
   ProjectOptions,
   "environment" | "timeout" | "expectTimeout"
 >;
@@ -48,9 +48,14 @@ export function parseCommandLine(argv: string[]) {
   });
 }
 
-function parseFlags(argv: string[]) {
-  return parseCommandLine(argv).values;
-}
+/** What `parseCommandLine` returns */
+export type ParsedCommandLine = ReturnType<typeof parseCommandLine>;
+
+/** The flag values of a command line, parsed once by the caller or here from `argv` */
+export type CommandValues = ParsedCommandLine["values"];
+
+const valuesOf = (source: string[] | CommandValues): CommandValues =>
+  Array.isArray(source) ? parseCommandLine(source).values : source;
 
 /** How the command line says tests are selected and the browser starts */
 export interface RunnerFlags {
@@ -63,9 +68,11 @@ export interface RunnerFlags {
   browsers?: SupportedBrowser[];
 }
 
-/** Reads `--headless`, `--port <n>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv` */
-export function parseRunnerFlags(argv: string[]): RunnerFlags {
-  const values = parseFlags(argv);
+/** Reads `--headless`, `--port <n>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
+export function parseRunnerFlags(
+  source: string[] | CommandValues,
+): RunnerFlags {
+  const values = valuesOf(source);
   const flags: RunnerFlags = {};
   if (values.headless !== undefined) flags.headless = values.headless;
   if (values.port !== undefined) {
@@ -87,13 +94,13 @@ export function parseRunnerFlags(argv: string[]): RunnerFlags {
   return flags;
 }
 
-/** Reads `--env`, `--timeout` and `--expect-timeout` from `argv`; the environment falls back to SAMURAI_ENV */
+/** Reads `--env`, `--timeout` and `--expect-timeout` from `argv` (or values parsed already); the environment falls back to SAMURAI_ENV */
 export function parseRunOverrides(
-  argv: string[],
+  source: string[] | CommandValues,
   env: Partial<NodeJS.ProcessEnv> = {},
-): RunOverrides {
-  const values = parseFlags(argv);
-  const overrides: RunOverrides = {};
+): EnvAndTimeouts {
+  const values = valuesOf(source);
+  const overrides: EnvAndTimeouts = {};
   const environment = values.env ?? env.SAMURAI_ENV;
   if (environment) overrides.environment = environment;
   if (values.timeout !== undefined)

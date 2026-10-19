@@ -12,6 +12,7 @@ import {
   resolveGroups,
   testId,
   toPosix,
+  type ResolvedGroup,
 } from "../../runner/groups.js";
 import { withProject, type ProjectOptions } from "../../runner/project.js";
 import { runTests } from "../../runner/run.js";
@@ -19,7 +20,7 @@ import TestRunner from "../../runner/test-runner.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { FlowEvent, FlowSummary, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
-import { projectSteps } from "../steps/set.js";
+import { projectSteps, type StepSet } from "../steps/set.js";
 import { HANDLERS } from "./handlers/index.js";
 import { runFlow } from "./run.js";
 import type { SupportedBrowser } from "../../types/browser.js";
@@ -52,21 +53,89 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
 
+/** What `runFlowInProject` takes when the flow itself is given separately: everything but `flow` and `flowId` */
+export type FlowRunOptions = Omit<RunFlowInProjectOptions, "flow" | "flowId">;
+
+/** Whether the project's config defines an environment of this name */
+function hasEnvironment(config: SamuraiTestConfig, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(config.environments ?? {}, name);
+}
+
 /** The environment: the option, else the flow's `envDefault` (when the project has it), else the config's default, else the first, else "default" */
 export function chooseEnvironment(
   config: SamuraiTestConfig,
   flow: FlowFile,
   option?: string,
 ): string {
-  const names = Object.keys(config.environments ?? {});
   if (option) return option;
+  const names = Object.keys(config.environments ?? {});
   if (flow.envDefault && names.includes(flow.envDefault))
     return flow.envDefault;
   return config.defaultEnvironment ?? names[0] ?? "default";
 }
 
-/** What the project says about a flow: its environment, tests and groups */
-async function prepare(options: RunFlowInProjectOptions) {
+/** A test of the project as flows see it */
+interface ProjectTest {
+  id: string;
+  file: string;
+  name: string;
+  /** The spec file relative to `srcDir`, with `/` separators */
+  relative: string;
+}
+
+/** What the project says about a flow: its environment, tests and groups, and what is wrong with the flow */
+interface PreparedFlow {
+  projectDir: string;
+  flow: FlowFile;
+  unsupported: "fail" | "skip";
+  config: SamuraiTestConfig;
+  steps: StepSet;
+  name: string;
+  environment: {
+    name: string;
+    variables: Record<string, string | number | boolean>;
+  };
+  tests: ProjectTest[];
+  groups: ResolvedGroup[];
+  problems: FlowProblem[];
+}
+
+/** The tests, and the browsers, of each Test and Group node of a flow; a Test node uses the project's browsers */
+export function nodeTestsOf(
+  flow: FlowFile,
+  tests: Pick<ProjectTest, "id" | "file" | "name">[],
+  groups: Pick<ResolvedGroup, "name" | "testIds" | "browsers">[],
+): {
+  nodeTests: Record<string, NodeTest[]>;
+  nodeBrowsers: Record<string, SupportedBrowser[]>;
+} {
+  const byId = new Map(tests.map((t) => [t.id, t]));
+  const nodeTests: Record<string, NodeTest[]> = {};
+  const nodeBrowsers: Record<string, SupportedBrowser[]> = {};
+  for (const node of flow.nodes) {
+    const group =
+      node.kind === "group"
+        ? groups.find((g) => g.name === node.ref?.group)
+        : undefined;
+    const ids =
+      node.kind === "test"
+        ? [node.ref?.testId ?? ""]
+        : node.kind === "group"
+          ? (group?.testIds ?? [])
+          : undefined;
+    if (!ids) continue;
+    if (group) nodeBrowsers[node.id] = group.browsers;
+    nodeTests[node.id] = ids.flatMap((id) => {
+      const t = byId.get(id);
+      return t ? [{ file: t.file, name: t.name }] : [];
+    });
+  }
+  return { nodeTests, nodeBrowsers };
+}
+
+async function prepare(
+  options: RunFlowInProjectOptions,
+): Promise<PreparedFlow> {
   const projectDir = path.resolve(options.projectDir ?? process.cwd());
   if (!options.flow && !options.flowId)
     throw new Error("Give a flow or a flowId.");
@@ -82,7 +151,7 @@ async function prepare(options: RunFlowInProjectOptions) {
   const environment = {
     name,
     variables: {
-      ...(Object.prototype.hasOwnProperty.call(config.environments ?? {}, name)
+      ...(hasEnvironment(config, name)
         ? config.environments![name]!.variables
         : {}),
     },
@@ -184,28 +253,7 @@ export async function runFlowInProject(
   const errors = problems.filter((p) => p.level === "error");
   if (errors.length) throw new FlowCheckError(errors);
 
-  // Walk it
-  const byId = new Map(tests.map((t) => [t.id, t]));
-  const nodeTests: Record<string, NodeTest[]> = {};
-  const nodeBrowsers: Record<string, SupportedBrowser[]> = {};
-  for (const node of flow.nodes) {
-    const ids =
-      node.kind === "test"
-        ? [node.ref?.testId ?? ""]
-        : node.kind === "group"
-          ? (groups.find((g) => g.name === node.ref?.group)?.testIds ?? [])
-          : undefined;
-    if (!ids) continue;
-    if (node.kind === "group") {
-      const browsers = groups.find((g) => g.name === node.ref?.group)?.browsers;
-      if (browsers) nodeBrowsers[node.id] = browsers;
-    }
-    nodeTests[node.id] = ids.flatMap((id) => {
-      const t = byId.get(id);
-      return t ? [{ file: t.file, name: t.name }] : [];
-    });
-  }
-
+  const { nodeTests, nodeBrowsers } = nodeTestsOf(flow, tests, groups);
   const run = options.testRunner ?? runTests;
   return runFlow({
     flow,
@@ -224,12 +272,7 @@ export async function runFlowInProject(
         config,
         ...(options.dataDir !== undefined && { dataDir: options.dataDir }),
         // The environment the expressions see, whenever the project defines it
-        ...(Object.prototype.hasOwnProperty.call(
-          config.environments ?? {},
-          name,
-        )
-          ? { environment: name }
-          : {}),
+        ...(hasEnvironment(config, name) ? { environment: name } : {}),
         ...(options.headless !== undefined && { headless: options.headless }),
         ...(options.timeout !== undefined && { timeout: options.timeout }),
         ...(options.expectTimeout !== undefined && {

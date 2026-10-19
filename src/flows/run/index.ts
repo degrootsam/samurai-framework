@@ -18,5 +18,6 @@ export {
   checkFlowInProject,
   chooseEnvironment,
   runFlowInProject,
+  type FlowRunOptions,
   type RunFlowInProjectOptions,
 } from "./project.js";

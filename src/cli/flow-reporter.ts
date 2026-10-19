@@ -11,6 +11,7 @@ import {
   type NodeResult,
 } from "../flows/run/index.js";
 import { STEP_NODES } from "../flows/steps/index.js";
+import { painter } from "./paint.js";
 
 export interface FlowReporterOptions {
   flow: FlowFile;
@@ -39,8 +40,7 @@ export class FlowReporter {
     this.steps = steps ?? STEP_NODES;
     this.flow = flow;
     this.write = write;
-    this.paint = (code, text) =>
-      color ? `\u001b[${code}m${text}\u001b[0m` : text;
+    this.paint = painter(color);
     this.nodes = new Map(flow.nodes.map((n) => [n.id, n]));
   }
 
