@@ -297,7 +297,7 @@ describe("applyEmulation: when the browser refuses", () => {
         assert.ok(err instanceof UnsupportedOperationError);
         assert.match(
           err.message,
-          /emulate\(\{ touch \}\) is not supported by the browser/,
+          /emulate\(\): touch is not supported by the browser/,
         );
         assert.equal((err as { option?: string }).option, "touch");
         assert.deepEqual((err as { applied?: string[] }).applied, ["locale"]);

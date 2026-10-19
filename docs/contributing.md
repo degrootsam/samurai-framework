@@ -108,6 +108,7 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 - **No unbounded waits.** Timeouts resolve through `resolveTimeout` (actions, assertions), the navigation timeout, or the BiDi command timeout.
 - **Code that runs in the page is a string** (or a plain arrow function with no inner named functions), because the transpiler can inject helpers that don't exist there.
 - **Secrets never reach logs or reports unmasked.** Anything that writes text goes through the masking in `src/config/mask.ts`.
+- **Error messages** from a public method read "name(): what is wrong": the bare method name with parentheses (no `page.` or `locator.` prefix), then lower-case text, no trailing full stop (`setViewport(): width must be a positive integer, got 0`). Messages that describe a state instead of a call stay as they are (`page closed`, `Failed to locate element ...`), and error classes with their own format (`NavigationError`, `DownloadError`, the timeout errors) keep it.
 - **Small modules.** A file does one job. Past about 400 lines, or a function past about 60, look for the seam.
 - **Commits** use conventional prefixes (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`). A Trunk pre-commit hook formats staged files; commit what it formats.
 - A command Firefox lacks is documented in its guide and surfaced as `UnsupportedOperationError`, never as a hang.

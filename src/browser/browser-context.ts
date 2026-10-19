@@ -160,7 +160,8 @@ export class BrowserContext {
 
   /** Removes the context; the browser closes its pages. The default context cannot be closed */
   public async close(): Promise<void> {
-    if (this.isDefault) throw new Error("cannot close the default context");
+    if (this.isDefault)
+      throw new Error("close(): cannot close the default context");
     if (this.isClosed) return;
     try {
       await this.host.connector.send("browser.removeUserContext", {
@@ -196,7 +197,9 @@ function toBiDiCookie(input: CookieInput): PartialCookie {
     secure ??= url.protocol === "https:";
   }
   if (domain === undefined)
-    throw new TypeError(`cookie "${input.name}" needs a domain or a url`);
+    throw new TypeError(
+      `addCookies(): cookie "${input.name}" needs a domain or a url`,
+    );
   return {
     name: input.name,
     value: { type: "string", value: input.value },

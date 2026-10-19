@@ -68,11 +68,6 @@ export interface StorageKeyPartitionDescriptor extends Extensible {
   sourceOrigin?: string;
 }
 
-export type StorageResult =
-  | DeleteCookiesResult
-  | GetCookiesResult
-  | SetCookieResult;
-
 export interface PartitionKey extends Extensible {
   userContext?: UserContext;
   sourceOrigin?: string;

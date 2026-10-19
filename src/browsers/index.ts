@@ -2,7 +2,6 @@ export { browsersCacheDir } from "./cache-dir.js";
 export type { CachedBuild, Downloader } from "./downloader.js";
 export { ENV_CHROMEDRIVER_PATH, ENV_PATH, type Override } from "./overrides.js";
 export {
-  LAUNCHABLE,
   MANAGED_BROWSERS,
   PINNED,
   isManagedBrowser,
