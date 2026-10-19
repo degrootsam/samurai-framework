@@ -10,6 +10,7 @@ import logger from "../logger/index.js";
 import { ConnectionClosedError } from "../transport/bidi-connection.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type {
+  AllHookFixtures,
   RegisteredTestCase,
   TestError,
   TestFixtures,
@@ -18,6 +19,8 @@ import type {
 import type { RunnerOptions } from "./options.js";
 import { judgePageLogs, type LogsConfig } from "./page-logs-report.js";
 import { DEFAULT_PORT } from "./ports.js";
+import type { AllHooks } from "./all-hooks.js";
+import { runWithEachHooks } from "./hooks.js";
 import { isSkipSignal, type SkipSignal } from "./skip.js";
 import type { PreparedRun } from "./prepare-run.js";
 import type { TestSink } from "./reporter.js";
@@ -78,6 +81,23 @@ export interface WorkerResources {
   profileDir?: string;
   /** The `workerIndex` fixture. @default 0 */
   workerIndex?: number;
+  /** The `beforeAll` / `afterAll` hooks of this worker: kept across tests, closed when the worker is done */
+  allHooks?: AllHooks;
+}
+
+/** What `beforeAll` and `afterAll` hooks get: no page, only what a run knows */
+export function allHookFixtures(
+  run: PreparedRun,
+  browserName: SupportedBrowser,
+  workerIndex = 0,
+): AllHookFixtures {
+  const { settings, secrets } = run;
+  return {
+    browserName,
+    workerIndex,
+    env: createEnvFixture(settings.environment, settings.variables),
+    secrets: createSecretsFixture(settings.environment, secrets),
+  };
 }
 
 /** Runs one test in one browser and reports it: launch, run the body, judge the page's logs, close the browser */
@@ -133,6 +153,8 @@ export async function runOneTest(
   /** Launches the browser, runs the test body and reports how it went */
   const runBody = async (): Promise<void> => {
     try {
+      // The `beforeAll` hooks come first, before a browser exists
+      await resources.allHooks?.ensure(test, browserName);
       const launched = await Browser.launch(
         browserName,
         {
@@ -169,7 +191,12 @@ export async function runOneTest(
         env: createEnvFixture(settings.environment, settings.variables),
         secrets: createSecretsFixture(settings.environment, secrets),
       };
-      await test.function(fixtures);
+      await runWithEachHooks(
+        test.suite,
+        fixtures,
+        timeoutController.signal,
+        () => test.function(fixtures),
+      );
       // Already reported as timed out
       if (timeoutController.signal.aborted) return;
       const unawaited = takePendingAssertions();

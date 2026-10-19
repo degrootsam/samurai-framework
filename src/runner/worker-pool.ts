@@ -9,6 +9,7 @@ import type {
 
 /** How long a busy worker may take to wind down after an abort before it is killed */
 const GRACE_MS = 2000;
+const SHUTDOWN_MS = 60000;
 /** Workers that die before they are ready this many times in a row fail the run, instead of being replaced for ever */
 const STARTUP_ATTEMPTS = 3;
 
@@ -23,6 +24,8 @@ export interface PoolOptions {
   factory: WorkerFactory;
   /** The abort grace period in ms; 2000 by default */
   graceMs?: number;
+  /** How long `dispose` waits for idle workers to leave on their own, in ms: their `afterAll` hooks run first. 60000 by default */
+  shutdownMs?: number;
 }
 
 export interface RunHooks {
@@ -104,15 +107,45 @@ export class WorkerPool {
     });
   }
 
-  /** Tells every worker to exit and kills it; safe to call twice */
+  /**
+   * Ends the pool; safe to call twice. A worker that has nothing to do is told to exit and given time to leave
+   * (it runs its `afterAll` hooks first); one that is busy is killed, as nobody waits for its test.
+   */
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     this.queue.length = 0;
-    this.stopWorkers(true);
+    const leaving = this.sendHome();
     this.rejectAll(
       new Error("WorkerPool.dispose(): the pool was disposed during a run"),
     );
+    await leaving;
+  }
+
+  /** Asks the idle workers to exit and waits for them (up to `shutdownMs`), kills the busy ones and the stragglers */
+  private async sendHome(): Promise<void> {
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers.clear();
+    const slots = [...this.slots.values()];
+    this.slots.clear();
+    const gone: Promise<void>[] = [];
+    for (const { handle, busy } of slots) {
+      if (busy) {
+        handle.kill();
+        continue;
+      }
+      gone.push(new Promise((resolve) => handle.onExit(() => resolve())));
+      handle.send({ type: "exit" });
+    }
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.all(gone),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, this.options.shutdownMs ?? SHUTDOWN_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+    for (const { handle } of slots) handle.kill();
   }
 
   /** Hands queued items to ready workers, then starts workers for what is left */
