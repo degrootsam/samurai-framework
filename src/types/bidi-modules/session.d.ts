@@ -38,14 +38,6 @@ export type Subscription = string;
 /** Defines how user prompts (alerts, confirms, prompts) should be automatically handled. */
 export type UserPromptHandlerType = "accept" | "dismiss" | "ignore";
 
-/** Union of all possible result types returned by session module commands. */
-export type SessionResult =
-  | EndResult
-  | NewResult
-  | StatusResult
-  | SubscribeResult
-  | UnsubscribeResult;
-
 /** Result of `session.end`. */
 export type EndResult = EmptyResult;
 

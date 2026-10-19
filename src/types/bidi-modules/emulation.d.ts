@@ -12,34 +12,43 @@ export interface EmulationCommands {
     params: SetGeolocationOverrideParameters;
     result: SetGeolocationOverrideResult;
   };
-  "emulation.setLocaleOverride": { params: SetLocaleOverrideParameters; result: SetLocaleOverrideResult };
-  "emulation.setNetworkConditions": { params: SetNetworkConditionsParameters; result: EmptyResult };
+  "emulation.setLocaleOverride": {
+    params: SetLocaleOverrideParameters;
+    result: SetLocaleOverrideResult;
+  };
+  "emulation.setNetworkConditions": {
+    params: SetNetworkConditionsParameters;
+    result: EmptyResult;
+  };
   "emulation.setScreenOrientationOverride": {
     params: SetScreenOrientationOverrideParameters;
     result: SetScreenOrientationOverrideResult;
   };
-  "emulation.setScreenSettingsOverride": { params: SetScreenSettingsOverrideParameters; result: EmptyResult };
-  "emulation.setScriptingEnabled": { params: SetScriptingEnabledParameters; result: SetScriptingEnabledResult };
+  "emulation.setScreenSettingsOverride": {
+    params: SetScreenSettingsOverrideParameters;
+    result: EmptyResult;
+  };
+  "emulation.setScriptingEnabled": {
+    params: SetScriptingEnabledParameters;
+    result: SetScriptingEnabledResult;
+  };
   "emulation.setScrollbarTypeOverride": {
     params: SetScrollbarTypeOverrideParameters;
     result: SetScrollbarTypeOverrideResult;
   };
-  "emulation.setTimezoneOverride": { params: SetTimezoneOverrideParameters; result: SetTimezoneOverrideResult };
-  "emulation.setTouchOverride": { params: SetTouchOverrideParameters; result: SetTouchOverrideResult };
-  "emulation.setUserAgentOverride": { params: SetUserAgentOverrideParameters; result: SetUserAgentOverrideResult };
+  "emulation.setTimezoneOverride": {
+    params: SetTimezoneOverrideParameters;
+    result: SetTimezoneOverrideResult;
+  };
+  "emulation.setTouchOverride": {
+    params: SetTouchOverrideParameters;
+    result: SetTouchOverrideResult;
+  };
+  "emulation.setUserAgentOverride": {
+    params: SetUserAgentOverrideParameters;
+    result: SetUserAgentOverrideResult;
+  };
 }
-
-/** Union of all possible result types returned by emulation module commands. */
-export type EmulationResult =
-  | SetForcedColorsModeThemeOverrideResult
-  | SetGeolocationOverrideResult
-  | SetLocaleOverrideResult
-  | SetScreenOrientationOverrideResult
-  | SetScriptingEnabledResult
-  | SetScrollbarTypeOverrideResult
-  | SetTimezoneOverrideResult
-  | SetTouchOverrideResult
-  | SetUserAgentOverrideResult;
 
 /** Result of `emulation.setForcedColorsModeThemeOverride`. */
 export type SetForcedColorsModeThemeOverrideResult = EmptyResult;
@@ -108,8 +117,7 @@ export interface GeolocationCoordinatesResponse {
 
 /** Either a successful coordinates override or an error response. */
 export type GeolocationOverrideResponse =
-  | GeolocationCoordinatesResponse
-  | GeolocationCoordinatesResponseError;
+  GeolocationCoordinatesResponse | GeolocationCoordinatesResponseError;
 
 /** Parameters for `emulation.setGeolocationOverride`. */
 export type SetGeolocationOverrideParameters = GeolocationOverrideResponse & {

@@ -44,18 +44,7 @@ export interface BrowserCommands {
 
 /** How downloads are handled. */
 export type DownloadBehavior =
-  | { type: "allowed"; destinationFolder: string }
-  | { type: "denied" };
-
-/** Union of all possible result types returned by browser module commands. */
-export type BrowserResult =
-  | CloseResult
-  | CreateUserContextResult
-  | GetClientWindowsResult
-  | GetUserContextsResult
-  | RemoveUserContextResult
-  | SetClientWindowStateResult
-  | SetDownloadBehaviorResult;
+  { type: "allowed"; destinationFolder: string } | { type: "denied" };
 
 /** Result of `browser.close`. */
 export type CloseResult = EmptyResult;

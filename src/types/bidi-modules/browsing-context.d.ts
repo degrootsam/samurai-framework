@@ -55,7 +55,11 @@ export interface BrowsingContextModule {
   };
   /** Accepts or dismisses the open user prompt. */
   "browsingContext.handleUserPrompt": {
-    params: { context: BrowsingContext; accept?: boolean | undefined; userText?: string | undefined };
+    params: {
+      context: BrowsingContext;
+      accept?: boolean | undefined;
+      userText?: string | undefined;
+    };
     result: {};
   };
   /** Sets or resets (null) the viewport size and device pixel ratio. */
@@ -92,7 +96,9 @@ export interface BrowsingContextModule {
     params: {
       context: BrowsingContext;
       background?: boolean | undefined;
-      margin?: { top?: number; bottom?: number; left?: number; right?: number } | undefined;
+      margin?:
+        | { top?: number; bottom?: number; left?: number; right?: number }
+        | undefined;
       orientation?: "portrait" | "landscape" | undefined;
       page?: { width?: number; height?: number } | undefined;
       pageRanges?: (number | string)[] | undefined;
@@ -359,22 +365,6 @@ export type BrowsingContextEvent =
   | NavigationStarted
   | UserPromptClosed
   | UserPromptOpened;
-
-/** Union of all possible result types returned by browsingContext module commands. */
-export type BrowsingContextResult =
-  | ActivateResult
-  | CaptureScreenshotResult
-  | CloseResult
-  | CreateResult
-  | GetTreeResult
-  | HandleUserPromptResult
-  | LocateNodesResult
-  | NavigateResult
-  | PrintResult
-  | ReloadResult
-  | SetBypassCSPResult
-  | SetViewportResult
-  | TraverseHistoryResult;
 
 /** Result of `browsingContext.activate`. */
 export type ActivateResult = EmptyResult;

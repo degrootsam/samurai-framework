@@ -68,10 +68,7 @@ export interface PointerParameters {
 
 /** A single action for a pointer input source. */
 export type PointerSourceAction =
-  | PauseAction
-  | PointerDownAction
-  | PointerUpAction
-  | PointerMoveAction;
+  PauseAction | PointerDownAction | PointerUpAction | PointerMoveAction;
 
 /** Actions for a wheel input source. */
 export interface WheelSourceActions {
@@ -190,11 +187,6 @@ export interface FileDialogOpened {
   method: "input.fileDialogOpened";
   params: FileDialogInfo;
 }
-
-export type InputResult =
-  | PerformActionResult
-  | ReleaseActionResult
-  | SetFilesResult;
 
 export type PerformActionResult = EmptyResult;
 export type ReleaseActionResult = EmptyResult;

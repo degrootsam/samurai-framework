@@ -528,15 +528,6 @@ export interface RealmDestroyedParameters {
   realm: Realm;
 }
 
-/** Union of all possible result types returned by script module commands. */
-export type ScriptResult =
-  | AddPreloadScriptResult
-  | CallFunctionResult
-  | DisownResult
-  | EvaluateResult
-  | GetRealmsResult
-  | RemovePreloadScriptResult;
-
 /** Unique identifier for a preload script registered via `script.addPreloadScript`. */
 export type PreloadScript = string;
 
