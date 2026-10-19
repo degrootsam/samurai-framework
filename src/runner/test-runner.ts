@@ -12,6 +12,7 @@ import { DEFAULT_PORT } from "./ports.js";
 import type { PreparedRun } from "./prepare-run.js";
 import TestReporter from "./reporter.js";
 import {
+  concurrency,
   planItems,
   poolMode,
   runPooled,
@@ -129,9 +130,11 @@ export default class TestRunner {
       browsers,
       serialKeyOf(loaded.groups, config.groups, loaded.srcDir),
     );
+    // A pool larger than what can overlap would only hold idle workers: a group that runs one at a time needs one
+    const lanes = concurrency(plan.items);
     const mode = poolMode({
       workers: requested,
-      items: plan.items.length,
+      items: lanes,
       inlineConfig: this.project.inlineConfig ?? false,
     });
     if (mode === "inline-config" && this.workersAsked(config.workers))
@@ -152,7 +155,7 @@ export default class TestRunner {
     }
 
     if (mode === "pool") {
-      const workers = Math.min(requested, plan.items.length);
+      const workers = Math.min(requested, lanes);
       reporter.onStart(plan.items.length, workers);
       const pool = this.createPool(workers);
       try {

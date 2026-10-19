@@ -62,6 +62,20 @@ export function serialKeyOf(
 }
 
 /**
+ * How many items can run at the same time: each item alone counts one, and the items of one serial key together
+ * count one. More workers than this would only sit idle.
+ */
+export function concurrency(items: WorkItem[]): number {
+  const keys = new Set<string>();
+  let free = 0;
+  for (const item of items) {
+    if (item.serialKey === undefined) free++;
+    else keys.add(item.serialKey);
+  }
+  return free + keys.size;
+}
+
+/**
  * How a run goes: through the pool, in this process, or in this process because the workers could not read the
  * config (it was given as an object; a worker reads `samurai.config.ts` from the project folder)
  */

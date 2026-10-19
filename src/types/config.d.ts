@@ -28,7 +28,8 @@ export interface SamuraiGroup {
   browsers?: SupportedBrowser[];
   /**
    * How many of this group's tests may run at the same time. Only `1` has an effect: the group's tests run one
-   * after the other, even when the run uses more workers (for tests that share an account or data).
+   * after the other, even when the run uses more workers (for tests that share an account or data). A run of
+   * nothing but such a group uses one worker.
    */
   workers?: number;
 }
