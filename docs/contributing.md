@@ -26,7 +26,7 @@ src/
   flows/core/            the pure flow model: schema, graph, expressions, checks (no Node APIs)
   flows/run/             walking a flow, node handlers, flow files and reports
   flows/steps/           defineStep and the built-in steps (Wait, Set variable, HTTP request)
-  logger/                winston logger (stderr and logs/), masked
+  logger/                winston logger (stderr, and logs/ of the project while one is in use), masked
   wait/                  the polling helper behind auto-waiting
   types/                 hand-written BiDi typings and public types
   testing/               stubs and helpers for the framework's own tests

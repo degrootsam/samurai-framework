@@ -1,8 +1,10 @@
+import path from "node:path";
 import { removeGeneratedFiles } from "../browser/generated-files.js";
 import { loadConfig, projectDir, setActiveProject } from "../config/config.js";
 import { resetSecrets } from "../config/mask.js";
 import { setRunSettings, type RunOverrides } from "../config/run-settings.js";
 import type { SamuraiTestConfig } from "../types/config.js";
+import { keepLogFiles } from "../logger/index.js";
 import { prepareRun, type PreparedRun } from "./prepare-run.js";
 
 /** Which project an operation works on, and in which environment */
@@ -37,6 +39,8 @@ export async function withProject<T>(
     headless,
   } = options;
   const previousDir = projectDir();
+  // The log goes to the project's `logs/` folder, not to wherever this process was started
+  const releaseLogs = keepLogFiles(path.resolve(dir ?? previousDir));
   try {
     setActiveProject({ dir: dir ?? previousDir, config, dataDir });
     const loaded = config ?? (await loadConfig());
@@ -54,5 +58,6 @@ export async function withProject<T>(
     setRunSettings(undefined);
     setActiveProject(undefined);
     active = false;
+    releaseLogs();
   }
 }

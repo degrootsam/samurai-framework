@@ -14,7 +14,7 @@ import {
   toPosix,
   type ResolvedGroup,
 } from "../../runner/groups.js";
-import logger from "../../logger/index.js";
+import logger, { keepLogFiles } from "../../logger/index.js";
 import { resolveWorkers } from "../../runner/workers-option.js";
 import { withProject, type ProjectOptions } from "../../runner/project.js";
 import { browsersFor } from "../../runner/browsers.js";
@@ -283,13 +283,7 @@ export async function checkFlowInProject(
   return { flow, problems };
 }
 
-/**
- * Checks and runs a flow of a project: loads its config, lists its tests and groups, refuses to start
- * when `checkFlow` finds errors (`FlowCheckError`), then walks the flow; each Test and Group node runs
- * its tests through `runTests`, one after the other, or on one shared worker pool when `workers` is above 1.
- * One at a time per process.
- */
-export async function runFlowInProject(
+async function walkFlowInProject(
   options: RunFlowInProjectOptions,
 ): Promise<FlowSummary> {
   const {
@@ -405,5 +399,25 @@ export async function runFlowInProject(
     });
   } finally {
     await pool?.dispose();
+  }
+}
+
+/**
+ * Checks and runs a flow of a project: loads its config, lists its tests and groups, refuses to start
+ * when `checkFlow` finds errors (`FlowCheckError`), then walks the flow; each Test and Group node runs
+ * its tests through `runTests`, one after the other, or on one shared worker pool when `workers` is above 1.
+ * One at a time per process.
+ */
+export async function runFlowInProject(
+  options: RunFlowInProjectOptions,
+): Promise<FlowSummary> {
+  // One log for the whole run, across the project sessions it opens one after the other
+  const releaseLogs = keepLogFiles(
+    path.resolve(options.projectDir ?? process.cwd()),
+  );
+  try {
+    return await walkFlowInProject(options);
+  } finally {
+    releaseLogs();
   }
 }
