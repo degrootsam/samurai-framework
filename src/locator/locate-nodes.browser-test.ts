@@ -4,12 +4,13 @@ import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { setContent } from "../testing/browser-fixture.js";
 import { InvalidSelectorError } from "./locator.js";
+import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
 
 before(async () => {
-  ({ browser, page } = await Browser.launch("firefox", {
+  ({ browser, page } = await Browser.launch(testBrowser(), {
     port: 9235,
     headless: true,
   }));

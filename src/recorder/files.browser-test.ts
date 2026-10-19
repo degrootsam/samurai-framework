@@ -18,6 +18,7 @@ import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { parseSpec } from "../steps/parse.js";
 import { applyRecorderEvent } from "./apply.js";
 import type { MissingFile, RecorderEvent } from "./recorder.js";
+import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
@@ -31,7 +32,7 @@ const picked = (name: string, text: string) => {
 };
 
 before(async () => {
-  ({ browser, page } = await Browser.launch("firefox", {
+  ({ browser, page } = await Browser.launch(testBrowser(), {
     port: 9264,
     headless: true,
   }));

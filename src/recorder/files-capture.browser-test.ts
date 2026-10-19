@@ -14,6 +14,7 @@ import { setContent } from "../testing/browser-fixture.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { FILES_SANDBOX, filesCaptureSource } from "./files-capture.js";
 import { readPageFile } from "./files-reader.js";
+import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
@@ -27,7 +28,7 @@ const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 before(async () => {
-  ({ browser, page } = await Browser.launch("firefox", {
+  ({ browser, page } = await Browser.launch(testBrowser(), {
     port: 9262,
     headless: true,
   }));

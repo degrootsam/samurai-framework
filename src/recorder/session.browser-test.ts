@@ -14,6 +14,7 @@ import { callFunction } from "../script/call-function.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { parseSpec } from "../steps/parse.js";
 import { recordSpec } from "./session.js";
+import { browserConfig } from "../testing/test-browser.js";
 
 const OPTIONS = { timeout: 90000 };
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -21,7 +22,7 @@ const PAGE = `data:text/html,<label for="n">Name</label><input id="n"><label>Sec
 
 function project(config: object = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "samurai-record-"));
-  return { dir, config: { srcDir: "./tests", ...config } };
+  return { dir, config: { ...browserConfig(), srcDir: "./tests", ...config } };
 }
 
 test(

@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import type { FlowEvent } from "./events.js";
 import { runFlowInProject } from "./project.js";
+import { browserConfig } from "../../testing/test-browser.js";
 
 const API = path.resolve("src/api.ts");
 
@@ -77,6 +78,7 @@ test(
       projectDir: dir,
       flowId: "smoke",
       config: {
+        ...browserConfig(),
         srcDir: "./specs",
         environments: { dev: { variables: { region: "eu" } } },
       },

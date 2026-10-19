@@ -8,12 +8,13 @@ import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { parseSpec } from "../steps/parse.js";
 import { applyRecorderEvent } from "./apply.js";
 import type { RecorderEvent } from "./recorder.js";
+import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
 
 before(async () => {
-  ({ browser, page } = await Browser.launch("firefox", {
+  ({ browser, page } = await Browser.launch(testBrowser(), {
     port: 9241,
     headless: true,
   }));
