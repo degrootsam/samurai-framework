@@ -3,8 +3,12 @@ import assert from "node:assert/strict";
 import Page from "./page.js";
 import { stubConnector } from "../testing/stub-connector.js";
 import { resolveRunSettings, setRunSettings } from "../config/run-settings.js";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  tick,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { LoadStateTimeoutError, NavigationError } from "./navigation-error.js";
 import { ResponseTimeoutError } from "../network/network-wait.js";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -39,7 +43,7 @@ describe("Page foundation", () => {
     handlers: Record<string, (params: any) => object | Error> = {},
   ) {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, handlers);
     return { ws, connector, page: new Page(connector, "ctx-1"), stop };
   }
@@ -73,7 +77,7 @@ describe("Page init scripts", () => {
   const ok = { type: "success", realm: "r", result: { type: "undefined" } };
   function initPage() {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     let scripts = 0;
     const stop = autoReply(ws, {
       "script.addPreloadScript": () => ({ script: `preload-${++scripts}` }),
@@ -190,7 +194,7 @@ describe("Page init scripts", () => {
 
   test("a throwing init script does not fail the registration in the loaded document", async () => {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "script.addPreloadScript": () => ({ script: "p" }),
       "browsingContext.getTree": () => ({
@@ -244,7 +248,7 @@ describe("Page network tracking", () => {
   const TREE = [{ context: "ctx-1", parent: null, children: [] }];
   function trackedPage(settings?: ConstructorParameters<typeof Page>[2]) {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),
     });
@@ -446,7 +450,7 @@ describe("Page navigation", () => {
     settings?: ConstructorParameters<typeof Page>[2],
   ) {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "browsingContext.navigate": (params) => ({
         navigation: "nav-1",
@@ -522,7 +526,7 @@ describe("Page navigation", () => {
 
     test("a browser error becomes a NavigationError naming the url and the reason", async () => {
       const ws = new FakeWebSocket();
-      const connector = new BiDiConnector(ws as unknown as WebSocket);
+      const connector = makeConnector(ws);
       const timer = setInterval(() => {
         for (const m of ws.sent.splice(0))
           ws.replyError(m.id, "unknown error", "NS_ERROR_CONNECTION_REFUSED");
@@ -547,7 +551,7 @@ describe("Page navigation", () => {
 
     test("times out after the navigation timeout with a NavigationError", async () => {
       const ws = new FakeWebSocket();
-      const connector = new BiDiConnector(ws as unknown as WebSocket);
+      const connector = makeConnector(ws);
       const page = new Page(connector, "ctx-1", {
         navigation: { timeout: 40 },
       });
@@ -564,7 +568,7 @@ describe("Page navigation", () => {
 
     test("the timeout can be set per call", async () => {
       const ws = new FakeWebSocket();
-      const connector = new BiDiConnector(ws as unknown as WebSocket);
+      const connector = makeConnector(ws);
       const page = new Page(connector, "ctx-1");
       await assert.rejects(
         page.navigateTo("https://slow.test/", { timeout: 30 }),
@@ -901,7 +905,7 @@ describe("Page logs", () => {
   const TREE = [{ context: "ctx-1", parent: null, children: [] }];
   function logPage() {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),
     });
@@ -1004,7 +1008,7 @@ describe("Page routing", () => {
   const TREE = [{ context: "ctx-1", parent: null, children: [] }];
   function routedPage(settings?: ConstructorParameters<typeof Page>[2]) {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     let intercepts = 0;
     const stop = autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),
@@ -1112,7 +1116,7 @@ describe("Page network data", () => {
     body = '{"ok":true}',
   ) {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),
       "network.addDataCollector": () => ({ collector: "c1" }),
@@ -1361,7 +1365,7 @@ describe("Page API", () => {
     settings?: ConstructorParameters<typeof Page>[2],
   ) {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),
       "browsingContext.captureScreenshot": () => ({
@@ -2043,7 +2047,7 @@ describe("Page downloads and file choosers", () => {
   const TREE = [{ context: "ctx-1", parent: null, children: [] }];
   function transferPage(settings?: ConstructorParameters<typeof Page>[2]) {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),
       "input.setFiles": () => ({}),

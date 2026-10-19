@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import logger from "../logger/index.js";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  tick,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { SESSION_CAPABILITIES } from "./session-capabilities.js";
 import type { Dialog } from "./dialog.js";
 import Page from "./page.js";
@@ -30,7 +34,7 @@ afterEach(() => {
 
 function setup(handlers: Record<string, (params: any) => object | Error> = {}) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   stops.push(
     autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),

@@ -3,8 +3,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, afterEach, describe, it } from "node:test";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  tick,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { ContextTree } from "./context-tree.js";
 import { generatedFile, removeGeneratedFiles } from "./generated-files.js";
 import { FileChooser, FileChooserTracker } from "./file-chooser.js";
@@ -31,7 +35,7 @@ async function setup(
   handlers: Record<string, (params: any) => object | Error> = {},
 ) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   stops.push(
     autoReply(ws, {
       "browsingContext.getTree": () => ({ contexts: TREE }),
