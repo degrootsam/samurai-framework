@@ -15,6 +15,7 @@ import {
   type ResolvedGroup,
 } from "../../runner/groups.js";
 import logger, { keepLogFiles } from "../../logger/index.js";
+import { resolveRetries } from "../../runner/retries-option.js";
 import { resolveWorkers } from "../../runner/workers-option.js";
 import { withProject, type ProjectOptions } from "../../runner/project.js";
 import { browsersFor } from "../../runner/browsers.js";
@@ -124,6 +125,8 @@ async function runOnPool(
         name: event.item.testName,
         file: event.item.file,
         browser: event.item.browser,
+        ...(event.type === "test-start" &&
+          event.retry && { retry: event.retry }),
         ...(event.type === "test-end" && { result: event.result }),
       } as RunEvent),
   });
@@ -336,6 +339,12 @@ async function walkFlowInProject(
       Object.values(nodeTests).flatMap((list) => list.map((t) => t.file)),
     ),
   ];
+  // A failing test is run again as often as the project says, in a node as in a plain run
+  const retries = resolveRetries({
+    flag: options.retries,
+    env: options.retriesEnv,
+    config: config.retries,
+  });
   // One pool for the whole run: the nodes, and the branches of a Parallel node, share its workers
   const pool =
     workers > 1
@@ -355,6 +364,7 @@ async function walkFlowInProject(
             }),
             files,
             basePort: options.port ?? DEFAULT_PORT,
+            ...(retries > 0 && { retries }),
           },
         })
       : undefined;
@@ -393,6 +403,7 @@ async function walkFlowInProject(
             expectTimeout: options.expectTimeout,
           }),
           ...(options.port !== undefined && { port: options.port }),
+          ...(retries > 0 && { retries }),
           ...(browsers && { browsers }),
           files: [...new Set(tests.map((t) => t.file))],
           testNames: tests.map((t) => t.name),

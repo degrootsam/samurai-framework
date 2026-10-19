@@ -14,7 +14,7 @@ const SHUTDOWN_MS = 60000;
 const STARTUP_ATTEMPTS = 3;
 
 export type PoolEvent =
-  | { type: "test-start"; item: WorkItem; worker: number }
+  | { type: "test-start"; item: WorkItem; worker: number; retry?: number }
   | { type: "test-end"; item: WorkItem; worker: number; result: TestResult };
 
 export interface PoolOptions {
@@ -243,6 +243,7 @@ export class WorkerPool {
           type: "test-start",
           item: busy.entry.item,
           worker: slot.index,
+          ...(message.retry && { retry: message.retry }),
         });
       case "test-end":
         if (busy?.id !== message.id) return;

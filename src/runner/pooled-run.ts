@@ -112,11 +112,12 @@ export async function runPooled(
   }
   const started = new Set<number>();
   const ended = new Set<number>();
-  const begin = (index: number) => {
-    if (started.has(index)) return;
+  const begin = (index: number, retry?: number) => {
+    // A test run again starts again; the first start is reported once however it arrives
+    if (started.has(index) && !retry) return;
     started.add(index);
     const { test, browser } = planned[index]!;
-    reporter.onTestStart(test, browser);
+    reporter.onTestStart(test, browser, retry);
   };
   const end = (index: number, result: TestResult) => {
     begin(index);
@@ -129,7 +130,7 @@ export async function runPooled(
     ...(signal && { signal }),
     onEvent: (event) =>
       event.type === "test-start"
-        ? begin(event.item.index)
+        ? begin(event.item.index, event.retry)
         : end(event.item.index, event.result),
   });
   results.forEach((result, position) => {
