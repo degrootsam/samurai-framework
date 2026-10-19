@@ -65,6 +65,12 @@ export interface SamuraiTestConfig {
    */
   workers?: number | string;
   /**
+   * Refuse a run when a spec contains `test.only` or `describe.only`, so a forgotten focus cannot quietly shrink a
+   * suite. The run stops before any test starts and lists the tests.
+   * @default true when the `CI` environment variable is set, else false
+   */
+  forbidOnly?: boolean;
+  /**
    * Browser binaries to launch instead of the builds SAMURAI downloads, relative to the project.
    * `SAMURAI_FIREFOX_PATH` / `SAMURAI_CHROME_PATH` win over these.
    */

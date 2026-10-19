@@ -3,8 +3,10 @@ import path from "path";
 import { ensureWarm } from "../browser/warm-up.js";
 import { projectBrowser } from "../browsers/resolve.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
+import { forbidsOnly } from "../config/forbid-only.js";
 import logger from "../logger/index.js";
 import type { RegisteredTestCase } from "../types/test.js";
+import { assertNoOnly, narrowToOnly } from "./focus.js";
 import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "./groups.js";
 import type { ResolvedGroup } from "./groups.js";
 import type { RunnerOptions } from "./options.js";
@@ -109,7 +111,10 @@ export default class TestRunner {
     const { reportPath, onEvent, signal } = this.options;
     // The specs are imported once: their top-level code runs once per run
     const loaded = await loadSpecs(this.testFiles);
-    const selected = selectTests(loaded, this.options);
+    const config = await loadConfig();
+    // A focused test the config refuses stops the run before anything starts; else only the focused ones run
+    assertNoOnly(loaded.all, forbidsOnly(config), loaded.srcDir);
+    const selected = narrowToOnly(selectTests(loaded, this.options));
     const browsers = await browsersOfRun(loaded.groups, this.options);
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
@@ -119,7 +124,6 @@ export default class TestRunner {
     });
 
     // How the run goes is settled first: a bad `workers` is an error before any browser starts
-    const config = await loadConfig();
     const requested = resolveWorkers({
       flag: this.options.workers,
       env: process.env.SAMURAI_WORKERS,
