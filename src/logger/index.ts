@@ -1,3 +1,4 @@
+import path from "node:path";
 import { createLogger, format, transports } from "winston";
 import { maskFormat } from "../config/mask.js";
 
@@ -33,7 +34,7 @@ const logger = createLogger({
   ),
   defaultMeta: { service: "samurai-framework" },
   transports: [
-    // The console shows the log; `logs/error.log` keeps errors and `logs/combined.log` everything
+    // The console shows the log; the files of a project's `logs/` folder are added while a project is in use (`keepLogFiles`)
     new transports.Console({
       // The `samurai` command quiets this to "warn"; the log files keep everything
       level: process.env.SAMURAI_LOG_LEVEL ?? "debug",
@@ -51,12 +52,55 @@ const logger = createLogger({
         ),
       ),
     }),
-    new transports.File({
-      filename: `logs/error.log`,
-      level: "error",
-    }),
-    new transports.File({ filename: `logs/combined.log` }),
   ],
 });
+
+/** The files the log is written to now: `error.log` keeps errors, `combined.log` everything */
+let files:
+  | {
+      dir: string;
+      transports: transports.FileTransportInstance[];
+      holders: number;
+    }
+  | undefined;
+
+/**
+ * Writes the log to `error.log` and `combined.log` in `<projectDir>/logs/` until the returned function is called.
+ * Nothing is written to disk before a project is in use, so a command that has none (`samurai --version`) leaves
+ * no folder behind. Holders of the same project share the files; the files close with the last one.
+ */
+export function keepLogFiles(projectDir: string): () => void {
+  const dir = path.join(projectDir, "logs");
+  if (files && files.dir !== dir) closeFiles();
+  files ??= {
+    dir,
+    transports: [
+      new transports.File({
+        filename: path.join(dir, "error.log"),
+        level: "error",
+      }),
+      new transports.File({ filename: path.join(dir, "combined.log") }),
+    ],
+    holders: 0,
+  };
+  const mine = files;
+  if (mine.holders === 0) for (const t of mine.transports) logger.add(t);
+  mine.holders++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--mine.holders === 0 && files === mine) closeFiles();
+  };
+}
+
+function closeFiles() {
+  if (!files) return;
+  for (const t of files.transports) {
+    logger.remove(t);
+    t.close?.();
+  }
+  files = undefined;
+}
 
 export default logger;
