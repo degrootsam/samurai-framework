@@ -6,7 +6,7 @@ import logger from "../logger/index.js";
 
 const supportedBrowsers: SupportedBrowser[] = ["firefox"];
 const macBrowserPaths: Record<SupportedBrowser, string> = {
-  // chrome: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  chrome: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   firefox: "/Applications/Firefox.app/Contents/MacOS/Firefox",
 };
 
@@ -96,7 +96,7 @@ function findBrowserMac(browserName: SupportedBrowser): string {
 }
 
 const linuxBinaryNames: Record<SupportedBrowser, string> = {
-  // chrome: "google-chrome",
+  chrome: "google-chrome",
   firefox: "firefox",
 };
 

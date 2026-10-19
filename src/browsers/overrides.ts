@@ -16,6 +16,9 @@ export interface OverrideSources {
   projectDir?: string;
 }
 
+/** Chrome is driven through a chromedriver of the same major version; this points a launch at another one */
+export const ENV_CHROMEDRIVER_PATH = "SAMURAI_CHROMEDRIVER_PATH";
+
 export const ENV_PATH: Record<ManagedBrowser, string> = {
   firefox: "SAMURAI_FIREFOX_PATH",
   chrome: "SAMURAI_CHROME_PATH",

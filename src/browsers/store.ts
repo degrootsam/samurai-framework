@@ -210,6 +210,19 @@ export function managedExecutable(
   return status.executablePath!;
 }
 
+/** The chromedriver installed with the pinned Chrome; throws BrowserNotInstalledError when Chrome's install isn't complete */
+export function managedChromedriver(options: StoreOptions = {}): string {
+  const { cacheDir, downloader } = store(options);
+  const status = statusOf("chrome", { ...options, env: {} });
+  if (status.state !== "installed")
+    throw new BrowserNotInstalledError("chrome", status.label);
+  return downloader.executablePath(
+    cacheDir,
+    "chromedriver",
+    PINNED.chrome.buildId,
+  );
+}
+
 /** The folder the pinned build of `name` is, or would be, installed in */
 export function managedBuildDir(
   name: ManagedBrowser,

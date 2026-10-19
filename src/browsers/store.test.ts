@@ -254,7 +254,7 @@ describe("statusOf", () => {
     );
     assert.equal(
       statusOf("chrome", { cacheDir, downloader, env: {} }).launchable,
-      false,
+      true,
     );
     const none = fake({ platform: undefined }).downloader;
     assert.equal(

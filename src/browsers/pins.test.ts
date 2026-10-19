@@ -15,9 +15,9 @@ describe("pins", () => {
     }
   });
 
-  it("lists firefox and chrome; only firefox launches", () => {
+  it("lists firefox and chrome; both launch", () => {
     assert.deepEqual(MANAGED_BROWSERS, ["firefox", "chrome"]);
-    assert.deepEqual([...LAUNCHABLE], ["firefox"]);
+    assert.deepEqual([...LAUNCHABLE], ["firefox", "chrome"]);
   });
 
   it("knows its names", () => {

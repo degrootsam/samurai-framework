@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
 import { projectBrowser } from "../browsers/resolve.js";
@@ -11,6 +10,8 @@ import {
 } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import Page from "./page.js";
+import { SESSION_CAPABILITIES } from "./session-capabilities.js";
+import { launchChrome, type BrowserProcess } from "./chrome-launch.js";
 import { BrowserContext, type ContextHost } from "./browser-context.js";
 import type { UserPromptHandler } from "../types/bidi-modules/session.js";
 import { validateEmulation, type EmulationOptions } from "./emulation.js";
@@ -24,13 +25,7 @@ import type {
   PartitionDescriptor,
 } from "../types/bidi-modules/storage.js";
 
-/**
- * Sent with session.new. With "ignore" the browser leaves a JavaScript dialog open and reports it
- * (`browsingContext.userPromptOpened`), so the framework decides how to answer instead of the browser.
- */
-export const SESSION_CAPABILITIES = {
-  alwaysMatch: { unhandledPromptBehavior: { default: "ignore" } },
-};
+export { SESSION_CAPABILITIES };
 
 /** session.new waits at least this long (ms): the first start after an install can take a while (macOS checks the new app) */
 const SESSION_START_TIMEOUT = 120_000;
@@ -75,7 +70,8 @@ const browserProfilePath = (browserName: SupportedBrowser): string =>
   path.join(browsersDir(), "profiles", browserName, "user.js");
 
 const baseBrowserLaunchFlags: Record<SupportedBrowser, string[]> = {
-  // chrome: [],
+  // Chrome is started by its chromedriver: see chrome-launch.ts
+  chrome: [],
   firefox: ["--no-sandbox", "--no-remote"],
 };
 
@@ -87,11 +83,6 @@ const defaultLaunchOptions = (
   profileDir: path.dirname(browserProfilePath(browserName)),
   headless: true,
 });
-
-const regexPrefix: Record<SupportedBrowser, RegExp> = {
-  firefox: /WebDriver\sBiDi\slistening\son\s/,
-  // chrome: /DevTools\slistening\son/,
-};
 
 export const browserLaunchFlag = (
   browserName: SupportedBrowser,
@@ -110,9 +101,8 @@ export const browserLaunchFlag = (
   baseLaunchFlags.push(`--remote-debugging-port=${port}`);
 
   switch (browserName) {
-    // case "chrome":
-    //   baseLaunchFlags.push(`--user-data-dir=${profileDir}`);
-    // break;
+    case "chrome":
+      break;
     case "firefox":
       baseLaunchFlags.push("--profile", profileDir);
       // The home page (about:home) is privileged: BiDi refuses commands such as setViewport on it
@@ -151,6 +141,8 @@ export const browserLaunchEnv = (
   logger.debug("Using app data dir for %s: %s", browserName, appDataPath);
 
   switch (browserName) {
+    case "chrome":
+      return {};
     case "firefox":
       // The project profile may have been opened by a newer Firefox (the system one, before 0.6);
       // without this Firefox refuses to start on it
@@ -159,7 +151,8 @@ export const browserLaunchEnv = (
 };
 
 const browserProfiles: Record<SupportedBrowser, string> = {
-  // chrome: "",
+  // Chrome needs no prefs file; its profile folder is created at launch
+  chrome: "",
   firefox: `
     user_pref("devtools.debugger.remote-enabled", true);
     user_pref("devtools.debugger.prompt-connection", false);
@@ -172,20 +165,15 @@ const browserProfiles: Record<SupportedBrowser, string> = {
 };
 
 // Firefox logs "WebDriver BiDi listening on ws://<host>:<port>" without the endpoint path
-const browserWsPath: Record<SupportedBrowser, string> = {
-  firefox: "/session",
-};
+const FIREFOX_WS_PATH = "/session";
 
-const browserWsRegex: Record<SupportedBrowser, RegExp> = {
-  firefox: /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}/g,
-  // chrome:
-  //   /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}\/devtools\/browser\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
-};
+const FIREFOX_WS_REGEX =
+  /ws:\/\/(\d){1,3}.(\d){1,3}.(\d){1,3}.(\d){1,3}:(\d){4}/g;
 
 export interface BrowserLaunchOptions {
   /** Which port to use for the WebDeveloper tools */
   port: number;
-  /** Firefox only */
+  /** The browser profile folder: user.js goes in it for Firefox, Chrome's user data for Chrome */
   profileDir: string;
   /** Start the browser in headless mode or in UI mode */
   headless: boolean;
@@ -199,7 +187,7 @@ export interface ContextOptions extends EmulationOptions {
 }
 
 export class Browser {
-  private browserProc: ChildProcessWithoutNullStreams;
+  private browserProc: BrowserProcess;
   private biDiConnector: BiDiConnector;
   private userContexts = new Map<string, BrowserContext>();
   private host: ContextHost;
@@ -214,7 +202,7 @@ export class Browser {
     biDiConnector,
     downloadsDir,
   }: {
-    browserProc: ChildProcessWithoutNullStreams;
+    browserProc: BrowserProcess;
     biDiConnector: BiDiConnector;
     downloadsDir?: string | undefined;
   }) {
@@ -249,10 +237,31 @@ export class Browser {
   ) {
     signal?.throwIfAborted();
     logger.verbose("Trying to launch browser %s", browserName);
-    const { executablePath: browserLocation, label } =
-      await projectBrowser(browserName);
+    const resolved = await projectBrowser(browserName);
+    const { executablePath: browserLocation, label } = resolved;
     logger.debug("Found browser install location at: %s", browserLocation);
     ensureBrowserProfile(browserName);
+
+    if (browserName === "chrome") {
+      const commandTimeout = await readCommandTimeout();
+      const { proc, connector } = await launchChrome({
+        executablePath: browserLocation,
+        driverPath: resolved.driverPath!,
+        profileDir:
+          launchOptions.profileDir ?? defaultLaunchOptions("chrome").profileDir,
+        headless:
+          launchOptions.headless ?? defaultLaunchOptions("chrome").headless,
+        commandTimeout,
+        signal,
+      });
+      try {
+        // The chromedriver session is the BiDi session: there is no session.new to send
+        return await Browser.attach(proc, connector);
+      } catch (err) {
+        abandonLaunch(proc, connector);
+        throw err;
+      }
+    }
 
     logger.verbose("Trying to spawn %s process", browserName);
 
@@ -293,7 +302,7 @@ export class Browser {
       browserProc.stderr.on("data", async (data: any) => {
         logger.debug(`${browserName} stderr: ${data}`);
 
-        const urlMatch = String(data).match(browserWsRegex[browserName]);
+        const urlMatch = String(data).match(FIREFOX_WS_REGEX);
         logger.debug("Browser announced its endpoint", { urlMatch });
         if (!Array.isArray(urlMatch) || urlMatch.length === 0) {
           return;
@@ -302,7 +311,7 @@ export class Browser {
         // instead of an unhandled rejection from this async listener
         let biDiConnector: BiDiConnector | undefined;
         try {
-          let url = urlMatch[0] + browserWsPath[browserName];
+          let url = urlMatch[0] + FIREFOX_WS_PATH;
           logger.verbose("Websocket URL match: %s", url);
           const commandTimeout = await readCommandTimeout();
           biDiConnector = await BiDiConnector.connect(url, { commandTimeout });
@@ -311,50 +320,10 @@ export class Browser {
           logger.verbose("Session status", status);
           await startSession(biDiConnector, label, commandTimeout);
           logger.verbose("Session started successfully");
-
-          const downloadsDir = await prepareDownloadsDir(
-            biDiConnector,
-            path.resolve(
-              projectDir(),
-              (await readOptionalConfig("downloadsDir")) ?? "result/downloads",
-            ),
-          );
-          const browser = new Browser({
-            browserProc,
-            biDiConnector,
-            downloadsDir,
-          });
-          logger.verbose("Requesting current browser tree");
-          const browserTree = await biDiConnector.send(
-            "browsingContext.getTree",
-            {},
-          );
-          logger.verbose("Received current browser tree");
-          logger.debug("Browser tree: ", { browserTree });
-
-          const pageContext = browserTree.contexts[0];
-
-          let page = undefined;
-
-          if (pageContext) {
-            page = new Page(biDiConnector, pageContext.context);
-            browser.defaultContext.register(page);
-          } else {
-            page = await browser.newPage({ type: "tab" });
-          }
-          await page.applyDefaultViewport();
-          // Requests made before tracking starts are invisible to it, and a dialog nobody watches would hang the page
-          await page.startNetworkTracking();
-          await page.startDialogHandling();
-          await page.startLogging();
-          await page.startDownloadTracking();
-          await page.startFileChooserTracking();
+          const launched = await Browser.attach(browserProc, biDiConnector);
           browserProc.off("close", onUnexpectedClose);
           signal?.removeEventListener("abort", onAbort);
-          resolve({
-            browser,
-            page,
-          });
+          resolve(launched);
         } catch (err) {
           browserProc.off("close", onUnexpectedClose);
           signal?.removeEventListener("abort", onAbort);
@@ -363,6 +332,48 @@ export class Browser {
         }
       });
     });
+  }
+
+  /** Sets up a browser whose BiDi session is open: downloads folder, the first page and what it tracks */
+  private static async attach(
+    browserProc: BrowserProcess,
+    biDiConnector: BiDiConnector,
+  ): Promise<{ browser: Browser; page: Page }> {
+    const downloadsDir = await prepareDownloadsDir(
+      biDiConnector,
+      path.resolve(
+        projectDir(),
+        (await readOptionalConfig("downloadsDir")) ?? "result/downloads",
+      ),
+    );
+    const browser = new Browser({
+      browserProc,
+      biDiConnector,
+      downloadsDir,
+    });
+    logger.verbose("Requesting current browser tree");
+    const browserTree = await biDiConnector.send("browsingContext.getTree", {});
+    logger.verbose("Received current browser tree");
+    logger.debug("Browser tree: ", { browserTree });
+
+    const pageContext = browserTree.contexts[0];
+
+    let page = undefined;
+
+    if (pageContext) {
+      page = new Page(biDiConnector, pageContext.context);
+      browser.defaultContext.register(page);
+    } else {
+      page = await browser.newPage({ type: "tab" });
+    }
+    await page.applyDefaultViewport();
+    // Requests made before tracking starts are invisible to it, and a dialog nobody watches would hang the page
+    await page.startNetworkTracking();
+    await page.startDialogHandling();
+    await page.startLogging();
+    await page.startDownloadTracking();
+    await page.startFileChooserTracking();
+    return { browser, page };
   }
 
   /** Closes the browser via BiDi browser.close, then makes sure the process has exited */

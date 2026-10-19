@@ -147,3 +147,60 @@ describe("browserStatus", () => {
     assert.equal(statuses[0]!.override, undefined);
   });
 });
+
+describe("resolveBrowser for Chrome", () => {
+  const installChrome = () => {
+    const build = path.join(dir, "cache", "chrome", PINNED.chrome.buildId);
+    mkdirSync(build, { recursive: true });
+    writeFileSync(path.join(build, COMPLETE_MARKER), "");
+    return path.join(build, "bin");
+  };
+
+  it("brings the chromedriver installed with it", () => {
+    const chrome = installChrome();
+    const resolved = resolveBrowser("chrome", { ...store(), env: {} });
+    assert.equal(resolved.executablePath, chrome);
+    assert.equal(
+      resolved.driverPath,
+      path.join(dir, "cache", "chromedriver", PINNED.chrome.buildId, "bin"),
+    );
+  });
+
+  it("SAMURAI_CHROMEDRIVER_PATH replaces the managed chromedriver and must exist", () => {
+    installChrome();
+    const driver = file("my-chromedriver");
+    assert.equal(
+      resolveBrowser("chrome", {
+        ...store(),
+        env: { SAMURAI_CHROMEDRIVER_PATH: driver },
+      }).driverPath,
+      driver,
+    );
+    assert.throws(
+      () =>
+        resolveBrowser("chrome", {
+          ...store(),
+          env: { SAMURAI_CHROMEDRIVER_PATH: path.join(dir, "nope") },
+        }),
+      /SAMURAI_CHROMEDRIVER_PATH points to a missing file/,
+    );
+  });
+
+  it("a Chrome set by path still gets the managed chromedriver", () => {
+    installChrome();
+    const mine = file("my-chrome");
+    const resolved = resolveBrowser("chrome", {
+      ...store(),
+      env: { SAMURAI_CHROME_PATH: mine },
+    });
+    assert.equal(resolved.executablePath, mine);
+    assert.ok(resolved.driverPath?.includes("chromedriver"));
+  });
+
+  it("is not installed without the managed chromedriver or a path to one", () => {
+    assert.throws(
+      () => resolveBrowser("chrome", { ...store(), env: {} }),
+      BrowserNotInstalledError,
+    );
+  });
+});

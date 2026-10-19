@@ -80,6 +80,33 @@ describe("BiDiConnector socket close", () => {
   });
 });
 
+describe("BiDiConnector onClosed", () => {
+  it("fires once when the socket closes", () => {
+    const { ws, connector } = setup();
+    let calls = 0;
+    connector.onClosed(() => calls++);
+    ws.drop();
+    ws.drop();
+    assert.equal(calls, 1);
+  });
+
+  it("fires when the socket fails", () => {
+    const { ws, connector } = setup();
+    let calls = 0;
+    connector.onClosed(() => calls++);
+    ws.dispatchEvent(new Event("error"));
+    assert.equal(calls, 1);
+  });
+
+  it("does not fire when the connector is killed on purpose", () => {
+    const { connector } = setup();
+    let calls = 0;
+    connector.onClosed(() => calls++);
+    connector.kill();
+    assert.equal(calls, 0);
+  });
+});
+
 describe("BiDiConnector after the socket closed", () => {
   it("rejects a new command at once instead of waiting for its timeout", async () => {
     const { ws, connector } = setup({ commandTimeout: 5000 });

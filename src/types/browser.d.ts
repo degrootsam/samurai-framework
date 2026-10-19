@@ -1,1 +1,1 @@
-export type SupportedBrowser = "firefox";
+export type SupportedBrowser = "firefox" | "chrome";
