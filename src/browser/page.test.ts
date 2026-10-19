@@ -344,6 +344,41 @@ describe("Page network tracking", () => {
     stop();
   });
 
+  test("startTracking sizes the page and starts every tracker once, in the browser's order", async () => {
+    const { ws, page, stop } = trackedPage({
+      use: { viewport: { width: 800, height: 600 } },
+    });
+    await page.startTracking();
+    await page.startTracking();
+    const events = ws.sent
+      .filter((m) => m.method === "session.subscribe")
+      .flatMap((m) => (m.params as { events: string[] }).events);
+    // The tree first (everything attributes frames through it), then network, dialogs, logs, downloads, file pickers
+    const first = (prefix: string) =>
+      events.findIndex((event) => event.startsWith(prefix));
+    assert.ok(first("network.") < first("browsingContext.userPrompt"));
+    assert.ok(first("browsingContext.userPrompt") < first("log."));
+    assert.ok(first("log.") < first("browsingContext.download"));
+    assert.ok(first("browsingContext.download") < first("input."));
+    for (const event of [
+      "network.beforeRequestSent",
+      "log.entryAdded",
+      "input.fileDialogOpened",
+    ]) {
+      assert.equal(
+        events.filter((e) => e === event).length,
+        1,
+        `${event} once`,
+      );
+    }
+    assert.equal(
+      ws.sent.filter((m) => m.method === "browsingContext.setViewport").length,
+      2,
+      "the size is applied on each call; the trackers only once",
+    );
+    stop();
+  });
+
   test("request, response and requestfailed events reach page.on, and page.off stops them", async () => {
     const { ws, page, stop } = trackedPage();
     const seen: string[] = [];

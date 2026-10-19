@@ -1,5 +1,5 @@
 import EventEmitter from "node:events";
-import logger from "../logger/index.js";
+import { emitSafely } from "./emit.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
 import type { FileDialogInfo } from "../types/bidi-modules/input.js";
@@ -100,12 +100,6 @@ export class FileChooserTracker {
   private onOpened = (params: FileDialogInfo) => {
     if (!this.tree.isWithin(params.context, this.contextId)) return;
     const chooser = new FileChooser(this.connector, params);
-    for (const listener of this.events.rawListeners("filechooser")) {
-      try {
-        listener(chooser);
-      } catch (err) {
-        logger.error("A filechooser listener threw", { err });
-      }
-    }
+    emitSafely(this.events, "filechooser", [chooser]);
   };
 }

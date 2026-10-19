@@ -1,6 +1,8 @@
-import { UnsupportedOperationError } from "../transport/unsupported.js";
+import {
+  isUnsupported,
+  UnsupportedOperationError,
+} from "../transport/unsupported.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
-import { BiDiError } from "../transport/bidi-error.js";
 import type { BiDiCommands } from "../types/bidi.js";
 
 const ORIENTATIONS = [
@@ -264,10 +266,7 @@ export async function applyEmulation(
     try {
       await connector.send(step.method, { ...step.params, ...target } as never);
     } catch (err) {
-      if (
-        err instanceof BiDiError &&
-        (err.code === "unknown command" || err.code === "unsupported operation")
-      ) {
+      if (isUnsupported(err)) {
         throw new EmulationUnsupportedError(step.option, applied);
       }
       throw new EmulationError(step.option, applied, err);
