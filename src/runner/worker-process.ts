@@ -18,13 +18,27 @@ function workerEntry(): { file: string; execArgv: string[] } {
   };
 }
 
-/** Starts each worker as a child process of this one and talks to it over the IPC channel; the pool sends `init` */
+/** Ends a worker and everything it started (its browser, chromedriver) that is still running: a worker that dies leaves them behind */
+function killGroup(pid: number | undefined) {
+  if (pid === undefined || process.platform === "win32") return;
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // nothing of the group is left
+  }
+}
+
+/**
+ * Starts each worker as a child process of this one and talks to it over the IPC channel; the pool sends `init`.
+ * A worker leads its own process group (not on Windows), so that when it exits, its browser goes with it.
+ */
 export function processWorkerFactory(): WorkerFactory {
   return () => {
     const { file, execArgv } = workerEntry();
     // A worker's logs go to the same stderr; stdout stays the main process's (the `--json` output)
     const child = fork(file, [], {
       execArgv,
+      detached: process.platform !== "win32",
       stdio: ["ignore", "inherit", "inherit", "ipc"],
     });
     // A write to a worker that already died fails here; its `exit` event follows and is what the pool acts on
@@ -33,8 +47,15 @@ export function processWorkerFactory(): WorkerFactory {
       send: (message) => void child.send(message),
       onMessage: (listener) =>
         void child.on("message", (message) => listener(message as FromWorker)),
-      onExit: (listener) => void child.on("exit", (code) => listener(code)),
-      kill: () => void child.kill("SIGKILL"),
+      onExit: (listener) =>
+        void child.on("exit", (code) => {
+          killGroup(child.pid);
+          listener(code);
+        }),
+      kill: () => {
+        killGroup(child.pid);
+        child.kill("SIGKILL");
+      },
     } satisfies WorkerHandle;
   };
 }

@@ -9,6 +9,8 @@ import type {
 
 /** How long a busy worker may take to wind down after an abort before it is killed */
 const GRACE_MS = 2000;
+/** Workers that die before they are ready this many times in a row fail the run, instead of being replaced for ever */
+const STARTUP_ATTEMPTS = 3;
 
 export type PoolEvent =
   | { type: "test-start"; item: WorkItem; worker: number }
@@ -65,6 +67,8 @@ export class WorkerPool {
   private readonly calls = new Set<Call>();
   private readonly timers = new Set<NodeJS.Timeout>();
   private nextId = 0;
+  /** Workers in a row that exited before they were ready */
+  private startupFailures = 0;
   private disposed = false;
 
   constructor(private readonly options: PoolOptions) {}
@@ -195,6 +199,7 @@ export class WorkerPool {
     switch (message.type) {
       case "ready":
         slot.ready = true;
+        this.startupFailures = 0;
         return this.pump();
       case "fatal":
         return this.fatal(message.message);
@@ -217,6 +222,11 @@ export class WorkerPool {
     if (this.slots.get(slot.index) !== slot) return;
     this.slots.delete(slot.index);
     const { busy } = slot;
+    if (!slot.ready && ++this.startupFailures >= STARTUP_ATTEMPTS) {
+      return this.fatal(
+        `The worker process exited before it was ready (code ${code})`,
+      );
+    }
     if (busy) {
       const { item, call } = busy.entry;
       const message = call.aborted

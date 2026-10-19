@@ -14,6 +14,8 @@ import {
   toPosix,
   type ResolvedGroup,
 } from "../../runner/groups.js";
+import logger from "../../logger/index.js";
+import { resolveWorkers } from "../../runner/workers-option.js";
 import { withProject, type ProjectOptions } from "../../runner/project.js";
 import { browsersFor } from "../../runner/browsers.js";
 import { DEFAULT_PORT } from "../../runner/ports.js";
@@ -54,11 +56,14 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   unsupported?: "fail" | "skip";
   port?: number;
   /**
-   * How many worker processes the tests of the whole run share. 1 (the default) runs each Test and Group node
-   * through `runTests` in this process; more starts one pool that every node, and every branch of a Parallel
-   * node, takes its workers from
+   * How many worker processes the tests of the whole run share: a number, or a percentage like `"50%"`. Unset
+   * takes `SAMURAI_WORKERS` (`workersEnv`), then the config's `workers`, then half the CPUs. 1 runs each Test
+   * and Group node through `runTests` in this process; more starts one pool that every node, and every branch
+   * of a Parallel node, takes its workers from
    */
-  workers?: number;
+  workers?: number | string;
+  /** The value of `SAMURAI_WORKERS`, when set */
+  workersEnv?: string;
   /** @internal Replaces the worker pool (tests) */
   createPool?: (options: PoolOptions) => Pick<WorkerPool, "run" | "dispose">;
   /** @internal Replaces the runner of each Test and Group node (tests) */
@@ -304,7 +309,27 @@ export async function runFlowInProject(
 
   const { nodeTests, nodeBrowsers } = nodeTestsOf(flow, tests, groups);
   const run = options.testRunner ?? runTests;
-  const workers = options.workers ?? 1;
+  // An injected runner (tests) stays in this process unless the workers are asked for
+  const asked =
+    options.workers !== undefined ||
+    Boolean(options.workersEnv) ||
+    config.workers !== undefined;
+  let workers =
+    options.testRunner && options.workers === undefined
+      ? 1
+      : resolveWorkers({
+          flag: options.workers,
+          env: options.workersEnv,
+          config: config.workers,
+        });
+  // A worker reads `samurai.config.ts` from the project folder: a config given as an object stays in this process
+  if (options.config !== undefined && workers > 1) {
+    if (asked)
+      logger.warn(
+        "workers needs samurai.config.ts in the project folder; running on one worker",
+      );
+    workers = 1;
+  }
   const files = [
     ...new Set(
       Object.values(nodeTests).flatMap((list) => list.map((t) => t.file)),

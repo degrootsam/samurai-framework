@@ -244,6 +244,20 @@ describe("WorkerPool", () => {
     assert.ok(workers.every((w) => w.killed));
   });
 
+  it("fails the run when workers keep dying before they are ready, instead of respawning for ever", async () => {
+    const { pool, workers } = setup({ workers: 1, autoReady: false });
+    const outcome = assert.rejects(
+      pool.run([item(0)]),
+      /The worker process exited before it was ready \(code 1\)/,
+    );
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await settle();
+      last(workers)?.exit(1);
+    }
+    await outcome;
+    assert.equal(workers.length, 3);
+  });
+
   it("abort: fails queued items, tells busy workers, resolves with all results", async () => {
     const { pool, workers } = setup({ workers: 1 });
     const controller = new AbortController();
