@@ -52,7 +52,25 @@ function keyOf(test: RegisteredTestCase, browser: SupportedBrowser): string {
   return `${test.file}::${test.name}::${browser}`;
 }
 
-export default class TestReporter {
+/** What `runOneTest` reports a test to: the reporter of a run, or a worker that relays it */
+export interface TestSink {
+  onTestStart(test: RegisteredTestCase, browser: SupportedBrowser): void;
+  onTestEnd(
+    test: RegisteredTestCase,
+    browser: SupportedBrowser,
+    error?: TestError,
+    extras?: TestEndExtras,
+  ): void;
+}
+
+/** What a test's report entry lists besides its status */
+export interface TestEndExtras {
+  logs?: TestLogEntry[];
+  logsDropped?: number;
+  screenshots?: { name: string; path: string }[];
+}
+
+export default class TestReporter implements TestSink {
   private testResults: Map<string, TestResult> = new Map();
   private summary: TestSummary | undefined;
   private environment: string;
@@ -146,11 +164,7 @@ export default class TestReporter {
     test: RegisteredTestCase,
     browser: SupportedBrowser,
     error?: TestError,
-    extras?: {
-      logs?: TestLogEntry[];
-      logsDropped?: number;
-      screenshots?: { name: string; path: string }[];
-    },
+    extras?: TestEndExtras,
   ) {
     const key = keyOf(test, browser);
     performance.mark(`${key}-finish`);

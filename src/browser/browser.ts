@@ -98,7 +98,11 @@ export class Browser {
       "Found browser install location at: %s",
       resolved.executablePath,
     );
-    ensureBrowserProfile(browserName);
+    ensureBrowserProfile(
+      browserName,
+      launchOptions.profileDir &&
+        path.join(launchOptions.profileDir, "user.js"),
+    );
     const commandTimeout = await readCommandTimeout();
 
     // Both launchers hand back an open BiDi session: Firefox after session.new, Chrome with the one
