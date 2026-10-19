@@ -89,6 +89,9 @@ type Of<A extends Message["action"]> = Extract<Message, { action: A }>;
  * secrets) and turns its messages into observations. Secret values stay here; the page only ever gets
  * their names and whether they are set.
  */
+/** What a wait on the page ends with when the page was left first */
+const LEFT = Symbol("left the page");
+
 export class ToolbarController {
   private status: "recording" | "paused" = "recording";
   private collapsed = false;
@@ -116,6 +119,8 @@ export class ToolbarController {
   private readonly done = new Set<number>();
   /** Bumped on every page load: work started for an older page is not answered */
   private page = 0;
+  /** Wake-ups for the work that is waiting on the current page: called, and forgotten, when the page changes */
+  private pageGone = new Set<() => void>();
   private toolbar = true;
   /** A `ready` arrived since the last load: it counts for the next one */
   private readySinceLoad = false;
@@ -260,6 +265,7 @@ export class ToolbarController {
   public loaded(): void {
     if (this.disposed) return;
     this.page++;
+    this.leavePage();
     this.pick = undefined;
     this.toast = undefined;
     this.push();
@@ -284,6 +290,31 @@ export class ToolbarController {
    */
   public navigating(): void {
     this.readySinceLoad = false;
+    this.leavePage();
+  }
+
+  /** Lets what waits on the current document stop waiting: its commands may never be answered once it is gone */
+  private leavePage(): void {
+    const waiting = [...this.pageGone];
+    this.pageGone.clear();
+    for (const wake of waiting) wake();
+  }
+
+  /** Runs `work`, but stops waiting for it when the page is left; resolves `gone` then */
+  private async whileOnPage<T, G>(
+    work: () => Promise<T>,
+    gone: G,
+  ): Promise<T | G> {
+    let wake!: () => void;
+    const left = new Promise<G>((resolve) => {
+      wake = () => resolve(gone);
+      this.pageGone.add(wake);
+    });
+    try {
+      return await Promise.race([work(), left]);
+    } finally {
+      this.pageGone.delete(wake);
+    }
   }
 
   /** A step was emitted (any source): count it */
@@ -398,25 +429,29 @@ export class ToolbarController {
   private async picked(message: Of<"pick">): Promise<void> {
     const page = this.page;
     if (this.paused) return this.reply(message.id, fail(PAUSED));
-    let found: Inspection | undefined;
+    let found: Inspection | undefined | typeof LEFT;
     try {
-      const locator =
-        message.target &&
-        (await this.deps.rank(message.target, message.candidates));
-      if (locator) {
-        found = await this.deps.inspect(
+      // Chrome never answers a command into a document that is being replaced, so a pick of the old page must not
+      // keep the messages behind it waiting
+      found = await this.whileOnPage(async () => {
+        const locator =
+          message.target &&
+          (await this.deps.rank(message.target, message.candidates));
+        if (!locator) return undefined;
+        const inspected = await this.deps.inspect(
           message.target!,
           locator,
           message.candidates,
         );
         if (page === this.page)
-          this.pick = { id: message.id, locator, counts: found.counts };
-      }
+          this.pick = { id: message.id, locator, counts: inspected.counts };
+        return inspected;
+      }, LEFT);
     } catch {
       found = undefined; // the element went away while it was inspected
     }
     // The page that asked is gone: its successor's toolbar isn't waiting for this
-    if (page !== this.page) return;
+    if (found === LEFT || page !== this.page) return;
     this.reply(
       message.id,
       found ? this.withoutSecrets(found.info) : fail(UNIDENTIFIABLE),
