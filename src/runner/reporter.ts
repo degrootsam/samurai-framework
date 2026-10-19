@@ -10,37 +10,59 @@ import type {
   TestResult,
   TestSummary,
 } from "../types/test.js";
+import type { SupportedBrowser } from "../types/browser.js";
 
 /** What a run reports while it happens */
 export type RunEvent =
-  | { type: "run-start"; environment: string; total: number }
-  | { type: "test-start"; name: string; file: string }
-  | { type: "test-end"; name: string; file: string; result: TestResult }
+  | {
+      type: "run-start";
+      environment: string;
+      /** Every selected test in every browser */
+      total: number;
+      browsers: SupportedBrowser[];
+    }
+  | {
+      type: "test-start";
+      name: string;
+      file: string;
+      browser: SupportedBrowser;
+    }
+  | {
+      type: "test-end";
+      name: string;
+      file: string;
+      browser: SupportedBrowser;
+      result: TestResult;
+    }
   | { type: "run-end"; summary: TestSummary };
 
 export interface ReporterOptions {
   /** The environment the run uses, recorded in the report */
   environment: string;
+  /** The browsers the run uses, in the order they run; recorded in the report */
+  browsers: SupportedBrowser[];
   /** Where the report is written. @default <cwd>/result/report.json */
   output?: string | false;
   /** Called with every event, in order. A throwing listener is ignored */
   onEvent?: (event: RunEvent) => void;
 }
 
-/** Results are keyed by file and full title, so equal titles in different files or describe blocks stay apart */
-function keyOf(test: RegisteredTestCase): string {
-  return `${test.file}::${test.name}`;
+/** Results are keyed by file, full title and browser, so equal titles in different files or describe blocks, and the same test in two browsers, stay apart */
+function keyOf(test: RegisteredTestCase, browser: SupportedBrowser): string {
+  return `${test.file}::${test.name}::${browser}`;
 }
 
 export default class TestReporter {
   private testResults: Map<string, TestResult> = new Map();
   private summary: TestSummary | undefined;
   private environment: string;
+  private browsers: SupportedBrowser[];
   private output: string | false;
   private listener: ((event: RunEvent) => void) | undefined;
 
   constructor(options: ReporterOptions) {
     this.environment = options.environment;
+    this.browsers = [...options.browsers];
     this.output =
       options.output ?? path.join(projectDir(), "result/report.json");
     this.listener = options.onEvent;
@@ -61,9 +83,15 @@ export default class TestReporter {
       status: "failed",
       startTime: t.startTime,
       environment: this.environment,
+      browsers: this.browsers,
       tests: [],
     };
-    this.emit({ type: "run-start", environment: this.environment, total });
+    this.emit({
+      type: "run-start",
+      environment: this.environment,
+      total,
+      browsers: this.browsers,
+    });
   }
 
   public async onEnd(): Promise<TestSummary> {
@@ -78,6 +106,7 @@ export default class TestReporter {
       ...this.summary,
       duration,
       environment: this.environment,
+      browsers: this.browsers,
       tests: Array.from(this.testResults.values()),
       status: Array.from(this.testResults.values()).every(
         (r: TestResult) => r.status === "success",
@@ -96,20 +125,27 @@ export default class TestReporter {
     return this.summary;
   }
 
-  public onTestStart(test: RegisteredTestCase) {
-    const key = keyOf(test);
+  public onTestStart(test: RegisteredTestCase, browser: SupportedBrowser) {
+    const key = keyOf(test, browser);
     const t = performance.mark(`${key}-start`);
     this.testResults.set(key, {
       name: test.name,
       file: test.file,
+      browser,
       status: "started",
       startTime: t.startTime,
     });
-    this.emit({ type: "test-start", name: test.name, file: test.file });
+    this.emit({
+      type: "test-start",
+      name: test.name,
+      file: test.file,
+      browser,
+    });
   }
 
   public onTestEnd(
     test: RegisteredTestCase,
+    browser: SupportedBrowser,
     error?: TestError,
     extras?: {
       logs?: TestLogEntry[];
@@ -117,7 +153,7 @@ export default class TestReporter {
       screenshots?: { name: string; path: string }[];
     },
   ) {
-    const key = keyOf(test);
+    const key = keyOf(test, browser);
     performance.mark(`${key}-finish`);
     const duration = performance.measure(
       "test-duration",
@@ -135,6 +171,12 @@ export default class TestReporter {
       ...(extras?.screenshots?.length && { screenshots: extras.screenshots }),
     } as TestResult);
     this.testResults.set(key, result);
-    this.emit({ type: "test-end", name: test.name, file: test.file, result });
+    this.emit({
+      type: "test-end",
+      name: test.name,
+      file: test.file,
+      browser,
+      result,
+    });
   }
 }

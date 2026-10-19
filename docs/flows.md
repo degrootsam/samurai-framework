@@ -57,7 +57,7 @@ A flow's id is its file name without `.flow.json`. Everywhere a flow is asked fo
 | `wait`         | Wait         | Waits `ms` milliseconds (stopping the run ends the wait)                                                      |
 | `api`          | HTTP request | Sends an HTTP request; outputs `statusCode` and `body` (see [Writing a step](steps.md))                       |
 
-Test and Group nodes launch the browser; every other node runs in-process.
+Test and Group nodes launch the browser; every other node runs in-process. A Group node runs its tests in the group's [`browsers`](configuration.md#browsers) (the project's when the group has none); a Test node runs in the project's. With more than one browser a node's tests run once in each, and the node fails if any of them fails.
 
 Wait, Set variable and HTTP request are steps; see [Writing a step](steps.md).
 
@@ -157,7 +157,7 @@ Every run writes `result/flows/<id>.json`, also when the flow failed or was canc
 }
 ```
 
-`status` is `passed`, `failed` or `cancelled`; `nodes` has a result for every node (`passed`, `failed`, `skipped`, `not-run`, with `error`, `note`, `branch`, `wrote`). `tests` holds the runner's result for every test the Test and Group nodes ran (error, page logs), tagged with the node. Secrets are masked as in [`report.json`](running-and-reports.md). `error` appears when the graph could not be walked at all.
+`status` is `passed`, `failed` or `cancelled`; `nodes` has a result for every node (`passed`, `failed`, `skipped`, `not-run`, with `error`, `note`, `branch`, `wrote`). `tests` holds the runner's result for every test the Test and Group nodes ran (error, page logs), tagged with the node: one entry per test and browser, each with its `browser`. Secrets are masked as in [`report.json`](running-and-reports.md). `error` appears when the graph could not be walked at all.
 
 ## In CI
 

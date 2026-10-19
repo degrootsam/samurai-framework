@@ -31,7 +31,7 @@ export function scaffold(name: string): Record<string, string> {
 
 export default defineConfig({
   srcDir: "./tests",
-  browser: "firefox",
+  browsers: ["firefox"],
   timeout: 30000,
   environments: {
     local: { baseURL: "http://localhost:3000" },

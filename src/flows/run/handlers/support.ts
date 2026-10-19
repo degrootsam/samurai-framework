@@ -8,6 +8,7 @@ import {
   type FlowNodeModel,
 } from "../../core/index.js";
 import type { RunEvent } from "../../../runner/reporter.js";
+import type { SupportedBrowser } from "../../../types/browser.js";
 import type { NodeResult, NodeTest } from "../events.js";
 
 /** What a handler can use of the run */
@@ -16,10 +17,13 @@ export interface HandlerRun {
   environment: { name: string; variables: Record<string, unknown> };
   context: ExpressionContext;
   nodeTests: Record<string, NodeTest[]>;
+  /** The browsers of the nodes that have their own (a Group node's group); the others use the project's */
+  nodeBrowsers?: Record<string, SupportedBrowser[]>;
   signal: AbortSignal;
   runTests: (
     tests: NodeTest[],
     onEvent: (e: RunEvent) => void,
+    browsers?: SupportedBrowser[],
   ) => Promise<"passed" | "failed" | "cancelled">;
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   onTestEvent: (nodeId: string, e: RunEvent) => void;
@@ -50,7 +54,11 @@ export async function runNodeTests(
 ): Promise<Outcome> {
   let result: "passed" | "failed" | "cancelled";
   try {
-    result = await run.runTests(list, (e) => run.onTestEvent(node.id, e));
+    result = await run.runTests(
+      list,
+      (e) => run.onTestEvent(node.id, e),
+      run.nodeBrowsers?.[node.id],
+    );
   } catch (e) {
     return fail(e);
   }

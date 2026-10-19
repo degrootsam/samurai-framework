@@ -27,6 +27,8 @@ Options for run and list:
   --file <spec>               Only this spec file; repeatable
   --grep <text>               Only tests whose full name contains the text
   --group <name>              Only the tests of this group of the config's groups
+  --browser <name>            Run in this browser (firefox or chrome) instead of the config's
+                              browsers; repeat it for more than one
   --json                      Machine-readable output: JSON lines for run, one array for list
 
 Options for run:
@@ -37,6 +39,7 @@ Options for run:
   --port <n>                  Browser debugging port (default 9223)
 
 Options for record (also --env, --port, --json, --headless, --no-headless):
+  --browser <name>            Record in this browser (default: the first of the config's browsers)
   --new <title>               Add a test with this title (creates the spec file if needed)
   --test <name|index>         Record into this test; not needed when the file has one
   --at <n>                    Insert from step n (default: after the last step)
@@ -121,6 +124,8 @@ export async function main(argv: string[], io: Io): Promise<number> {
       if (at !== undefined && (!Number.isInteger(at) || at < 0))
         throw new Error(`--at must be a step number, got "${values.at}"`);
       const flags = parseRunnerFlags(rest);
+      if (flags.browsers && flags.browsers.length > 1)
+        throw new Error("--browser: a recording uses one browser");
       const test =
         values.test === undefined
           ? undefined
@@ -139,6 +144,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
         ...(values.url !== undefined && { url: values.url }),
         ...(flags.headless !== undefined && { headless: flags.headless }),
         ...(flags.port !== undefined && { port: flags.port }),
+        ...(flags.browsers && { browser: flags.browsers[0]! }),
         ...(io.signal && { signal: io.signal }),
         onStarted: () => {
           if (!values.json)
@@ -215,6 +221,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       ...(flags.grep !== undefined && { grep: flags.grep }),
       ...(flags.group !== undefined && { group: flags.group }),
       ...(flags.files && { files: flags.files }),
+      ...(flags.browsers && { browsers: flags.browsers }),
     };
 
     if (command === "list") {

@@ -82,7 +82,7 @@ import { defineConfig } from "./src/config/config.js";
 
 export default defineConfig({
   srcDir: "./src/tests",
-  browser: "firefox",
+  browsers: ["firefox"],
   timeout: 30000,
   environments: {
     staging: { baseURL: "https://staging.example.com" },
