@@ -149,7 +149,8 @@ export default class TestRunner {
 
     // A missing browser is one clear error before the run, not a failure per test, and before any browser has run a
     // test; a fresh build's slow first start happens here too, outside any test's timeout
-    if (selected.length > 0) {
+    // Skipped tests need no browser, so a run of only those needs none installed
+    if (selected.some((test) => !staticSkip(test))) {
       for (const browser of browsers) await projectBrowser(browser);
       for (const browser of browsers)
         await ensureWarm(
