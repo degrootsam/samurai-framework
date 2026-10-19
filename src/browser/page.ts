@@ -119,6 +119,19 @@ interface PageEvents extends NetworkEvents {
 }
 export type PageEventName = keyof PageEvents;
 
+/** Events `page.waitForEvent` can wait for */
+export type WaitableEventName =
+  "download" | "filechooser" | "request" | "response";
+
+export interface WaitForEventOptions<T> {
+  /** Only an event this accepts counts */
+  predicate?: (item: T) => boolean;
+  /** Time (ms) to wait. @default config `navigation.timeout`, then 30000 */
+  timeout?: number;
+  /** Runs once the wait is set up; what it causes cannot be missed */
+  trigger?: () => Promise<unknown>;
+}
+
 /** Events a connection's browser rejected as unknown, so nothing asks for them again */
 const unsupportedEventsByConnector = new WeakMap<BiDiConnector, Set<string>>();
 
@@ -1167,6 +1180,59 @@ export default class Page {
       options,
       (timeout) => new FileChooserTimeoutError(timeout),
     );
+  }
+
+  /**
+   * Playwright-style wait for one page event: `download`, `filechooser`, `request` or `response`. Same as the named
+   * `waitFor…` method, with an optional predicate (a function, or `predicate` in the options). Call it before the event
+   * is caused, or pass `trigger`, which runs once the wait is set up.
+   * @example
+   *  const chooser = await page.waitForEvent("filechooser", { trigger: () => page.getByText("Upload file").click() });
+   *  await chooser.setFiles("./myfile.pdf");
+   */
+  public async waitForEvent<E extends WaitableEventName>(
+    event: E,
+    optionsOrPredicate:
+      | ((item: PageEvents[E][0]) => boolean)
+      | WaitForEventOptions<PageEvents[E][0]> = {},
+  ): Promise<PageEvents[E][0]> {
+    const { predicate, ...options } =
+      typeof optionsOrPredicate === "function"
+        ? { predicate: optionsOrPredicate }
+        : optionsOrPredicate;
+    const accepts = (predicate ?? (() => true)) as (item: unknown) => boolean;
+    switch (event) {
+      case "request":
+        return this.waitForRequest(accepts, options) as Promise<
+          PageEvents[E][0]
+        >;
+      case "response":
+        return this.waitForResponse(accepts, options) as Promise<
+          PageEvents[E][0]
+        >;
+      case "download":
+        this.assertOpen();
+        await this.startDownloadTracking();
+        return this.waitForPageEvent(
+          "download",
+          accepts,
+          options,
+          (timeout) => new DownloadWaitTimeoutError(timeout),
+        ) as Promise<PageEvents[E][0]>;
+      case "filechooser":
+        this.assertOpen();
+        await this.startFileChooserTracking();
+        return this.waitForPageEvent(
+          "filechooser",
+          accepts,
+          options,
+          (timeout) => new FileChooserTimeoutError(timeout),
+        ) as Promise<PageEvents[E][0]>;
+      default:
+        throw new Error(
+          `page.waitForEvent() does not support "${String(event)}": use page.on()`,
+        );
+    }
   }
 
   /**
