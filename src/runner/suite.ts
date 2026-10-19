@@ -1,4 +1,7 @@
-import type { Modifier, Suite } from "../types/test.js";
+import type { EachHook, Modifier, Suite } from "../types/test.js";
+
+/** The four hook lists a suite can hold */
+export type HookKind = "beforeEach" | "afterEach" | "beforeAll" | "afterAll";
 
 /** One root suite per spec file; a `describe` block is a child of the suite it is written in */
 const roots = new Map<string, Suite>();
@@ -65,4 +68,32 @@ export function modifierOf(
     else found = s.modifier;
   }
   return found ?? (focused ? "only" : undefined);
+}
+
+/** The suites from the file's root down to `suite` */
+export function suiteChain(suite: Suite): Suite[] {
+  const chain: Suite[] = [];
+  for (let s: Suite | undefined = suite; s; s = s.parent) chain.unshift(s);
+  return chain;
+}
+
+/** The `beforeEach` hooks of a test: outermost suite first, in the order they were written */
+export function beforeEachOf(suite: Suite): EachHook[] {
+  return suiteChain(suite).flatMap((s) => s.beforeEach ?? []);
+}
+
+/** The `afterEach` hooks of a test: innermost suite first, in the order they were written */
+export function afterEachOf(suite: Suite): EachHook[] {
+  return suiteChain(suite)
+    .reverse()
+    .flatMap((s) => s.afterEach ?? []);
+}
+
+/** Adds a hook to the suite being registered */
+export function addHook<K extends HookKind>(
+  suite: Suite,
+  kind: K,
+  hook: NonNullable<Suite[K]>[number],
+): void {
+  ((suite[kind] ??= []) as unknown[]).push(hook);
 }

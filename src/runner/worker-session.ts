@@ -1,7 +1,9 @@
 import { workerProfileDir } from "../browser/launch-flags.js";
+import logger from "../logger/index.js";
 import { withProject } from "./project.js";
 import TestReporter from "./reporter.js";
-import { runOneTest } from "./run-test.js";
+import { AllHooks } from "./all-hooks.js";
+import { allHookFixtures, runOneTest } from "./run-test.js";
 import { loadSpecs } from "./select.js";
 import type { WorkerSession } from "./worker.js";
 import type { WorkerInit } from "./worker-protocol.js";
@@ -32,6 +34,11 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
       },
       async (run) => {
         const loaded = await loadSpecs(init.files);
+        // The `beforeAll` hooks this worker ran: their `afterAll` hooks run when it closes
+        const allHooks = new AllHooks({
+          timeout: run.settings.timeout,
+          fixtures: (browser) => allHookFixtures(run, browser, workerIndex),
+        });
         resolve({
           tests: loaded.all,
           async runTest(test, browser, signal, onEvent) {
@@ -59,10 +66,13 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
                 port,
                 profileDir: workerProfileDir(browser, workerIndex),
                 workerIndex,
+                allHooks,
               },
             );
           },
           async close() {
+            for (const error of await allHooks.closeAll())
+              logger.error("%s", error.message);
             release();
             await finished;
           },
