@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
 import { after, before, test } from "node:test";
-import { onlyOn } from "../testing/test-browser.js";
+import { onlyOn, skipOn } from "../testing/test-browser.js";
 import { UnsupportedOperationError } from "../locator/selector-errors.js";
 import { callFunction } from "../script/call-function.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
@@ -111,6 +111,7 @@ test(
   OPTIONS,
   async () => {
     const { tab } = await freshPage();
+    const original = await evaluate<string>(tab, "() => navigator.userAgent");
     await tab.emulate({ userAgent: "Samurai/1.0 (test)" });
     assert.equal(
       await evaluate<string>(tab, "() => navigator.userAgent"),
@@ -123,9 +124,9 @@ test(
     );
     assert.deepEqual(userAgents, ["Samurai/1.0 (test)"]);
     await tab.emulate({ userAgent: null });
-    assert.match(
+    assert.equal(
       await evaluate<string>(tab, "() => navigator.userAgent"),
-      /Firefox/,
+      original,
     );
   },
 );
@@ -169,16 +170,14 @@ test("orientation changes screen.orientation", OPTIONS, async () => {
 
 test("screen changes screen.width and screen.height", OPTIONS, async () => {
   const { tab } = await freshPage();
-  await tab.emulate({ screen: { width: 800, height: 600 } });
-  assert.deepEqual(
-    await evaluate<number[]>(tab, "() => [screen.width, screen.height]"),
-    [800, 600],
-  );
+  // Headless Chrome's own screen is 800x600, so the pretend size is one no browser has
+  const size = () =>
+    evaluate<number[]>(tab, "() => [screen.width, screen.height]");
+  const original = await size();
+  await tab.emulate({ screen: { width: 1111, height: 777 } });
+  assert.deepEqual(await size(), [1111, 777]);
   await tab.emulate({ screen: null });
-  assert.notDeepEqual(
-    await evaluate<number[]>(tab, "() => [screen.width, screen.height]"),
-    [800, 600],
-  );
+  assert.deepEqual(await size(), original);
 });
 
 test(
@@ -282,6 +281,34 @@ onlyOn(
   },
 );
 
+skipOn(
+  "firefox",
+  "Firefox does not support touch and javaScriptEnabled",
+  "touch and javaScriptEnabled take effect",
+  OPTIONS,
+  async () => {
+    const { tab } = await freshPage();
+    await tab.emulate({ touch: 5 });
+    assert.equal(
+      await evaluate<number>(tab, "() => navigator.maxTouchPoints"),
+      5,
+    );
+    await tab.emulate({ touch: null });
+    assert.equal(
+      await evaluate<number>(tab, "() => navigator.maxTouchPoints"),
+      0,
+    );
+    const ran = () =>
+      evaluate<string | undefined>(tab, "() => window.__inline");
+    await tab.emulate({ javaScriptEnabled: false });
+    await tab.reload();
+    assert.equal(await ran(), undefined, "the page's own script did not run");
+    await tab.emulate({ javaScriptEnabled: true });
+    await tab.reload();
+    assert.equal(await ran(), "ran");
+  },
+);
+
 onlyOn(
   "firefox",
   "Chrome supports touch (spec 05)",
@@ -294,6 +321,40 @@ onlyOn(
       UnsupportedOperationError,
     );
     assert.equal(browser.contexts().length, before);
+    await assert.rejects(
+      browser.newContext({ timezone: "Not/AZone" }),
+      RangeError,
+    );
+    assert.equal(browser.contexts().length, before);
+  },
+);
+
+skipOn(
+  "firefox",
+  "Firefox does not support touch",
+  "newContext applies every option Chrome supports",
+  OPTIONS,
+  async () => {
+    const context = await browser.newContext({ locale: "nl-NL", touch: 3 });
+    contexts.push(context);
+    const tab = await context.newPage();
+    await tab.navigateTo(`${base}/`);
+    assert.equal(
+      await evaluate<string>(tab, "() => navigator.language"),
+      "nl-NL",
+    );
+    assert.equal(
+      await evaluate<number>(tab, "() => navigator.maxTouchPoints"),
+      3,
+    );
+  },
+);
+
+test(
+  "newContext refuses an invalid option and leaves no context behind",
+  OPTIONS,
+  async () => {
+    const before = browser.contexts().length;
     await assert.rejects(
       browser.newContext({ timezone: "Not/AZone" }),
       RangeError,

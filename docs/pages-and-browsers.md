@@ -83,7 +83,7 @@ await page.grantPermission("geolocation");
 await page.emulate({ geolocation: { latitude: 52.37, longitude: 4.9 } });
 ```
 
-Options: `locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientation`, `screen`, `touch`, `javaScriptEnabled`. An option the browser doesn't support throws `EmulationUnsupportedError`; if a later option fails, the earlier ones stay applied and `EmulationError` lists which. Geolocation only answers once the permission is granted. `page.emulate` wins over the context's emulation.
+Options: `locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientation`, `screen`, `touch`, `javaScriptEnabled`. An option the browser doesn't support throws `EmulationUnsupportedError`: Firefox 158 does not support `touch` and `javaScriptEnabled`, Chrome 155 supports every option above; if a later option fails, the earlier ones stay applied and `EmulationError` lists which. Geolocation only answers once the permission is granted. `page.emulate` wins over the context's emulation.
 
 ## Console output and page errors
 
