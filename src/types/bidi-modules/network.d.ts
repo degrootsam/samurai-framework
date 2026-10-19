@@ -322,22 +322,6 @@ export interface ResponseStarted {
   params: ResponseStartedParameters;
 }
 
-/** Union of all possible result types returned by network module commands. */
-export type NetworkResult =
-  | AddDataCollectorResult
-  | AddInterceptResult
-  | ContinueRequestResult
-  | ContinueResponseResult
-  | ContinueWithAuthResult
-  | DisownDataResult
-  | FailRequestResult
-  | GetDataResult
-  | ProvideResponseResult
-  | RemoveDataCollectorResult
-  | RemoveInterceptResult
-  | SetCacheBehaviorResult
-  | SetExtraHeadersResult;
-
 /** Unique identifier for an active network data collector. */
 export type Collector = string;
 
