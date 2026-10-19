@@ -14,6 +14,12 @@ Chrome for Testing 155, headless, Linux, launched through chromedriver.
 
 Affects: page-api (2 tests); anything that sets the ratio on a shared page.
 
+## Update after spec 01
+
+With `--hide-scrollbars` (spec 01) both symptoms are gone: `clip captures a box…` and `a locator's screenshot is the size of its element` now pass on Chrome, in file order. The doubled sizes came with the scrollbar change, so the "ratio stays at 2" reading above may be wrong.
+
+One new observation: `setViewport changes the size and the pixel ratio, null puts the browser's size back` failed once in three runs (`[500, 320]` still read after `setViewport(null)`), and passed alone and in the two other runs. That looks like a race between the reset and the next read. Task 5 starts by reproducing that, and closes this spec if there is nothing left.
+
 ## Cause
 
 - Hypothesis, not yet verified: `browsingContext.setViewport({ devicePixelRatio: null })` resets the ratio in Firefox but not in Chrome's mapper, so the reset leaves 2 behind.

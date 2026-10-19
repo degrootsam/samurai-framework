@@ -19,6 +19,15 @@ describe("chromeFlags", () => {
       !chromeFlags({ ...launch, headless: false }).includes("--headless=new"),
     );
   });
+
+  it("hides scrollbars when headless, so the viewport is the size asked for, and keeps them when headed", () => {
+    assert.ok(chromeFlags(launch).includes("--hide-scrollbars"));
+    assert.ok(
+      !chromeFlags({ ...launch, headless: false }).includes(
+        "--hide-scrollbars",
+      ),
+    );
+  });
 });
 
 describe("chromeCapabilities", () => {
