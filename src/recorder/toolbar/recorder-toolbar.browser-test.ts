@@ -226,7 +226,11 @@ test(
       () => statuses.some((s) => s.state === "paused"),
       "the paused status",
     );
-    assert.equal((await viewState())?.status, "paused");
+    // The status is reported as the state is pushed to the page, which lands a moment later
+    await waitFor(
+      async () => (await viewState())?.status === "paused",
+      "the toolbar showing paused",
+    );
 
     await page.getByCss("#b").click();
     assert.equal(
@@ -235,7 +239,10 @@ test(
       "the page got the click",
     );
     await open(`${bases[1]}/two`);
-    assert.equal((await viewState())?.status, "paused", "still paused there");
+    await waitFor(
+      async () => (await viewState())?.status === "paused",
+      "still paused on the other page",
+    );
     await pause(300);
     assert.deepEqual(steps(), [], "nothing recorded while paused");
 
@@ -247,7 +254,10 @@ test(
     await press("resume-yes");
     await waitFor(() => steps().length === 1, "the goto step");
     assert.deepEqual(steps(), [{ kind: "goto", url: `${bases[1]}/two` }]);
-    assert.equal((await viewState())?.resumeQuestion, false);
+    await waitFor(
+      async () => (await viewState())?.resumeQuestion === false,
+      "the resume question gone",
+    );
 
     // The pages' toolbars all said ready in time
     await pause(2300);
@@ -425,6 +435,11 @@ test(
     });
     await press("assert-add");
     await waitFor(() => steps().length === 1, "the expect step");
+    // The state with the new step count closes the picker; pressing Assert before it lands would be undone by it
+    await waitFor(
+      async () => (await viewState())?.steps === 1,
+      "the toolbar showing one step",
+    );
 
     await press("assert");
     await pickElement("li");
@@ -473,7 +488,8 @@ test(
 
     await press("assert");
     assert.equal(await inSandbox(`() => ${HOOK}.picking()`), true);
-    await pickElement("h1");
+    // A pick still being looked up as the page goes (the controller drops its reply) is covered by controller.test.ts;
+    // Chrome never answers such a lookup and keeps later commands waiting, so it is not started here
     await open(`${bases[1]}/two`);
     await pause(500);
 
