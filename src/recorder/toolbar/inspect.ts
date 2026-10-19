@@ -5,8 +5,8 @@ import { locatorFromSpec } from "../../steps/build.js";
 import type { LocatorCall, LocatorSpec } from "../../steps/model.js";
 import type { BiDiConnector } from "../../transport/bidi-connection.js";
 import { CANDIDATES_JS } from "../candidates.js";
-import { expectationFor } from "../normalise.js";
-import type { Inspection } from "./controller.js";
+import { expectationFor } from "../expectation.js";
+import type { Inspection } from "./types.js";
 import { TOOLBAR_SANDBOX } from "./protocol.js";
 
 /** Most Count choices the Assert panel offers */
