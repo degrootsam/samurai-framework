@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -98,5 +98,83 @@ test(
       events.some((e) => e.type === "test" && e.event.type === "test-end"),
     );
     assert.equal(events[events.length - 1]!.type, "flow-end");
+  },
+);
+
+test(
+  "a Parallel node runs its branches at the same time on the worker pool",
+  { timeout: 120000 },
+  async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-flow-par-"));
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      `export default ${JSON.stringify({ srcDir: "./specs", ...browserConfig() })};`,
+    );
+    mkdirSync(path.join(dir, "specs"));
+    mkdirSync(path.join(dir, "flows"));
+    const timesLog = path.join(dir, "times.log");
+    writeFileSync(timesLog, "");
+    process.env.TIMES_LOG = timesLog;
+    for (const name of ["left", "right"])
+      writeFileSync(
+        path.join(dir, `specs/${name}.spec.ts`),
+        `
+import { appendFileSync } from "node:fs";
+import { test } from ${JSON.stringify(API)};
+test("${name}", async ({ page }) => {
+  appendFileSync(process.env.TIMES_LOG, "start ${name} " + Date.now() + "\\n");
+  await page.navigateTo("data:text/html,<h1>Hi</h1>");
+  await page.waitForTimeout(2000);
+  appendFileSync(process.env.TIMES_LOG, "end ${name} " + Date.now() + "\\n");
+});
+`,
+      );
+    writeFileSync(
+      path.join(dir, "flows/fan.flow.json"),
+      JSON.stringify({
+        id: "fan",
+        name: "Fan out",
+        nodes: [
+          node("start", "start"),
+          node("par", "parallel"),
+          node("left", "test", { ref: { testId: "left.spec.ts::left" } }),
+          node("right", "test", { ref: { testId: "right.spec.ts::right" } }),
+          node("end", "end"),
+        ],
+        edges: [
+          edge("start", "par"),
+          edge("par", "left", "branch-0"),
+          edge("par", "right", "branch-1"),
+          edge("left", "end"),
+          edge("right", "end"),
+        ],
+      }),
+    );
+
+    const summary = await runFlowInProject({
+      projectDir: dir,
+      flowId: "fan",
+      dataDir: path.join(dir, "data"),
+      headless: true,
+      port: 9266,
+      workers: 2,
+    });
+
+    assert.equal(summary.status, "passed", JSON.stringify(summary));
+    const times = new Map(
+      readFileSync(timesLog, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const [kind, name, time] = line.split(" ");
+          return [`${kind} ${name}`, Number(time)] as const;
+        }),
+    );
+    assert.ok(
+      times.get("start left")! < times.get("end right")! &&
+        times.get("start right")! < times.get("end left")!,
+      "the two branches were running at the same time",
+    );
   },
 );

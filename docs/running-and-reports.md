@@ -4,17 +4,48 @@
 
 ```sh
 bun run dev [--env <name>] [--timeout <ms>] [--expect-timeout <ms>]
-        [--headless | --no-headless] [--port <n>] [--grep <text>] [--group <name>] [--file <spec>]... [--browser <name>]... [--json]
+        [--headless | --no-headless] [--port <n>] [--workers <n|n%>] [--grep <text>] [--group <name>] [--file <spec>]... [--browser <name>]... [--json]
 ```
 
 1. Reads `samurai.config.ts`, picks the [environment](environments-and-secrets.md), loads its secrets and registers them for masking.
 2. Finds every `*.spec.ts` under `srcDir` (recursively) and imports each one, which registers its tests.
-3. Runs the tests **one at a time**, in registration order, once in each of the [`browsers`](configuration.md#browsers) of the run (all tests in the first browser, then all in the second). For each test it launches a fresh browser, opens a page, runs the test function with the [fixtures](writing-tests.md#fixtures), judges the page's log, and closes the browser.
+3. Runs the tests, once in each of the [`browsers`](configuration.md#browsers) of the run (all tests in the first browser, then all in the second), several at a time when the run has more than one [worker](#parallel-runs). For each test it launches a fresh browser, opens a page, runs the test function with the [fixtures](writing-tests.md#fixtures), judges the page's log, and closes the browser.
 4. Prints each result as it finishes and a summary, writes `result/report.json` and exits with the run's status.
 
-The browser window is visible unless you pass `--headless`, set `use.headless` in the config, or run on CI (the `CI` environment variable is set); see [Headless](configuration.md#headless). The browser's debugging port is 9223 unless you pass `--port`. `--grep <text>` runs only tests whose full name contains the text, `--group <name>` only the tests of a [group](configuration.md#groups), and `--file <spec>` (repeatable, relative to the working directory) only those spec files. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error, so a CI job can gate on it. Tests still run one at a time.
+The browser window is visible unless you pass `--headless`, set `use.headless` in the config, or run on CI (the `CI` environment variable is set); see [Headless](configuration.md#headless). The browser's debugging port is 9223 unless you pass `--port`. `--grep <text>` runs only tests whose full name contains the text, `--group <name>` only the tests of a [group](configuration.md#groups), and `--file <spec>` (repeatable, relative to the working directory) only those spec files. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error, so a CI job can gate on it.
 
 `bun run dev` is the installed `samurai run` command, run from the sources; see [Command line](cli.md) for the output and `--json`. To run tests from your own code, see [Embedding the framework](embedding.md).
+
+## Parallel runs
+
+By default a run uses half the CPUs as workers (`--workers`, `SAMURAI_WORKERS` or `workers` in the config change that, see [Workers](configuration.md#workers)). With more than one worker, tests run at the same time:
+
+```sh
+samurai run --workers 4
+samurai run --workers 50%
+samurai run --workers 1      # one after the other, in this process
+```
+
+How it works:
+
+- The unit of work is one test in one browser. A test in two browsers is two items.
+- The main process starts up to `workers` child processes (never more than there are items) and hands each free worker the next item in the queue, so a slow test does not hold up the others. A worker imports the specs once, then runs one test at a time with its own browser.
+- Results come back as tests end. The console prints each line then, and `onEvent` gets the events then, so the order can differ from the order of the tests. The summary and `result/report.json` list the tests in the usual order, and each result has a `worker` (the index of the worker that ran it).
+- Each worker has its own browser debugging port (the run's [`--port`](cli.md#samurai-run) plus the worker's index) and, from the second worker on, its own browser profile folder (`browsers/profiles/<browser>-w<index>`). Downloads and screenshots already have a folder per test.
+
+When something goes wrong:
+
+- A worker that dies in the middle of a test (a test that calls `process.exit`, a crash) fails that test with `The worker process exited (code N)`, takes its browser with it, and is replaced. The other tests go on.
+- Workers that exit before they are ready three times in a row (the project cannot be loaded, say) fail the whole run with `The worker process exited before it was ready (code N)`.
+- An abort (Ctrl+C, `signal`) stops the running tests, reports the queued ones as failed with `Run aborted`, and closes the workers.
+
+A run stays in this process, with no workers, when `workers` is 1, when there is only one test to run, or when the config is passed as an object (`runTests({ config })`): a worker reads `samurai.config.ts` from the project folder, and an object with functions in it cannot be sent to another process. If you asked for more than one worker in that case, a warning says `workers needs samurai.config.ts in the project folder; running on one worker`.
+
+Tests that run side by side need to be independent:
+
+- They must not share an account, a cart or other data. Give each test its own, or use the `workerIndex` [fixture](writing-tests.md#fixtures) (0, 1, 2, …) to pick one per worker.
+- A group whose tests have to run one at a time can say so with `workers: 1` ([Groups](configuration.md#groups)).
+- A flow's Parallel node uses the same workers, see [Flows](flows.md#parallel).
 
 ## The report
 
@@ -88,7 +119,7 @@ Each entry has `level` (`debug`, `info`, `warn`, `error`), `type` (`console`, `j
 
 A run reports what happens as events (`--json` prints them, `onEvent` receives them, see [Command line](cli.md#--json) and [Embedding](embedding.md)). With more than one browser the numbers and the labels change:
 
-- `run-start` has `total`, which counts every test in every browser (3 tests in 2 browsers: 6), and `browsers`.
+- `run-start` has `total`, which counts every test in every browser (3 tests in 2 browsers: 6), and `browsers`. It has `workers` when the run uses more than one.
 - `test-start` and `test-end` have `browser`, and `test-end`'s `result` has it too.
 - The console output ends each test line with its browser (`[chrome]`) when a run has more than one browser, and names the browsers in its header. A run with one browser prints no label.
 
