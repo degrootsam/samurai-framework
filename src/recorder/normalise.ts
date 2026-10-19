@@ -1,9 +1,15 @@
-import type { Expectation, LocatorSpec, Step } from "../steps/model.js";
+import type {
+  Expectation,
+  FileEntry,
+  LocatorSpec,
+  Step,
+} from "../steps/model.js";
 
-/** What the recorder does to the step list: a new step at `index`, or a step rewritten in place */
+/** What the recorder does to the step list: a new step at `index`, a step rewritten in place, or one taken out */
 export type RecorderEvent =
   | { op: "insert"; index: number; step: Step }
-  | { op: "replace"; index: number; step: Step };
+  | { op: "replace"; index: number; step: Step }
+  | { op: "remove"; index: number };
 
 /** A page event whose element already has its locators */
 export type Observation =
@@ -35,6 +41,17 @@ export type Observation =
       locator: LocatorSpec;
       value: { kind: "env" | "secret"; name: string };
     }
+  /** A file input got a click: the click recorded just before it opened the file picker */
+  | { type: "picker" }
+  /** The file picker closed without a choice */
+  | { type: "picker-cancel" }
+  /** Files were set on an input or dropped on an element, and are stored (or listed as missing) */
+  | {
+      type: "files";
+      via: "input" | "drop";
+      locator: LocatorSpec;
+      files: FileEntry[];
+    }
   | { type: "wait-idle" }
   | { type: "wait-time"; ms: number }
   | { type: "screenshot"; name: string; fullPage: boolean }
@@ -50,6 +67,9 @@ export interface NormaliserOptions {
 }
 
 const TEXT_LIMIT = 100;
+
+/** A picker that opens within this many ms of a click was opened by it */
+export const PICKER_WINDOW = 1000;
 
 /** The name a secret gets in `secrets.<NAME>`: the field's name or id, upper snake case */
 export function secretNameFor(hint: string | undefined): string {
@@ -85,6 +105,10 @@ export class Normaliser {
   private lastFill: { key: string; index: number } | undefined;
   private lastAction = -Infinity;
   private lastStep: Step | undefined;
+  /** The last click, so a picker it opened can take its place */
+  private lastClick: { index: number; at: number } | undefined;
+  /** The click that opened the file picker that is open now */
+  private picker: number | undefined;
   private readonly window: number;
 
   constructor(private readonly options: NormaliserOptions) {
@@ -99,6 +123,7 @@ export class Normaliser {
 
   private insert(step: Step): RecorderEvent {
     this.lastStep = step;
+    this.picker = undefined;
     return { op: "insert", index: this.next++, step };
   }
 
@@ -157,11 +182,59 @@ export class Normaliser {
       return [this.insert(fromToolbar)];
     }
 
+    // The sandbox reports a picker for any click on a file input, including ones a page script fires:
+    // it is only a hint, and only the very last step, recorded just before, may be replaced or removed
+    // (a page's own input.click() also counts as the opening click, bounded to the last step within PICKER_WINDOW)
+    if (observation.type === "picker") {
+      const click = this.lastClick;
+      this.picker =
+        click && click.index === this.next - 1 && at - click.at <= PICKER_WINDOW
+          ? click.index
+          : undefined;
+      return [];
+    }
+
+    if (observation.type === "picker-cancel") {
+      const index = this.picker;
+      this.picker = undefined;
+      if (index === undefined || index !== this.next - 1) return [];
+      this.next--;
+      this.lastClick = undefined;
+      this.lastStep = undefined;
+      return [{ op: "remove", index }];
+    }
+
+    if (observation.type === "files") {
+      this.lastFill = undefined;
+      this.lastAction = at;
+      const step: Step = {
+        kind: observation.via === "drop" ? "dropFiles" : "setInputFiles",
+        locator: observation.locator,
+        files: observation.files,
+      };
+      const index = this.picker;
+      if (
+        observation.via === "input" &&
+        index !== undefined &&
+        index === this.next - 1
+      ) {
+        this.picker = undefined;
+        this.lastClick = undefined;
+        this.lastStep = step;
+        return [{ op: "replace", index, step }];
+      }
+      return [this.insert(step)];
+    }
+
     if (observation.type === "click") {
       if (observation.textEntry) return []; // focusing a field: the fill that follows needs no click
       this.lastFill = undefined;
       this.lastAction = at;
-      return [this.insert({ kind: "click", locator: observation.locator })];
+      const events = [
+        this.insert({ kind: "click", locator: observation.locator }),
+      ];
+      this.lastClick = { index: this.next - 1, at };
+      return events;
     }
 
     if (observation.type === "press") {

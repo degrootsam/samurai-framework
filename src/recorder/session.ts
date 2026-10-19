@@ -5,7 +5,11 @@ import type Page from "../browser/page.js";
 import { ensureWarm } from "../browser/warm-up.js";
 import { loadConfig, projectDir } from "../config/config.js";
 import { loadSecrets } from "../config/secrets.js";
-import { isGitIgnored } from "../project/index.js";
+import {
+  filesFolder,
+  isFolderIgnored,
+  isGitIgnored,
+} from "../project/index.js";
 import type { PreparedRun } from "../runner/prepare-run.js";
 import { withProject, type ProjectOptions } from "../runner/project.js";
 import type { SamuraiTestConfig } from "../types/config.js";
@@ -13,6 +17,11 @@ import type { ControllerOptions } from "./toolbar/controller.js";
 import { parseSpec } from "../steps/parse.js";
 import { applyRecorderEvent } from "./apply.js";
 import type { RecorderEvent } from "./normalise.js";
+import {
+  missingFileText,
+  type MissingFile,
+  type Recorder,
+} from "./recorder.js";
 
 export interface RecordSpecOptions extends ProjectOptions {
   /** The spec file, absolute or relative to the project folder. Created when `create` is given and it doesn't exist */
@@ -44,6 +53,8 @@ export interface RecordSpecOptions extends ProjectOptions {
     state: "recording" | "paused";
     toolbar: boolean;
   }) => void;
+  /** A picked or dropped file wasn't saved (over 50 MB, or unreadable); `text` is the warning to show */
+  onMissingFile?: (file: MissingFile, text: string) => void;
   /** Called once the browser is open and recording */
   onStarted?: (context: {
     page: Page;
@@ -60,6 +71,16 @@ export interface RecordResult {
   secrets: string[];
   /** Those of `secrets` that have no value in the recording's environment yet, read when the recording ended */
   unsetSecrets: string[];
+  /** Files stored in (or reused from) the files folder, project-relative */
+  files: string[];
+  /** Files the steps point at that weren't saved: they must be added before the test can run */
+  missingFiles: MissingFile[];
+  /** The files folder is git-ignored: CI won't have the files */
+  filesIgnored: boolean;
+  /** The files folder, relative to the project with forward slashes ("" for the project root) */
+  filesFolder: string;
+  /** The files folder was created by this recording */
+  firstFiles: boolean;
 }
 
 const NEW_SPEC_HEADER = `import { expect, test } from "@itmetsam/samurai-framework";\n\n`;
@@ -111,14 +132,16 @@ export async function toolbarOptions(
 
 /** The secrets a recording needs set: those its steps read, then those added from the panel, once each */
 export function resultSecrets(
-  events: readonly Pick<RecorderEvent, "step">[],
+  events: readonly RecorderEvent[],
   added: Iterable<string>,
 ): string[] {
   return [
     ...new Set([
-      ...events.flatMap(({ step }) =>
-        step.kind === "fill" && step.value.kind === "secret"
-          ? [step.value.name]
+      ...events.flatMap((event) =>
+        event.op !== "remove" &&
+        event.step.kind === "fill" &&
+        event.step.value.kind === "secret"
+          ? [event.step.value.name]
           : [],
       ),
       ...added,
@@ -215,6 +238,10 @@ export async function recordSpec(
       },
       options.signal,
     );
+    const loaded = await loadConfig();
+    const folder = filesFolder(projectDir(), loaded.filesDir);
+    const hadFolder = existsSync(folder.absolute);
+    let recorder: Recorder | undefined;
     const events: RecorderEvent[] = [];
     const addedSecrets = new Set<string>();
     let stopRequested!: () => void;
@@ -224,7 +251,7 @@ export async function recordSpec(
       if (options.url !== undefined) await page.goto(options.url);
       else if (settings.baseURL !== undefined)
         await page.navigateTo(settings.baseURL);
-      const recorder = await page.record({
+      recorder = await page.record({
         at,
         initialGoto: at === 0 && start !== undefined,
         ...(settings.baseURL !== undefined && { baseURL: settings.baseURL }),
@@ -233,13 +260,22 @@ export async function recordSpec(
             run,
             source,
             projectDir(),
-            await loadConfig(),
+            loaded,
             testIndex,
           )),
           projectDir: projectDir(),
           ...(options.onStatus && { onStatus: options.onStatus }),
           onSecretAdded: (name) => addedSecrets.add(name),
           onStop: () => stopRequested(),
+        },
+        files: {
+          projectDir: projectDir(),
+          ...(loaded.filesDir !== undefined && { filesDir: loaded.filesDir }),
+          onMissing: (file) =>
+            options.onMissingFile?.(
+              file,
+              missingFileText(file, folder.relative),
+            ),
         },
         onEvent: (event) => {
           source = applyRecorderEvent(source!, testIndex, event);
@@ -270,6 +306,21 @@ export async function recordSpec(
     // Read again: the toolbar may have written new ones to the .env file
     const set = loadSecrets(settings.environment);
     const unsetSecrets = secrets.filter((name) => !set.has(name));
-    return { file, test: test.name, events, secrets, unsetSecrets };
+    const files = recorder?.storedFiles ?? [];
+    const missingFiles = recorder?.missingFiles ?? [];
+    return {
+      file,
+      test: test.name,
+      events,
+      secrets,
+      unsetSecrets,
+      files,
+      missingFiles,
+      filesFolder: folder.relative,
+      filesIgnored:
+        files.length + missingFiles.length > 0 &&
+        (await isFolderIgnored(projectDir(), folder.relative)),
+      firstFiles: !hadFolder && files.length > 0,
+    };
   });
 }

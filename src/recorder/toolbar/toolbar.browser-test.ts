@@ -71,6 +71,7 @@ const STATE: ToolbarState = {
   secretsIgnored: true,
   resumeQuestion: false,
   nextScreenshot: "screenshot-1",
+  warnings: [],
 };
 
 async function waitFor<T>(
@@ -792,3 +793,74 @@ test(
     await waitFor(() => messagesOn(channel, "stop")[0], "stop");
   },
 );
+
+test(
+  "keeps a warning's node across renders, so it isn't announced again",
+  OPTIONS,
+  async () => {
+    await install();
+    await update({ warnings: [{ id: 7, text: "first" }] });
+    await inSandbox(
+      `() => { ${HOOK}.root.querySelector('[data-warning="7"]').__kept = true; }`,
+    );
+    await update({
+      saving: "a.png",
+      warnings: [
+        { id: 7, text: "first" },
+        { id: 8, text: "second" },
+      ],
+    });
+    const view = await inSandbox<{
+      kept: boolean;
+      second: boolean;
+      saving: string | null;
+    }>(
+      `() => {
+      const root = ${HOOK}.root;
+      const first = root.querySelector('[data-warning="7"]');
+      const saving = root.querySelector(".saving");
+      return { kept: first.__kept === true, second: !!root.querySelector('[data-warning="8"]'), saving: saving && saving.textContent };
+    }`,
+    );
+    assert.deepEqual(view, {
+      kept: true,
+      second: true,
+      saving: "Saving a.png…",
+    });
+    await update({ saving: undefined, warnings: [{ id: 8, text: "second" }] });
+    const after = await inSandbox<{ first: boolean; saving: boolean }>(
+      `() => {
+      const root = ${HOOK}.root;
+      return { first: !!root.querySelector('[data-warning="7"]'), saving: !!root.querySelector(".saving") };
+    }`,
+    );
+    assert.deepEqual(after, { first: false, saving: false });
+  },
+);
+
+test("shows the saving line and warnings with Dismiss", OPTIONS, async () => {
+  const channel = await install();
+  await update({
+    saving: "avatar.png",
+    warnings: [{ id: 7, text: "big.mov is 300 MB." }],
+  });
+  const view = await inSandbox<{
+    saving: string | null;
+    warning: string | null;
+  }>(
+    `() => {
+      const root = ${HOOK}.root;
+      const saving = root.querySelector(".saving");
+      const warning = root.querySelector('[data-warning="7"]');
+      return { saving: saving && saving.textContent, warning: warning && warning.textContent };
+    }`,
+  );
+  assert.equal(view.saving, "Saving avatar.png…");
+  assert.match(view.warning ?? "", /big\.mov is 300 MB\./);
+  await clickAt(await centreOf('[data-warning="7"] .dismiss'));
+  const message = await waitFor(
+    () => messagesOn(channel, "dismiss")[0],
+    "dismiss",
+  );
+  assert.equal(message.data.id, 7);
+});

@@ -20,7 +20,11 @@ import {
   takeScreenshot,
   type ElementScreenshotOptions,
 } from "../browser/screenshot.js";
-import { assertIsFile, resolveFiles } from "../browser/file-paths.js";
+import {
+  isGeneratedFile,
+  resolveFileInputs,
+  type FileInput,
+} from "../browser/generated-files.js";
 import type { Arg } from "../script/serialize.js";
 import {
   resolveTimeout,
@@ -95,6 +99,31 @@ const FILE_INPUT_INFO = `(el) => ({
 })`;
 
 const FILE_INPUT_CHECKS: readonly CheckName[] = ["attached", "enabled"];
+const DROP_CHECKS: readonly CheckName[] = ["attached", "visible"];
+/** The sandbox `dropFiles` builds its files in */
+const DROP_SANDBOX = "samurai-drop";
+const DROP_KEY = `globalThis[Symbol.for("samurai.drop")]`;
+const DROP_INPUT = `() => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  ${DROP_KEY} = input;
+  return input;
+}`;
+/** Fires dragenter, dragover and drop at the element's centre with the input's files (retyped where asked) */
+const DROP_EVENTS = `(el, types) => {
+  const input = ${DROP_KEY};
+  delete ${DROP_KEY};
+  const data = new DataTransfer();
+  Array.from(input.files).forEach((file, i) => {
+    data.items.add(types[i] ? new File([file], file.name, { type: types[i], lastModified: file.lastModified }) : file);
+  });
+  const box = el.getBoundingClientRect();
+  const at = { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
+  for (const type of ["dragenter", "dragover", "drop"]) {
+    el.dispatchEvent(new DragEvent(type, Object.assign({ bubbles: true, cancelable: true, composed: true, dataTransfer: data }, at)));
+  }
+}`;
 const SCREENSHOT_CHECKS: readonly CheckName[] = ["attached", "visible"];
 
 const CLICK_CHECKS: readonly CheckName[] = [
@@ -611,19 +640,18 @@ export default class Locator {
   }
 
   /**
-   * Sets the files of an `<input type=file>` (an empty list clears them); the browser fires `input` and `change`.
-   * Paths are resolved against the working directory and must exist on the machine the browser runs on.
+   * Sets the files of an `<input type=file>`; `[]` clears it. Paths are relative to the project folder (absolute
+   * ones are used as they are); `generatedFile(…)` writes a file of a given size when the step runs.
    * Waits for the input to be attached and enabled; it need not be visible, file inputs are often hidden behind a label.
    * @example
-   *  await page.locator("input[@type='file']").setInputFiles("./fixtures/avatar.png");
-   *  await page.locator("input[@type='file']").setInputFiles([]);
+   *  await page.getByLabel("Avatar").setInputFiles("files/avatar.png");
+   *  await page.getByLabel("Upload").setInputFiles(generatedFile({ name: "huge.pdf", size: "60 MB" }));
    */
   public async setInputFiles(
-    files: string | string[],
+    files: FileInput | FileInput[],
     options?: { timeout?: number },
   ): Promise<void> {
-    const paths = resolveFiles(files);
-    for (const file of paths) await assertIsFile(file, "setInputFiles");
+    const paths = await resolveFileInputs(files, "setInputFiles");
 
     await this.waitForActionable(
       "setInputFiles",
@@ -667,6 +695,44 @@ export default class Locator {
       element: { sharedId: el.sharedId },
       files: paths,
     });
+  }
+
+  /**
+   * Drops files on the element, as dragging them from the desktop does: `dragenter`, `dragover` and `drop`
+   * with a `DataTransfer` holding the files. Takes what `setInputFiles` takes. The events are synthetic
+   * (`isTrusted` is false); a page that only accepts trusted drops ignores them.
+   * Waits for the element to be attached and visible.
+   * @example
+   *  await page.getByTestId("dropzone").dropFiles(["files/a.png", "files/b.png"]);
+   */
+  public async dropFiles(
+    files: FileInput | FileInput[],
+    options?: { timeout?: number },
+  ): Promise<void> {
+    const list = Array.isArray(files) ? files : [files];
+    const paths = await resolveFileInputs(list, "dropFiles");
+    const types = list.map((file) =>
+      isGeneratedFile(file) ? (file.type ?? "") : "",
+    );
+    await this.waitForActionable(
+      "dropFiles",
+      DROP_CHECKS,
+      { scroll: true, hitTest: false },
+      options?.timeout === undefined ? undefined : { timeout: options.timeout },
+    );
+    const el = await this.resolveOne();
+    if (!el)
+      throw new Error(
+        `Failed to locate element ${this.selector}. Details: no element matches`,
+      );
+    // A file input of our own, made in a sandbox and never attached: the page doesn't see it
+    const input = await this.call<ElementHandle>(DROP_INPUT, [], DROP_SANDBOX);
+    await this.biDiConnector.send("input.setFiles", {
+      context: this.contextId,
+      element: { sharedId: input.sharedId },
+      files: paths,
+    });
+    await this.call(DROP_EVENTS, [el, types], DROP_SANDBOX);
   }
 
   /**
