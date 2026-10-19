@@ -21,7 +21,7 @@ import { judgePageLogs, type LogsConfig } from "./page-logs-report.js";
 import { DEFAULT_PORT } from "./ports.js";
 import type { AllHooks } from "./all-hooks.js";
 import { runWithEachHooks } from "./hooks.js";
-import { isSkipSignal, type SkipSignal } from "./skip.js";
+import { isSkipSignal, staticSkip, type SkipSignal } from "./skip.js";
 import type { PreparedRun } from "./prepare-run.js";
 import type { TestSink } from "./reporter.js";
 import { testDirOf } from "./test-dir.js";
@@ -81,6 +81,8 @@ export interface WorkerResources {
   profileDir?: string;
   /** The `workerIndex` fixture. @default 0 */
   workerIndex?: number;
+  /** Which attempt this is, counting from 0: screenshots of a retry go to a `retry-<n>` folder of their own. @default 0 */
+  attempt?: number;
   /** The `beforeAll` / `afterAll` hooks of this worker: kept across tests, closed when the worker is done */
   allHooks?: AllHooks;
 }
@@ -110,6 +112,12 @@ export async function runOneTest(
   reporter: TestSink,
   resources: WorkerResources = {},
 ): Promise<void> {
+  // A test marked skip or fixme never runs, whoever asked for it (a flow's test node, a worker)
+  const marked = staticSkip(test);
+  if (marked) {
+    reporter.onTestSkipped(test, browserName, { annotation: marked });
+    return;
+  }
   logger.verbose("Starting test: %s in %s", test.name, browserName);
   reporter.onTestStart(test, browserName);
   const outcome = new TestOutcome(reporter, test, browserName);
@@ -180,7 +188,7 @@ export async function runOneTest(
       page = launched.page;
       outcome.evidence = new Evidence(
         resultDir,
-        `${browserName}/${testDirOf(test, srcDir)}`,
+        `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`,
       );
       launched.page.setEvidence(outcome.evidence);
       const fixtures: TestFixtures = {

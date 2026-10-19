@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import TestReporter from "./reporter.js";
+import { runWithRetries } from "./retry.js";
 import { MASK, registerSecret, resetSecrets } from "../config/mask.js";
 import type { RegisteredTestCase } from "../types/test.js";
 import { newSuite } from "./suite.js";
@@ -348,4 +349,71 @@ test("a test that skips itself after it started does not start twice", async () 
     reason: "needs Chrome",
   });
   assert.deepEqual(events, ["run-start", "test-start", "test-end"]);
+});
+
+test("a retried test starts once per attempt and ends once, with the retry fields in the report", async () => {
+  const events: { type: string; retry?: number; result?: unknown }[] = [];
+  const output = path.join(dir, `${Math.random()}.json`);
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["firefox"],
+    output,
+    onEvent: (event) => events.push(event),
+  });
+  const t = testCase("a.spec.ts", "pays");
+  reporter.onStart(1);
+  await runWithRetries(
+    t,
+    "firefox",
+    2,
+    undefined,
+    async (sink, attempt) => {
+      sink.onTestStart(t, "firefox");
+      sink.onTestEnd(
+        t,
+        "firefox",
+        attempt === 0
+          ? { message: "first run failed", type: "error" }
+          : undefined,
+      );
+    },
+    reporter,
+  );
+  await reporter.onEnd();
+
+  assert.deepEqual(
+    events.map((e) => [e.type, e.retry]),
+    [
+      ["run-start", undefined],
+      ["test-start", undefined],
+      ["test-start", 1],
+      ["test-end", undefined],
+      ["run-end", undefined],
+    ],
+  );
+  const written = JSON.parse(readFileSync(output, "utf8"));
+  const [result] = written.tests;
+  assert.equal(written.tests.length, 1, "one result per test");
+  assert.equal(result.status, "success");
+  assert.equal(result.flaky, true);
+  assert.equal(result.retry, 1);
+  assert.deepEqual(result.previousAttempts, [
+    { message: "first run failed", type: "error" },
+  ]);
+  assert.equal(written.status, "success", "a flaky pass does not fail the run");
+});
+
+test("a secret in an earlier attempt's error is masked", async () => {
+  registerSecret("TOKEN", "s3cret-value");
+  const t = testCase("a.spec.ts", "pays");
+  const summary = await report((reporter) => {
+    reporter.onTestStart(t, "firefox");
+    reporter.onTestEnd(t, "firefox", undefined, {
+      retry: 1,
+      flaky: true,
+      previousAttempts: [{ message: "bad s3cret-value", type: "error" }],
+    });
+  });
+  assert.ok(summary.tests[0].previousAttempts[0].message.includes(MASK));
+  assert.ok(!JSON.stringify(summary).includes("s3cret-value"));
 });

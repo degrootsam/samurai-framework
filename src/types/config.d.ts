@@ -65,6 +65,13 @@ export interface SamuraiTestConfig {
    */
   workers?: number | string;
   /**
+   * How many times a failing test is run again, each time with a fresh browser. A test that passes on a retry is
+   * reported as flaky and does not fail the run; a run that is aborted is never retried. `--retries` and
+   * `SAMURAI_RETRIES` win over it.
+   * @default 0
+   */
+  retries?: number;
+  /**
    * Refuse a run when a spec contains `test.only` or `describe.only`, so a forgotten focus cannot quietly shrink a
    * suite. The run stops before any test starts and lists the tests.
    * @default true when the `CI` environment variable is set, else false

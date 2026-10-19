@@ -4,6 +4,7 @@ import { withProject } from "./project.js";
 import TestReporter from "./reporter.js";
 import { AllHooks } from "./all-hooks.js";
 import { allHookFixtures, runOneTest } from "./run-test.js";
+import { runWithRetries } from "./retry.js";
 import { loadSpecs } from "./select.js";
 import type { WorkerSession } from "./worker.js";
 import type { WorkerInit } from "./worker-protocol.js";
@@ -48,26 +49,28 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
               output: false,
               onEvent,
             });
-            await runOneTest(
+            const options = {
+              ...(headless !== undefined && { headless }),
+              ...(init.reportPath !== undefined && {
+                reportPath: init.reportPath,
+              }),
+              port,
+              signal,
+            };
+            await runWithRetries(
               test,
               browser,
-              run,
-              {
-                ...(headless !== undefined && { headless }),
-                ...(init.reportPath !== undefined && {
-                  reportPath: init.reportPath,
+              init.retries ?? 0,
+              signal,
+              (sink, attempt) =>
+                runOneTest(test, browser, run, options, loaded.srcDir, sink, {
+                  port,
+                  profileDir: workerProfileDir(browser, workerIndex),
+                  workerIndex,
+                  allHooks,
+                  attempt,
                 }),
-                port,
-                signal,
-              },
-              loaded.srcDir,
               reporter,
-              {
-                port,
-                profileDir: workerProfileDir(browser, workerIndex),
-                workerIndex,
-                allHooks,
-              },
             );
           },
           async close() {

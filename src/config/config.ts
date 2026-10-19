@@ -4,6 +4,7 @@ import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
 import { validateBrowserConfig } from "./browsers.js";
 import { validateForbidOnlyConfig } from "./forbid-only.js";
+import { validateRetriesConfig } from "./retries.js";
 import { validateWorkersConfig } from "./workers.js";
 
 /** The project a run belongs to; without one, everything is relative to the working directory */
@@ -46,6 +47,7 @@ export async function loadConfig(): Promise<SamuraiTestConfig> {
     validateBrowserConfig(activeProject.config);
     validateWorkersConfig(activeProject.config);
     validateForbidOnlyConfig(activeProject.config);
+    validateRetriesConfig(activeProject.config);
     return activeProject.config;
   }
   const configUrl = path.join(projectDir(), "samurai.config.ts");
@@ -63,6 +65,7 @@ export async function loadConfig(): Promise<SamuraiTestConfig> {
   validateBrowserConfig(config.default);
   validateWorkersConfig(config.default);
   validateForbidOnlyConfig(config.default);
+  validateRetriesConfig(config.default);
   return config.default;
 }
 

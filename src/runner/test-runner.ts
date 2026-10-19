@@ -25,6 +25,8 @@ import {
 import { allHookFixtures, runOneTest } from "./run-test.js";
 import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
+import { resolveRetries } from "./retries-option.js";
+import { runWithRetries } from "./retry.js";
 import { resolveWorkers } from "./workers-option.js";
 import { WorkerPool, type PoolOptions } from "./worker-pool.js";
 import { processWorkerFactory } from "./worker-process.js";
@@ -131,6 +133,12 @@ export default class TestRunner {
       env: process.env.SAMURAI_WORKERS,
       config: config.workers,
     });
+    // A bad `retries` is an error here too, before any browser starts
+    const retries = resolveRetries({
+      flag: this.options.retries,
+      env: process.env.SAMURAI_RETRIES,
+      config: config.retries,
+    });
     const plan = planItems(
       selected,
       browsers,
@@ -164,7 +172,7 @@ export default class TestRunner {
     if (mode === "pool") {
       const workers = Math.min(requested, lanes);
       reporter.onStart(plan.planned.length, workers);
-      const pool = this.createPool(workers);
+      const pool = this.createPool(workers, retries);
       try {
         await runPooled(pool, plan.planned, plan.items, reporter, signal);
       } finally {
@@ -195,14 +203,22 @@ export default class TestRunner {
             });
             continue;
           }
-          await runOneTest(
+          await runWithRetries(
             test,
             browser,
-            this.run,
-            this.options,
-            loaded.srcDir,
+            retries,
+            signal,
+            (sink, attempt) =>
+              runOneTest(
+                test,
+                browser,
+                this.run,
+                this.options,
+                loaded.srcDir,
+                sink,
+                { allHooks, attempt },
+              ),
             reporter,
-            { allHooks },
           );
         }
       }
@@ -223,7 +239,7 @@ export default class TestRunner {
   }
 
   /** The pool of a run: up to `workers` worker processes that read the same project and settings as this run */
-  private createPool(workers: number) {
+  private createPool(workers: number, retries: number) {
     const { settings } = this.run;
     const { reportPath, headless, port } = this.options;
     const options: PoolOptions = {
@@ -241,6 +257,7 @@ export default class TestRunner {
         ...(typeof reportPath === "string" && { reportPath }),
         files: this.testFiles,
         basePort: port ?? DEFAULT_PORT,
+        ...(retries > 0 && { retries }),
       },
     };
     return (this.project.createPool ?? ((o) => new WorkerPool(o)))(options);

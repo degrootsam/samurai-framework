@@ -70,7 +70,7 @@ export interface PartialTestResult extends TestResultBase {
 export type TestResult =
   TestResultSuccess | TestResultFailed | TestResultSkipped | TestResultBase;
 
-interface TestResultSuccess extends TestResultIdentity {
+interface TestResultSuccess extends TestResultIdentity, TestRetries {
   status: "success";
   duration: number;
   logs?: TestLogEntry[];
@@ -81,13 +81,23 @@ interface TestResultSuccess extends TestResultIdentity {
 }
 
 /** The error sits flat on the entry, as in the report: `message`, `type`, `stack`, and for assertions `expected` and `actual` */
-interface TestResultFailed extends TestResultIdentity, TestError {
+interface TestResultFailed extends TestResultIdentity, TestError, TestRetries {
   status: "failed";
   duration: number;
   logs?: TestLogEntry[];
   logsDropped?: number;
   /** Named screenshots the test saved, relative to the result folder */
   screenshots?: { name: string; path: string }[];
+}
+
+/** What a result says about the retries of its test; absent when it passed or failed on the first attempt */
+export interface TestRetries {
+  /** The attempt this result is from, counting from 1: `retry: 1` is the first run again */
+  retry?: number;
+  /** The test passed after at least one failed attempt */
+  flaky?: true;
+  /** The errors of the failed attempts before this one, in order */
+  previousAttempts?: TestError[];
 }
 
 /** A test that was not run: marked `skip` or `fixme`, or skipped from inside with `test.skip(condition)` */
