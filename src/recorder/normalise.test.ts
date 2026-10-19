@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { applyRecorderEvent } from "./apply.js";
+import { secretNameFor } from "./expectation.js";
 import {
   Normaliser,
-  secretNameFor,
   type Observation,
   type RecorderEvent,
 } from "./normalise.js";

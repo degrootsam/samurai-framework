@@ -3,14 +3,18 @@ import { describe, it } from "node:test";
 import { Writable } from "node:stream";
 import { transports } from "winston";
 import logger from "../logger/index.js";
-import { FakeWebSocket, tick } from "../testing/fake-websocket.js";
+import {
+  FakeWebSocket,
+  makeConnector,
+  tick,
+} from "../testing/fake-websocket.js";
 import { WaitTimeoutError } from "../wait/wait-until.js";
 import { BiDiError } from "./bidi-error.js";
-import { BiDiConnector, ConnectionClosedError } from "./bidi-connection.js";
+import { ConnectionClosedError } from "./bidi-connection.js";
 
 function setup(options?: { commandTimeout?: number }) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket, options);
+  const connector = makeConnector(ws, options);
   return { ws, connector };
 }
 

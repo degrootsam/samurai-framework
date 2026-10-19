@@ -13,10 +13,8 @@ import { headersFromBidi, toRequest } from "./bidi-wire.js";
 import { NetworkIdleTimeoutError } from "./network-wait.js";
 import {
   type EventMap,
-  type FailedRequest,
   type NetworkEventName,
   type NetworkRequest,
-  type NetworkResponse,
 } from "./network-types.js";
 
 export type {

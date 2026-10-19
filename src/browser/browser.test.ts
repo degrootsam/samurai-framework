@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { autoReply, FakeWebSocket } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { Browser } from "./browser.js";
 
 function fakeBrowser(
   handlers: Record<string, (params: any) => object | Error> = {},
 ) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   const stop = autoReply(ws, {
     "browsingContext.getTree": () => ({ contexts: [] }),
     ...handlers,

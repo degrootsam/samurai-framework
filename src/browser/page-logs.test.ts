@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  tick,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { ContextTree } from "./context-tree.js";
 import {
   ConsoleMessage,
@@ -23,7 +27,7 @@ afterEach(() => stops.splice(0).forEach((stop) => stop()));
 
 async function setup(options?: { maxEntries?: number }) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   stops.push(
     autoReply(ws, { "browsingContext.getTree": () => ({ contexts: TREE }) }),
   );

@@ -2,7 +2,8 @@ import type { TestSummary } from "../types/test.js";
 import type { PreparedRun } from "./prepare-run.js";
 import { withProject, type ProjectOptions } from "./project.js";
 import type { ResolvedGroup } from "./groups.js";
-import TestRunner, { type RunnerOptions } from "./test-runner.js";
+import TestRunner from "./test-runner.js";
+import type { RunnerOptions } from "./options.js";
 
 export interface RunTestsOptions extends RunnerOptions, ProjectOptions {}
 
@@ -80,6 +81,6 @@ export { BROWSER_NAMES, checkBrowserList } from "../config/browsers.js";
 export type { RunEvent } from "./reporter.js";
 export type { TestError, TestResult, TestSummary } from "../types/test.js";
 export type { ResolvedGroup } from "./groups.js";
-export type { RunnerOptions } from "./test-runner.js";
+export type { RunnerOptions } from "./options.js";
 export type { ProjectOptions } from "./project.js";
 export { DEFAULT_PORT } from "./ports.js";

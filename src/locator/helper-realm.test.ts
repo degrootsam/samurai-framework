@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  makeConnector,
+  tick,
+} from "../testing/fake-websocket.js";
 import {
   CALL_PROBE,
   HELPER_SANDBOX,
@@ -16,7 +20,7 @@ function setup(
   overrides: Record<string, (params: any) => object | Error> = {},
 ) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   const stop = autoReply(ws, {
     "script.addPreloadScript": () => ({ script: "helpers-1" }),
     "browsingContext.getTree": () => ({

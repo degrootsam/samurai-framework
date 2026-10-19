@@ -4,6 +4,7 @@ import type {
   LocatorSpec,
   Step,
 } from "../steps/model.js";
+import { expectationFor, secretNameFor } from "./expectation.js";
 
 /** What the recorder does to the step list: a new step at `index`, a step rewritten in place, or one taken out */
 export type RecorderEvent =
@@ -66,31 +67,8 @@ interface NormaliserOptions {
   navigationWindow?: number;
 }
 
-const TEXT_LIMIT = 100;
-
 /** A picker that opens within this many ms of a click was opened by it */
 const PICKER_WINDOW = 1000;
-
-/** The name a secret gets in `secrets.<NAME>`: the field's name or id, upper snake case */
-export function secretNameFor(hint: string | undefined): string {
-  const name = (hint ?? "")
-    .replace(/([a-z\d])([A-Z])/g, "$1_$2")
-    .replace(/[^A-Za-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .toUpperCase();
-  return name === "" || /^\d/.test(name) ? "PASSWORD" : name;
-}
-
-export function expectationFor(
-  text: string,
-  value: string | undefined,
-): Expectation {
-  if (value !== undefined) return { matcher: "toHaveValue", expected: value };
-  if (text === "") return { matcher: "toBeVisible" };
-  return text.length <= TEXT_LIMIT
-    ? { matcher: "toHaveText", expected: text }
-    : { matcher: "toContainText", expected: text.slice(0, TEXT_LIMIT).trim() };
-}
 
 /**
  * Turns what the tester did into steps:
@@ -181,88 +159,126 @@ export class Normaliser {
       this.lastFill = undefined;
       return [this.insert(fromToolbar)];
     }
-
-    // The sandbox reports a picker for any click on a file input, including ones a page script fires:
-    // it is only a hint, and only the very last step, recorded just before, may be replaced or removed
-    // (a page's own input.click() also counts as the opening click, bounded to the last step within PICKER_WINDOW)
-    if (observation.type === "picker") {
-      const click = this.lastClick;
-      this.picker =
-        click && click.index === this.next - 1 && at - click.at <= PICKER_WINDOW
-          ? click.index
-          : undefined;
-      return [];
+    switch (observation.type) {
+      case "picker":
+        return this.pickerOpened(at);
+      case "picker-cancel":
+        return this.pickerCancelled();
+      case "files":
+        return this.filesSet(observation, at);
+      case "click":
+        return this.clicked(observation, at);
+      case "press":
+        return this.pressed(observation, at);
+      case "assert":
+        return this.asserted(observation);
+      case "input":
+        return this.typed(observation, at);
+      default:
+        return [];
     }
+  }
 
-    if (observation.type === "picker-cancel") {
-      const index = this.picker;
+  /**
+   * The sandbox reports a picker for any click on a file input, including ones a page script fires: it is only a
+   * hint, and only the very last step, recorded just before, may be replaced or removed (a page's own
+   * input.click() also counts as the opening click, bounded to the last step within PICKER_WINDOW)
+   */
+  private pickerOpened(at: number): RecorderEvent[] {
+    const click = this.lastClick;
+    this.picker =
+      click && click.index === this.next - 1 && at - click.at <= PICKER_WINDOW
+        ? click.index
+        : undefined;
+    return [];
+  }
+
+  /** The picker closed without a choice: the click that opened it is taken out again */
+  private pickerCancelled(): RecorderEvent[] {
+    const index = this.picker;
+    this.picker = undefined;
+    if (index === undefined || index !== this.next - 1) return [];
+    this.next--;
+    this.lastClick = undefined;
+    this.lastStep = undefined;
+    return [{ op: "remove", index }];
+  }
+
+  private filesSet(
+    observation: Extract<Observation, { type: "files" }>,
+    at: number,
+  ): RecorderEvent[] {
+    this.lastFill = undefined;
+    this.lastAction = at;
+    const step: Step = {
+      kind: observation.via === "drop" ? "dropFiles" : "setInputFiles",
+      locator: observation.locator,
+      files: observation.files,
+    };
+    const index = this.picker;
+    if (
+      observation.via === "input" &&
+      index !== undefined &&
+      index === this.next - 1
+    ) {
       this.picker = undefined;
-      if (index === undefined || index !== this.next - 1) return [];
-      this.next--;
       this.lastClick = undefined;
-      this.lastStep = undefined;
-      return [{ op: "remove", index }];
+      this.lastStep = step;
+      return [{ op: "replace", index, step }];
     }
+    return [this.insert(step)];
+  }
 
-    if (observation.type === "files") {
-      this.lastFill = undefined;
-      this.lastAction = at;
-      const step: Step = {
-        kind: observation.via === "drop" ? "dropFiles" : "setInputFiles",
+  private clicked(
+    observation: Extract<Observation, { type: "click" }>,
+    at: number,
+  ): RecorderEvent[] {
+    if (observation.textEntry) return []; // focusing a field: the fill that follows needs no click
+    this.lastFill = undefined;
+    this.lastAction = at;
+    const events = [
+      this.insert({ kind: "click", locator: observation.locator }),
+    ];
+    this.lastClick = { index: this.next - 1, at };
+    return events;
+  }
+
+  private pressed(
+    observation: Extract<Observation, { type: "press" }>,
+    at: number,
+  ): RecorderEvent[] {
+    // The page may react by clearing the field: what is typed next is a new fill, not a rewrite of this one
+    this.lastFill = undefined;
+    this.lastAction = at;
+    return [
+      this.insert({
+        kind: "press",
         locator: observation.locator,
-        files: observation.files,
-      };
-      const index = this.picker;
-      if (
-        observation.via === "input" &&
-        index !== undefined &&
-        index === this.next - 1
-      ) {
-        this.picker = undefined;
-        this.lastClick = undefined;
-        this.lastStep = step;
-        return [{ op: "replace", index, step }];
-      }
-      return [this.insert(step)];
-    }
+        key: observation.pressed,
+      }),
+    ];
+  }
 
-    if (observation.type === "click") {
-      if (observation.textEntry) return []; // focusing a field: the fill that follows needs no click
-      this.lastFill = undefined;
-      this.lastAction = at;
-      const events = [
-        this.insert({ kind: "click", locator: observation.locator }),
-      ];
-      this.lastClick = { index: this.next - 1, at };
-      return events;
-    }
+  /** An Alt+click */
+  private asserted(
+    observation: Extract<Observation, { type: "assert" }>,
+  ): RecorderEvent[] {
+    this.lastFill = undefined;
+    return [
+      this.insert({
+        kind: "expect",
+        locator: observation.locator,
+        not: false,
+        expectation: expectationFor(observation.text, observation.value),
+      }),
+    ];
+  }
 
-    if (observation.type === "press") {
-      // The page may react by clearing the field: what is typed next is a new fill, not a rewrite of this one
-      this.lastFill = undefined;
-      this.lastAction = at;
-      return [
-        this.insert({
-          kind: "press",
-          locator: observation.locator,
-          key: observation.pressed,
-        }),
-      ];
-    }
-
-    if (observation.type === "assert") {
-      this.lastFill = undefined;
-      return [
-        this.insert({
-          kind: "expect",
-          locator: observation.locator,
-          not: false,
-          expectation: expectationFor(observation.text, observation.value),
-        }),
-      ];
-    }
-
-    if (observation.type !== "input") return [];
+  /** Typing: one `fill` per field, rewritten as the text grows */
+  private typed(
+    observation: Extract<Observation, { type: "input" }>,
+    at: number,
+  ): RecorderEvent[] {
     this.lastAction = at;
     const step: Step = {
       kind: "fill",
