@@ -69,7 +69,7 @@ export class EmulationUnsupportedError extends UnsupportedOperationError {
   public readonly applied: string[];
 
   constructor(option: string, applied: string[]) {
-    super(`emulate({ ${option} }) is not supported by the browser`);
+    super(`emulate(): ${option} is not supported by the browser`);
     this.name = "EmulationUnsupportedError";
     this.option = option;
     this.applied = applied;

@@ -203,7 +203,7 @@ export class PageNetwork {
     } catch (err) {
       if (isUnsupported(err)) {
         throw new UnsupportedOperationError(
-          "page.setCacheDisabled() is not supported by the browser",
+          "setCacheDisabled(): not supported by the browser",
         );
       }
       throw err;
