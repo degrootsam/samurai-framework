@@ -63,6 +63,18 @@ export interface TestSink {
     error?: TestError,
     extras?: TestEndExtras,
   ): void;
+  /** A test that does not run: reported as started and ended at once */
+  onTestSkipped(
+    test: RegisteredTestCase,
+    browser: SupportedBrowser,
+    skip: TestSkip,
+  ): void;
+}
+
+/** Why a test was skipped */
+export interface TestSkip {
+  annotation: "skip" | "fixme";
+  reason?: string | undefined;
 }
 
 /** What a test's report entry lists besides its status */
@@ -146,7 +158,9 @@ export default class TestReporter implements TestSink {
       environment: this.environment,
       browsers: this.browsers,
       tests,
-      status: tests.every((r: TestResult) => r.status === "success")
+      status: tests.every(
+        (r: TestResult) => r.status === "success" || r.status === "skipped",
+      )
         ? "success"
         : "failed",
     } as TestSummary;
@@ -176,6 +190,30 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+    });
+  }
+
+  public onTestSkipped(
+    test: RegisteredTestCase,
+    browser: SupportedBrowser,
+    { annotation, reason }: TestSkip,
+  ) {
+    this.onTestStart(test, browser);
+    const key = keyOf(test, browser);
+    const result = maskDeep({
+      ...(this.testResults.get(key) as PartialTestResult),
+      status: "skipped",
+      duration: 0,
+      annotation,
+      ...(reason !== undefined && { reason }),
+    } as TestResult);
+    this.testResults.set(key, result);
+    this.emit({
+      type: "test-end",
+      name: test.name,
+      file: test.file,
+      browser,
+      result,
     });
   }
 

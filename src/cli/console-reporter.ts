@@ -50,13 +50,21 @@ export class ConsoleReporter {
       "duration" in result
         ? ` ${this.paint(90, `(${seconds(result.duration)})`)}`
         : "";
+    if (result.status === "skipped")
+      return this.paint(
+        90,
+        `- ${name}${this.tag(browser)} (${result.annotation === "fixme" ? "fixme" : "skipped"}${result.reason ? `: ${result.reason}` : ""})`,
+      );
     return result.status === "success"
       ? `${this.paint(32, "✔")} ${name}${this.tag(browser)}${took}`
       : `${this.paint(31, "✖")} ${name}${this.tag(browser)}${took}`;
   }
 
   private summary(summary: TestSummary): void {
-    const failed = summary.tests.filter((test) => test.status !== "success");
+    const skipped = summary.tests.filter((test) => test.status === "skipped");
+    const failed = summary.tests.filter(
+      (test) => test.status !== "success" && test.status !== "skipped",
+    );
     for (const test of failed) {
       if (!("name" in test)) continue;
       const message = "message" in test ? test.message : "did not finish";
@@ -71,10 +79,11 @@ export class ConsoleReporter {
       );
       if ("file" in test) this.write(`    ${this.paint(90, test.file)}\n`);
     }
-    const passed = summary.tests.length - failed.length;
+    const passed = summary.tests.length - failed.length - skipped.length;
     const parts = [
       failed.length > 0 && this.paint(31, `${failed.length} failed`),
       this.paint(32, `${passed} passed`),
+      skipped.length > 0 && this.paint(90, `${skipped.length} skipped`),
     ].filter(Boolean);
     this.write(
       `\n${parts.join(", ")} ${this.paint(90, `(${seconds(summary.duration)})`)}\n`,
