@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { runTests } from "./run.js";
-import { browserConfig } from "../testing/test-browser.js";
+import { browserConfig, testBrowser } from "../testing/test-browser.js";
 
 const API = path.resolve("src/api.ts");
 
@@ -25,7 +25,7 @@ test("takes screenshots", async ({ page }) => {
 `;
 
 test(
-  "named screenshots are saved under result/screenshots and listed in the report",
+  "named screenshots are saved under result/screenshots/<browser> and listed in the report",
   { timeout: 90000 },
   async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-project-"));
@@ -41,7 +41,7 @@ test(
     });
     assert.equal(summary.status, "success");
 
-    const folder = "screenshots/shots.spec/takes-screenshots";
+    const folder = `screenshots/${testBrowser()}/shots.spec/takes-screenshots`;
     const expected = [
       { name: "first-view", path: `${folder}/first-view.png` },
       { name: "first-view-2", path: `${folder}/first-view-2.png` },

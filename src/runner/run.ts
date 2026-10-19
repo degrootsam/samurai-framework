@@ -101,6 +101,7 @@ export async function listGroups(
   );
 }
 
+export { BROWSER_NAMES, checkBrowserList } from "./browsers.js";
 export type { RunEvent } from "./reporter.js";
 export type { TestError, TestResult, TestSummary } from "../types/test.js";
 export type { ResolvedGroup } from "./groups.js";

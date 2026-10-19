@@ -13,6 +13,8 @@ import type Page from "../browser/page.js";
 import { callFunction } from "../script/call-function.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { parseSpec } from "../steps/parse.js";
+import { MANAGED_BROWSERS } from "../browsers/pins.js";
+import { statusOf } from "../browsers/store.js";
 import { recordSpec } from "./session.js";
 import { browserConfig } from "../testing/test-browser.js";
 
@@ -343,3 +345,42 @@ test("recordSpec records no upload while paused", OPTIONS, async () => {
   assert.deepEqual(result.files, []);
   assert.ok(!existsSync(path.join(dir, "files")));
 });
+
+/** Decided once, before a test is registered (a registered test starts at once) */
+const BOTH = MANAGED_BROWSERS.every(
+  (name) => statusOf(name, { env: {} }).state === "installed",
+)
+  ? false
+  : "Firefox and Chrome must both be installed";
+
+const AGENT_PAGE = `data:text/html,<p id=ua></p><script>ua.textContent = navigator.userAgent</script>`;
+
+async function recordedIn(options: { browser?: "firefox" | "chrome" }) {
+  const { dir, config } = project({ browsers: ["chrome", "firefox"] });
+  let agent = "";
+  await recordSpec({
+    projectDir: dir,
+    config,
+    dataDir: path.join(dir, "data"),
+    file: "tests/which.spec.ts",
+    create: "which",
+    url: AGENT_PAGE,
+    headless: true,
+    port: 9275,
+    ...options,
+    onStarted: async ({ page, browser }) => {
+      agent = (await page.getByCss("#ua").textContent()) ?? "";
+      void browser.close();
+    },
+  });
+  return agent;
+}
+
+test(
+  "recordSpec records in the first browser of the project, or in the one it is told",
+  { ...OPTIONS, skip: BOTH },
+  async () => {
+    assert.match(await recordedIn({}), /Chrome/);
+    assert.match(await recordedIn({ browser: "firefox" }), /Firefox/);
+  },
+);

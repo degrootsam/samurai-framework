@@ -41,6 +41,27 @@ describe("a run without its browser", () => {
     assert.deepEqual(events, []);
   });
 
+  it("with two browsers, a missing second one stops the run before the first runs a test", async () => {
+    const events: RunEvent[] = [];
+    const fake = path.join(dir, "fake-firefox");
+    writeFileSync(fake, "");
+    process.env.SAMURAI_FIREFOX_PATH = fake;
+    try {
+      await assert.rejects(
+        runTests({
+          projectDir: dir,
+          config: { browsers: ["firefox", "chrome"] },
+          onEvent: (e) => events.push(e),
+        }),
+        (err: unknown) =>
+          err instanceof BrowserNotInstalledError && err.browser === "chrome",
+      );
+    } finally {
+      delete process.env.SAMURAI_FIREFOX_PATH;
+    }
+    assert.deepEqual(events, []);
+  });
+
   it("selecting no tests needs no browser (Review Focus 5)", async () => {
     const summary = await runTests({
       projectDir: dir,

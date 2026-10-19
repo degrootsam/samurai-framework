@@ -4,6 +4,8 @@ import path from "path";
 import { pathToFileURL } from "url";
 import { Browser } from "../browser/browser.js";
 import { ensureWarm } from "../browser/warm-up.js";
+import { projectBrowser } from "../browsers/resolve.js";
+import { browsersFor } from "./browsers.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
@@ -47,6 +49,8 @@ export interface RunnerOptions {
   testNames?: string[];
   /** Only the tests of this group of the config's `groups` (unknown name: an error). Combines with the other filters */
   group?: string;
+  /** The browsers to run in, instead of the group's or the project's `browsers` (the command line's `--browser`) */
+  browsers?: SupportedBrowser[];
   /** Run the browser without a window. @default false */
   headless?: boolean;
   /** Remote debugging port of the browser. @default 9223 */
@@ -189,43 +193,65 @@ export default class TestRunner {
     );
   }
 
-  /** Runs the selected tests and returns the summary that was also written to the report */
+  /**
+   * The browsers the run uses: the options' (`--browser`), else the selected group's, else the project's, else
+   * Firefox. A group is only looked up when there is something to look up
+   */
+  private async browsersOfRun(): Promise<SupportedBrowser[]> {
+    const { browsers: flag, group } = this.options;
+    const config = await loadConfig();
+    let ofGroup: SupportedBrowser[] | undefined;
+    if (group !== undefined && !(flag && flag.length > 0)) {
+      const { groups } = await this.resolveAll(await this.registerAll());
+      ofGroup = findGroup(groups, group).browsers;
+    }
+    return browsersFor({ flag, group: ofGroup, project: config.browsers });
+  }
+
+  /** Runs the selected tests in every browser of the run, one browser after the other, and returns the summary that was also written to the report */
   public async start() {
     const { reportPath, onEvent, signal } = this.options;
+    const selected = await this.register();
+    const browsers = await this.browsersOfRun();
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
+      browsers,
       ...(reportPath !== undefined && { output: reportPath }),
       ...(onEvent && { onEvent }),
     });
 
-    const selected = await this.register();
     this.srcDir = realDirs((await loadConfig()).srcDir).srcDir;
-    // A missing browser is one clear error before the run, not a failure per test; a fresh build's slow
-    // first start happens here, outside any test's timeout
-    if (selected.length > 0)
-      await ensureWarm(
-        (await readConfig("browser")) ?? "firefox",
-        { port: this.options.port ?? 9223 },
-        signal,
-      );
-    reporter.onStart(selected.length);
-    for (const test of selected) {
-      if (signal?.aborted) {
-        reporter.onTestStart(test);
-        reporter.onTestEnd(test, { message: "Run aborted", type: "error" });
-        continue;
+    // A missing browser is one clear error before the run, not a failure per test, and before any browser has run a
+    // test; a fresh build's slow first start happens here too, outside any test's timeout
+    if (selected.length > 0) {
+      for (const browser of browsers) await projectBrowser(browser);
+      for (const browser of browsers)
+        await ensureWarm(browser, { port: this.options.port ?? 9223 }, signal);
+    }
+    reporter.onStart(selected.length * browsers.length);
+    for (const browser of browsers) {
+      for (const test of selected) {
+        if (signal?.aborted) {
+          reporter.onTestStart(test, browser);
+          reporter.onTestEnd(test, browser, {
+            message: "Run aborted",
+            type: "error",
+          });
+          continue;
+        }
+        await this.executeTestCase(test, browser, reporter);
       }
-      await this.executeTestCase(test, reporter);
     }
     return reporter.onEnd();
   }
 
   private async executeTestCase(
     test: RegisteredTestCase,
+    selectedBrowser: SupportedBrowser,
     reporter: TestReporter,
   ) {
-    logger.verbose("Starting test: %s", test.name);
-    reporter.onTestStart(test);
+    logger.verbose("Starting test: %s in %s", test.name, selectedBrowser);
+    reporter.onTestStart(test, selectedBrowser);
     // A test ends once, whichever of finishing, failing, timing out, an abort or a closed browser comes first
     let ended = false;
     let evidence: Evidence | undefined;
@@ -235,7 +261,7 @@ export default class TestRunner {
     ) => {
       if (ended) return;
       ended = true;
-      reporter.onTestEnd(test, error, {
+      reporter.onTestEnd(test, selectedBrowser, error, {
         ...logs,
         screenshots: evidence?.screenshots,
       });
@@ -243,8 +269,6 @@ export default class TestRunner {
     let browserClosed = false;
     /** Set once the runner itself closes the browser */
     let closing = false;
-    const selectedBrowser: SupportedBrowser =
-      (await readConfig("browser")) ?? "firefox";
     const { settings, secrets } = this.run;
     const timeout = settings.timeout;
     const { reportPath } = this.options;
@@ -303,11 +327,15 @@ export default class TestRunner {
             resolve();
           });
           page = launched.page;
-          evidence = new Evidence(resultDir, testDirOf(test, this.srcDir));
+          evidence = new Evidence(
+            resultDir,
+            `${selectedBrowser}/${testDirOf(test, this.srcDir)}`,
+          );
           launched.page.setEvidence(evidence);
           const fixtures: TestFixtures = {
             page: launched.page,
             browser: launched.browser,
+            browserName: selectedBrowser,
             env: createEnvFixture(settings.environment, settings.variables),
             secrets: createSecretsFixture(settings.environment, secrets),
           };

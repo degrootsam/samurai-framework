@@ -12,11 +12,14 @@ import type { RunEvent } from "../../runner/reporter.js";
 import type { FlowEvent, FlowSummary, NodeResult, NodeTest } from "./events.js";
 import { STEP_NODES } from "../steps/catalog.js";
 import { HANDLERS, type Handler, type HandlerRun } from "./handlers/index.js";
+import type { SupportedBrowser } from "../../types/browser.js";
 
 export interface RunFlowOptions {
   flow: FlowFile;
   /** The tests of each Test and Group node, by node id */
   nodeTests: Record<string, NodeTest[]>;
+  /** The browsers a Group node runs in (its group's); a node not listed uses the project's */
+  nodeBrowsers?: Record<string, SupportedBrowser[]>;
   environment: {
     name: string;
     variables: Record<string, string | number | boolean>;
@@ -31,6 +34,8 @@ export interface RunFlowOptions {
     tests: NodeTest[];
     onEvent: (e: RunEvent) => void;
     signal: AbortSignal;
+    /** Set for a node that runs in browsers of its own */
+    browsers?: SupportedBrowser[];
   }) => Promise<"passed" | "failed" | "cancelled">;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   /**
@@ -118,10 +123,16 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     environment: options.environment,
     context,
     nodeTests: options.nodeTests,
+    ...(options.nodeBrowsers && { nodeBrowsers: options.nodeBrowsers }),
     signal,
     sleep: options.sleep ?? defaultSleep,
-    runTests: (tests, onTestEvent) =>
-      options.runTests({ tests, onEvent: onTestEvent, signal }),
+    runTests: (tests, onTestEvent, browsers) =>
+      options.runTests({
+        tests,
+        onEvent: onTestEvent,
+        signal,
+        ...(browsers && { browsers }),
+      }),
     onTestEvent: (nodeId, event) => onEvent({ type: "test", nodeId, event }),
     nodes,
     log: (nodeId, level, text) => logger[level](`[${nodeId}] ${text}`),

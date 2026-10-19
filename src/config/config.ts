@@ -2,6 +2,7 @@ import type { SamuraiTestConfig } from "../types/config.js";
 import path from "path";
 import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
+import { validateBrowserConfig } from "../runner/browsers.js";
 
 /** The project a run belongs to; without one, everything is relative to the working directory */
 interface ActiveProject {
@@ -39,7 +40,10 @@ export function browsersDir(): string {
 
 /** The whole `samurai.config.ts` of the project (the working directory unless a project is active) */
 export async function loadConfig(): Promise<SamuraiTestConfig> {
-  if (activeProject?.config) return activeProject.config;
+  if (activeProject?.config) {
+    validateBrowserConfig(activeProject.config);
+    return activeProject.config;
+  }
   const configUrl = path.join(projectDir(), "samurai.config.ts");
   logger.debug("Reading config from: %s", configUrl);
 
@@ -52,6 +56,7 @@ export async function loadConfig(): Promise<SamuraiTestConfig> {
       "samurai.config.ts does not export defineConfig as default!",
     );
   }
+  validateBrowserConfig(config.default);
   return config.default;
 }
 

@@ -24,6 +24,8 @@ export interface SamuraiGroup {
    * Overrides 'src' and 'testMatch'  options.
    */
   tests?: SamuraiTest[];
+  /** The browsers this group's tests run in, instead of the project's `browsers` */
+  browsers?: SupportedBrowser[];
 }
 
 export interface SamuraiEnvironment {
@@ -45,10 +47,10 @@ export interface SamuraiTestConfig {
    */
   srcDir?: string;
   /**
-   * The browser to use for all tests: "firefox" or "chrome"
-   * @default "firefox"
+   * The browsers the tests run in, one after the other: every selected test runs once in each. A group can name its own.
+   * @default ["firefox"]
    */
-  browser?: SupportedBrowser;
+  browsers?: SupportedBrowser[];
   /**
    * Browser binaries to launch instead of the builds SAMURAI downloads, relative to the project.
    * `SAMURAI_FIREFOX_PATH` / `SAMURAI_CHROME_PATH` win over these.

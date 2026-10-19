@@ -22,6 +22,7 @@ import { readFlow } from "./files.js";
 import { projectSteps } from "../steps/set.js";
 import { HANDLERS } from "./handlers/index.js";
 import { runFlow } from "./run.js";
+import type { SupportedBrowser } from "../../types/browser.js";
 
 /** The flow has errors; nothing was run */
 export class FlowCheckError extends Error {
@@ -186,6 +187,7 @@ export async function runFlowInProject(
   // Phase 3: walk it
   const byId = new Map(tests.map((t) => [t.id, t]));
   const nodeTests: Record<string, NodeTest[]> = {};
+  const nodeBrowsers: Record<string, SupportedBrowser[]> = {};
   for (const node of flow.nodes) {
     const ids =
       node.kind === "test"
@@ -194,6 +196,10 @@ export async function runFlowInProject(
           ? (groups.find((g) => g.name === node.ref?.group)?.testIds ?? [])
           : undefined;
     if (!ids) continue;
+    if (node.kind === "group") {
+      const browsers = groups.find((g) => g.name === node.ref?.group)?.browsers;
+      if (browsers) nodeBrowsers[node.id] = browsers;
+    }
     nodeTests[node.id] = ids.flatMap((id) => {
       const t = byId.get(id);
       return t ? [{ file: t.file, name: t.name }] : [];
@@ -204,6 +210,7 @@ export async function runFlowInProject(
   return runFlow({
     flow,
     nodeTests,
+    nodeBrowsers,
     environment,
     ...(options.signal && { signal: options.signal }),
     ...(options.onEvent && { onEvent: options.onEvent }),
@@ -211,7 +218,7 @@ export async function runFlowInProject(
     unsupported,
     handlers: { ...HANDLERS, ...steps.handlers },
     nodes: steps.nodes,
-    runTests: async ({ tests, onEvent, signal }) => {
+    runTests: async ({ tests, onEvent, signal, browsers }) => {
       const summary = await run({
         projectDir,
         config,
@@ -229,6 +236,7 @@ export async function runFlowInProject(
           expectTimeout: options.expectTimeout,
         }),
         ...(options.port !== undefined && { port: options.port }),
+        ...(browsers && { browsers }),
         files: [...new Set(tests.map((t) => t.file))],
         testNames: tests.map((t) => t.name),
         reportPath: false,

@@ -53,6 +53,11 @@ const config: SamuraiTestConfig = {
   defaultEnvironment: "dev",
   groups: [
     { name: "checkout", src: "./src/checkout" },
+    {
+      name: "cross",
+      src: "./src/checkout",
+      browsers: ["firefox", "chrome"],
+    },
     { name: "empty", tests: [{ file: "login.spec.ts", title: "gone" }] },
   ],
 };
@@ -141,6 +146,24 @@ describe("runFlowInProject", () => {
     });
     assert.equal(h.calls.length, 1);
     assert.deepEqual(h.calls[0]!.testNames, ["Cart > adds"]);
+  });
+
+  it("a Group node runs in its group's browsers, a Test node in the project's", async () => {
+    const h = harness();
+    await runFlowInProject({
+      ...h.options,
+      flow: chain([
+        { id: "g", kind: "group", ref: { group: "cross" } },
+        {
+          id: "t",
+          kind: "test",
+          ref: { testId: "checkout/cart.spec.ts::Cart > adds" },
+        },
+      ]),
+    });
+    assert.equal(h.calls.length, 2);
+    assert.deepEqual(h.calls[0]!.browsers, ["firefox", "chrome"]);
+    assert.equal(h.calls[1]!.browsers, undefined);
   });
 
   it("a group with no tests passes with a note and runs nothing", async () => {

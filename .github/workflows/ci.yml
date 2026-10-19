@@ -49,8 +49,9 @@ jobs:
         with:
           path: ~/.cache/samurai/browsers
           key: browsers-${{ runner.os }}-${{ hashFiles('src/browsers/pins.ts') }}
-      - name: Install ${{ matrix.browser }}
-        run: bunx tsx src/index.ts browsers install ${{ matrix.browser }}
+      # Both: the multi-browser tests run Firefox and Chrome whichever browser the matrix leg tests with
+      - name: Install the browsers
+        run: bunx tsx src/index.ts browsers install all
       - name: Browser tests
         timeout-minutes: 12
         env:

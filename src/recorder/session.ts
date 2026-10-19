@@ -3,6 +3,8 @@ import path from "node:path";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { ensureWarm } from "../browser/warm-up.js";
+import { browsersFor } from "../runner/browsers.js";
+import type { SupportedBrowser } from "../types/browser.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import { loadSecrets } from "../config/secrets.js";
 import {
@@ -37,6 +39,8 @@ export interface RecordSpecOptions extends ProjectOptions {
   at?: number;
   /** The page to start on. @default the environment's base URL; without one the browser starts blank */
   url?: string;
+  /** The browser to record in. @default the first of the config's `browsers`, else Firefox */
+  browser?: SupportedBrowser;
   /** The browser's debugging port. @default 9223 */
   port?: number;
   /** Run the browser without a window. A person can't use it then; for tests and machines without a display. @default the config's `use.headless`, else headless on CI and a window otherwise */
@@ -208,7 +212,10 @@ export async function recordSpec(
       );
     }
     // Before the spec is touched: a recording without its browser changes nothing
-    const browserName = (await readConfig("browser")) ?? "firefox";
+    // Recording in two browsers at once makes no sense: the first of the project's, or the one asked for
+    const browserName =
+      options.browser ??
+      browsersFor({ project: await readConfig("browsers") })[0]!;
     await ensureWarm(
       browserName,
       { port: options.port ?? 9223 },

@@ -19,6 +19,49 @@ const tests: GroupTest[] = [
   { file: "checkout/helpers.ts", name: "not a spec" },
 ];
 
+describe("a group's browsers", () => {
+  const resolve = (
+    group: Parameters<typeof resolveGroup>[0],
+    projectBrowsers?: ("firefox" | "chrome")[],
+  ) => resolveGroup(group, tests, project, srcDir, projectBrowsers).browsers;
+
+  it("are its own, else the project's, else Firefox", () => {
+    assert.deepEqual(
+      resolve({ name: "a", browsers: ["chrome"] }, ["firefox"]),
+      ["chrome"],
+    );
+    assert.deepEqual(resolve({ name: "a" }, ["firefox", "chrome"]), [
+      "firefox",
+      "chrome",
+    ]);
+    assert.deepEqual(resolve({ name: "a" }), ["firefox"]);
+    assert.deepEqual(
+      resolve({
+        name: "a",
+        tests: [{ file: "login.spec.ts", title: "Login > works" }],
+        browsers: ["chrome"],
+      }),
+      ["chrome"],
+    );
+  });
+
+  it("resolveGroups gives every group the project's browsers it has none of its own", () => {
+    const groups = resolveGroups(
+      {
+        browsers: ["chrome"],
+        groups: [{ name: "a" }, { name: "b", browsers: ["firefox"] }],
+      },
+      tests,
+      project,
+      srcDir,
+    );
+    assert.deepEqual(
+      groups.map((g) => g.browsers),
+      [["chrome"], ["firefox"]],
+    );
+  });
+});
+
 describe("testId", () => {
   it("is file::name with posix separators", () => {
     assert.equal(
