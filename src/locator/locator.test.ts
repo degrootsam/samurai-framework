@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import Locator from "./locator.js";
-import { remote, stubConnector, type StubResponse } from "../testing/stub-connector.js";
+import {
+  remote,
+  stubConnector,
+  type StubResponse,
+} from "../testing/stub-connector.js";
 
 function locatorWith(xpath: string, ...responses: StubResponse[]) {
   const stub = stubConnector(...responses);
@@ -24,7 +28,8 @@ const ready: StubResponse = remote({
 });
 
 test("selector prefixes relative xpaths with // and keeps quotes as written", () => {
-  const selectorOf = (xpath: string) => locatorWith(xpath, { type: "null" }).locator.selector;
+  const selectorOf = (xpath: string) =>
+    locatorWith(xpath, { type: "null" }).locator.selector;
   assert.equal(selectorOf("h1"), "//h1");
   assert.equal(selectorOf("//div"), "//div");
   assert.equal(selectorOf("a[text()='Start']"), "//a[text()='Start']");
@@ -42,12 +47,19 @@ function locates(sent: Array<{ method: string; params: unknown }>) {
 
 test("the xpath reaches the browser in the locate command, byte for byte, never in a script", async () => {
   const xpath = `//a[text()="It's \\ a\nnew line"]`;
-  const { locator, sent, calls } = locatorWith(xpath, { type: "string", value: "x" }, ready);
+  const { locator, sent, calls } = locatorWith(
+    xpath,
+    { type: "string", value: "x" },
+    ready,
+  );
   await locator.textContent();
   await locator.click({ timeout: 3000 });
   assert.deepEqual(locates(sent)[0], { type: "xpath", value: xpath });
   for (const call of calls) {
-    assert.ok(!call.functionDeclaration.includes("It's"), "the xpath must not be embedded in the source");
+    assert.ok(
+      !call.functionDeclaration.includes("It's"),
+      "the xpath must not be embedded in the source",
+    );
     assertCompiles(call.functionDeclaration);
   }
 });
@@ -61,7 +73,11 @@ test("scripts receive the located element as their first argument", async () => 
 test("locating asks for references only", async () => {
   const { locator, sent } = locatorWith("h1", { type: "null" });
   await locator.textContent();
-  const params = sent[0]!.params as { serializationOptions: unknown; maxNodeCount: unknown; context: string };
+  const params = sent[0]!.params as {
+    serializationOptions: unknown;
+    maxNodeCount: unknown;
+    context: string;
+  };
   assert.deepEqual(params.serializationOptions, { maxDomDepth: 0 });
   assert.equal(params.maxNodeCount, 1);
   assert.equal(params.context, "ctx");
@@ -75,7 +91,10 @@ test("all() returns one locator per current match", async () => {
     items.map((item) => item.selector),
     ["(//li)[1]", "(//li)[2]", "(//li)[3]"],
   );
-  assert.equal((sent[0]!.params as { maxNodeCount?: number }).maxNodeCount, undefined);
+  assert.equal(
+    (sent[0]!.params as { maxNodeCount?: number }).maxNodeCount,
+    undefined,
+  );
 });
 
 test("all() returns an empty array when nothing matches", async () => {
@@ -89,25 +108,45 @@ test("actions on an all() item target that item", async () => {
   stub.nodeCounts(2, 1);
   const items = await new Locator("li", stub.connector, "ctx").all();
   await items[1]!.click({ timeout: 3000 });
-  assert.deepEqual(locates(stub.sent)[1], { type: "xpath", value: "(//li)[2]" });
-  assert.equal(stub.sent.filter(({ method }) => method === "input.performActions").length, 1);
+  assert.deepEqual(locates(stub.sent)[1], {
+    type: "xpath",
+    value: "(//li)[2]",
+  });
+  assert.equal(
+    stub.sent.filter(({ method }) => method === "input.performActions").length,
+    1,
+  );
 });
 
 /** Methods and key values sent by fill(), in order */
-function fillTrace(sent: Array<{ method: string; params: unknown }>, expressions: string[]) {
+function fillTrace(
+  sent: Array<{ method: string; params: unknown }>,
+  expressions: string[],
+) {
   let evaluateIndex = 0;
   return sent
     .filter(({ method }) => method !== "browsingContext.locateNodes")
     .map(({ method, params }) => {
-    if (method === "script.callFunction") return `evaluate:${expressions[evaluateIndex++]!.includes(".select()") ? "select" : "other"}`;
-    const [source] = (params as { actions: Array<{ type: string; actions: Array<{ type: string; value?: string }> }> }).actions;
-    if (source!.type === "key") return `keys:${source!.actions.map((a) => a.value).join("")}`;
-    return source!.type;
-  });
+      if (method === "script.callFunction")
+        return `evaluate:${expressions[evaluateIndex++]!.includes(".select()") ? "select" : "other"}`;
+      const [source] = (
+        params as {
+          actions: Array<{
+            type: string;
+            actions: Array<{ type: string; value?: string }>;
+          }>;
+        }
+      ).actions;
+      if (source!.type === "key")
+        return `keys:${source!.actions.map((a) => a.value).join("")}`;
+      return source!.type;
+    });
 }
 
 test("fill() selects the existing value before typing so it is replaced", async () => {
-  const { locator, sent, expressions } = locatorWith("input", ready, { type: "undefined" });
+  const { locator, sent, expressions } = locatorWith("input", ready, {
+    type: "undefined",
+  });
   await locator.fill("abc", { timeout: 3000 });
   assert.deepEqual(fillTrace(sent, expressions), [
     "evaluate:other",
@@ -120,7 +159,9 @@ test("fill() selects the existing value before typing so it is replaced", async 
 });
 
 test('fill("") clears the field with Backspace', async () => {
-  const { locator, sent, expressions } = locatorWith("input", ready, { type: "undefined" });
+  const { locator, sent, expressions } = locatorWith("input", ready, {
+    type: "undefined",
+  });
   await locator.fill("", { timeout: 3000 });
   assert.deepEqual(fillTrace(sent, expressions), [
     "evaluate:other",
@@ -142,26 +183,45 @@ test("textContent returns the string, or null when the element is missing", asyn
 
 test("inputValue returns the value, or null", async () => {
   assert.equal(
-    await locatorWith("input", { type: "string", value: "test" }).locator.inputValue(),
+    await locatorWith("input", {
+      type: "string",
+      value: "test",
+    }).locator.inputValue(),
     "test",
   );
-  assert.equal(await locatorWith("input", { type: "null" }).locator.inputValue(), null);
+  assert.equal(
+    await locatorWith("input", { type: "null" }).locator.inputValue(),
+    null,
+  );
 });
 
 test("getAttribute passes the attribute name as an argument", async () => {
-  const { locator, calls } = locatorWith("a", { type: "string", value: "/home" });
+  const { locator, calls } = locatorWith("a", {
+    type: "string",
+    value: "/home",
+  });
   assert.equal(await locator.getAttribute("href"), "/home");
   assert.deepEqual(calls[0]!.args, [{ sharedId: "stub-node-0" }, "href"]);
   assert.match(calls[0]!.functionDeclaration, /el\.getAttribute\(name\)/);
 });
 
-test("isVisible returns the boolean result", async () => {
-  assert.equal(await locatorWith("div", { type: "boolean", value: true }).locator.isVisible(), true);
-  assert.equal(await locatorWith("div", { type: "boolean", value: false }).locator.isVisible(), false);
+test("isVisible reads the element state: attached and visible", async () => {
+  const hidden = remote({
+    attached: true,
+    visible: false,
+    enabled: true,
+    editable: true,
+    box: null,
+    hitTarget: null,
+  });
+  assert.equal(await locatorWith("div", ready).locator.isVisible(), true);
+  assert.equal(await locatorWith("div", hidden).locator.isVisible(), false);
 });
 
 test("count is the number of located nodes, found without running any script", async () => {
-  const { locator, nodeCounts, expressions, sent } = locatorWith("li", { type: "null" });
+  const { locator, nodeCounts, expressions, sent } = locatorWith("li", {
+    type: "null",
+  });
   nodeCounts(3);
   assert.equal(await locator.count(), 3);
   assert.equal(expressions.length, 0);
@@ -169,7 +229,9 @@ test("count is the number of located nodes, found without running any script", a
 });
 
 test("reads throw on an evaluate exception", async () => {
-  const { locator } = locatorWith("h1[", { exception: "SyntaxError: bad xpath" });
+  const { locator } = locatorWith("h1[", {
+    exception: "SyntaxError: bad xpath",
+  });
   await assert.rejects(locator.textContent(), /Failed to locate element/);
 });
 

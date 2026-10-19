@@ -124,7 +124,6 @@ export function fromRemoteValue(value: RemoteValue): unknown {
 function deserialize(value: RemoteValue, known: Map<string, unknown>): unknown {
   const loose = value as RemoteValue & {
     value?: unknown;
-    internalId?: string;
     sharedId?: string;
   };
 
@@ -151,57 +150,71 @@ function deserialize(value: RemoteValue, known: Map<string, unknown>): unknown {
     }
     case "node":
       return new ElementHandle(loose.sharedId ?? "");
-  }
-
-  const nested = (item: RemoteValue) => deserialize(item, known);
-  const remember = <T>(result: T): T => {
-    if (loose.internalId !== undefined) known.set(loose.internalId, result);
-    return result;
-  };
-  const isBackReference =
-    loose.internalId !== undefined && known.has(loose.internalId);
-
-  let result: unknown;
-  switch (value.type) {
     case "array":
     case "set":
     case "object":
-    case "map": {
-      if (isBackReference && loose.value === undefined)
-        return known.get(loose.internalId!);
-      if (loose.value === undefined) break; // cut off by the serialization depth
-      if (value.type === "array") {
-        const list: unknown[] = remember([]);
-        (loose.value as RemoteValue[]).forEach((item) =>
-          list.push(nested(item)),
-        );
-        result = list;
-      } else if (value.type === "set") {
-        const set = remember(new Set<unknown>());
-        (loose.value as RemoteValue[]).forEach((item) => set.add(nested(item)));
-        result = set;
-      } else {
-        const entries = loose.value as Array<
-          [RemoteValue | string, RemoteValue]
-        >;
-        const key = (raw: RemoteValue | string) =>
-          typeof raw === "string" ? raw : nested(raw);
-        if (value.type === "map") {
-          const map = remember(new Map<unknown, unknown>());
-          entries.forEach(([k, item]) => map.set(key(k), nested(item)));
-          result = map;
-        } else {
-          const object: Record<string, unknown> = remember({});
-          entries.forEach(([k, item]) => {
-            object[String(key(k))] = nested(item);
-          });
-          result = object;
-        }
-      }
-      return result;
-    }
+    case "map":
+      // A collection cut off by the serialization depth has no copy to make
+      return (
+        deserializeCollection(value, known) ?? new RemoteObject(value.type)
+      );
   }
   return new RemoteObject(value.type);
+}
+
+type RemoteEntries = Array<[RemoteValue | string, RemoteValue]>;
+
+/**
+ * An array, set, map or object. A back reference (a value seen before, by `internalId`) gives the copy made
+ * earlier; `undefined` means the browser cut the collection off.
+ */
+function deserializeCollection(
+  value: RemoteValue,
+  known: Map<string, unknown>,
+): unknown {
+  const { value: items, internalId } = value as RemoteValue & {
+    value?: unknown;
+    internalId?: string;
+  };
+  if (items === undefined)
+    return internalId !== undefined && known.has(internalId)
+      ? known.get(internalId)
+      : undefined;
+  // Registered before the items are read, so an item that points back at its container finds it
+  const remember = <T>(copy: T): T => {
+    if (internalId !== undefined) known.set(internalId, copy);
+    return copy;
+  };
+  const nested = (item: RemoteValue) => deserialize(item, known);
+  const key = (raw: RemoteValue | string) =>
+    typeof raw === "string" ? raw : nested(raw);
+
+  switch (value.type) {
+    case "array": {
+      const list: unknown[] = remember([]);
+      (items as RemoteValue[]).forEach((item) => list.push(nested(item)));
+      return list;
+    }
+    case "set": {
+      const set = remember(new Set<unknown>());
+      (items as RemoteValue[]).forEach((item) => set.add(nested(item)));
+      return set;
+    }
+    case "map": {
+      const map = remember(new Map<unknown, unknown>());
+      (items as RemoteEntries).forEach(([k, item]) =>
+        map.set(key(k), nested(item)),
+      );
+      return map;
+    }
+    default: {
+      const object: Record<string, unknown> = remember({});
+      (items as RemoteEntries).forEach(([k, item]) => {
+        object[String(key(k))] = nested(item);
+      });
+      return object;
+    }
+  }
 }
 
 function specialNumber(value: number | string): number {

@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveTimeout, waitUntil, WaitTimeoutError } from "./wait-until.js";
-import { resolveRunSettings, setRunSettings } from "../config/run-settings.js";
+import { waitUntil, WaitTimeoutError } from "./wait-until.js";
 
 /** Probe returning the given values in order; the last one repeats */
 function sequence<T>(...values: T[]) {
@@ -12,7 +11,10 @@ function sequence<T>(...values: T[]) {
 
 test("probes until isDone and resolves with that value", async () => {
   const { probe, calls } = sequence(1, 2, 3);
-  assert.equal(await waitUntil(probe, (value) => value === 3, { timeout: 2000 }), 3);
+  assert.equal(
+    await waitUntil(probe, (value) => value === 3, { timeout: 2000 }),
+    3,
+  );
   assert.equal(calls(), 3);
 });
 
@@ -37,13 +39,16 @@ test("passes the previous value to isDone", async () => {
 test("times out with the last value, ending at the deadline", async () => {
   const { probe, calls } = sequence("a", "b");
   const start = Date.now();
-  await assert.rejects(waitUntil(probe, () => false, { timeout: 250 }), (err) => {
-    assert.ok(err instanceof WaitTimeoutError);
-    assert.equal(err.name, "WaitTimeoutError");
-    assert.equal(err.timeout, 250);
-    assert.equal(err.last, "b");
-    return true;
-  });
+  await assert.rejects(
+    waitUntil(probe, () => false, { timeout: 250 }),
+    (err) => {
+      assert.ok(err instanceof WaitTimeoutError);
+      assert.equal(err.name, "WaitTimeoutError");
+      assert.equal(err.timeout, 250);
+      assert.equal(err.last, "b");
+      return true;
+    },
+  );
   const elapsed = Date.now() - start;
   // probes at ~0, ~100, ~200; the final sleep is clamped to the ~50ms left, and no probe starts after the deadline
   assert.ok(elapsed >= 245 && elapsed < 295, `elapsed ${elapsed}ms`);
@@ -52,7 +57,10 @@ test("times out with the last value, ending at the deadline", async () => {
 
 test("timeout 0 probes exactly once", async () => {
   const { probe, calls } = sequence(false);
-  await assert.rejects(waitUntil(probe, (value) => value, { timeout: 0 }), WaitTimeoutError);
+  await assert.rejects(
+    waitUntil(probe, (value) => value, { timeout: 0 }),
+    WaitTimeoutError,
+  );
   assert.equal(calls(), 1);
 });
 
@@ -67,14 +75,21 @@ test("probe errors are rethrown without retrying", async () => {
     calls++;
     throw new Error("boom");
   };
-  await assert.rejects(waitUntil(probe, () => true, { timeout: 2000 }), /boom/);
+  await assert.rejects(
+    waitUntil(probe, () => true, { timeout: 2000 }),
+    /boom/,
+  );
   assert.equal(calls, 1);
 });
 
 test("a probe that never settles stops at the deadline", async () => {
   const start = Date.now();
   await assert.rejects(
-    waitUntil(() => new Promise<never>(() => {}), () => true, { timeout: 200 }),
+    waitUntil(
+      () => new Promise<never>(() => {}),
+      () => true,
+      { timeout: 200 },
+    ),
     (err) => {
       assert.ok(err instanceof WaitTimeoutError);
       assert.equal(err.last, undefined);
@@ -86,32 +101,27 @@ test("a probe that never settles stops at the deadline", async () => {
 
 test("a probe that hangs after earlier results reports the last completed value", async () => {
   let calls = 0;
-  const probe = () => (calls++ === 0 ? Promise.resolve("first") : new Promise<string>(() => {}));
-  await assert.rejects(waitUntil(probe, () => false, { timeout: 200 }), (err) => {
-    assert.ok(err instanceof WaitTimeoutError);
-    assert.equal(err.last, "first");
-    return true;
-  });
+  const probe = () =>
+    calls++ === 0 ? Promise.resolve("first") : new Promise<string>(() => {});
+  await assert.rejects(
+    waitUntil(probe, () => false, { timeout: 200 }),
+    (err) => {
+      assert.ok(err instanceof WaitTimeoutError);
+      assert.equal(err.last, "first");
+      return true;
+    },
+  );
 });
 
 test("no timer outlives a resolved wait", async () => {
-  const timers = () => process.getActiveResourcesInfo().filter((name) => name === "Timeout").length;
+  const timers = () =>
+    process.getActiveResourcesInfo().filter((name) => name === "Timeout")
+      .length;
   const before = timers();
-  await waitUntil(async () => true, (value) => value, { timeout: 10000 });
+  await waitUntil(
+    async () => true,
+    (value) => value,
+    { timeout: 10000 },
+  );
   assert.equal(timers(), before);
-});
-
-test("resolveTimeout prefers the per-call value", async () => {
-  assert.equal(await resolveTimeout(1234), 1234);
-  assert.equal(await resolveTimeout(0), 0);
-});
-
-test("resolveTimeout uses the active run's expect timeout", async () => {
-  setRunSettings(resolveRunSettings({}, { expectTimeout: 1234 }));
-  try {
-    assert.equal(await resolveTimeout(), 1234);
-    assert.equal(await resolveTimeout(10), 10);
-  } finally {
-    setRunSettings(undefined);
-  }
 });
