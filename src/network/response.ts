@@ -1,5 +1,5 @@
 import { ResponseBodyUnavailableError } from "./data-collector.js";
-import type { NetworkRequest, NetworkResponse } from "./network-tracker.js";
+import type { NetworkRequest, NetworkResponse } from "./network-types.js";
 
 /** A response of the page, with access to its body */
 export class Response {

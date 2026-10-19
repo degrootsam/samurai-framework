@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ResponseBodyUnavailableError } from "./data-collector.js";
-import type { NetworkRequest, NetworkResponse } from "./network-tracker.js";
+import type { NetworkRequest, NetworkResponse } from "./network-types.js";
 import { Response } from "./response.js";
 
 const request: NetworkRequest = {
@@ -48,7 +48,10 @@ describe("Response", () => {
 
   it("body, text and json read the same bytes", async () => {
     const { wrapped } = response(Buffer.from('{"a":"héllo"}'));
-    assert.deepEqual([...(await wrapped.body())], [...Buffer.from('{"a":"héllo"}')]);
+    assert.deepEqual(
+      [...(await wrapped.body())],
+      [...Buffer.from('{"a":"héllo"}')],
+    );
     assert.equal(await wrapped.text(), '{"a":"héllo"}');
     assert.deepEqual(await wrapped.json(), { a: "héllo" });
   });
@@ -62,7 +65,10 @@ describe("Response", () => {
 
   it("json names the url when the body is not JSON", async () => {
     const { wrapped } = response(Buffer.from("<html>"));
-    await assert.rejects(wrapped.json(), /Response body of https:\/\/e\.test\/api is not JSON: /);
+    await assert.rejects(
+      wrapped.json(),
+      /Response body of https:\/\/e\.test\/api is not JSON: /,
+    );
   });
 
   it("a failed load can be tried again", async () => {
@@ -76,7 +82,10 @@ describe("Response", () => {
   });
 
   it("a redirect has no body, and the browser is not asked", async () => {
-    const { wrapped, loads } = response(Buffer.from("x"), { status: 302, headers: { location: "/next" } });
+    const { wrapped, loads } = response(Buffer.from("x"), {
+      status: 302,
+      headers: { location: "/next" },
+    });
     await assert.rejects(wrapped.body(), (err: unknown) => {
       assert.ok(err instanceof ResponseBodyUnavailableError);
       assert.equal(err.reason, "redirect response");
