@@ -37,13 +37,15 @@ jobs:
         run: bun run test
 
   browser:
-    name: Browser tests (${{ matrix.browser }})
+    name: Browser tests (${{ matrix.browser }}, ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         browser: [firefox, chrome]
+        # The test files are split over three jobs per browser: the tests run one at a time, so this is the speed-up
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
@@ -59,12 +61,12 @@ jobs:
         timeout-minutes: 12
         env:
           SAMURAI_TEST_BROWSER: ${{ matrix.browser }}
-        run: bun run test:browser
+        run: bun run test:browser --test-shard=${{ matrix.shard }}/3
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: browser-test-logs-${{ matrix.browser }}
+          name: browser-test-logs-${{ matrix.browser }}-${{ matrix.shard }}
           path: |
             logs/
             result/
