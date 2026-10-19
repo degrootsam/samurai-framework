@@ -39,12 +39,13 @@ docs/superpowers/        design specs, plans and roadmaps
 
 ```sh
 bun run test            # unit tests, no browser (src/**/*.test.ts)
-bun run test:browser    # browser tests against Firefox (src/**/*.browser-test.ts)
+bun run test:browser        # browser tests against Firefox (src/**/*.browser-test.ts)
+bun run test:browser:chrome # the same tests against Chrome (SAMURAI_TEST_BROWSER=chrome)
 bun run build && bun run test:cli   # the `samurai` command, through bin/ and dist/ (src/**/*.cli-test.ts)
 bunx tsc --noEmit       # typecheck
 ```
 
-CI (`.github/workflows/ci.yml`) runs the typecheck, unit tests, browser tests and Trunk's code-quality checks on every pull request and push to `main`, on Node 26 and Bun 1.3.0 (`.github/actions/setup`). It installs Firefox with `samurai browsers install firefox` and caches it keyed on `src/browsers/pins.ts`. The CLI tests are not part of CI; run them before changing `src/cli` or `bin/`.
+CI (`.github/workflows/ci.yml`) runs the typecheck, unit tests, browser tests and Trunk's code-quality checks on every pull request and push to `main`, on Node 26 and Bun 1.3.0 (`.github/actions/setup`). The browser tests run in a matrix, once on Firefox and once on Chrome (`SAMURAI_TEST_BROWSER`); each job installs its browser with `samurai browsers install <browser>` and caches the downloads keyed on `src/browsers/pins.ts` (Chrome's chromedriver is part of that cache). A test that is true of one browser only is written with `onlyOn` / `skipOn` from `src/testing/test-browser.ts`, which show it as skipped with the reason. The CLI tests are not part of CI; run them before changing `src/cli` or `bin/`.
 
 - Unit tests use `src/testing/stub-connector.ts`, a fake BiDi connection that records what was sent and answers with canned replies.
 - Browser tests launch a real headless Firefox on a port of their own and are run with `--test-concurrency=1`. They end in `.browser-test.ts`. Install Firefox first: `bun run dev browsers install firefox`.

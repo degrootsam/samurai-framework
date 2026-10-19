@@ -14,6 +14,7 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 - **Flows.** `samurai flow list|check|run`: graphs of tests, groups, conditions, variables, waits and parallel branches, checked before they run, with a report per run. Wait, Set variable and HTTP request run, and you can write more steps, and a project can list its own steps in `samurai.config.ts` (see [Flows](flows.md) and [Writing a step](steps.md)).
 - **Packaging.** Published on npm as `@itmetsam/samurai-framework`, with subpath exports (see [Embedding](embedding.md)) and the `samurai` command (see [Command line](cli.md)).
 - **Browser management.** `samurai browsers install|list|uninstall` downloads pinned Firefox and Chrome for Testing builds into a per-user cache.
+- **Chrome.** Runs, records and replays on Chrome 155 through its chromedriver (BiDi over the `webSocketUrl` capability); the browser tests run on both browsers (`SAMURAI_TEST_BROWSER`). See [Chrome support](pages-and-browsers.md#chrome).
 - **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request (the `samurai` command's own tests, `bun run test:cli`, are run locally).
 
 ## Open: recorder
@@ -21,8 +22,7 @@ Detailed plans live in [`superpowers/recorder-roadmap.md`](superpowers/recorder-
 | #   | Item                                 | Notes                                                                                                                                                                                                                        |
 | --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 5   | **Recorder UI (Electron)**           | Steps panel, step inspector, IPC to the engine, live step stream while recording. The toolbar inside the browser window is done. Lives in the separate `samurai` repository. Depends on the codec and engine, which are done |
-| 6   | **Chrome support**                   | Likely through the `chromium-bidi` mapper (BiDi over CDP). Chrome for Testing already downloads (`samurai browsers install chrome`); launching it is what is open                                                            |
-| 7   | **Embedded recording browser**       | Recording inside the Electron editor panel through `chromium-bidi`. Needs Chrome support (6) first; see the [recorder roadmap](superpowers/recorder-roadmap.md)                                                              |
+| 7   | **Embedded recording browser**       | Recording inside the Electron editor panel through `chromium-bidi`. Chrome support (done) is its first step; see the [recorder roadmap](superpowers/recorder-roadmap.md)                                                     |
 | –   | **Record more interactions**         | `<select>` choices, other key presses (arrows, shortcuts), hover, drag, dialogs, contenteditable, iframes (the toolbar is not shown in them either). Each needs a step kind in the codec first                               |
 | –   | **Files manager in the app**         | Which tests use a file, and delete unused ones (in the separate `samurai` repository)                                                                                                                                        |
 | –   | **Replay up to a step, then record** | Record-from-step-N numbers steps from N, but running steps 0…N−1 first is left to the caller                                                                                                                                 |
@@ -54,7 +54,7 @@ Gaps in the runner today, found while writing these docs:
 
 ## Open: framework API
 
-- **Browsers.** Firefox only for launching (see Chrome above); Chrome for Testing downloads already.
+- **Browsers.** Firefox and Chrome launch. Safari and Edge do not.
 - **Locators.** No `first()`, `last()`, `nth(i)` or `filter(...)` (use `all()`), no `getByPlaceholder` or `getByAltText`, and the test-id attribute is fixed to `data-testid`. No iframe or shadow-DOM piercing beyond the browser's own support.
 - **Actions.** No `hover`, `dblclick`, `check`/`uncheck`, `selectOption`, `type`, page-level keyboard, drag and drop, or scrolling helpers. `locator.press` presses one key on an element. `fill` replaces the whole value; there is no append.
 - **Assertions.** No `toBeHidden`, `toBeEnabled`, `toBeChecked`, `toHaveCSS`, `toHaveURL`, `toHaveTitle`, `toHaveClass`; no screenshot comparison. Use `expect(await page.url())` for the URL and title.
