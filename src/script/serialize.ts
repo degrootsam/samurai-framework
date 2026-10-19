@@ -180,10 +180,8 @@ function deserialize(
     if (loose.internalId !== undefined) known.set(loose.internalId, result);
     return result;
   };
-  const backReference = () =>
-    loose.internalId !== undefined && known.has(loose.internalId)
-      ? { found: true as const, value: known.get(loose.internalId) }
-      : undefined;
+  const isBackReference =
+    loose.internalId !== undefined && known.has(loose.internalId);
 
   let result: unknown;
   switch (value.type) {
@@ -191,8 +189,8 @@ function deserialize(
     case "set":
     case "object":
     case "map": {
-      const reference = backReference();
-      if (reference && loose.value === undefined) return reference.value;
+      if (isBackReference && loose.value === undefined)
+        return known.get(loose.internalId!);
       if (loose.value === undefined) break; // cut off by the serialization depth
       if (value.type === "array") {
         const list: unknown[] = remember([]);

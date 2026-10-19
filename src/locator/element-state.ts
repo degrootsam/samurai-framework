@@ -1,4 +1,4 @@
-export interface ElementBox {
+interface ElementBox {
   x: number;
   y: number;
   width: number;
@@ -27,12 +27,21 @@ export interface ProbeOptions {
 }
 
 export type WaitForState = "attached" | "detached" | "visible" | "hidden";
-export type CheckName = "attached" | "visible" | "stable" | "enabled" | "editable" | "hit target";
+export type CheckName =
+  "attached" | "visible" | "stable" | "enabled" | "editable" | "hit target";
 export type CheckResult = "pass" | "fail" | "pending";
 /** Results keyed by check name, in the order the checks were evaluated */
 export type CheckResults = Partial<Record<CheckName, CheckResult>>;
 
-const TEXT_INPUT_TYPES = ["text", "search", "email", "url", "tel", "password", "number"];
+const TEXT_INPUT_TYPES = [
+  "text",
+  "search",
+  "email",
+  "url",
+  "tel",
+  "password",
+  "number",
+];
 
 /** State of an element that is not in the document (never matched, or gone) */
 export const DETACHED_STATE: ElementState = {
@@ -52,7 +61,7 @@ export const DETACHED_STATE: ElementState = {
  */
 export const PROBE_ELEMENT = `(el, options) => {
   if (!el || !el.isConnected) {
-    return { attached: false, visible: false, enabled: false, editable: false, box: null, hitTarget: null };
+    return ${JSON.stringify(DETACHED_STATE)};
   }
   if (options.scroll) {
     const before = el.getBoundingClientRect();
@@ -88,7 +97,9 @@ export const PROBE_ELEMENT = `(el, options) => {
 /** Checks the probe result is a complete state; throws on anything else */
 export function parseElementState(value: unknown): ElementState {
   if (typeof value !== "object" || value === null) {
-    throw new Error(`Expected an element state object but received "${describeType(value)}"`);
+    throw new Error(
+      `Expected an element state object but received "${describeType(value)}"`,
+    );
   }
   const state = value as Partial<ElementState>;
   const flags = ["attached", "visible", "enabled", "editable"] as const;
@@ -102,7 +113,7 @@ export function parseElementState(value: unknown): ElementState {
   return state as ElementState;
 }
 
-function describeType(value: unknown): string {
+export function describeType(value: unknown): string {
   return value === null ? "null" : typeof value;
 }
 
@@ -117,7 +128,11 @@ function sameBox(a: ElementBox | null, b: ElementBox | null) {
   );
 }
 
-function checkPasses(name: CheckName, current: ElementState, previous: ElementState | undefined) {
+function checkPasses(
+  name: CheckName,
+  current: ElementState,
+  previous: ElementState | undefined,
+) {
   switch (name) {
     case "attached":
       return current.attached;

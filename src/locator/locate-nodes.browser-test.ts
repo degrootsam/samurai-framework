@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { setContent } from "../testing/browser-fixture.js";
-import { InvalidSelectorError } from "./locator.js";
+import { InvalidSelectorError } from "./selector-errors.js";
 import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;

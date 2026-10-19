@@ -1,6 +1,24 @@
 import { createLogger, format, transports } from "winston";
 import { maskFormat } from "../config/mask.js";
 
+/** Metadata every line carries (`defaultMeta`): not worth printing on each console line */
+const DEFAULT_META_KEYS = ["service"];
+
+/** One console line: `LEVEL: message`, then the line's own metadata as JSON when it has any */
+export function consoleLine(entry: {
+  level: string;
+  message: unknown;
+  meta?: Record<string, unknown> | undefined;
+}): string {
+  const own = Object.fromEntries(
+    Object.entries(entry.meta ?? {}).filter(
+      ([key]) => !DEFAULT_META_KEYS.includes(key),
+    ),
+  );
+  const meta = Object.keys(own).length > 0 ? `\n${JSON.stringify(own)}` : "";
+  return `${entry.level.toUpperCase()}: ${String(entry.message)}${meta}`;
+}
+
 const logger = createLogger({
   level: "debug",
   format: format.combine(
@@ -15,10 +33,7 @@ const logger = createLogger({
   ),
   defaultMeta: { service: "samurai-framework" },
   transports: [
-    //
-    // - Write to all logs with level `info` and below to `quick-start-combined.log`.
-    // - Write all logs error (and below) to `quick-start-error.log`.
-    //
+    // The console shows the log; `logs/error.log` keeps errors and `logs/combined.log` everything
     new transports.Console({
       // The `samurai` command quiets this to "warn"; the log files keep everything
       level: process.env.SAMURAI_LOG_LEVEL ?? "debug",
@@ -27,9 +42,13 @@ const logger = createLogger({
       format: format.combine(
         format.timestamp(),
         format.errors({ stack: true }),
-        format.printf(({ level, message, meta }) => {
-          return `${level.toUpperCase()}: ${message}${meta ? `\n${JSON.stringify(meta)}` : null}`;
-        }),
+        format.printf(({ level, message, meta }) =>
+          consoleLine({
+            level,
+            message,
+            meta: meta as Record<string, unknown> | undefined,
+          }),
+        ),
       ),
     }),
     new transports.File({

@@ -3,13 +3,12 @@ import { readConfig } from "../config/config.js";
 import { peekRunSettings } from "../config/run-settings.js";
 
 const DEFAULT_TIMEOUT = 5000;
-const DEFAULT_INTERVAL = 100;
+/** Time (ms) between probes */
+const POLL_INTERVAL = 100;
 
 export interface WaitOptions {
   /** Total time (ms) to keep probing; 0 probes exactly once */
   timeout: number;
-  /** Time (ms) between probes. @default 100 */
-  interval?: number;
 }
 
 export class WaitTimeoutError<T> extends Error {
@@ -50,8 +49,8 @@ function probeBefore<T>(
   });
   // A probe that loses the race may still fail later; nobody is waiting for it any more
   probing.catch(() => {});
-  return Promise.race([probing.then((value) => ({ value })), expired]).finally(() =>
-    clearTimeout(timer),
+  return Promise.race([probing.then((value) => ({ value })), expired]).finally(
+    () => clearTimeout(timer),
   );
 }
 
@@ -63,7 +62,7 @@ function probeBefore<T>(
 export async function waitUntil<T>(
   probe: () => Promise<T>,
   isDone: (current: T, previous: T | undefined) => boolean,
-  { timeout, interval = DEFAULT_INTERVAL }: WaitOptions,
+  { timeout }: WaitOptions,
 ): Promise<T> {
   const deadline = Date.now() + timeout;
   let previous: T | undefined;
@@ -74,13 +73,16 @@ export async function waitUntil<T>(
     if (!first && remaining <= 0) throw new WaitTimeoutError(timeout, previous);
 
     // timeout 0 keeps the single probe un-raced so it always completes
-    const result = timeout > 0 ? await probeBefore(probe, remaining) : { value: await probe() };
+    const result =
+      timeout > 0
+        ? await probeBefore(probe, remaining)
+        : { value: await probe() };
     if (result === DEADLINE) throw new WaitTimeoutError(timeout, previous);
     if (isDone(result.value, previous)) return result.value;
     previous = result.value;
 
     const left = deadline - Date.now();
     if (left <= 0) throw new WaitTimeoutError(timeout, previous);
-    await sleep(Math.min(interval, left));
+    await sleep(Math.min(POLL_INTERVAL, left));
   }
 }

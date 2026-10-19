@@ -34,7 +34,7 @@ export interface AssertionErrorDetails {
   matcher: string;
   expected: unknown;
   actual: unknown;
-  /** XPath of the asserted locator, only for locator assertions */
+  /** Description of the asserted locator, only for locator assertions */
   locator?: string | undefined;
 }
 
@@ -50,7 +50,10 @@ export class AssertionError extends Error {
     if (locator !== undefined) {
       lines.push(`  locator: ${locator}`);
     }
-    lines.push(`  expected: ${format(expected)}`, `  received: ${format(actual)}`);
+    lines.push(
+      `  expected: ${format(expected)}`,
+      `  received: ${format(actual)}`,
+    );
 
     super(lines.join("\n"));
     this.name = "AssertionError";
