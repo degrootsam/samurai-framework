@@ -11,6 +11,33 @@ describe("toolbar script", () => {
     assert.match(TOOLBAR_SOURCE, /^\(send\) => \{/);
   });
 
+  it("is the slices of source/ joined in order, each section banner once", () => {
+    const banners = [
+      "// ---- DOM ----",
+      "// ---- Names and labels ----",
+      "// ---- Placement ----",
+      "// ---- Views ----",
+      "// ---- Panels and picking ----",
+      "// ---- Drag ----",
+      "// ---- Events inside the toolbar",
+      "// ---- Events on the page",
+      "// ---- The recorder's side ----",
+      "// ---- Attach ----",
+    ];
+    let from = 0;
+    for (const banner of banners) {
+      const at = TOOLBAR_SOURCE.indexOf(banner, from);
+      assert.ok(at >= from, `${banner} is missing or out of order`);
+      assert.equal(
+        TOOLBAR_SOURCE.indexOf(banner, at + 1),
+        -1,
+        `${banner} appears twice`,
+      );
+      from = at;
+    }
+    assert.match(TOOLBAR_SOURCE, /attach\);\n\}$/);
+  });
+
   it("draws into a closed shadow root on its own host element", () => {
     assert.ok(TOOLBAR_SOURCE.includes(`attachShadow({ mode: "closed" })`));
     assert.ok(TOOLBAR_SOURCE.includes(`"samurai-recorder-toolbar"`));
