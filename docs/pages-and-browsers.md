@@ -203,7 +203,7 @@ The first start of a freshly downloaded build can be slow (macOS checks the new 
 
 ### Chrome
 
-Set `browser: "chrome"` in `samurai.config.ts` (see [Configuration](configuration.md)) to run, record and replay on Chrome. Chrome has no BiDi endpoint of its own, so the framework starts the `chromedriver` that comes with the pinned Chrome (`samurai browsers install chrome` downloads both), asks it for a session with a BiDi socket, and connects to that. Everything above the connection is the same as on Firefox; the differences you can notice:
+Put `"chrome"` in `browsers` in `samurai.config.ts` (`browsers: ["chrome"]`, or `["firefox", "chrome"]` to run every test in both; see [Browsers](configuration.md#browsers)), or pass `--browser chrome`, to run, record and replay on Chrome. Chrome has no BiDi endpoint of its own, so the framework starts the `chromedriver` that comes with the pinned Chrome (`samurai browsers install chrome` downloads both), asks it for a session with a BiDi socket, and connects to that. Everything above the connection is the same as on Firefox; the differences you can notice:
 
 - Headless Chrome hides its scrollbars, so the viewport is the size you asked for. Headed Chrome keeps them.
 - `port` is ignored: chromedriver picks the port.
@@ -212,7 +212,7 @@ Set `browser: "chrome"` in `samurai.config.ts` (see [Configuration](configuratio
 - `SAMURAI_CHROMEDRIVER_PATH` points a launch at another chromedriver. It must match the major version of the Chrome it starts; with `SAMURAI_CHROME_PATH` or `browserPaths.chrome` set to a different Chrome, set this too.
 - A Chrome that is still running on the project's profile (`browsers/profiles/chrome`, for instance left by a killed run) stops the next launch at once with `Chrome is already running on the profile … (process <pid>)`; close it or end that process. The check reads Chrome's `SingletonLock` link, so it works on Linux and macOS; on Windows the launch still waits for the start timeout.
 
-A launch picks the browser in this order:
+A run picks its browsers from `--browser`, the group being run, the config's `browsers` and then Firefox (see [Browsers](configuration.md#browsers)); `Browser.launch("chrome")` and `Browser.launch("firefox")` in your own code name the browser directly. A launch picks the executable of a browser in this order:
 
 1. `SAMURAI_FIREFOX_PATH` (or `SAMURAI_CHROME_PATH`), a path to the executable.
 2. `browserPaths` in `samurai.config.ts` (see [Configuration](configuration.md#browser-paths)).
@@ -225,6 +225,10 @@ Firefox 158.0 is not installed. Run: samurai browsers install firefox
 ```
 
 A run with no tests to run does not need a browser.
+
+### Upgrading to 0.10
+
+0.10 runs tests in one or more browsers. In `samurai.config.ts`, replace `browser: "x"` with `browsers: ["x"]`; the old key is an error (`"browser" was replaced by "browsers": use browsers: ["x"]`), not ignored. Groups can have their own `browsers`. Named screenshots now live in a folder per browser, `result/screenshots/<browser>/…`, also for a run with one browser, so the `path` in a report changes. Every result in `result/report.json` and every `test-start` / `test-end` event gains `browser`, the summary gains `browsers`, and `run-start` gains `browsers` (its `total` counts tests in every browser). The Electron app (a separate repository) has to write `browsers` in the projects it creates and read `browser` from results and events.
 
 ### Upgrading to 0.7
 
