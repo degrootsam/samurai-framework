@@ -3,11 +3,9 @@ import path from "node:path";
 import { projectBrowser, type ResolvedBrowser } from "../browsers/resolve.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
-import {
-  Browser,
-  BrowserStartTimeoutError,
-  type BrowserLaunchOptions,
-} from "./browser.js";
+import { Browser } from "./browser.js";
+import type { BrowserLaunchOptions } from "./launch-flags.js";
+import { BrowserStartTimeoutError } from "./session.js";
 
 /** Written into a managed build's folder once it started there; its first start can be slow (macOS checks the new app) */
 export const LAUNCHED_STAMP = ".samurai-launched";
