@@ -12,6 +12,9 @@ import { after, before, describe, it } from "node:test";
 import type { FlowFile } from "../core/index.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { runTests } from "../../runner/run.js";
+import type { PoolOptions, RunHooks } from "../../runner/worker-pool.js";
+import type { WorkItem } from "../../runner/worker-protocol.js";
+import type { TestResult } from "../../types/test.js";
 import { defineStep } from "../steps/index.js";
 import type { FlowEvent } from "./events.js";
 import {
@@ -216,6 +219,203 @@ describe("runFlowInProject", () => {
       ]),
     });
     assert.deepEqual(summary.vars, { r: "eu" });
+  });
+
+  describe("with workers", () => {
+    /** A pool that answers every item with `status`, and remembers what it was asked */
+    function fakePool(status: "success" | "failed" = "success") {
+      const state = {
+        created: [] as PoolOptions[],
+        runs: [] as WorkItem[][],
+        disposed: 0,
+      };
+      const createPool = (options: PoolOptions) => {
+        state.created.push(options);
+        return {
+          async run(items: WorkItem[], hooks: RunHooks = {}) {
+            state.runs.push(items);
+            return items.map((item) => {
+              const result = {
+                name: item.testName,
+                file: item.file,
+                browser: item.browser,
+                startTime: 0,
+                duration: 1,
+                status,
+                ...(status === "failed" && {
+                  message: "no",
+                  type: "error" as const,
+                }),
+              } as TestResult;
+              hooks.onEvent?.({ type: "test-start", item, worker: 0 });
+              hooks.onEvent?.({ type: "test-end", item, worker: 0, result });
+              return result;
+            });
+          },
+          async dispose() {
+            state.disposed++;
+          },
+        };
+      };
+      return { state, createPool };
+    }
+    const real = (p: string) => path.join(realpathSync(dir), p);
+    const login = {
+      id: "t",
+      kind: "test",
+      ref: { testId: "login.spec.ts::works" },
+    };
+
+    it("runs the tests on one pool built from the run options, and disposes it", async () => {
+      const h = harness();
+      const pool = fakePool();
+      const summary = await runFlowInProject({
+        ...h.options,
+        workers: 3,
+        port: 9300,
+        headless: true,
+        timeout: 5000,
+        environment: "staging",
+        createPool: pool.createPool,
+        flow: chain([
+          login,
+          {
+            id: "g",
+            kind: "group",
+            ref: { group: "checkout" },
+          },
+        ]),
+      });
+      assert.equal(summary.status, "passed");
+      assert.equal(h.calls.length, 0, "runTests is not used");
+      assert.equal(pool.state.created.length, 1, "one pool for the run");
+      const options = pool.state.created[0]!;
+      assert.equal(options.workers, 3);
+      assert.equal(options.init.basePort, 9300);
+      assert.equal(options.init.headless, true);
+      assert.equal(options.init.timeout, 5000);
+      assert.equal(options.init.environment, "staging");
+      assert.equal(options.init.projectDir, path.resolve(dir));
+      assert.deepEqual([...options.init.files].sort(), [
+        real("src/checkout/cart.spec.ts"),
+        real("src/login.spec.ts"),
+      ]);
+      assert.equal(pool.state.disposed, 1);
+    });
+
+    it("builds one item per test and browser, the group's browsers one after the other", async () => {
+      const pool = fakePool();
+      await runFlowInProject({
+        ...harness().options,
+        workers: 2,
+        createPool: pool.createPool,
+        flow: chain([
+          login,
+          { id: "g", kind: "group", ref: { group: "cross" } },
+        ]),
+      });
+      const [first, second] = pool.state.runs;
+      assert.deepEqual(first, [
+        {
+          index: 0,
+          file: real("src/login.spec.ts"),
+          testName: "works",
+          browser: "firefox",
+        },
+      ]);
+      assert.deepEqual(
+        second!.map((i) => [i.index, i.testName, i.browser]),
+        [
+          [0, "Cart > adds", "firefox"],
+          [1, "Cart > adds", "chrome"],
+        ],
+      );
+    });
+
+    it("reports the pool's events as test events of the node", async () => {
+      const h = harness();
+      await runFlowInProject({
+        ...h.options,
+        workers: 2,
+        createPool: fakePool().createPool,
+        flow: chain([login]),
+      });
+      const tests = h.events.flatMap((e) =>
+        e.type === "test" ? [[e.nodeId, e.event.type]] : [],
+      );
+      assert.deepEqual(tests, [
+        ["t", "test-start"],
+        ["t", "test-end"],
+      ]);
+      const end = h.events.find(
+        (e) => e.type === "test" && e.event.type === "test-end",
+      ) as { event: { name: string; browser: string; file: string } };
+      assert.equal(end.event.name, "works");
+      assert.equal(end.event.browser, "firefox");
+      assert.equal(end.event.file, real("src/login.spec.ts"));
+    });
+
+    it("a failed test fails the node; an aborted run cancels the flow", async () => {
+      const flow = chain([login]);
+      const failed = await runFlowInProject({
+        ...harness().options,
+        workers: 2,
+        createPool: fakePool("failed").createPool,
+        flow,
+      });
+      assert.equal(failed.nodes.t!.error, "A test failed.");
+
+      const controller = new AbortController();
+      const pool = fakePool();
+      const cancelled = await runFlowInProject({
+        ...harness().options,
+        workers: 2,
+        signal: controller.signal,
+        createPool: (options) => {
+          const inner = pool.createPool(options);
+          return {
+            dispose: inner.dispose,
+            async run(items, hooks) {
+              controller.abort();
+              return inner.run(items, hooks);
+            },
+          };
+        },
+        flow,
+      });
+      assert.equal(cancelled.status, "cancelled");
+      assert.equal(pool.state.disposed, 1);
+    });
+
+    it("a pool that rejects fails the node, and is still disposed", async () => {
+      let disposed = 0;
+      const summary = await runFlowInProject({
+        ...harness().options,
+        workers: 2,
+        createPool: () => ({
+          run: async () => {
+            throw new Error("The worker failed to start");
+          },
+          dispose: async () => void disposed++,
+        }),
+        flow: chain([login]),
+      });
+      assert.equal(summary.nodes.t!.error, "The worker failed to start");
+      assert.equal(disposed, 1);
+    });
+
+    it("with one worker there is no pool and runTests is used", async () => {
+      const h = harness();
+      const pool = fakePool();
+      await runFlowInProject({
+        ...h.options,
+        workers: 1,
+        createPool: pool.createPool,
+        flow: chain([login]),
+      });
+      assert.equal(pool.state.created.length, 0);
+      assert.equal(h.calls.length, 1);
+    });
   });
 
   it("a flow read by id gets its id from the file name", async () => {
