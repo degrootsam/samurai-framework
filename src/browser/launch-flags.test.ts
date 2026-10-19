@@ -3,10 +3,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { setActiveProject } from "../config/config.js";
 import {
   browserLaunchEnv,
   browserLaunchFlag,
   ensureBrowserProfile,
+  workerProfileDir,
 } from "./launch-flags.js";
 
 test("firefox starts on about:blank, not its privileged home page", () => {
@@ -60,5 +62,16 @@ test("firefox may open a profile a newer Firefox used", () => {
     assert.equal(env.MOZ_APP_DATA, dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("worker 0 keeps the browser's profile folder, the others get their own", () => {
+  setActiveProject({ dir: "/proj", dataDir: "/data" });
+  try {
+    assert.equal(workerProfileDir("firefox", 0), "/data/profiles/firefox");
+    assert.equal(workerProfileDir("firefox", 2), "/data/profiles/firefox-w2");
+    assert.equal(workerProfileDir("chrome", 1), "/data/profiles/chrome-w1");
+  } finally {
+    setActiveProject(undefined);
   }
 });
