@@ -1333,6 +1333,11 @@ describe("Page API", () => {
         data: PNG.toString("base64"),
       }),
       "browsingContext.print": () => ({ data: PDF.toString("base64") }),
+      "script.callFunction": () => ({
+        type: "success",
+        realm: "realm-1",
+        result: { type: "undefined" },
+      }),
       "browsingContext.reload": () => ({
         navigation: "nav-2",
         url: "https://example.test/",
@@ -1370,6 +1375,35 @@ describe("Page API", () => {
       assert.deepEqual(commands("browsingContext.setViewport"), [
         { context: "ctx-1", viewport: null, devicePixelRatio: null },
       ]);
+      stop();
+    });
+
+    test("null waits for the page to stop resizing: watch first, reset, then wait", async () => {
+      const { ws, page, stop } = apiPage();
+      await page.setViewport(null);
+      assert.deepEqual(
+        ws.sent
+          .filter((m) =>
+            ["script.callFunction", "browsingContext.setViewport"].includes(
+              m.method,
+            ),
+          )
+          .map((m) => m.method),
+        [
+          "script.callFunction",
+          "browsingContext.setViewport",
+          "script.callFunction",
+        ],
+      );
+      stop();
+    });
+
+    test("null still resets a page that cannot be watched", async () => {
+      const { page, stop, commands } = apiPage({
+        "script.callFunction": () => bidiError("no such frame"),
+      });
+      await page.setViewport(null);
+      assert.equal(commands("browsingContext.setViewport").length, 1);
       stop();
     });
 
