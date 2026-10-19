@@ -1,10 +1,13 @@
 import type { Browser } from "../browser/browser.ts";
 import type Page from "../browser/page.ts";
+import type { SupportedBrowser } from "./browser.ts";
 
 /** What a test function receives */
 export interface TestFixtures {
   page: Page;
   browser: Browser;
+  /** The browser this run of the test is in */
+  browserName: SupportedBrowser;
   /** The chosen environment's variables; reading an unknown name throws */
   env: Readonly<Record<string, string | number | boolean>>;
   /** Secrets by name (SAMURAI_SECRET_<NAME>); reading an unset name throws */
@@ -66,12 +69,15 @@ export interface TestLogEntry {
 interface TestResultIdentity {
   name: string;
   file: string;
+  /** The browser the test ran in */
+  browser: SupportedBrowser;
   startTime: number;
 }
 
 interface TestResultBase {
   name: string;
   file: string;
+  browser: SupportedBrowser;
   startTime: number;
   status: "started";
 }
@@ -102,4 +108,6 @@ interface TestSummaryBase {
   tests: TestResult[];
   /** The environment the run used */
   environment: string;
+  /** The browsers the run used, in the order they ran */
+  browsers: SupportedBrowser[];
 }

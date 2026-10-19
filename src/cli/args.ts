@@ -1,5 +1,12 @@
 import { parseArgs } from "node:util";
-import type { ProjectOptions } from "../runner/run.js";
+import {
+  checkBrowserList,
+  type ProjectOptions,
+  type RunnerOptions,
+} from "../runner/run.js";
+
+/** `firefox` or `chrome` */
+type SupportedBrowser = NonNullable<RunnerOptions["browsers"]>[number];
 
 /** The values a command line can override for one run */
 type RunOverrides = Pick<
@@ -15,6 +22,7 @@ const FLAGS = {
   port: { type: "string" },
   grep: { type: "string" },
   group: { type: "string" },
+  browser: { type: "string", multiple: true },
   file: { type: "string", multiple: true },
   json: { type: "boolean" },
   all: { type: "boolean" },
@@ -51,9 +59,11 @@ export interface RunnerFlags {
   grep?: string;
   group?: string;
   files?: string[];
+  /** `--browser`, repeated for more than one; replaces the config's `browsers` for this run */
+  browsers?: SupportedBrowser[];
 }
 
-/** Reads `--headless`, `--port <n>`, `--grep <text>`, `--group <name>` and `--file <spec>` (repeatable) from `argv` */
+/** Reads `--headless`, `--port <n>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv` */
 export function parseRunnerFlags(argv: string[]): RunnerFlags {
   const values = parseFlags(argv);
   const flags: RunnerFlags = {};
@@ -70,6 +80,10 @@ export function parseRunnerFlags(argv: string[]): RunnerFlags {
   if (values.grep !== undefined) flags.grep = values.grep;
   if (values.group !== undefined) flags.group = values.group;
   if (values.file?.length) flags.files = values.file;
+  if (values.browser?.length) {
+    checkBrowserList(values.browser, "--browser");
+    flags.browsers = values.browser as SupportedBrowser[];
+  }
   return flags;
 }
 

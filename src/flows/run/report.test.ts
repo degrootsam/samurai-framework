@@ -30,7 +30,7 @@ describe("flow report", () => {
     b.handle({
       type: "test",
       nodeId: "t",
-      event: { type: "test-start", name: "x", file: "f" },
+      event: { type: "test-start", name: "x", file: "f", browser: "firefox" },
     });
     b.handle({
       type: "test",
@@ -39,6 +39,7 @@ describe("flow report", () => {
         type: "test-end",
         name: failed.name!,
         file: "f",
+        browser: "firefox",
         result: failed,
       },
     });
@@ -69,7 +70,13 @@ describe("flow report", () => {
     b.handle({
       type: "test",
       nodeId: "t",
-      event: { type: "test-end", name: "n", file: "f", result: failed },
+      event: {
+        type: "test-end",
+        name: "n",
+        file: "f",
+        browser: "firefox",
+        result: failed,
+      },
     });
     const file = await writeFlowReport(
       dir,
