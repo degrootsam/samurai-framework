@@ -12,6 +12,8 @@ A TypeScript browser test framework over WebDriver BiDi (Firefox natively, Chrom
 | `npm run test:browser` / `npm run test:browser:chrome`      | Browser tests on Firefox / Chrome (run one after the other, never together) |
 | `npx knip --no-config-hints` and `npx madge --circular src` | Unused code, import loops                                                   |
 
+Run the tests through these npm scripts: they preload `scripts/test-tmp.mjs`, which gives each test process a private temp folder and removes it afterwards. Tests make temp projects (with browser profiles of up to 100 MB) and `/tmp` can be memory, so a bare `tsx --test` leaves them behind and can fill RAM over days.
+
 Browser tests share a lock, ports and browser profiles: wrap them in `flock /tmp/claude-1000/browser.lock` (any path works, but use one) and kill leftover `chromedriver-linux64` and `chrome-linux64/chrome` processes first.
 
 ## Work order
