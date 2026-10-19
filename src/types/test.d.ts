@@ -21,12 +21,28 @@ export type TestCase = TestCaseBase;
 /** `skip`: not run. `fixme`: not run, known to be broken. `only`: the only test that runs when any is focused */
 export type Modifier = "skip" | "fixme" | "only";
 
+/** Runs before or after each test of a suite, in the test's browser, with the test's fixtures */
+export type EachHook = (fixtures: TestFixtures) => Promise<void> | void;
+
+/** What `beforeAll` and `afterAll` receive: no page, as they run once for many tests */
+export type AllHookFixtures = Pick<
+  TestFixtures,
+  "env" | "secrets" | "browserName" | "workerIndex"
+>;
+
+/** Runs once per worker before the first test of a suite, or after the last one the worker ran */
+export type AllHook = (fixtures: AllHookFixtures) => Promise<void> | void;
+
 /** A spec file (the root) or a `describe` block: what a modifier or a hook applies to */
 export interface Suite {
   /** The `describe` title; the root of a file has none */
   title?: string;
   parent?: Suite;
   modifier?: Modifier;
+  beforeEach?: EachHook[];
+  afterEach?: EachHook[];
+  beforeAll?: AllHook[];
+  afterAll?: AllHook[];
 }
 
 export interface RegisteredTestCase extends TestCaseBase {

@@ -2,11 +2,16 @@ import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import {
+  afterAll as samuraiAfterAll,
+  afterEach as samuraiAfterEach,
+  beforeAll as samuraiBeforeAll,
+  beforeEach as samuraiBeforeEach,
   clearRegistry,
   describe as samuraiDescribe,
   registeredTests,
   test as samuraiTest,
 } from "./registry.js";
+import { afterEachOf, beforeEachOf } from "./suite.js";
 
 afterEach(() => clearRegistry());
 
@@ -165,4 +170,63 @@ test("test.skip(condition) throws a skip signal only when the condition is true"
     0,
     "the condition forms register nothing",
   );
+});
+
+test("hooks belong to the describe block they are written in, or to the file", () => {
+  const top = () => {};
+  const inner = () => {};
+  samuraiBeforeEach(top);
+  samuraiDescribe("A", () => {
+    samuraiBeforeEach(inner);
+    samuraiAfterEach(inner);
+    samuraiBeforeAll(inner);
+    samuraiAfterAll(inner);
+    samuraiTest("one", noop);
+  });
+  samuraiTest("two", noop);
+  const [one, two] = registeredTests();
+  assert.deepEqual(one?.suite.beforeEach, [inner]);
+  assert.deepEqual(one?.suite.afterEach, [inner]);
+  assert.deepEqual(one?.suite.beforeAll, [inner]);
+  assert.deepEqual(one?.suite.afterAll, [inner]);
+  assert.deepEqual(two?.suite.beforeEach, [top]);
+  assert.equal(two?.suite.afterEach, undefined);
+});
+
+test("beforeEach hooks run outermost first, afterEach innermost first, each suite in the order written", () => {
+  const order = ["root1", "root2", "outer", "inner"].map((name) => ({
+    name,
+    fn: () => {},
+  }));
+  const [root1, root2, outer, inner] = order.map((o) => o.fn) as [
+    () => void,
+    () => void,
+    () => void,
+    () => void,
+  ];
+  samuraiBeforeEach(root1);
+  samuraiAfterEach(root1);
+  samuraiBeforeEach(root2);
+  samuraiAfterEach(root2);
+  samuraiDescribe("A", () => {
+    samuraiBeforeEach(outer);
+    samuraiAfterEach(outer);
+    samuraiDescribe("B", () => {
+      samuraiBeforeEach(inner);
+      samuraiAfterEach(inner);
+      samuraiTest("t", noop);
+    });
+  });
+  const suite = registeredTests()[0]!.suite;
+  assert.deepEqual(beforeEachOf(suite), [root1, root2, outer, inner]);
+  assert.deepEqual(afterEachOf(suite), [inner, outer, root1, root2]);
+});
+
+test("clearRegistry forgets the hooks of a file", () => {
+  samuraiBeforeEach(noop);
+  samuraiTest("t", noop);
+  assert.equal(registeredTests()[0]?.suite.beforeEach?.length, 1);
+  clearRegistry();
+  samuraiTest("fresh", noop);
+  assert.equal(registeredTests()[0]?.suite.beforeEach, undefined);
 });
