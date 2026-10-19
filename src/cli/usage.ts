@@ -28,6 +28,8 @@ Options for run:
   --workers <n|n%>            Tests that run at the same time, each in a worker process: a number
                               from 1, or a share of the CPUs like 50%. Default: the config's
                               workers (or SAMURAI_WORKERS), else half the CPUs
+  --retries <n>               Run a failing test again up to n times, each with a fresh browser
+                              (or SAMURAI_RETRIES; default 0)
 
 Options for record (also --env, --port, --json, --headless, --no-headless):
   --browser <name>            Record in this browser (default: the first of the config's browsers)
