@@ -45,12 +45,45 @@ bun run build && bun run test:cli   # the `samurai` command, through bin/ and di
 bunx tsc --noEmit       # typecheck
 ```
 
-CI (`.github/workflows/ci.yml`) runs the typecheck, unit tests, browser tests and Trunk's code-quality checks on every pull request and push to `main`, on Node 26 and Bun 1.3.0 (`.github/actions/setup`). The browser tests run in a matrix, once on Firefox and once on Chrome (`SAMURAI_TEST_BROWSER`); each job installs its browser with `samurai browsers install <browser>` and caches the downloads keyed on `src/browsers/pins.ts` (Chrome's chromedriver is part of that cache). A test that is true of one browser only is written with `onlyOn` / `skipOn` from `src/testing/test-browser.ts`, which show it as skipped with the reason. The CLI tests are not part of CI; run them before changing `src/cli` or `bin/`.
+CI (`.github/workflows/ci.yml`) runs the typecheck, the unit tests (after a build, so the bundle test of `flows/core` runs), browser tests and Trunk's code-quality checks on every pull request and push to `main`, on Node 26 and Bun 1.3.0 (`.github/actions/setup`). The browser tests run in a matrix, once on Firefox and once on Chrome (`SAMURAI_TEST_BROWSER`); each job installs its browser with `samurai browsers install <browser>` and caches the downloads keyed on `src/browsers/pins.ts` (Chrome's chromedriver is part of that cache). A test that is true of one browser only is written with `onlyOn` / `skipOn` from `src/testing/test-browser.ts`, which show it as skipped with the reason. The CLI tests are not part of CI; run them before changing `src/cli` or `bin/`.
 
 - Unit tests use `src/testing/stub-connector.ts`, a fake BiDi connection that records what was sent and answers with canned replies.
-- Browser tests launch a real headless Firefox on a port of their own and are run with `--test-concurrency=1`. They end in `.browser-test.ts`. Install Firefox first: `bun run dev browsers install firefox`.
+- Browser tests launch a real headless browser, Firefox by default and Chrome with `SAMURAI_TEST_BROWSER=chrome`, and are run with `--test-concurrency=1` and a 60 s limit per test. They end in `.browser-test.ts`. Install the browsers first: `bun run dev browsers install all`. A few tests (several browsers in one run) need both and skip themselves when one is missing.
 - CLI tests run `bin/samurai.mjs`, which loads `dist/`, so build first. They end in `.cli-test.ts`.
 - Both use Node's built-in test runner through `tsx`.
+
+## How the folders depend on each other
+
+The table reads top to bottom: a folder mostly uses the ones below it. It is taken from the imports (`npx madge --json --extensions ts --ts-config tsconfig.json src`, tests left out), the real picture today is:
+
+| Folder                     | Imports from                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `cli`                      | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)                |
+| `runner`                   | `browser`, `browsers`, `assert`, `config`, `transport`, `logger`                               |
+| `recorder`                 | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`                       |
+| `flows/run`, `flows/steps` | `flows/core`, `runner`, `config` (and each other: handlers and steps)                          |
+| `browser`                  | `network`, `locator`, `script`, `steps`, `recorder`, `browsers`, `transport`, `wait`, `config` |
+| `network`, `steps`         | `browser` (`ContextTree`, `Page` types), `locator`, `transport`, `wait`                        |
+| `assert`                   | `locator`, `wait`                                                                              |
+| `locator`                  | `script`, `browser` (screenshots, generated files), `transport`, `wait`                        |
+| `script`                   | `transport`, `logger`, `locator` (the probe in `script/helpers.ts`)                            |
+| `transport`                | `wait`, `logger`                                                                               |
+| `wait`, `logger`, `config` | `wait` reads `config` (timeouts); `config` and `logger` import each other; nothing else        |
+| `project`, `browsers`      | `config`, `logger`                                                                             |
+| `flows/core`               | nothing (pure, no Node APIs; a test bundles it to prove that)                                  |
+
+Rules that keep it modular:
+
+- `config/` does not import `runner/`. Config validation that the runner needs lives in `config/` (`config/browsers.ts`).
+- `cli/` shares its small helpers inside its own folder (`cli/io.ts` holds `Io`), so `main.ts` is the only file that imports the command modules.
+- `transport/` knows nothing of pages, locators or the recorder.
+- `import type` between files of one folder is fine; a value import that closes a loop is not. `npx madge --circular --extensions ts --ts-config tsconfig.json src` lists loops (the generated BiDi `.d.ts` files form type-only loops that are harmless).
+
+Known exceptions to the direction, tracked in the [codebase review](superpowers/codebase-review-2026-10-19.md): `browser` imports the recorder (`Page.record`) and `steps`; `script/helpers.ts` imports the locator's probe; `locator` imports `screenshot` and `generated-files` from `browser/`; `network` imports `ContextTree` from `browser/`; `wait` reads `config/` for timeouts; `config` and `logger` import each other; `flows/steps` and `flows/run` import each other.
+
+## Keeping the code tidy
+
+`npx knip` lists unused files, exports and dependencies (`knip.json` names the public entry points, which count as used). Exports that only the package's users reach, such as error classes, are listed on purpose; a finding for anything else means dead code: delete it. Run it and madge (above) before a larger change.
 
 ## Conventions
 
@@ -61,6 +94,7 @@ CI (`.github/workflows/ci.yml`) runs the typecheck, unit tests, browser tests an
 - **No unbounded waits.** Timeouts resolve through `resolveTimeout` (actions, assertions), the navigation timeout, or the BiDi command timeout.
 - **Code that runs in the page is a string** (or a plain arrow function with no inner named functions), because the transpiler can inject helpers that don't exist there.
 - **Secrets never reach logs or reports unmasked.** Anything that writes text goes through the masking in `src/config/mask.ts`.
+- **Small modules.** A file does one job. Past about 400 lines, or a function past about 60, look for the seam (the [codebase review](superpowers/codebase-review-2026-10-19.md) lists the files that are over).
 - **Commits** use conventional prefixes (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`). A Trunk pre-commit hook formats staged files; commit what it formats.
 - A command Firefox lacks is documented in its spec and surfaced as `UnsupportedOperationError`, never as a hang.
 

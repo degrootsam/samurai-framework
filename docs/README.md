@@ -28,6 +28,7 @@ Every guide, the code it describes and the design note behind it. Start with the
 ## Status
 
 - [Roadmap](roadmap.md): what is built and what is open.
+- [Codebase review](superpowers/codebase-review-2026-10-19.md): dead code, layering and the planned splits.
 - [Recorder roadmap](superpowers/recorder-roadmap.md) and [BiDi roadmap](superpowers/bidi-roadmap.md): the detailed plans.
 
 ## Design notes and plans
