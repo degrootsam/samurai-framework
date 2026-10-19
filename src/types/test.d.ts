@@ -8,6 +8,8 @@ export interface TestFixtures {
   browser: Browser;
   /** The browser this run of the test is in */
   browserName: SupportedBrowser;
+  /** The worker process running the test; 0 when the run has one worker or none */
+  workerIndex: number;
   /** The chosen environment's variables; reading an unknown name throws */
   env: Readonly<Record<string, string | number | boolean>>;
   /** Secrets by name (SAMURAI_SECRET_<NAME>); reading an unset name throws */
@@ -71,6 +73,8 @@ interface TestResultIdentity {
   file: string;
   /** The browser the test ran in */
   browser: SupportedBrowser;
+  /** The worker process that ran the test; absent when the test ran in the main process */
+  worker?: number;
   startTime: number;
 }
 
@@ -78,6 +82,7 @@ interface TestResultBase {
   name: string;
   file: string;
   browser: SupportedBrowser;
+  worker?: number;
   startTime: number;
   status: "started";
 }

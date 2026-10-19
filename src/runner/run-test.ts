@@ -19,7 +19,7 @@ import type { RunnerOptions } from "./options.js";
 import { judgePageLogs, type LogsConfig } from "./page-logs-report.js";
 import { DEFAULT_PORT } from "./ports.js";
 import type { PreparedRun } from "./prepare-run.js";
-import type TestReporter from "./reporter.js";
+import type { TestSink } from "./reporter.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
 
@@ -40,7 +40,7 @@ class TestOutcome {
   public evidence: Evidence | undefined;
 
   constructor(
-    private readonly reporter: TestReporter,
+    private readonly reporter: TestSink,
     private readonly test: RegisteredTestCase,
     private readonly browser: SupportedBrowser,
   ) {}
@@ -59,6 +59,16 @@ class TestOutcome {
   }
 }
 
+/** What a worker gives its tests that the main process does not: its own port and profile, and its number */
+export interface WorkerResources {
+  /** The browser's debugging port. @default `options.port`, else DEFAULT_PORT */
+  port?: number;
+  /** The browser's profile folder. @default the browser's own */
+  profileDir?: string;
+  /** The `workerIndex` fixture. @default 0 */
+  workerIndex?: number;
+}
+
 /** Runs one test in one browser and reports it: launch, run the body, judge the page's logs, close the browser */
 export async function runOneTest(
   test: RegisteredTestCase,
@@ -66,7 +76,8 @@ export async function runOneTest(
   run: PreparedRun,
   options: RunnerOptions,
   srcDir: string,
-  reporter: TestReporter,
+  reporter: TestSink,
+  resources: WorkerResources = {},
 ): Promise<void> {
   logger.verbose("Starting test: %s in %s", test.name, browserName);
   reporter.onTestStart(test, browserName);
@@ -114,7 +125,8 @@ export async function runOneTest(
       const launched = await Browser.launch(
         browserName,
         {
-          port: options.port ?? DEFAULT_PORT,
+          port: resources.port ?? options.port ?? DEFAULT_PORT,
+          ...(resources.profileDir && { profileDir: resources.profileDir }),
           headless: options.headless ?? settings.headless,
         },
         timeoutController.signal,
@@ -142,6 +154,7 @@ export async function runOneTest(
         page: launched.page,
         browser: launched.browser,
         browserName,
+        workerIndex: resources.workerIndex ?? 0,
         env: createEnvFixture(settings.environment, settings.variables),
         secrets: createSecretsFixture(settings.environment, secrets),
       };

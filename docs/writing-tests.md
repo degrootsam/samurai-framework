@@ -28,13 +28,16 @@ describe("Checkout", () => {
 
 The test function receives one object:
 
-| Fixture       | Type                    | What it is                                                                                                                 |
-| ------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `page`        | `Page`                  | The tab the test drives. See [Locators](locators.md) and [Pages and browsers](pages-and-browsers.md)                       |
-| `browser`     | `Browser`               | The browser process. Use it for extra [contexts and pages](pages-and-browsers.md#contexts)                                 |
-| `browserName` | `"firefox" \| "chrome"` | The browser this run of the test is in. With several [`browsers`](configuration.md#browsers) the test runs once in each    |
-| `env`         | read-only object        | The chosen environment's `variables`. Reading a name that is not defined throws                                            |
-| `secrets`     | read-only object        | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](environments-and-secrets.md#secrets) |
+| Fixture       | Type                    | What it is                                                                                                                                   |
+| ------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `page`        | `Page`                  | The tab the test drives. See [Locators](locators.md) and [Pages and browsers](pages-and-browsers.md)                                         |
+| `browser`     | `Browser`               | The browser process. Use it for extra [contexts and pages](pages-and-browsers.md#contexts)                                                   |
+| `browserName` | `"firefox" \| "chrome"` | The browser this run of the test is in. With several [`browsers`](configuration.md#browsers) the test runs once in each                      |
+| `workerIndex` | `number`                | The worker process running the test, from 0. It is 0 when the run has one worker or none; use it to give each worker its own account or data |
+| `env`         | read-only object        | The chosen environment's `variables`. Reading a name that is not defined throws                                                              |
+| `secrets`     | read-only object        | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](environments-and-secrets.md#secrets)                   |
+
+Tests may run at the same time, each in its own worker process and browser (see [Parallel runs](running-and-reports.md#parallel-runs)). Do not let two tests depend on the same account or data; give each its own, or pick one by `workerIndex`.
 
 ```ts
 // The field is labelled differently in the two browsers' date pickers
