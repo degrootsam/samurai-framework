@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { autoReply, FakeWebSocket } from "../testing/fake-websocket.js";
+import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import { addPreload } from "./preload.js";
 import { ScriptError } from "./call-function.js";
+import { ChannelArg } from "./serialize.js";
 
 const ok = { type: "success", realm: "r", result: { type: "undefined" } };
-const frame = (context: string, children: object[] = []) => ({ context, parent: null, children });
+const frame = (context: string, children: object[] = []) => ({
+  context,
+  parent: null,
+  children,
+});
 
 interface Setup {
   tree?: (params: any) => object[];
@@ -54,27 +59,54 @@ describe("addPreload", () => {
   it("also runs the source in every loaded context under the given roots, same sandbox", async () => {
     const { ws, connector, stop, methods } = setup({
       tree: (params) =>
-        params.root === "top" ? [frame("top", [frame("child", [frame("grandchild")])])] : [],
+        params.root === "top"
+          ? [frame("top", [frame("child", [frame("grandchild")])])]
+          : [],
     });
-    await addPreload(connector, { source: "() => 1", contexts: ["top"], sandbox: "samurai" });
+    await addPreload(connector, {
+      source: "() => 1",
+      contexts: ["top"],
+      sandbox: "samurai",
+    });
     // registered first, so a document created meanwhile is not missed
     assert.equal(methods()[0], "script.addPreloadScript");
-    const getTrees = ws.sent.filter((m) => m.method === "browsingContext.getTree");
-    assert.deepEqual(getTrees.map((m) => m.params), [{ root: "top" }]);
-    const calls = ws.sent.filter((m) => m.method === "script.callFunction").map((m) => m.params as any);
-    assert.deepEqual(calls.map((c) => c.target).sort((a, b) => a.context.localeCompare(b.context)), [
-      { context: "child", sandbox: "samurai" },
-      { context: "grandchild", sandbox: "samurai" },
-      { context: "top", sandbox: "samurai" },
-    ]);
-    assert.ok(calls.every((c) => c.functionDeclaration === "() => 1" && c.awaitPromise === false));
+    const getTrees = ws.sent.filter(
+      (m) => m.method === "browsingContext.getTree",
+    );
+    assert.deepEqual(
+      getTrees.map((m) => m.params),
+      [{ root: "top" }],
+    );
+    const calls = ws.sent
+      .filter((m) => m.method === "script.callFunction")
+      .map((m) => m.params as any);
+    assert.deepEqual(
+      calls
+        .map((c) => c.target)
+        .sort((a, b) => a.context.localeCompare(b.context)),
+      [
+        { context: "child", sandbox: "samurai" },
+        { context: "grandchild", sandbox: "samurai" },
+        { context: "top", sandbox: "samurai" },
+      ],
+    );
+    assert.ok(
+      calls.every(
+        (c) => c.functionDeclaration === "() => 1" && c.awaitPromise === false,
+      ),
+    );
     stop();
   });
 
   it("without contexts it covers every top-level context", async () => {
-    const { ws, connector, stop } = setup({ tree: () => [frame("a"), frame("b", [frame("b-frame")])] });
+    const { ws, connector, stop } = setup({
+      tree: () => [frame("a"), frame("b", [frame("b-frame")])],
+    });
     await addPreload(connector, { source: "() => 1" });
-    assert.deepEqual(ws.sent.find((m) => m.method === "browsingContext.getTree")!.params, {});
+    assert.deepEqual(
+      ws.sent.find((m) => m.method === "browsingContext.getTree")!.params,
+      {},
+    );
     const targets = ws.sent
       .filter((m) => m.method === "script.callFunction")
       .map((m) => (m.params as any).target.context)
@@ -88,12 +120,16 @@ describe("addPreload", () => {
     const connector = new BiDiConnector(ws as unknown as WebSocket);
     const timer = setInterval(() => {
       for (const m of ws.sent.splice(0)) {
-        if (m.method === "script.addPreloadScript") ws.reply(m.id, { script: "p" });
-        else if (m.method === "browsingContext.getTree") ws.reply(m.id, { contexts: [frame("top")] });
+        if (m.method === "script.addPreloadScript")
+          ws.reply(m.id, { script: "p" });
+        else if (m.method === "browsingContext.getTree")
+          ws.reply(m.id, { contexts: [frame("top")] });
         else ws.replyError(m.id, "no such frame", "frame is gone");
       }
     }, 1).unref();
-    await assert.doesNotReject(addPreload(connector, { source: "() => 1", contexts: ["top"] }));
+    await assert.doesNotReject(
+      addPreload(connector, { source: "() => 1", contexts: ["top"] }),
+    );
     clearInterval(timer);
   });
 
@@ -103,10 +139,16 @@ describe("addPreload", () => {
       callFunction: () => ({
         type: "exception",
         realm: "r",
-        exceptionDetails: { text: "ReferenceError: nope", stackTrace: { callFrames: [] } },
+        exceptionDetails: {
+          text: "ReferenceError: nope",
+          stackTrace: { callFrames: [] },
+        },
       }),
     });
-    await assert.rejects(addPreload(connector, { source: "() => nope" }), ScriptError);
+    await assert.rejects(
+      addPreload(connector, { source: "() => nope" }),
+      ScriptError,
+    );
     stop();
   });
 
@@ -119,7 +161,10 @@ describe("addPreload", () => {
         exceptionDetails: { text: "boom", stackTrace: { callFrames: [] } },
       }),
     });
-    await assert.rejects(addPreload(connector, { source: "() => 1" }), ScriptError);
+    await assert.rejects(
+      addPreload(connector, { source: "() => 1" }),
+      ScriptError,
+    );
     assert.ok(methods().includes("script.removePreloadScript"));
     assert.deepEqual(
       ws.sent.find((m) => m.method === "script.removePreloadScript")!.params,
@@ -137,7 +182,10 @@ describe("addPreload", () => {
         exceptionDetails: { text: "boom", stackTrace: { callFrames: [] } },
       }),
     });
-    const handle = await addPreload(connector, { source: "() => 1", onRunError: "log" });
+    const handle = await addPreload(connector, {
+      source: "() => 1",
+      onRunError: "log",
+    });
     assert.equal(handle.id, "preload-1");
     stop();
   });
@@ -146,9 +194,12 @@ describe("addPreload", () => {
     const ws = new FakeWebSocket();
     const connector = new BiDiConnector(ws as unknown as WebSocket);
     const timer = setInterval(() => {
-      for (const m of ws.sent.splice(0)) ws.replyError(m.id, "invalid argument", "bad script");
+      for (const m of ws.sent.splice(0))
+        ws.replyError(m.id, "invalid argument", "bad script");
     }, 1).unref();
-    await assert.rejects(addPreload(connector, { source: "not a function" }), { code: "invalid argument" });
+    await assert.rejects(addPreload(connector, { source: "not a function" }), {
+      code: "invalid argument",
+    });
     clearInterval(timer);
   });
 
@@ -157,7 +208,9 @@ describe("addPreload", () => {
     const handle = await addPreload(connector, { source: "() => 1" });
     await handle.dispose();
     await handle.dispose();
-    const removals = ws.sent.filter((m) => m.method === "script.removePreloadScript");
+    const removals = ws.sent.filter(
+      (m) => m.method === "script.removePreloadScript",
+    );
     assert.equal(removals.length, 1);
     assert.deepEqual(removals[0]!.params, { script: "preload-1" });
     stop();
@@ -168,13 +221,100 @@ describe("addPreload", () => {
     const connector = new BiDiConnector(ws as unknown as WebSocket);
     const timer = setInterval(() => {
       for (const m of ws.sent.splice(0)) {
-        if (m.method === "script.addPreloadScript") ws.reply(m.id, { script: "p" });
-        else if (m.method === "browsingContext.getTree") ws.reply(m.id, { contexts: [] });
+        if (m.method === "script.addPreloadScript")
+          ws.reply(m.id, { script: "p" });
+        else if (m.method === "browsingContext.getTree")
+          ws.reply(m.id, { contexts: [] });
         else ws.replyError(m.id, "no such script", "already removed");
       }
     }, 1).unref();
     const handle = await addPreload(connector, { source: "() => 1" });
     await assert.doesNotReject(handle.dispose());
     clearInterval(timer);
+  });
+});
+
+describe("addPreload on Chrome", () => {
+  const channelArg = new ChannelArg("c1");
+  const realm = (context: string, sandbox?: string, type = "window") => ({
+    realm: `realm-${context}`,
+    origin: "null",
+    type,
+    context,
+    ...(sandbox !== undefined && { sandbox }),
+  });
+  const callsTo = (ws: FakeWebSocket) =>
+    ws.sent
+      .filter((m) => m.method === "script.callFunction")
+      .map((m) => m.params as any);
+
+  it("also runs the script, with its channel, in every new realm of its sandbox", async () => {
+    const { ws, connector, stop } = setup({ tree: () => [frame("top")] });
+    connector.browserName = "chrome";
+    await addPreload(connector, {
+      source: "(c) => c('hi')",
+      contexts: ["top"],
+      sandbox: "tb",
+      arguments: [channelArg],
+    });
+    const before = callsTo(ws).length;
+    ws.emitEvent("script.realmCreated", realm("top", "tb"));
+    await tick(30);
+    const added = callsTo(ws).slice(before);
+    assert.equal(added.length, 1);
+    assert.deepEqual(added[0].target, { context: "top", sandbox: "tb" });
+    stop();
+  });
+
+  it("leaves other sandboxes, page realms, other pages and non-window realms alone", async () => {
+    const { ws, connector, stop } = setup({ tree: () => [frame("top")] });
+    connector.browserName = "chrome";
+    await addPreload(connector, {
+      source: "(c) => c('hi')",
+      contexts: ["top"],
+      sandbox: "tb",
+      arguments: [channelArg],
+    });
+    const before = callsTo(ws).length;
+    ws.emitEvent("script.realmCreated", realm("top", "other"));
+    ws.emitEvent("script.realmCreated", realm("top"));
+    ws.emitEvent("script.realmCreated", realm("elsewhere", "tb"));
+    ws.emitEvent("script.realmCreated", realm("top", "tb", "dedicated-worker"));
+    await tick(30);
+    assert.equal(callsTo(ws).length, before);
+    stop();
+  });
+
+  it("does nothing extra on Firefox, without a sandbox, or after dispose", async () => {
+    const firefox = setup({ tree: () => [frame("top")] });
+    await addPreload(firefox.connector, {
+      source: "(c) => c()",
+      contexts: ["top"],
+      sandbox: "tb",
+      arguments: [channelArg],
+    });
+    assert.equal(firefox.methods().includes("session.subscribe"), false);
+    firefox.stop();
+
+    const plain = setup({ tree: () => [frame("top")] });
+    plain.connector.browserName = "chrome";
+    await addPreload(plain.connector, { source: "() => 1", contexts: ["top"] });
+    assert.equal(plain.methods().includes("session.subscribe"), false);
+    plain.stop();
+
+    const chrome = setup({ tree: () => [frame("top")] });
+    chrome.connector.browserName = "chrome";
+    const handle = await addPreload(chrome.connector, {
+      source: "(c) => c()",
+      contexts: ["top"],
+      sandbox: "tb",
+      arguments: [channelArg],
+    });
+    await handle.dispose();
+    const before = callsTo(chrome.ws).length;
+    chrome.ws.emitEvent("script.realmCreated", realm("top", "tb"));
+    await tick(30);
+    assert.equal(callsTo(chrome.ws).length, before);
+    chrome.stop();
   });
 });
