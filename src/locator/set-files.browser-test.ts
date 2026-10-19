@@ -7,13 +7,17 @@ import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { setContent } from "../testing/browser-fixture.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
+import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
 const dir = mkdtempSync(path.join(tmpdir(), "samurai-upload-"));
 
 before(async () => {
-  ({ browser, page } = await Browser.launch("firefox", { port: 9236, headless: true }));
+  ({ browser, page } = await Browser.launch(testBrowser(), {
+    port: 9236,
+    headless: true,
+  }));
   await page.navigateTo("about:blank", "complete");
 });
 
@@ -40,17 +44,38 @@ const RECORD = `
   };
   input.addEventListener("input", () => { counts.input++; render(); });
   input.addEventListener("change", () => { counts.change++; render(); });`;
-const result = async () => JSON.parse((await page.locator("div[@id='out']").textContent()) ?? "null");
+const result = async () =>
+  JSON.parse((await page.locator("div[@id='out']").textContent()) ?? "null");
 
-test("uploads one file and the browser fires input and change once", OPTIONS, async () => {
-  await setContent(page, `<input type="file" id="f"><div id="out"></div>`, RECORD);
-  await page.locator("input[@id='f']").setInputFiles(file("avatar.png"), { timeout: 5000 });
-  assert.deepEqual(await result(), { names: ["avatar.png"], input: 1, change: 1 });
-});
+test(
+  "uploads one file and the browser fires input and change once",
+  OPTIONS,
+  async () => {
+    await setContent(
+      page,
+      `<input type="file" id="f"><div id="out"></div>`,
+      RECORD,
+    );
+    await page
+      .locator("input[@id='f']")
+      .setInputFiles(file("avatar.png"), { timeout: 5000 });
+    assert.deepEqual(await result(), {
+      names: ["avatar.png"],
+      input: 1,
+      change: 1,
+    });
+  },
+);
 
 test("uploads several files to a multiple input", OPTIONS, async () => {
-  await setContent(page, `<input type="file" id="f" multiple><div id="out"></div>`, RECORD);
-  await page.locator("input[@id='f']").setInputFiles([file("a.csv"), file("b.csv")], { timeout: 5000 });
+  await setContent(
+    page,
+    `<input type="file" id="f" multiple><div id="out"></div>`,
+    RECORD,
+  );
+  await page
+    .locator("input[@id='f']")
+    .setInputFiles([file("a.csv"), file("b.csv")], { timeout: 5000 });
   assert.deepEqual((await result()).names, ["a.csv", "b.csv"]);
 });
 
@@ -62,14 +87,25 @@ test("the browser reads the file content", OPTIONS, async () => {
        document.getElementById("out").textContent = await e.target.files[0].text();
      });`,
   );
-  await page.locator("input[@id='f']").setInputFiles(file("hello.txt", "hello upload"), { timeout: 5000 });
-  await page.locator("div[@id='out']").waitFor({ state: "visible", timeout: 3000 });
+  await page
+    .locator("input[@id='f']")
+    .setInputFiles(file("hello.txt", "hello upload"), { timeout: 5000 });
+  await page
+    .locator("div[@id='out']")
+    .waitFor({ state: "visible", timeout: 3000 });
   await new Promise((resolve) => setTimeout(resolve, 200));
-  assert.equal(await page.locator("div[@id='out']").textContent(), "hello upload");
+  assert.equal(
+    await page.locator("div[@id='out']").textContent(),
+    "hello upload",
+  );
 });
 
 test("an empty list clears the selection", OPTIONS, async () => {
-  await setContent(page, `<input type="file" id="f"><div id="out"></div>`, RECORD);
+  await setContent(
+    page,
+    `<input type="file" id="f"><div id="out"></div>`,
+    RECORD,
+  );
   const input = page.locator("input[@id='f']");
   await input.setInputFiles(file("first.txt"), { timeout: 5000 });
   await input.setInputFiles([], { timeout: 5000 });
@@ -99,27 +135,43 @@ test("waits for an input that appears later", OPTIONS, async () => {
        ${RECORD}
      }, 300);`,
   );
-  await page.locator("input[@id='f']").setInputFiles(file("late.txt"), { timeout: 5000 });
+  await page
+    .locator("input[@id='f']")
+    .setInputFiles(file("late.txt"), { timeout: 5000 });
   assert.deepEqual((await result()).names, ["late.txt"]);
 });
 
 test("refuses two files for an input without multiple", OPTIONS, async () => {
-  await setContent(page, `<input type="file" id="f"><div id="out"></div>`, RECORD);
+  await setContent(
+    page,
+    `<input type="file" id="f"><div id="out"></div>`,
+    RECORD,
+  );
   await assert.rejects(
-    page.locator("input[@id='f']").setInputFiles([file("x.txt"), file("y.txt")], { timeout: 5000 }),
+    page
+      .locator("input[@id='f']")
+      .setInputFiles([file("x.txt"), file("y.txt")], { timeout: 5000 }),
     /does not accept multiple files/,
   );
-  assert.deepEqual((await result().catch(() => null)), null, "nothing was set, so no event rendered");
+  assert.deepEqual(
+    await result().catch(() => null),
+    null,
+    "nothing was set, so no event rendered",
+  );
 });
 
 test("refuses an element that is not a file input", OPTIONS, async () => {
   await setContent(page, `<input type="text" id="t"><div id="d"></div>`);
   await assert.rejects(
-    page.locator("input[@id='t']").setInputFiles(file("t.txt"), { timeout: 5000 }),
+    page
+      .locator("input[@id='t']")
+      .setInputFiles(file("t.txt"), { timeout: 5000 }),
     /is not an <input type=file> \(found <input type="text">\)/,
   );
   await assert.rejects(
-    page.locator("div[@id='d']").setInputFiles(file("t.txt"), { timeout: 5000 }),
+    page
+      .locator("div[@id='d']")
+      .setInputFiles(file("t.txt"), { timeout: 5000 }),
     /found <div>/,
   );
 });
@@ -127,8 +179,12 @@ test("refuses an element that is not a file input", OPTIONS, async () => {
 test("a disabled input times out naming the check", OPTIONS, async () => {
   await setContent(page, `<input type="file" id="f" disabled>`);
   await assert.rejects(
-    page.locator("input[@id='f']").setInputFiles(file("d.txt"), { timeout: 400 }),
-    (err) => err instanceof ActionTimeoutError && /attached ✓  enabled ✗/.test(err.message),
+    page
+      .locator("input[@id='f']")
+      .setInputFiles(file("d.txt"), { timeout: 400 }),
+    (err) =>
+      err instanceof ActionTimeoutError &&
+      /attached ✓  enabled ✗/.test(err.message),
   );
 });
 

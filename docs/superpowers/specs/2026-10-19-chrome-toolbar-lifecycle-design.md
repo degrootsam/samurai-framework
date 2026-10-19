@@ -10,6 +10,7 @@ Chrome for Testing 155, headless, Linux, launched through chromedriver.
 
 - `draws in a closed shadow root and says it is ready, once per document`: `Timed out waiting for ready #2`.
 - `stays out of iframes`: `Timed out waiting for ready #2`.
+- `a page whose CSP forbids inline styles still gets a styled toolbar in its spot` also failed in the second full run (it passed in the first); same file, same preload path.
 - The first `ready` arrives, so the toolbar does appear once.
 
 Affects: toolbar (2 tests).

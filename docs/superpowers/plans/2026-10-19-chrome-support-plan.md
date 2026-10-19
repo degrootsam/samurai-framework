@@ -197,6 +197,7 @@
 
 **Files:** `src/recorder/toolbar/*`, `recorder-toolbar.browser-test.ts`.
 
+- [ ] `recordSpec` already reads `browser` from the config (done in Task 1); confirm a Chrome recording starts, stores steps and stops.
 - [ ] After Task 13: run the file on Chrome and keep the five failures. For each, find whether the click or key reaches the button (add a console trace in the page), whether the toolbar sends the message and whether the recorder receives it.
 - [ ] Failing test or unit test per cause; fix.
 - [ ] End-to-end check, written into the plan's checklist when done: `samurai record` on Chrome headed — record a login flow with an Alt+click assertion, a file pick and a named screenshot; replay the spec on Chrome and on Firefox.

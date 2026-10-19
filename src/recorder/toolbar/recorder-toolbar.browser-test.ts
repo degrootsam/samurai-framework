@@ -16,6 +16,7 @@ import type { BiDiConnector } from "../../transport/bidi-connection.js";
 import { applyRecorderEvent } from "../apply.js";
 import type { Recorder, RecorderEvent, ToolbarOptions } from "../recorder.js";
 import { TOOLBAR_KEY, TOOLBAR_SANDBOX, type ToolbarState } from "./protocol.js";
+import { testBrowser } from "../../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
@@ -51,7 +52,7 @@ before(async () => {
     bases.push(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
   }
   projectDir = await mkdtemp(path.join(tmpdir(), "samurai-toolbar-"));
-  ({ browser, page } = await Browser.launch("firefox", {
+  ({ browser, page } = await Browser.launch(testBrowser(), {
     port: 9243,
     headless: true,
   }));

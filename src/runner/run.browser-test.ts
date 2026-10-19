@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { runTests, type RunEvent } from "./run.js";
+import { browserConfig } from "../testing/test-browser.js";
 
 const API = path.resolve("src/api.ts");
 
@@ -39,7 +40,12 @@ test(
     const events: RunEvent[] = [];
     const summary = await runTests({
       projectDir: dir,
-      config: { srcDir: "./specs", timeout: 30000, expect: { timeout: 1000 } },
+      config: {
+        ...browserConfig(),
+        srcDir: "./specs",
+        timeout: 30000,
+        expect: { timeout: 1000 },
+      },
       dataDir: path.join(dir, "data"),
       headless: true,
       port: 9251,
@@ -81,7 +87,7 @@ test(
     const run = (testNames: string[]) =>
       runTests({
         projectDir: dir,
-        config: { srcDir: "./specs" },
+        config: { ...browserConfig(), srcDir: "./specs" },
         dataDir: path.join(dir, "data"),
         headless: true,
         port: 9252,
@@ -112,7 +118,7 @@ test(
     controller.abort();
     const summary = await runTests({
       projectDir: dir,
-      config: { srcDir: "./specs" },
+      config: { ...browserConfig(), srcDir: "./specs" },
       dataDir: path.join(dir, "data"),
       headless: true,
       port: 9253,
@@ -135,7 +141,7 @@ test("a second run at the same time is refused", OPTIONS, async () => {
   const dir = project(SPEC);
   const options = {
     projectDir: dir,
-    config: { srcDir: "./specs" },
+    config: { ...browserConfig(), srcDir: "./specs" },
     reportPath: false as const,
     headless: true,
     port: 9254,
@@ -155,7 +161,7 @@ test(
     await assert.rejects(
       runTests({
         projectDir: dir,
-        config: { srcDir: "./specs" },
+        config: { ...browserConfig(), srcDir: "./specs" },
         reportPath: false,
         headless: true,
         port: 9256,
@@ -187,7 +193,7 @@ test(
     const started = Date.now();
     const summary = await runTests({
       projectDir: dir,
-      config: { srcDir: "./specs", timeout: 60000 },
+      config: { ...browserConfig(), srcDir: "./specs", timeout: 60000 },
       dataDir: path.join(dir, "data"),
       headless: true,
       port: 9257,

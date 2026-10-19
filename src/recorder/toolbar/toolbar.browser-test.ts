@@ -13,6 +13,7 @@ import { ChannelArg, fromRemoteValue } from "../../script/serialize.js";
 import type { BiDiConnector } from "../../transport/bidi-connection.js";
 import { TOOLBAR_KEY, TOOLBAR_SANDBOX, type ToolbarState } from "./protocol.js";
 import { TOOLBAR_SOURCE } from "./source.js";
+import { testBrowser } from "../../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
@@ -26,7 +27,7 @@ const received: {
 const handles: PreloadHandle[] = [];
 
 before(async () => {
-  ({ browser, page } = await Browser.launch("firefox", {
+  ({ browser, page } = await Browser.launch(testBrowser(), {
     port: 9242,
     headless: true,
   }));

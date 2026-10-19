@@ -12,6 +12,7 @@ import type Page from "../browser/page.js";
 import { setActiveProject } from "../config/config.js";
 import { setContent } from "../testing/browser-fixture.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
+import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
 let page: Page;
@@ -21,7 +22,7 @@ mkdirSync(path.join(dir, "files"));
 writeFileSync(path.join(dir, "files", "a.txt"), "hello");
 
 before(async () => {
-  ({ browser, page } = await Browser.launch("firefox", {
+  ({ browser, page } = await Browser.launch(testBrowser(), {
     port: 9263,
     headless: true,
   }));
