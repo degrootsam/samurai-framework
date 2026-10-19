@@ -72,7 +72,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "esbuild": "^0.28.2",
-    "tsx": "^4.21.0"
+    "tsx": "^4.23.15"
   },
   "dependencies": {
     "@puppeteer/browsers": "^3.2.4",
