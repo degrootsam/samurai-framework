@@ -22,6 +22,8 @@ export interface WorkerInit {
   timeout?: number;
   expectTimeout?: number;
   headless?: boolean;
+  /** How many times a failing test is run again in this worker. @default 0 */
+  retries?: number;
   /** Where the run's report goes when it is not the default; screenshots are kept beside it */
   reportPath?: string;
   /** Spec files to import, absolute */

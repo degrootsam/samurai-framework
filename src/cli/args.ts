@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import {
   checkBrowserList,
+  parseRetries,
   parseWorkers,
   type ProjectOptions,
   type RunnerOptions,
@@ -22,6 +23,7 @@ const FLAGS = {
   headless: { type: "boolean" },
   port: { type: "string" },
   workers: { type: "string" },
+  retries: { type: "string" },
   grep: { type: "string" },
   group: { type: "string" },
   browser: { type: "string", multiple: true },
@@ -65,6 +67,8 @@ export interface RunnerFlags {
   port?: number;
   /** `--workers`: a whole number or a percentage like `50%`, as typed */
   workers?: string;
+  /** `--retries`: a whole number from 0, as typed */
+  retries?: string;
   grep?: string;
   group?: string;
   files?: string[];
@@ -72,7 +76,7 @@ export interface RunnerFlags {
   browsers?: SupportedBrowser[];
 }
 
-/** Reads `--headless`, `--port <n>`, `--workers <n|n%>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
+/** Reads `--headless`, `--port <n>`, `--workers <n|n%>`, `--retries <n>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
 export function parseRunnerFlags(
   source: string[] | CommandValues,
 ): RunnerFlags {
@@ -91,6 +95,10 @@ export function parseRunnerFlags(
   if (values.workers !== undefined) {
     parseWorkers(values.workers, "--workers");
     flags.workers = values.workers;
+  }
+  if (values.retries !== undefined) {
+    parseRetries(values.retries, "--retries");
+    flags.retries = values.retries;
   }
   if (values.grep !== undefined) flags.grep = values.grep;
   if (values.group !== undefined) flags.group = values.group;

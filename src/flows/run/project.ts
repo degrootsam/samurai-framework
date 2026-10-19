@@ -64,6 +64,10 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   workers?: number | string;
   /** The value of `SAMURAI_WORKERS`, when set */
   workersEnv?: string;
+  /** How many times a failing test is run again: a number, or numeric text like the command line's `--retries`. Unset takes `SAMURAI_RETRIES` (`retriesEnv`), then the config's `retries`, then 0 */
+  retries?: number | string;
+  /** The value of `SAMURAI_RETRIES`, when set */
+  retriesEnv?: string;
   /** @internal Replaces the worker pool (tests) */
   createPool?: (options: PoolOptions) => Pick<WorkerPool, "run" | "dispose">;
   /** @internal Replaces the runner of each Test and Group node (tests) */

@@ -59,6 +59,35 @@ describe("main", () => {
     const workers = io();
     assert.equal(await main(["run", "--workers", "0"], workers.target), 2);
     assert.match(workers.err(), /--workers must be a whole number from 1/);
+    const retries = io();
+    assert.equal(await main(["run", "--retries", "abc"], retries.target), 2);
+    assert.match(retries.err(), /--retries must be a whole number from 0/);
+    const negative = io();
+    assert.equal(await main(["run", "--retries=-1"], negative.target), 2);
+    assert.match(negative.err(), /--retries must be a whole number from 0/);
+  });
+
+  it("documents --retries in the usage, for run and for flow run", () => {
+    assert.match(USAGE, /--retries <n>/);
+    assert.match(USAGE, /SAMURAI_RETRIES/);
+  });
+
+  it("exits 2 for a config whose retries is not a whole number from 0, naming the key", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      "export default { retries: -1 };",
+    );
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      const { target, err } = io();
+      assert.equal(await main(["list"], target), 2);
+      assert.match(err(), /^retries must be a whole number from 0, got "-1"/);
+    } finally {
+      process.chdir(previous);
+    }
   });
 
   it("documents --workers in the usage", () => {

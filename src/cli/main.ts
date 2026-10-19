@@ -60,6 +60,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       ...(flags.headless !== undefined && { headless: flags.headless }),
       ...(flags.port !== undefined && { port: flags.port }),
       ...(flags.workers !== undefined && { workers: flags.workers }),
+      ...(flags.retries !== undefined && { retries: flags.retries }),
       ...(flags.grep !== undefined && { grep: flags.grep }),
       ...(flags.group !== undefined && { group: flags.group }),
       ...(flags.files && { files: flags.files }),
