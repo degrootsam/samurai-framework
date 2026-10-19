@@ -8,6 +8,7 @@ import type {
   TestError,
   TestLogEntry,
   TestResult,
+  TestRetries,
   TestSummary,
 } from "../types/test.js";
 import type { SupportedBrowser } from "../types/browser.js";
@@ -28,6 +29,8 @@ export type RunEvent =
       name: string;
       file: string;
       browser: SupportedBrowser;
+      /** The attempt, counting from 1, when the test is run again after a failure; absent for the first */
+      retry?: number;
     }
   | {
       type: "test-end";
@@ -56,7 +59,11 @@ function keyOf(test: RegisteredTestCase, browser: SupportedBrowser): string {
 
 /** What `runOneTest` reports a test to: the reporter of a run, or a worker that relays it */
 export interface TestSink {
-  onTestStart(test: RegisteredTestCase, browser: SupportedBrowser): void;
+  onTestStart(
+    test: RegisteredTestCase,
+    browser: SupportedBrowser,
+    retry?: number,
+  ): void;
   onTestEnd(
     test: RegisteredTestCase,
     browser: SupportedBrowser,
@@ -78,7 +85,7 @@ export interface TestSkip {
 }
 
 /** What a test's report entry lists besides its status */
-export interface TestEndExtras {
+export interface TestEndExtras extends TestRetries {
   logs?: TestLogEntry[];
   logsDropped?: number;
   screenshots?: { name: string; path: string }[];
@@ -175,7 +182,11 @@ export default class TestReporter implements TestSink {
     return this.summary;
   }
 
-  public onTestStart(test: RegisteredTestCase, browser: SupportedBrowser) {
+  public onTestStart(
+    test: RegisteredTestCase,
+    browser: SupportedBrowser,
+    retry?: number,
+  ) {
     const key = keyOf(test, browser);
     const t = performance.mark(`${key}-start`);
     this.testResults.set(key, {
@@ -190,6 +201,7 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+      ...(retry ? { retry } : {}),
     });
   }
 
@@ -266,6 +278,11 @@ export default class TestReporter implements TestSink {
       ...(extras?.logs && { logs: extras.logs }),
       ...(extras?.logsDropped && { logsDropped: extras.logsDropped }),
       ...(extras?.screenshots?.length && { screenshots: extras.screenshots }),
+      ...(extras?.retry && { retry: extras.retry }),
+      ...(extras?.flaky && { flaky: true }),
+      ...(extras?.previousAttempts?.length && {
+        previousAttempts: extras.previousAttempts,
+      }),
     } as TestResult);
     this.testResults.set(key, result);
     this.emit({

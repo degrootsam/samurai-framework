@@ -19,6 +19,12 @@ export interface RunnerOptions {
    * @default the config's `workers`, else half the CPUs
    */
   workers?: number | string;
+  /**
+   * How many times a failing test is run again, each time with a fresh browser (the command line's `--retries`).
+   * Beats `SAMURAI_RETRIES` and the config's `retries`.
+   * @default the config's `retries`, else 0
+   */
+  retries?: number | string;
   /** Run the browser without a window. @default false */
   headless?: boolean;
   /** Remote debugging port of the browser. @default DEFAULT_PORT (9223) */

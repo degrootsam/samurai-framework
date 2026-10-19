@@ -43,6 +43,7 @@ Options for run:
   --headless, --no-headless   Run the browser without a window, or with one
   --port <n>                  Browser debugging port (default ${DEFAULT_PORT})
   --workers <n|n%>            Worker processes the tests share (or SAMURAI_WORKERS; default half the CPUs)
+  --retries <n>               Run a failing test again up to n times, each with a fresh browser (or SAMURAI_RETRIES; default 0)
 
 Each run writes result/flows/<id>.json.
 Exit code: 0 when every node that should run passed, 1 when a node failed or the run was cancelled,
@@ -275,6 +276,10 @@ export async function flowCommand(argv: string[], io: Io): Promise<number> {
           ...(flags.workers !== undefined && { workers: flags.workers }),
           ...(io.env.SAMURAI_WORKERS && {
             workersEnv: io.env.SAMURAI_WORKERS,
+          }),
+          ...(flags.retries !== undefined && { retries: flags.retries }),
+          ...(io.env.SAMURAI_RETRIES && {
+            retriesEnv: io.env.SAMURAI_RETRIES,
           }),
         },
       });

@@ -181,6 +181,45 @@ describe("runFlowInProject", () => {
     assert.equal(summary.status, "passed");
   });
 
+  it("passes the retries (the option, else SAMURAI_RETRIES, else the config's) to the run of a node", async () => {
+    const withOption = harness();
+    await runFlowInProject({
+      ...withOption.options,
+      retries: 1,
+      flow: chain([
+        { id: "t", kind: "test", ref: { testId: "login.spec.ts::works" } },
+      ]),
+    });
+    assert.equal(withOption.calls[0]?.retries, 1);
+
+    const withConfig = harness({ config: { ...config, retries: 3 } });
+    await runFlowInProject({
+      ...withConfig.options,
+      retriesEnv: "2",
+      flow: chain([
+        { id: "t", kind: "test", ref: { testId: "login.spec.ts::works" } },
+      ]),
+    });
+    assert.equal(
+      withConfig.calls[0]?.retries,
+      2,
+      "the variable beats the config",
+    );
+
+    const none = harness();
+    await runFlowInProject({
+      ...none.options,
+      flow: chain([
+        { id: "t", kind: "test", ref: { testId: "login.spec.ts::works" } },
+      ]),
+    });
+    assert.equal(
+      none.calls[0]?.retries,
+      undefined,
+      "no retries: the option is left out",
+    );
+  });
+
   it("a failed run fails the node; an aborted one cancels the flow", async () => {
     const failing = harness({
       testRunner: (async () => ({
@@ -389,6 +428,52 @@ describe("runFlowInProject", () => {
       assert.equal(end.event.name, "works");
       assert.equal(end.event.browser, "firefox");
       assert.equal(end.event.file, real("src/login.spec.ts"));
+    });
+
+    it("hands the retries to the workers, and a retried test's start carries its attempt", async () => {
+      const h = harness();
+      const created: PoolOptions[] = [];
+      await runFlowInProject({
+        ...h.options,
+        workers: 2,
+        retries: "2",
+        createPool: (options) => {
+          created.push(options);
+          return {
+            async run(items: WorkItem[], hooks: RunHooks = {}) {
+              const item = items[0]!;
+              hooks.onEvent?.({ type: "test-start", item, worker: 0 });
+              hooks.onEvent?.({
+                type: "test-start",
+                item,
+                worker: 0,
+                retry: 1,
+              });
+              const result = {
+                name: item.testName,
+                file: item.file,
+                browser: item.browser,
+                startTime: 0,
+                duration: 1,
+                status: "success",
+                retry: 1,
+                flaky: true,
+              } as TestResult;
+              hooks.onEvent?.({ type: "test-end", item, worker: 0, result });
+              return [result];
+            },
+            async dispose() {},
+          };
+        },
+        flow: chain([login]),
+      });
+      assert.equal(created[0]?.init.retries, 2);
+      const starts = h.events.flatMap((e) =>
+        e.type === "test" && e.event.type === "test-start"
+          ? [(e.event as { retry?: number }).retry]
+          : [],
+      );
+      assert.deepEqual(starts, [undefined, 1]);
     });
 
     it("a failed test fails the node; an aborted run cancels the flow", async () => {

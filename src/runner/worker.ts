@@ -90,6 +90,9 @@ export function handleMessages(
     current = new AbortController();
     try {
       await session.runTest(test, item.browser, current.signal, (event) => {
+        // The first start was sent above; a test run again starts again, saying which attempt
+        if (event.type === "test-start" && event.retry)
+          channel.send({ type: "test-start", id, retry: event.retry });
         if (event.type !== "test-end") return;
         ended = true;
         channel.send({
