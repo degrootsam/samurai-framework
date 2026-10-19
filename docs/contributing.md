@@ -9,7 +9,7 @@ scripts/                 build helpers (copies the hand-written .d.ts files into
 src/
   api.ts                 public entry: test, describe, expect, defineConfig, defineStep
   index.ts               development entry (`bun run dev`): the command line, straight from the sources
-  runner/                test registry, runner, reporter, page-log verdicts
+  runner/                test registry (suites, modifiers), runner, reporter, page-log verdicts
   config/                config loading, run settings, env variables, secrets, masking
   browser/               Browser, BrowserContext, Page, navigation, screenshots, downloads, dialogs, emulation
   browsers/              pinned browser builds: download, cache folder, which executable a launch uses
@@ -46,7 +46,7 @@ The public classes stay thin facades; the work sits in small modules next to the
 | `Router` (`network/router.ts`)         | `route` (the handler's object), `intercept` (the browser-side intercept), `bidi-wire`, `network-types`                                                                                                                                                                                          |
 | `Recorder` (`recorder/recorder.ts`)    | `options`, `files-recorder`, `toolbar-bridge`, `page-messages`, `realms`; the toolbar in `toolbar/` (`controller`, `actions/`, `source/`)                                                                                                                                                       |
 | `recordSpec` (`recorder/session.ts`)   | `session-browser`, `session-secrets`, `spec-source`                                                                                                                                                                                                                                             |
-| `TestRunner` (`runner/test-runner.ts`) | `select`, `run-test`, `test-dir`, `options`                                                                                                                                                                                                                                                     |
+| `TestRunner` (`runner/test-runner.ts`) | `select`, `run-test`, `test-dir`, `options`, `focus` (`only`, `forbidOnly`), `skip` (`SkipSignal`, static skips), `pooled-run`, `worker*`                                                                                                                                                       |
 | `runFlow` (`flows/run/run.ts`)         | `walker`, `prepare-flow`                                                                                                                                                                                                                                                                        |
 | `expect` (`assert/expect.ts`)          | `pending-assertions`, `value-assertions`, `locator-assertions`, `text-match`                                                                                                                                                                                                                    |
 

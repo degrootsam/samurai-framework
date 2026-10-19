@@ -30,7 +30,7 @@ export interface TestFunction {
 }
 
 /** With a title and a body it registers a skipped test; with a condition it skips the running test when the condition is true */
-export interface SkipFunction {
+interface SkipFunction {
   (title: string, fn: Body): void;
   (condition: boolean, reason?: string): void;
 }
