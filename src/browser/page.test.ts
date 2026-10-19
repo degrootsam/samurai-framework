@@ -1536,7 +1536,7 @@ describe("Page API", () => {
           assert.ok(err instanceof UnsupportedOperationError);
           assert.match(
             err.message,
-            /reload\(\{ ignoreCache \}\) is not supported by the browser/,
+            /reload\(\): ignoreCache is not supported by the browser/,
           );
           return true;
         },
@@ -2209,7 +2209,7 @@ describe("Page downloads and file choosers", () => {
     const { page, stop } = transferPage();
     await assert.rejects(
       page.waitForEvent("dialog" as never),
-      /does not support "dialog"/,
+      /"dialog" is not supported/,
     );
     stop();
   });
@@ -2311,7 +2311,7 @@ describe("Page.goto", () => {
     const { connector, sent } = stubConnector({ type: "undefined" });
     await assert.rejects(new Page(connector, "ctx").goto("/products"), {
       message:
-        'page.goto("/products") needs a baseURL; set one in samurai.config.ts or the environment',
+        'goto(): "/products" needs a baseURL; set one in samurai.config.ts or the environment',
     });
     assert.equal(sent.length, 0);
   });

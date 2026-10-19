@@ -72,7 +72,7 @@ export class Route {
   /** Answers the request without sending it: status 200 and no body unless told otherwise */
   public async fulfill(options: FulfillOptions = {}): Promise<void> {
     if (options.json !== undefined && options.body !== undefined) {
-      throw new TypeError("route.fulfill(): use either json or body, not both");
+      throw new TypeError("fulfill(): use either json or body, not both");
     }
     const text =
       options.json !== undefined ? JSON.stringify(options.json) : undefined;

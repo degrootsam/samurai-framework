@@ -234,7 +234,7 @@ describe("cookies", () => {
         { name: "ok", value: "1", domain: "example.test" },
         { name: "bad", value: "2" },
       ]),
-      /cookie "bad" needs a domain or a url/,
+      /addCookies\(\): cookie "bad" needs a domain or a url/,
     );
     await assert.rejects(
       context.addCookies([{ name: "x", value: "1", url: "not a url" }]),

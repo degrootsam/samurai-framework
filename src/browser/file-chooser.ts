@@ -28,10 +28,13 @@ export class FileChooser {
   public async setFiles(files: FileInput | FileInput[]): Promise<void> {
     const sharedId = (this.info.element as { sharedId?: string } | undefined)
       ?.sharedId;
-    if (!sharedId) throw new Error("file chooser has no element reference");
+    if (!sharedId)
+      throw new Error("setFiles(): the file chooser has no element reference");
     const paths = await resolveFileInputs(files, "setFiles");
     if (paths.length > 1 && !this.info.multiple) {
-      throw new Error("file chooser does not accept multiple files");
+      throw new Error(
+        "setFiles(): the file chooser does not accept multiple files",
+      );
     }
     await this.connector.send("input.setFiles", {
       context: this.info.context,
