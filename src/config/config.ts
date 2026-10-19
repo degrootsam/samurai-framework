@@ -2,7 +2,7 @@ import type { SamuraiTestConfig } from "../types/config.js";
 import path from "path";
 import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
-import { validateBrowserConfig } from "../runner/browsers.js";
+import { validateBrowserConfig } from "./browsers.js";
 
 /** The project a run belongs to; without one, everything is relative to the working directory */
 interface ActiveProject {

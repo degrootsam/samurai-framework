@@ -76,8 +76,8 @@ export default class TestReporter {
     }
   }
 
-  public onStart(total = 0) {
-    const t = performance.mark(`group-start`);
+  public onStart(total: number) {
+    const t = performance.mark("run-start");
     this.summary = {
       duration: 0,
       status: "failed",
@@ -95,22 +95,21 @@ export default class TestReporter {
   }
 
   public async onEnd(): Promise<TestSummary> {
-    performance.mark(`group-finish`);
+    performance.mark("run-end");
     const duration = performance.measure(
       "test-duration",
-      `group-start`,
-      `group-finish`,
+      "run-start",
+      "run-end",
     ).duration;
+    const tests = [...this.testResults.values()];
 
     this.summary = {
       ...this.summary,
       duration,
       environment: this.environment,
       browsers: this.browsers,
-      tests: Array.from(this.testResults.values()),
-      status: Array.from(this.testResults.values()).every(
-        (r: TestResult) => r.status === "success",
-      )
+      tests,
+      status: tests.every((r: TestResult) => r.status === "success")
         ? "success"
         : "failed",
     } as TestSummary;

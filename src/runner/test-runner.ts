@@ -1,4 +1,3 @@
-import assert from "assert";
 import { glob } from "node:fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
@@ -21,7 +20,6 @@ import type { PreparedRun } from "./prepare-run.js";
 import { createEnvFixture } from "../config/variables.js";
 import { createSecretsFixture } from "../config/secrets.js";
 import TestReporter, { type RunEvent } from "./reporter.js";
-import type { SamuraiGroup } from "../types/config.js";
 import Page from "../browser/page.js";
 import { cleanName, Evidence } from "../browser/evidence.js";
 import { takePendingAssertions } from "../assert/expect.js";
@@ -29,6 +27,7 @@ import { toTestError } from "./test-error.js";
 import { ConnectionClosedError } from "../transport/bidi-connection.js";
 import {
   DEFAULT_SRC_DIR,
+  DEFAULT_TEST_MATCH,
   findGroup,
   realPath,
   resolveGroups,
@@ -78,7 +77,6 @@ export function isSelected(
 export default class TestRunner {
   private testFiles: string[];
   private run: PreparedRun;
-  private group?: SamuraiGroup;
   private options: RunnerOptions;
   /** The real `srcDir` of this run, set by `start`; test screenshots are saved under paths relative to it */
   private srcDir = "";
@@ -86,43 +84,28 @@ export default class TestRunner {
   constructor(
     testFiles: string[],
     run: PreparedRun,
-    group?: SamuraiGroup,
     options: RunnerOptions = {},
   ) {
     this.testFiles = testFiles;
     this.run = run;
-    this.group = group;
     this.options = options;
   }
 
-  static async init(
-    run: PreparedRun,
-    group?: SamuraiGroup,
-    options: RunnerOptions = {},
-  ) {
+  static async init(run: PreparedRun, options: RunnerOptions = {}) {
     logger.verbose("Initializing test runner");
-    let srcDir = "";
-
-    if (group && group.src) {
-      srcDir = group.src;
-    } else {
-      srcDir = (await readConfig("srcDir")) ?? "./src";
-    }
-
-    assert(srcDir, "No srcDir declared!");
+    const srcDir = (await readConfig("srcDir")) ?? DEFAULT_SRC_DIR;
 
     const cwd = path.resolve(projectDir(), srcDir);
     if (options.files) {
       return new TestRunner(
         options.files.map((file) => path.resolve(projectDir(), file)),
         run,
-        group,
         options,
       );
     }
     logger.verbose("Reading test files from: %s", cwd);
     const testFiles: string[] = [];
-    for await (const entry of glob("**/*.spec.ts", {
+    for await (const entry of glob(DEFAULT_TEST_MATCH, {
       cwd,
     })) {
       testFiles.push(entry);
@@ -131,7 +114,6 @@ export default class TestRunner {
     return new TestRunner(
       testFiles.map((file) => path.join(cwd, file)),
       run,
-      group,
       options,
     );
   }
@@ -303,7 +285,7 @@ export default class TestRunner {
           once: true,
         });
       }),
-      new Promise<void>(async (resolve, reject) => {
+      new Promise<void>(async (resolve) => {
         try {
           const launched = await Browser.launch(
             selectedBrowser,

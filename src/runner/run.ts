@@ -35,7 +35,7 @@ export async function runTests(
       timeout,
       expectTimeout,
     } as ProjectOptions,
-    async (run) => (await TestRunner.init(run, undefined, runner)).start(),
+    async (run) => (await TestRunner.init(run, runner)).start(),
   );
 }
 
@@ -69,7 +69,7 @@ export async function listTests(
       expectTimeout,
     } as ProjectOptions,
     async (run) =>
-      (await (await TestRunner.init(run, undefined, runner)).register()).map(
+      (await (await TestRunner.init(run, runner)).register()).map(
         ({ name, file }) => ({ name, file }),
       ),
   );
@@ -97,11 +97,11 @@ export async function listGroups(
       timeout,
       expectTimeout,
     } as ProjectOptions,
-    async (run) => (await TestRunner.init(run, undefined, runner)).groups(),
+    async (run) => (await TestRunner.init(run, runner)).groups(),
   );
 }
 
-export { BROWSER_NAMES, checkBrowserList } from "./browsers.js";
+export { BROWSER_NAMES, checkBrowserList } from "../config/browsers.js";
 export type { RunEvent } from "./reporter.js";
 export type { TestError, TestResult, TestSummary } from "../types/test.js";
 export type { ResolvedGroup } from "./groups.js";

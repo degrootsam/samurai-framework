@@ -5,7 +5,8 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { ConsoleReporter } from "./console-reporter.js";
 import { initProject, scaffold } from "./init.js";
-import { main, USAGE, type Io } from "./main.js";
+import type { Io } from "./io.js";
+import { main, USAGE } from "./main.js";
 import type { TestResult, TestSummary } from "../runner/run.js";
 
 function io() {

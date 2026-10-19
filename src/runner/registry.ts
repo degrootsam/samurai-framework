@@ -13,7 +13,9 @@ export function describe(title: string, fn: () => void): void {
     const result: unknown = fn();
     if (result instanceof Promise) {
       result.catch(() => {});
-      throw new Error("describe() callback must be synchronous; it only registers tests");
+      throw new Error(
+        "describe() callback must be synchronous; it only registers tests",
+      );
     }
   } finally {
     titleStack.pop();
@@ -31,7 +33,7 @@ export function registeredTests(): readonly RegisteredTestCase[] {
   return registered;
 }
 
-/** Forgets every registered test (tests only) */
+/** Forgets every registered test: a run registers its specs afresh */
 export function clearRegistry(): void {
   registered.length = 0;
   titleStack.length = 0;
@@ -40,7 +42,8 @@ export function clearRegistry(): void {
 /** File of the code that called test(): stack lines are Error, callerFile, test, caller */
 function callerFile(): string {
   const caller = new Error().stack?.split("\n")[3] ?? "";
-  const match = caller.match(/\((.+?):\d+:\d+\)$/) ?? caller.match(/at (.+?):\d+:\d+$/);
+  const match =
+    caller.match(/\((.+?):\d+:\d+\)$/) ?? caller.match(/at (.+?):\d+:\d+$/);
   const location = match?.[1] ?? "";
   return location.startsWith("file://") ? fileURLToPath(location) : location;
 }

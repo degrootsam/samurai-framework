@@ -11,9 +11,9 @@ import {
   type StoreOptions,
 } from "../browsers/index.js";
 import { parseCommandLine } from "./args.js";
-import type { Io } from "./main.js";
+import type { Io } from "./io.js";
 
-export const BROWSERS_USAGE = `Usage:
+const BROWSERS_USAGE = `Usage:
   samurai browsers [list]                        The pinned browsers and every build in the cache
   samurai browsers install [firefox|chrome|all]  Download the pinned builds (default: all)
   samurai browsers uninstall <name> [--build <id>]
@@ -114,7 +114,7 @@ export async function browsersCommand(
         return 0;
       }
       if (target === undefined || target === "all") {
-        io.err(`Which browser? \n\n${BROWSERS_USAGE}`);
+        io.err(`Which browser?\n\n${BROWSERS_USAGE}`);
         return 2;
       }
       const [name] = names(target);

@@ -1,6 +1,6 @@
 import { main } from "./cli/main.js";
 
-// Development entry (`bun run dev`): the same as `samurai run`, straight from the sources
+// Development entry (`npm run dev`, which runs `tsx src/index.ts`): the same as `samurai run`, straight from the sources
 const interrupt = new AbortController();
 process.on("SIGINT", () => {
   if (interrupt.signal.aborted) process.exit(130);
