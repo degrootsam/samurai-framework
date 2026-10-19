@@ -2,7 +2,6 @@ import { afterEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { SamuraiTestConfig } from "../types/config.js";
 import {
-  getRunSettings,
   isCI,
   peekRunSettings,
   resolveRunSettings,
@@ -150,14 +149,12 @@ describe("active run settings", () => {
 
   test("nothing is active until set", () => {
     assert.equal(peekRunSettings(), undefined);
-    assert.throws(() => getRunSettings(), /No test run is active/);
   });
 
   test("set settings are returned", () => {
     const settings = resolveRunSettings({});
     setRunSettings(settings);
     assert.equal(peekRunSettings(), settings);
-    assert.equal(getRunSettings(), settings);
   });
 });
 

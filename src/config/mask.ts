@@ -15,7 +15,7 @@ export function registerSecret(name: string, value: string): void {
   rebuild();
 }
 
-/** Forgets every registered secret (tests only) */
+/** Forgets every registered secret: a run starts with none */
 export function resetSecrets(): void {
   secrets.clear();
   patterns = [];
@@ -31,16 +31,26 @@ function escapeRegExp(value: string): string {
 
 /** A value plus its JSON-escaped, inspect-escaped and percent-encoded spellings */
 function variants(value: string): string[] {
-  const forms = [value, JSON.stringify(value).slice(1, -1), inspect(value).slice(1, -1), encodeURIComponent(value)];
+  const forms = [
+    value,
+    JSON.stringify(value).slice(1, -1),
+    inspect(value).slice(1, -1),
+    encodeURIComponent(value),
+  ];
   return forms.filter((form) => form !== "");
 }
 
 function rebuild(): void {
   // Longest first, so a secret that contains another one is hidden whole
-  const forms = [...new Set([...secrets.values()].flatMap(variants))].sort((a, b) => b.length - a.length);
+  const forms = [...new Set([...secrets.values()].flatMap(variants))].sort(
+    (a, b) => b.length - a.length,
+  );
   patterns = forms.map((value) =>
     isShortSecret(value)
-      ? new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(value)}(?![\\p{L}\\p{N}])`, "gu")
+      ? new RegExp(
+          `(?<![\\p{L}\\p{N}])${escapeRegExp(value)}(?![\\p{L}\\p{N}])`,
+          "gu",
+        )
       : new RegExp(escapeRegExp(value), "gu"),
   );
 }
@@ -73,7 +83,9 @@ function walk(value: unknown, path: WeakSet<object>): unknown {
         if (!own.has(key)) entries.unshift([key, value[key]]);
       }
     }
-    return Object.fromEntries(entries.map(([key, item]) => [key, walk(item, path)]));
+    return Object.fromEntries(
+      entries.map(([key, item]) => [key, walk(item, path)]),
+    );
   } finally {
     path.delete(value);
   }
@@ -82,6 +94,7 @@ function walk(value: unknown, path: WeakSet<object>): unknown {
 /** Winston format that masks every string field of a log entry (message and metadata) */
 export const maskFormat = format((info) => {
   if (patterns.length === 0) return info;
-  for (const key of Object.keys(info)) info[key] = walk(info[key], new WeakSet());
+  for (const key of Object.keys(info))
+    info[key] = walk(info[key], new WeakSet());
   return info;
 });

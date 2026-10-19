@@ -6,7 +6,7 @@ import {
 } from "./args.js";
 import { FlowReporter } from "./flow-reporter.js";
 import { projectSteps } from "../flows/steps/index.js";
-import type { Io } from "./main.js";
+import type { Io } from "./io.js";
 import { type FlowFile, type FlowProblem } from "../flows/core/index.js";
 import {
   FLOW_SUFFIX,
@@ -21,7 +21,7 @@ import {
   writeFlowReport,
 } from "../flows/run/index.js";
 
-export const FLOW_USAGE = `Usage:
+const FLOW_USAGE = `Usage:
   samurai flow list [--json]                    List the flows in ./flows
   samurai flow check [<flow>...] [options]      Check flows without running them (all flows when none is given)
   samurai flow run <flow>... [options]          Run flows, in the order given

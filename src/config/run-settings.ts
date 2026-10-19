@@ -36,7 +36,6 @@ export class UnknownEnvironmentError extends Error {
   }
 }
 
-/** Picks the environment and applies precedence: run override > environment > project > built-in default */
 /** True when the `CI` environment variable says this is a CI run (set, and not "", "0" or "false") */
 export function isCI(env: Partial<NodeJS.ProcessEnv> = process.env): boolean {
   const value = env.CI?.trim().toLowerCase();
@@ -45,6 +44,7 @@ export function isCI(env: Partial<NodeJS.ProcessEnv> = process.env): boolean {
   );
 }
 
+/** Picks the environment and applies precedence: run override > environment > project > built-in default */
 export function resolveRunSettings(
   config: SamuraiTestConfig,
   overrides: RunOverrides = {},
@@ -108,13 +108,5 @@ export function setRunSettings(settings: RunSettings | undefined): void {
 
 /** The active run's settings, or undefined outside a run (unit and browser tests) */
 export function peekRunSettings(): RunSettings | undefined {
-  return active;
-}
-
-export function getRunSettings(): RunSettings {
-  if (!active)
-    throw new Error(
-      "No test run is active; run settings are set when the runner starts",
-    );
   return active;
 }

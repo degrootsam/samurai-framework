@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import type { Downloader } from "../browsers/downloader.js";
 import { PINNED } from "../browsers/pins.js";
 import { browsersCommand, formatBytes } from "./browsers.js";
-import type { Io } from "./main.js";
+import type { Io } from "./io.js";
 
 let cacheDir: string;
 beforeEach(
