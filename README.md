@@ -57,7 +57,7 @@ bun install
 
 ### 3. Write a test
 
-Tests live in the folder `srcDir` points to (`./src/tests` in `samurai.config.ts`) and end in `.spec.ts`. Create `src/tests/example.spec.ts`:
+Tests live in the folder `srcDir` points to (`./src/tests` in `samurai.config.ts`) and end in `.spec.ts`. This repository has one as `src/tests/example.spec.ts`:
 
 ```ts
 import { expect, test } from "../api.js";
@@ -106,8 +106,6 @@ bun run dev --timeout 60000    # per-test timeout in ms; also --expect-timeout
 
 A browser window opens for each test and closes when the test ends (`--headless` hides it; on CI it is the default, see [Configuration](docs/configuration.md#headless)). Each test's result is printed as it finishes, followed by a summary, and the full report is written to `result/report.json`. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error. Framework logs go to stderr and `logs/`.
 
-> `src/tests/index.spec.ts` is an example that submits a real contact form. Delete it or replace it before running everything.
-
 ### Flows (optional)
 
 A project can also keep flows in `flows/*.flow.json` (edited in the Samurai app) that chain tests and groups with conditions and variables. `samurai flow check` validates them and `samurai flow run <flow>` runs them, with a report in `result/flows/`. See [Flows](docs/flows.md).
@@ -142,7 +140,7 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 | [Contributing](docs/contributing.md)                         | Project layout, running the framework's own tests, conventions                                        |
 | [Roadmap](docs/roadmap.md)                                   | What is built and what is still open                                                                  |
 
-The [documentation index](docs/README.md) lists every guide and design note by topic. Design notes for every feature live in [`docs/superpowers/specs`](docs/superpowers/specs).
+The [documentation index](docs/README.md) lists every guide by topic.
 
 ## Scripts
 
