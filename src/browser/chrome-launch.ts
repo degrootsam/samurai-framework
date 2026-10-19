@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import EventEmitter from "node:events";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readlinkSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import logger from "../logger/index.js";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import { SESSION_CAPABILITIES } from "./session-capabilities.js";
@@ -50,6 +52,51 @@ export const chromeCapabilities = (launch: ChromeLaunch) => ({
   },
 });
 
+/** Another Chrome has the profile open: a second one would wait for it until the start timeout */
+export class ChromeProfileInUseError extends Error {
+  constructor(
+    readonly profileDir: string,
+    readonly pid: number,
+  ) {
+    super(
+      `Chrome is already running on the profile ${profileDir} (process ${pid}). Close that Chrome, or end the process if a previous run left it behind.`,
+    );
+    this.name = "ChromeProfileInUseError";
+  }
+}
+
+/**
+ * The process of a Chrome that has `profileDir` open, if there is one. Chrome marks a profile it uses with a
+ * `SingletonLock` link named `<host>-<pid>` and removes it when it closes; a link left by a process that is gone, or
+ * by another computer sharing the folder, does not count. Windows keeps no such link: nothing is found there.
+ */
+export function chromeUsingProfile(
+  profileDir: string,
+  host: string = os.hostname(),
+  alive: (pid: number) => boolean = isAlive,
+): number | undefined {
+  let target: string;
+  try {
+    target = readlinkSync(path.join(profileDir, "SingletonLock"));
+  } catch {
+    return undefined;
+  }
+  const match = /^(.*)-(\d+)$/.exec(target);
+  if (!match || match[1] !== host) return undefined;
+  const pid = Number(match[2]);
+  return alive(pid) ? pid : undefined;
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // No permission to signal it still means it exists
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
 /**
  * Chrome speaks BiDi through its chromedriver: this starts one, asks it for a session with `webSocketUrl`, and
  * connects to the socket it hands back. The session exists when this resolves, so there is no `session.new`.
@@ -60,6 +107,9 @@ export async function launchChrome(launch: ChromeLaunch): Promise<{
   connector: BiDiConnector;
 }> {
   mkdirSync(launch.profileDir, { recursive: true });
+  const running = chromeUsingProfile(launch.profileDir);
+  if (running !== undefined)
+    throw new ChromeProfileInUseError(launch.profileDir, running);
   launch.signal?.throwIfAborted();
   const driver = spawn(launch.driverPath, ["--port=0"], {
     stdio: ["ignore", "pipe", "pipe"],
