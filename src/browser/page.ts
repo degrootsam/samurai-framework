@@ -274,7 +274,7 @@ export default class Page {
     const base = this.baseURL ?? peekRunSettings()?.baseURL;
     if (!base) {
       throw new Error(
-        `page.goto("${url}") needs a baseURL; set one in samurai.config.ts or the environment`,
+        `goto(): "${url}" needs a baseURL; set one in samurai.config.ts or the environment`,
       );
     }
     return this.navigateTo(new URL(url, base).href, options);
@@ -397,7 +397,7 @@ export default class Page {
             err.code === "unsupported operation"
           ) {
             throw new UnsupportedOperationError(
-              "reload({ ignoreCache }) is not supported by the browser",
+              "reload(): ignoreCache is not supported by the browser",
             );
           }
           throw err;
@@ -499,9 +499,7 @@ export default class Page {
   /** Waits `ms` milliseconds. Prefer waiting for something (an assertion, `waitForNetworkIdle`) when you can */
   public async waitForTimeout(ms: number): Promise<void> {
     if (!Number.isFinite(ms) || ms < 0)
-      throw new RangeError(
-        `waitForTimeout needs 0 or more milliseconds, got ${ms}`,
-      );
+      throw new RangeError(`waitForTimeout(): ms must be 0 or more, got ${ms}`);
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -557,7 +555,7 @@ export default class Page {
     // about:blank and data: pages have no origin to grant to
     if (origin === "null")
       throw new Error(
-        "grantPermission() needs a page on a web origin, or an explicit origin option",
+        "grantPermission(): needs a page on a web origin, or an explicit origin option",
       );
     const context = this.browserContext;
     await this.biDiConnector.send("permissions.setPermission", {
@@ -772,7 +770,7 @@ export default class Page {
         >;
       default:
         throw new Error(
-          `page.waitForEvent() does not support "${String(event)}": use page.on()`,
+          `waitForEvent(): "${String(event)}" is not supported; use page.on()`,
         );
     }
   }

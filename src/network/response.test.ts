@@ -67,7 +67,7 @@ describe("Response", () => {
     const { wrapped } = response(Buffer.from("<html>"));
     await assert.rejects(
       wrapped.json(),
-      /Response body of https:\/\/e\.test\/api is not JSON: /,
+      /json\(\): the response body of https:\/\/e\.test\/api is not JSON: /,
     );
   });
 

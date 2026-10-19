@@ -55,7 +55,7 @@ export class Response {
       return JSON.parse(text) as T;
     } catch (err) {
       throw new Error(
-        `Response body of ${this.url} is not JSON: ${(err as Error).message}`,
+        `json(): the response body of ${this.url} is not JSON: ${(err as Error).message}`,
       );
     }
   }

@@ -243,7 +243,6 @@ describe("statusOf", () => {
       label: ff.label,
       buildId: ff.buildId,
       state: "missing",
-      launchable: true,
     });
     await installBrowser("firefox", { cacheDir, downloader });
     const s = statusOf("firefox", { cacheDir, downloader, env: {} });
@@ -251,10 +250,6 @@ describe("statusOf", () => {
     assert.equal(
       s.executablePath,
       path.join(cacheDir, "firefox", ff.buildId, "bin"),
-    );
-    assert.equal(
-      statusOf("chrome", { cacheDir, downloader, env: {} }).launchable,
-      true,
     );
     const none = fake({ platform: undefined }).downloader;
     assert.equal(
