@@ -210,7 +210,7 @@ Set `browser: "chrome"` in `samurai.config.ts` (see [Configuration](configuratio
 - `touch` and `javaScriptEnabled` emulation work on Chrome and throw `UnsupportedOperationError` on Firefox.
 - A download that finishes under a name that is taken is saved as `name(1).ext`, as on Firefox.
 - `SAMURAI_CHROMEDRIVER_PATH` points a launch at another chromedriver. It must match the major version of the Chrome it starts; with `SAMURAI_CHROME_PATH` or `browserPaths.chrome` set to a different Chrome, set this too.
-- A Chrome that is still running on the project's profile (`browsers/profiles/chrome`, left by a killed run) makes the next launch wait until the start timeout; close it first.
+- A Chrome that is still running on the project's profile (`browsers/profiles/chrome`, for instance left by a killed run) stops the next launch at once with `Chrome is already running on the profile … (process <pid>)`; close it or end that process. The check reads Chrome's `SingletonLock` link, so it works on Linux and macOS; on Windows the launch still waits for the start timeout.
 
 A launch picks the browser in this order:
 

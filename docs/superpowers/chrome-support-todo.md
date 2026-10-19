@@ -33,6 +33,6 @@ Suggested order: 00 first (the other specs need it to check their work), then 01
 - [x] Unit tests for `BiDiConnector.onClosed` and `ChromeProcess` (exit on socket close, `kill` deletes the session).
 - [x] The first-start warm-up (`ensureWarm`) was not exercised on Chrome; check the `.samurai-launched` stamp.
 - [x] `SAMURAI_CHROMEDRIVER_PATH` needs a line in the docs; `samurai browsers` must show Chrome as launchable.
-- [ ] A Chrome that is still running on the project profile (`browsers/profiles/chrome`) makes the next launch hang until the start timeout: chromedriver waits for it. Found when killed test runs left Chrome processes behind. Detect the profile lock (`SingletonLock`) and fail fast with a clear message, or use a profile folder per launch.
+- [x] A Chrome that is still running on the project profile made the next launch hang until the start timeout. `launchChrome` now reads the profile's `SingletonLock` link (`<host>-<pid>`) and throws `ChromeProfileInUseError` at once when that process is alive (Linux, macOS; Windows has no such link).
 - [x] CI: a Chrome job once the suite is green; the cache key includes chromedriver.
 - [ ] Roadmap item 7 (embedded recording browser) stays separate, with its own `chromium-bidi` plan.
