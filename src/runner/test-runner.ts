@@ -3,8 +3,10 @@ import path from "path";
 import { ensureWarm } from "../browser/warm-up.js";
 import { projectBrowser } from "../browsers/resolve.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
+import { forbidsOnly } from "../config/forbid-only.js";
 import logger from "../logger/index.js";
 import type { RegisteredTestCase } from "../types/test.js";
+import { assertNoOnly, narrowToOnly } from "./focus.js";
 import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "./groups.js";
 import type { ResolvedGroup } from "./groups.js";
 import type { RunnerOptions } from "./options.js";
@@ -20,6 +22,7 @@ import {
   type PooledRunner,
 } from "./pooled-run.js";
 import { runOneTest } from "./run-test.js";
+import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveWorkers } from "./workers-option.js";
 import { WorkerPool, type PoolOptions } from "./worker-pool.js";
@@ -109,7 +112,10 @@ export default class TestRunner {
     const { reportPath, onEvent, signal } = this.options;
     // The specs are imported once: their top-level code runs once per run
     const loaded = await loadSpecs(this.testFiles);
-    const selected = selectTests(loaded, this.options);
+    const config = await loadConfig();
+    // A focused test the config refuses stops the run before anything starts; else only the focused ones run
+    assertNoOnly(loaded.all, forbidsOnly(config), loaded.srcDir);
+    const selected = narrowToOnly(selectTests(loaded, this.options));
     const browsers = await browsersOfRun(loaded.groups, this.options);
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
@@ -119,7 +125,6 @@ export default class TestRunner {
     });
 
     // How the run goes is settled first: a bad `workers` is an error before any browser starts
-    const config = await loadConfig();
     const requested = resolveWorkers({
       flag: this.options.workers,
       env: process.env.SAMURAI_WORKERS,
@@ -156,7 +161,7 @@ export default class TestRunner {
 
     if (mode === "pool") {
       const workers = Math.min(requested, lanes);
-      reporter.onStart(plan.items.length, workers);
+      reporter.onStart(plan.planned.length, workers);
       const pool = this.createPool(workers);
       try {
         await runPooled(pool, plan.planned, plan.items, reporter, signal);
@@ -169,6 +174,11 @@ export default class TestRunner {
     reporter.onStart(selected.length * browsers.length);
     for (const browser of browsers) {
       for (const test of selected) {
+        const annotation = staticSkip(test);
+        if (annotation) {
+          reporter.onTestSkipped(test, browser, { annotation });
+          continue;
+        }
         if (signal?.aborted) {
           reporter.onTestStart(test, browser);
           reporter.onTestEnd(test, browser, {

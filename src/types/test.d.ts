@@ -18,11 +18,26 @@ export interface TestFixtures {
 
 export type TestCase = TestCaseBase;
 
+/** `skip`: not run. `fixme`: not run, known to be broken. `only`: the only test that runs when any is focused */
+export type Modifier = "skip" | "fixme" | "only";
+
+/** A spec file (the root) or a `describe` block: what a modifier or a hook applies to */
+export interface Suite {
+  /** The `describe` title; the root of a file has none */
+  title?: string;
+  parent?: Suite;
+  modifier?: Modifier;
+}
+
 export interface RegisteredTestCase extends TestCaseBase {
   /** Path of the spec file that registered the test */
   file: string;
   /** describe titles, then the test title */
   titlePath: string[];
+  /** The `describe` block (or the file) the test is written in */
+  suite: Suite;
+  /** What applies to the test: its own modifier, or the one of a suite around it */
+  modifier?: Modifier;
 }
 
 export interface TestCaseBase {
@@ -36,7 +51,8 @@ export interface PartialTestResult extends TestResultBase {
   file: string;
 }
 
-export type TestResult = TestResultSuccess | TestResultFailed | TestResultBase;
+export type TestResult =
+  TestResultSuccess | TestResultFailed | TestResultSkipped | TestResultBase;
 
 interface TestResultSuccess extends TestResultIdentity {
   status: "success";
@@ -56,6 +72,15 @@ interface TestResultFailed extends TestResultIdentity, TestError {
   logsDropped?: number;
   /** Named screenshots the test saved, relative to the result folder */
   screenshots?: { name: string; path: string }[];
+}
+
+/** A test that was not run: marked `skip` or `fixme`, or skipped from inside with `test.skip(condition)` */
+interface TestResultSkipped extends TestResultIdentity {
+  status: "skipped";
+  duration: 0;
+  /** `"fixme"` for a test known to be broken, `"skip"` for the rest */
+  annotation: "skip" | "fixme";
+  reason?: string;
 }
 
 /** One line of the browser's log, as stored in the report */
@@ -100,6 +125,7 @@ export interface TestError {
 export type TestSummary = TestSummarySuccess | TestSummaryFailed;
 
 interface TestSummarySuccess extends TestSummaryBase {
+  /** No test failed (skipped tests do not count as failed) */
   status: "success";
 }
 

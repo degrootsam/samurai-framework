@@ -61,6 +61,39 @@ describe("flow report", () => {
     assert.ok(!Number.isNaN(Date.parse(report.startedAt)));
   });
 
+  it("keeps a skipped test in the report with its reason", () => {
+    const b = new FlowReportBuilder({ id: "checkout", name: "Checkout" });
+    b.handle({
+      type: "test",
+      nodeId: "t",
+      event: {
+        type: "test-end",
+        name: "old flow",
+        file: "f",
+        browser: "firefox",
+        result: {
+          name: "old flow",
+          file: "f",
+          browser: "firefox",
+          startTime: 0,
+          status: "skipped",
+          duration: 0,
+          annotation: "fixme",
+          reason: "broken on staging",
+        },
+      },
+    });
+    const report = b.finish({ status: "passed", nodes: {}, vars: {} });
+    assert.deepEqual(
+      report.tests.map((t) => [t.nodeId, t.status]),
+      [["t", "skipped"]],
+    );
+    assert.equal(
+      (report.tests[0] as { reason?: string }).reason,
+      "broken on staging",
+    );
+  });
+
   it("writes result/flows/<id>.json with secrets masked", async () => {
     registerSecret("TOKEN", "s3cret-token");
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-flow-report-"));

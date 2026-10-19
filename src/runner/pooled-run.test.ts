@@ -14,12 +14,14 @@ import {
 import type { RunEvent } from "./reporter.js";
 import TestReporter from "./reporter.js";
 import type { PoolEvent } from "./worker-pool.js";
+import { newSuite } from "./suite.js";
 import type { WorkItem } from "./worker-protocol.js";
 
 const testCase = (file: string, name: string): RegisteredTestCase => ({
   file,
   name,
   titlePath: name.split(" > "),
+  suite: newSuite(),
   function: async () => {},
 });
 
@@ -41,6 +43,30 @@ describe("planItems", () => {
     assert.deepEqual(
       planned.map((p) => [p.test.name, p.browser]),
       items.map((i) => [i.testName, i.browser]),
+    );
+  });
+
+  it("keeps a skipped test in the plan but out of the queue, and the items still point into the plan", () => {
+    const a = testCase("/p/src/a.spec.ts", "one");
+    const skipped = {
+      ...testCase("/p/src/a.spec.ts", "two"),
+      modifier: "skip" as const,
+    };
+    const c = testCase("/p/src/a.spec.ts", "three");
+    const { items, planned } = planItems(
+      [a, skipped, c],
+      ["firefox", "chrome"],
+      () => undefined,
+    );
+    assert.equal(planned.length, 6);
+    assert.deepEqual(
+      items.map((i) => [i.index, i.testName, i.browser]),
+      [
+        [0, "one", "firefox"],
+        [2, "three", "firefox"],
+        [3, "one", "chrome"],
+        [5, "three", "chrome"],
+      ],
     );
   });
 
@@ -314,5 +340,75 @@ describe("runPooled", () => {
       runPooled(pool, planned, items, reporter),
       /worker could not start/,
     );
+  });
+});
+
+describe("runPooled with skipped tests", () => {
+  it("reports them first without a worker, and the report keeps the plan's order", async () => {
+    const events: RunEvent[] = [];
+    const reporter = new TestReporter({
+      environment: "staging",
+      browsers: ["firefox"],
+      output: false,
+      onEvent: (event) => events.push(event),
+    });
+    const a = testCase("/p/src/a.spec.ts", "one");
+    const skipped = {
+      ...testCase("/p/src/a.spec.ts", "later"),
+      modifier: "fixme" as const,
+    };
+    const c = testCase("/p/src/a.spec.ts", "three");
+    const { items, planned } = planItems(
+      [a, skipped, c],
+      ["firefox"],
+      () => undefined,
+    );
+    reporter.onStart(planned.length, 2);
+
+    const asked: WorkItem[][] = [];
+    await runPooled(
+      {
+        async run(list, hooks) {
+          asked.push(list);
+          return list.map((item) => {
+            const result = {
+              name: item.testName,
+              file: item.file,
+              browser: item.browser,
+              status: "success",
+              startTime: 1,
+              duration: 2,
+            } as TestResult;
+            hooks?.onEvent?.({ type: "test-start", item, worker: 0 });
+            hooks?.onEvent?.({ type: "test-end", item, worker: 0, result });
+            return result;
+          });
+        },
+      },
+      planned,
+      items,
+      reporter,
+    );
+    const summary = await reporter.onEnd();
+
+    assert.deepEqual(
+      asked[0]?.map((i) => i.testName),
+      ["one", "three"],
+    );
+    assert.deepEqual(
+      summary.tests.map((t) => [t.name, t.status]),
+      [
+        ["one", "success"],
+        ["later", "skipped"],
+        ["three", "success"],
+      ],
+    );
+    assert.equal(events[1]?.type, "test-start");
+    assert.equal(
+      (events[1] as { name: string }).name,
+      "later",
+      "skips are reported before the pool runs",
+    );
+    assert.equal(summary.status, "success");
   });
 });

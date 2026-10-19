@@ -124,7 +124,10 @@ async function runOnPool(
       } as RunEvent),
   });
   if (signal.aborted) return "cancelled";
-  return results.every((r) => r.status === "success") ? "passed" : "failed";
+  // A skipped test is not a failure
+  return results.every((r) => r.status === "success" || r.status === "skipped")
+    ? "passed"
+    : "failed";
 }
 
 /** A test of the project as flows see it */

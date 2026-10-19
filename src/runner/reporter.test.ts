@@ -6,13 +6,20 @@ import path from "node:path";
 import TestReporter from "./reporter.js";
 import { MASK, registerSecret, resetSecrets } from "../config/mask.js";
 import type { RegisteredTestCase } from "../types/test.js";
+import { newSuite } from "./suite.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "samurai-reporter-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 afterEach(() => resetSecrets());
 
 function testCase(file: string, name: string): RegisteredTestCase {
-  return { file, name, titlePath: name.split(" > "), function: async () => {} };
+  return {
+    file,
+    name,
+    titlePath: name.split(" > "),
+    suite: newSuite(),
+    function: async () => {},
+  };
 }
 
 async function report(run: (reporter: TestReporter) => void) {
@@ -249,4 +256,96 @@ test("results from workers are listed in the order the run planned, whichever en
     "end:third",
     "run-end",
   ]);
+});
+
+test("a skipped test reports a start and an end, is listed as skipped, and does not fail the run", async () => {
+  const events: { type: string; result?: { status: string } }[] = [];
+  const output = path.join(dir, `${Math.random()}.json`);
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["firefox"],
+    output,
+    onEvent: (event) => events.push(event),
+  });
+  const ran = testCase("a.spec.ts", "Checkout > pays");
+  const skipped = testCase("a.spec.ts", "Checkout > old flow");
+  reporter.onStart(2);
+  reporter.onTestSkipped(skipped, "firefox", {
+    annotation: "fixme",
+    reason: "broken on staging",
+  });
+  reporter.onTestStart(ran, "firefox");
+  reporter.onTestEnd(ran, "firefox");
+  const summary = await reporter.onEnd();
+
+  assert.deepEqual(
+    events.map((e) => e.type),
+    [
+      "run-start",
+      "test-start",
+      "test-end",
+      "test-start",
+      "test-end",
+      "run-end",
+    ],
+  );
+  assert.equal(events[2]?.result?.status, "skipped");
+  assert.equal(summary.status, "success");
+  const written = JSON.parse(readFileSync(output, "utf8"));
+  assert.deepEqual(
+    written.tests.map((t: { name: string; status: string }) => [
+      t.name,
+      t.status,
+    ]),
+    [
+      ["Checkout > old flow", "skipped"],
+      ["Checkout > pays", "success"],
+    ],
+  );
+  assert.equal(written.tests[0].annotation, "fixme");
+  assert.equal(written.tests[0].reason, "broken on staging");
+  assert.equal(written.tests[0].duration, 0);
+});
+
+test("a run with a failing test and a skipped one is failed", async () => {
+  const bad = testCase("a.spec.ts", "bad");
+  const skipped = testCase("a.spec.ts", "later");
+  const summary = await report((reporter) => {
+    reporter.onTestStart(bad, "firefox");
+    reporter.onTestEnd(bad, "firefox", { message: "boom", type: "error" });
+    reporter.onTestSkipped(skipped, "firefox", { annotation: "skip" });
+  });
+  assert.equal(summary.status, "failed");
+  assert.equal(summary.tests.length, 2);
+});
+
+test("a secret in a skip reason is masked", async () => {
+  registerSecret("TOKEN", "s3cret-value");
+  const t = testCase("a.spec.ts", "needs token");
+  const summary = await report((reporter) => {
+    reporter.onTestSkipped(t, "firefox", {
+      annotation: "skip",
+      reason: "no s3cret-value here",
+    });
+  });
+  assert.ok(summary.tests[0].reason.includes(MASK));
+  assert.ok(!summary.tests[0].reason.includes("s3cret-value"));
+});
+
+test("a test that skips itself after it started does not start twice", async () => {
+  const events: string[] = [];
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["firefox"],
+    output: false,
+    onEvent: (event) => events.push(event.type),
+  });
+  const t = testCase("a.spec.ts", "needs chrome");
+  reporter.onStart(1);
+  reporter.onTestStart(t, "firefox");
+  reporter.onTestSkipped(t, "firefox", {
+    annotation: "skip",
+    reason: "needs Chrome",
+  });
+  assert.deepEqual(events, ["run-start", "test-start", "test-end"]);
 });

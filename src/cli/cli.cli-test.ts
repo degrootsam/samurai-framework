@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -75,6 +81,96 @@ describe("main", () => {
         err(),
         /^workers must be a whole number from 1 or a percentage/,
       );
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
+  it("lists tests with a marker for their modifier, and --json carries it", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      'export default { srcDir: "./specs", forbidOnly: false };',
+    );
+    mkdirSync(path.join(dir, "specs"));
+    writeFileSync(
+      path.join(dir, "specs/a.spec.ts"),
+      `import { test } from ${JSON.stringify(path.resolve("src/api.ts"))};
+test("plain", async () => {});
+test.skip("later", async () => {});
+test.fixme("broken", async () => {});
+test.only("focus", async () => {});`,
+    );
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      const human = io();
+      assert.equal(await main(["list"], human.target), 0);
+      const lines = human.out().split("\n");
+      assert.ok(lines.includes("plain"), human.out());
+      assert.ok(lines.includes("later [skip]"), human.out());
+      assert.ok(lines.includes("broken [fixme]"), human.out());
+      assert.ok(lines.includes("focus [only]"), human.out());
+
+      const json = io();
+      assert.equal(await main(["list", "--json"], json.target), 0);
+      const listed = JSON.parse(json.out()) as {
+        name: string;
+        modifier?: string;
+      }[];
+      assert.deepEqual(
+        listed.map((t) => [t.name, t.modifier]),
+        [
+          ["plain", undefined],
+          ["later", "skip"],
+          ["broken", "fixme"],
+          ["focus", "only"],
+        ],
+      );
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
+  it("a run of only skipped tests exits 0, prints them as dashes and counts them", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-skip-"));
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      'export default { srcDir: "./specs" };',
+    );
+    mkdirSync(path.join(dir, "specs"));
+    writeFileSync(
+      path.join(dir, "specs/a.spec.ts"),
+      `import { test } from ${JSON.stringify(path.resolve("src/api.ts"))};
+test.skip("later", async () => {});
+test.fixme("broken", async () => {});`,
+    );
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      const human = io();
+      assert.equal(await main(["run"], human.target), 0);
+      assert.match(human.out(), /- later \(skipped\)/);
+      assert.match(human.out(), /- broken \(fixme\)/);
+      assert.match(human.out(), /0 passed, 2 skipped/);
+
+      const json = io();
+      assert.equal(await main(["run", "--json"], json.target), 0);
+      const types = json
+        .out()
+        .trim()
+        .split("\n")
+        .map((line) => (JSON.parse(line) as { type: string }).type);
+      assert.deepEqual(types, [
+        "run-start",
+        "test-start",
+        "test-end",
+        "test-start",
+        "test-end",
+        "run-end",
+      ]);
     } finally {
       process.chdir(previous);
     }

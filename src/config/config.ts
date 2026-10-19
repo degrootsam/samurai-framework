@@ -3,6 +3,7 @@ import path from "path";
 import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
 import { validateBrowserConfig } from "./browsers.js";
+import { validateForbidOnlyConfig } from "./forbid-only.js";
 import { validateWorkersConfig } from "./workers.js";
 
 /** The project a run belongs to; without one, everything is relative to the working directory */
@@ -44,6 +45,7 @@ export async function loadConfig(): Promise<SamuraiTestConfig> {
   if (activeProject?.config) {
     validateBrowserConfig(activeProject.config);
     validateWorkersConfig(activeProject.config);
+    validateForbidOnlyConfig(activeProject.config);
     return activeProject.config;
   }
   const configUrl = path.join(projectDir(), "samurai.config.ts");
@@ -60,6 +62,7 @@ export async function loadConfig(): Promise<SamuraiTestConfig> {
   }
   validateBrowserConfig(config.default);
   validateWorkersConfig(config.default);
+  validateForbidOnlyConfig(config.default);
   return config.default;
 }
 
