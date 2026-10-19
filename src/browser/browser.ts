@@ -16,6 +16,7 @@ import { BrowserContext, type ContextHost } from "./browser-context.js";
 import type { UserPromptHandler } from "../types/bidi-modules/session.js";
 import { validateEmulation, type EmulationOptions } from "./emulation.js";
 import { prepareDownloadsDir, removeIfEmpty } from "./downloads-dir.js";
+import { ChromeDownloadFolders } from "./download-folders.js";
 import type { BiDiCommands } from "../types/bidi.js";
 import logger from "../logger/index.js";
 import { browsersDir, projectDir, readConfig } from "../config/config.js";
@@ -196,16 +197,20 @@ export class Browser {
   /** Where downloads are saved; undefined when the browser could not be told (it then uses its own folder) */
   public readonly downloadsDir: string | undefined;
   private exitedPromise: Promise<void> | undefined;
+  private downloadFolders: ChromeDownloadFolders | undefined;
 
   constructor({
     browserProc,
     biDiConnector,
     downloadsDir,
+    downloadFolders,
   }: {
     browserProc: BrowserProcess;
     biDiConnector: BiDiConnector;
     downloadsDir?: string | undefined;
+    downloadFolders?: ChromeDownloadFolders | undefined;
   }) {
+    this.downloadFolders = downloadFolders;
     this.browserProc = browserProc;
     this.biDiConnector = biDiConnector;
     this.downloadsDir = downloadsDir;
@@ -256,7 +261,7 @@ export class Browser {
       });
       try {
         // The chromedriver session is the BiDi session: there is no session.new to send
-        return await Browser.attach(proc, connector);
+        return await Browser.attach(proc, connector, browserName);
       } catch (err) {
         abandonLaunch(proc, connector);
         throw err;
@@ -320,7 +325,11 @@ export class Browser {
           logger.verbose("Session status", status);
           await startSession(biDiConnector, label, commandTimeout);
           logger.verbose("Session started successfully");
-          const launched = await Browser.attach(browserProc, biDiConnector);
+          const launched = await Browser.attach(
+            browserProc,
+            biDiConnector,
+            browserName,
+          );
           browserProc.off("close", onUnexpectedClose);
           signal?.removeEventListener("abort", onAbort);
           resolve(launched);
@@ -338,6 +347,7 @@ export class Browser {
   private static async attach(
     browserProc: BrowserProcess,
     biDiConnector: BiDiConnector,
+    browserName: SupportedBrowser,
   ): Promise<{ browser: Browser; page: Page }> {
     const downloadsDir = await prepareDownloadsDir(
       biDiConnector,
@@ -346,10 +356,17 @@ export class Browser {
         (await readOptionalConfig("downloadsDir")) ?? "result/downloads",
       ),
     );
+    // Chrome replaces a file that has the name of a download; this keeps every download
+    const downloadFolders =
+      browserName === "chrome" && downloadsDir
+        ? new ChromeDownloadFolders(biDiConnector, downloadsDir)
+        : undefined;
+    await downloadFolders?.start();
     const browser = new Browser({
       browserProc,
       biDiConnector,
       downloadsDir,
+      downloadFolders,
     });
     logger.verbose("Requesting current browser tree");
     const browserTree = await biDiConnector.send("browsingContext.getTree", {});
@@ -378,6 +395,7 @@ export class Browser {
 
   /** Closes the browser via BiDi browser.close, then makes sure the process has exited */
   public async close() {
+    await this.downloadFolders?.dispose();
     if (this.browserProc.exitCode !== null || this.browserProc.signalCode) {
       this.biDiConnector.kill();
       removeIfEmpty(this.downloadsDir);
