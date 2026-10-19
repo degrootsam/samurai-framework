@@ -18,11 +18,26 @@ export interface TestFixtures {
 
 export type TestCase = TestCaseBase;
 
+/** `skip`: not run. `fixme`: not run, known to be broken. `only`: the only test that runs when any is focused */
+export type Modifier = "skip" | "fixme" | "only";
+
+/** A spec file (the root) or a `describe` block: what a modifier or a hook applies to */
+export interface Suite {
+  /** The `describe` title; the root of a file has none */
+  title?: string;
+  parent?: Suite;
+  modifier?: Modifier;
+}
+
 export interface RegisteredTestCase extends TestCaseBase {
   /** Path of the spec file that registered the test */
   file: string;
   /** describe titles, then the test title */
   titlePath: string[];
+  /** The `describe` block (or the file) the test is written in */
+  suite: Suite;
+  /** What applies to the test: its own modifier, or the one of a suite around it */
+  modifier?: Modifier;
 }
 
 export interface TestCaseBase {

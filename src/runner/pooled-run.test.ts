@@ -14,12 +14,14 @@ import {
 import type { RunEvent } from "./reporter.js";
 import TestReporter from "./reporter.js";
 import type { PoolEvent } from "./worker-pool.js";
+import { newSuite } from "./suite.js";
 import type { WorkItem } from "./worker-protocol.js";
 
 const testCase = (file: string, name: string): RegisteredTestCase => ({
   file,
   name,
   titlePath: name.split(" > "),
+  suite: newSuite(),
   function: async () => {},
 });
 
