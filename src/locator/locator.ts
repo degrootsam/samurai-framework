@@ -164,6 +164,21 @@ const NAMED_KEYS: Readonly<Record<string, string>> = {
 /** Unicode code point WebDriver uses for the Backspace key */
 const BACKSPACE = "";
 
+/**
+ * Chrome answers a command sent while the page swaps documents with an unknown error that says the context
+ * is gone for the moment; the same call a moment later works.
+ */
+const DOCUMENT_SWAP =
+  /Cannot find context with specified id|execution contexts? (was |were )?(cleared|destroyed)/i;
+
+function isDocumentSwap(err: unknown): boolean {
+  return (
+    err instanceof BiDiError &&
+    err.code === "unknown error" &&
+    DOCUMENT_SWAP.test(err.message)
+  );
+}
+
 export default class Locator {
   private biDiConnector: BiDiConnector;
   private contextId: BrowsingContext;
@@ -341,12 +356,18 @@ export default class Locator {
         const picked = nodes?.[selector.index];
         nodes = picked ? [picked] : [];
       } else {
-        nodes = await this.locateStep(
-          selector,
-          index > 0,
-          nodes,
-          index === this.chain.length - 1 ? max : undefined,
-        );
+        try {
+          nodes = await this.locateStep(
+            selector,
+            index > 0,
+            nodes,
+            index === this.chain.length - 1 ? max : undefined,
+          );
+        } catch (err) {
+          // The page is swapping documents: nothing matches right now, and the waits that poll try again
+          if (isDocumentSwap(err)) return [];
+          throw err;
+        }
       }
       if (nodes.length === 0) return [];
     }
@@ -514,7 +535,10 @@ export default class Locator {
       return parseElementState(await this.callProbe(el, options));
     } catch (err) {
       // The document changed between the search and the probe
-      if (err instanceof BiDiError && err.code === "no such node")
+      if (
+        (err instanceof BiDiError && err.code === "no such node") ||
+        isDocumentSwap(err)
+      )
         return DETACHED_STATE;
       throw err;
     }
