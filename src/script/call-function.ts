@@ -1,5 +1,4 @@
 import type { BiDiConnector } from "../transport/bidi-connection.js";
-import { BiDiError } from "../transport/bidi-error.js";
 import type { StackTrace } from "../types/bidi-modules/script.js";
 import { fromRemoteValue, toLocalValue, type Arg } from "./serialize.js";
 
@@ -9,14 +8,8 @@ const SOURCE_PREVIEW = 200;
 export interface CallOptions {
   /** @default true. The auto-wait probes pass false */
   awaitPromise?: boolean;
-  /**
-   * "root" keeps a handle alive in the browser; the result then comes back as a `RemoteObject`
-   * carrying it, and the caller must `disown` it. @default "none"
-   */
-  ownership?: "none" | "root";
   /** Named sandbox realm to run in */
   sandbox?: string;
-  thisArg?: Arg;
 }
 
 /** The page function threw */
@@ -72,11 +65,8 @@ export async function callFunction<T = unknown>(
   options: CallOptions = {},
 ): Promise<T> {
   const functionDeclaration = toFunctionDeclaration(fn);
-  const ownership = options.ownership ?? "none";
   // Serialize first: a bad argument must fail before anything is sent
   const serialized = args.map(toLocalValue);
-  const thisValue =
-    "thisArg" in options ? toLocalValue(options.thisArg) : undefined;
 
   const result = await connector.send("script.callFunction", {
     functionDeclaration,
@@ -86,8 +76,7 @@ export async function callFunction<T = unknown>(
         ? { context }
         : { context, sandbox: options.sandbox },
     ...(serialized.length > 0 && { arguments: serialized }),
-    resultOwnership: ownership,
-    ...(thisValue !== undefined && { this: thisValue }),
+    resultOwnership: "none",
   });
 
   if (result.type === "exception") {
@@ -97,22 +86,5 @@ export async function callFunction<T = unknown>(
       result.exceptionDetails.stackTrace,
     );
   }
-  return fromRemoteValue(result.result, {
-    keepHandles: ownership === "root",
-  }) as T;
-}
-
-/** Releases handles obtained with `ownership: "root"`; a handle that is already gone is fine */
-export async function disown(
-  connector: BiDiConnector,
-  context: string,
-  handles: string[],
-): Promise<void> {
-  if (handles.length === 0) return;
-  try {
-    await connector.send("script.disown", { handles, target: { context } });
-  } catch (err) {
-    if (err instanceof BiDiError && err.code === "no such handle") return;
-    throw err;
-  }
+  return fromRemoteValue(result.result) as T;
 }

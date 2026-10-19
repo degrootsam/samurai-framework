@@ -428,7 +428,7 @@ export default class Locator {
     const found = new Map<string, ElementHandle>();
     for (const node of nodes) {
       if (node.sharedId !== undefined && !found.has(node.sharedId)) {
-        found.set(node.sharedId, new ElementHandle(node.sharedId, node.handle));
+        found.set(node.sharedId, new ElementHandle(node.sharedId));
       }
     }
     return [...found.values()];
