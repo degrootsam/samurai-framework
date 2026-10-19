@@ -226,6 +226,10 @@ Firefox 158.0 is not installed. Run: samurai browsers install firefox
 
 A run with no tests to run does not need a browser.
 
+### Upgrading to 0.12
+
+Tests now run at the same time: the default for [`workers`](configuration.md#workers) is half the CPUs, where 0.11 ran one test at a time. A suite whose tests share an account, a cart or other data may start to fail; set `workers: 1` in `samurai.config.ts`, pass `--workers 1`, or set `SAMURAI_WORKERS=1` to get the old behaviour back, and give the tests their own data from there (the `workerIndex` fixture tells each test which worker it runs in). A group can keep just its own tests apart with `workers: 1`. `TestResult` has a new `worker` field, and the `run-start` event a `workers` field when the run uses more than one. A run that gets its config as an object (`runTests({ config })`, `runFlowInProject({ config })`) cannot be sent to a worker and stays on one worker; embedding apps should pass `workers: 1` explicitly if they relied on one test at a time. A flow's Parallel node now really runs its branches at the same time, with its own copy of the variables in each branch (see [Flows](flows.md#parallel)).
+
 ### Upgrading to 0.11
 
 Embedding apps: `LAUNCHABLE` and `BrowserStatus.launchable` (from `@itmetsam/samurai-framework/browsers`) are gone. They were always true for both managed browsers; both can be launched, so the list of managed browsers (`MANAGED_BROWSERS`) is the list you can launch. `page.captureScreenshot()` (a method that did nothing) was removed in 0.10.x; use `page.screenshot()`. Messages thrown by `Page`, `Locator` and the other public classes now read `name(): what is wrong`; code that matches on message text should match the new text.

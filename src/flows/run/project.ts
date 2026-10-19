@@ -323,7 +323,7 @@ export async function runFlowInProject(
           config: config.workers,
         });
   // A worker reads `samurai.config.ts` from the project folder: a config given as an object stays in this process
-  if (options.config !== undefined && workers > 1) {
+  if (options.config !== undefined && !options.createPool && workers > 1) {
     if (asked)
       logger.warn(
         "workers needs samurai.config.ts in the project folder; running on one worker",

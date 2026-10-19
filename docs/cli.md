@@ -21,18 +21,19 @@ Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), 
 samurai run --env staging --headless --grep coupon
 ```
 
-| Option                        | Meaning                                                                                                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                                                 |
-| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                                            |
-| `--group <name>`              | Only the tests of this entry of the config's `groups`; an unknown name is an error listing the groups. Combines with `--file` and `--grep`                    |
-| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                                               |
-| `--browser <name>`            | Run in this browser (`firefox` or `chrome`) instead of the config's [`browsers`](configuration.md#browsers). Repeatable: `--browser firefox --browser chrome` |
-| `--timeout <ms>`              | Time one test may take                                                                                                                                        |
-| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                                             |
-| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set                           |
-| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                                                   |
-| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                                                      |
+| Option                        | Meaning                                                                                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                                                   |
+| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                                              |
+| `--group <name>`              | Only the tests of this entry of the config's `groups`; an unknown name is an error listing the groups. Combines with `--file` and `--grep`                      |
+| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                                                 |
+| `--browser <name>`            | Run in this browser (`firefox` or `chrome`) instead of the config's [`browsers`](configuration.md#browsers). Repeatable: `--browser firefox --browser chrome`   |
+| `--timeout <ms>`              | Time one test may take                                                                                                                                          |
+| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                                               |
+| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set                             |
+| `--port <n>`                  | The browser's debugging port (default 9223); with workers, worker `n` of the run uses port + `n`                                                                |
+| `--workers <n\|n%>`           | Tests that run at the same time: a number from 1 or a share of the CPUs like `50%`. Default: `SAMURAI_WORKERS`, else the config's `workers`, else half the CPUs |
+| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                                                        |
 
 Output:
 
@@ -51,6 +52,14 @@ Checkout > rejects an expired coupon
 
 1 failed, 2 passed (10.3s)
 ```
+
+With more than one worker the header says so, and a test's line is printed when that test ends, so the order of the lines can differ from the order of the tests (the summary and `report.json` keep the test order). See [Parallel runs](running-and-reports.md#parallel-runs).
+
+```text
+Running 6 tests with 3 workers against staging
+```
+
+`--workers` must be a whole number from 1 or a percentage like `50%`; anything else is exit code 2 (`--workers must be a whole number from 1 or a percentage like 50%, got "0"`).
 
 With more than one browser each test line ends with its browser, and the header names them:
 

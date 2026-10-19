@@ -46,16 +46,26 @@ A flow's id is its file name without `.flow.json`. Everywhere a flow is asked fo
 
 ## Nodes
 
-| Kind           | Label        | What it does                                                                                                  |
-| -------------- | ------------ | ------------------------------------------------------------------------------------------------------------- |
-| `start`, `end` | Start, End   | Where the flow begins and ends                                                                                |
-| `test`         | Test         | Runs one test                                                                                                 |
-| `group`        | Group        | Runs the tests of a config group (a group with no tests passes with a note)                                   |
-| `set-variable` | Set variable | Evaluates an expression into `vars.<name>`                                                                    |
-| `condition`    | Condition    | Evaluates an expression and follows the `true` or the `false` branch; the other branch is skipped             |
-| `parallel`     | Parallel     | Walks each of its branches (one after the other today), ends when all are done and fails when a branch failed |
-| `wait`         | Wait         | Waits `ms` milliseconds (stopping the run ends the wait)                                                      |
-| `api`          | HTTP request | Sends an HTTP request; outputs `statusCode` and `body` (see [Writing a step](steps.md))                       |
+| Kind           | Label        | What it does                                                                                      |
+| -------------- | ------------ | ------------------------------------------------------------------------------------------------- |
+| `start`, `end` | Start, End   | Where the flow begins and ends                                                                    |
+| `test`         | Test         | Runs one test                                                                                     |
+| `group`        | Group        | Runs the tests of a config group (a group with no tests passes with a note)                       |
+| `set-variable` | Set variable | Evaluates an expression into `vars.<name>`                                                        |
+| `condition`    | Condition    | Evaluates an expression and follows the `true` or the `false` branch; the other branch is skipped |
+| `parallel`     | Parallel     | Walks its branches at the same time, ends when all are done and fails when a branch failed        |
+| `wait`         | Wait         | Waits `ms` milliseconds (stopping the run ends the wait)                                          |
+| `api`          | HTTP request | Sends an HTTP request; outputs `statusCode` and `body` (see [Writing a step](steps.md))           |
+
+### Parallel
+
+A Parallel node walks its branches at the same time. The tests of its branches (and of any Test or Group node) are run by one pool of worker processes that the whole flow run shares, so [`workers`](configuration.md#workers) is the cap for the whole run, not per branch: with `workers: 2`, a Parallel node with four test branches runs two of them at a time.
+
+- **Variables.** Each branch starts with its own copy of `vars` and of the outputs of the nodes before it. At the join the changes are merged: a variable changed by one branch is taken, and so are its node outputs. If two branches set the same variable to different values, the Parallel node fails with `branches set <name> differently`; the same value in both is not a clash.
+- **Failure.** A branch that fails in a node whose `onFailure` is `stop` cancels the other branches: their running tests are aborted and nodes that have not started are skipped. The Parallel node then fails with `A branch failed.` With `continue` the other branches carry on.
+- **Order of events.** The events of one node stay in order; the events of different branches interleave.
+
+A flow takes `--workers` and `SAMURAI_WORKERS` like `samurai run`, and the config's `workers`. Without any of them it uses half the CPUs, which also applies to a flow with one test node, but a pool never starts more workers than there are tests waiting.
 
 Test and Group nodes launch the browser; every other node runs in-process. A Group node runs its tests in the group's [`browsers`](configuration.md#browsers) (the project's when the group has none); a Test node runs in the project's. With more than one browser a node's tests run once in each, and the node fails if any of them fails.
 
@@ -100,7 +110,7 @@ samurai flow run checkout smoke       # in the order given
 samurai flow run --all                # every flow in ./flows, by file name
 ```
 
-`run` checks the flow first and refuses to start when it has errors (exit code 2, nothing is executed; with several flows, none starts). Then it walks the graph. Options are those of [`samurai run`](cli.md#samurai-run) (`--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port`, `--json`) plus `--allow-unsupported`.
+`run` checks the flow first and refuses to start when it has errors (exit code 2, nothing is executed; with several flows, none starts). Then it walks the graph. Options are those of [`samurai run`](cli.md#samurai-run) (`--env`, `--headless`/`--no-headless`, `--timeout`, `--expect-timeout`, `--port`, `--workers`, `--json`) plus `--allow-unsupported`.
 
 ```text
 Flow "Checkout" against staging
