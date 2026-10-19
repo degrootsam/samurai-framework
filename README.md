@@ -19,6 +19,7 @@ test("Visitor can sign in", async ({ page, env, secrets }) => {
 - **Auto-waiting.** Actions wait until the element is attached, visible, stable, enabled and not covered. Assertions retry until they pass or time out.
 - **Semantic locators.** By role, label, text, test id, CSS or XPath, with ordered fallbacks.
 - **Environments and secrets.** One test file runs against `dev`, `staging` or `production`; secrets come from the environment or a `.env.<name>` file and are masked in logs and reports.
+- **Parallel runs.** Tests run side by side in worker processes (`--workers`, `workers` in the config; half the CPUs by default), and a flow's Parallel node runs its branches at the same time (see [Running tests and reports](docs/running-and-reports.md#parallel-runs)).
 - **Network control.** Mock, block or modify requests; wait for requests, responses and network idle; read response bodies.
 - **Flows.** Chain tests and groups into a graph with conditions, variables, waits and HTTP requests, and run it from the command line or CI (see [Flows](docs/flows.md)).
 - **Recorder building blocks.** Specs are parsed into steps and edited back with minimal diffs, and an engine records what a person does in the browser. A toolbar in the recorded page adds assertions, variables and secrets, waits, screenshots and pause (see [Steps and the recorder](docs/recorder.md)). The Electron app that ties them together lives in a separate repository (see the [roadmap](docs/roadmap.md)).

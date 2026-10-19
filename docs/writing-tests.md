@@ -37,6 +37,8 @@ The test function receives one object:
 | `env`         | read-only object        | The chosen environment's `variables`. Reading a name that is not defined throws                                                              |
 | `secrets`     | read-only object        | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](environments-and-secrets.md#secrets)                   |
 
+Tests may run at the same time, each in its own worker process and browser (see [Parallel runs](running-and-reports.md#parallel-runs)). Do not let two tests depend on the same account or data; give each its own, or pick one by `workerIndex`.
+
 ```ts
 // The field is labelled differently in the two browsers' date pickers
 test("books a date", async ({ page, browserName }) => {
