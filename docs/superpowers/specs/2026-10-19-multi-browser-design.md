@@ -1,7 +1,7 @@
 # Testing in more than one browser — design
 
 Date: 2026-10-19
-Status: draft, waiting for approval
+Status: approved
 Builds on: [Chrome support](../chrome-support-todo.md) (branch `feat/chrome-support`, PR #32)
 Code to change: `src/types/config.d.ts`, `src/runner/test-runner.ts`, `src/runner/reporter.ts`, `src/runner/groups.ts`, `src/cli/args.ts`, `src/recorder/session.ts`, `src/flows/run/`
 
@@ -14,6 +14,9 @@ A project can say which browsers its tests run in, and a group can say it differ
 - **`browsers` replaces `browser`.** The project key is an array: `browsers: ["firefox"]`, `browsers: ["firefox", "chrome"]`.
 - **A group's `browsers` replaces the project's** for that group's tests. A group without it uses the project's.
 - **Every test runs once per browser, one browser after the other** (the sequential option). Parallel runs are a separate piece of work; see below.
+- **`browser` is rejected**, with a message that says what to write instead. No alias.
+- **Every browser always gets its own screenshot folder**, also in a run with one browser.
+- **The `browserName` fixture is part of this change.**
 
 ## Config
 
@@ -55,7 +58,7 @@ For each browser, in order: start it (warm-up for a fresh build included, before
 - **Events** `test-start` and `test-end` carry `browser`; `run-start.total` counts every (test, browser). `run-end.summary.browsers` lists the browsers that ran.
 - **`result/report.json`** keeps `tests: []` flat, one entry per (test, browser), each with `browser`. A run with one browser looks like today plus the `browser` field, so readers that ignore unknown fields keep working.
 - **Console reporter** prints the browser after the test name when the run has more than one browser (`✔ shows the heading [chrome]`), and nothing extra when it has one.
-- **Screenshots and evidence** saved by name go to `result/screenshots/<browser>/…` when the run has more than one browser, so Firefox's `home.png` is not replaced by Chrome's. One-browser runs keep today's paths.
+- **Screenshots and evidence** saved by name go to `result/screenshots/<browser>/…` in every run, so Firefox's `home.png` is not replaced by Chrome's and the paths do not change when a second browser is added.
 - **Test ids** (`file::name`) are unchanged, so groups and flows still name tests the same way; the browser is a second coordinate, not part of the id.
 
 ## Flows and the app
@@ -71,7 +74,7 @@ For each browser, in order: start it (warm-up for a fresh build included, before
 
 ## Tests can see the browser
 
-A `browserName` fixture (`"firefox" | "chrome"`) next to `page` and `browser`, so a test can branch on it or skip itself with a reason. Optional in this change if it grows the scope; the reports do not depend on it.
+A `browserName` fixture (`"firefox" | "chrome"`) next to `page` and `browser`, so a test can branch on it or skip itself with a reason.
 
 ## Not in this change: running in parallel
 
@@ -87,8 +90,8 @@ If you would rather have parallel first, the order flips: the runner's shared st
 
 Unit: config validation (unknown, duplicate, empty, `browser` rejected), precedence (flag, group, project, default), the reporter's per-browser keys and counts, the group's resolved `browsers`, the console reporter's label, `--browser` parsing, `listGroups`. Browser tests: a project with two browsers runs a passing and a failing test and reports four results with the right `browser`; a group with its own `browsers`; a missing browser stops the run before any test; screenshots land in separate folders. These run on Firefox and Chrome.
 
-## Open questions
+## Decided, was open
 
-- **`browser` as a rejected key or a deprecated alias?** You said replace. Rejecting is the strict reading and tells people what to change; a one-version alias (`browser: "chrome"` read as `browsers: ["chrome"]` with a warning) breaks nobody's config on upgrade. The `samurai init` template and the Electron app write `browser: "firefox"` today, so both need updating either way.
-- **Screenshot folders per browser only when more than one browser runs**, or always? Proposed: only then, so one-browser projects see no change.
-- **`browserName` fixture in this change, or later?**
+- `browser` is rejected, not kept as an alias; the `samurai init` template and the Electron app (separate repository) have to write `browsers` instead.
+- Screenshot folders are per browser always.
+- The `browserName` fixture is in this change.
