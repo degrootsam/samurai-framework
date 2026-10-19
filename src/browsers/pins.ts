@@ -11,8 +11,8 @@ export type ManagedBrowser = keyof typeof PINNED;
 
 export const MANAGED_BROWSERS = Object.keys(PINNED) as ManagedBrowser[];
 
-/** The managed browsers the framework can launch; Chrome joins when it can drive it */
-export const LAUNCHABLE: readonly ManagedBrowser[] = ["firefox"];
+/** The managed browsers the framework can launch (Chrome through its chromedriver) */
+export const LAUNCHABLE: readonly ManagedBrowser[] = ["firefox", "chrome"];
 
 export function isManagedBrowser(name: string): name is ManagedBrowser {
   return Object.prototype.hasOwnProperty.call(PINNED, name);

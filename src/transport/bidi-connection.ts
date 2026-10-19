@@ -92,8 +92,22 @@ export class BiDiConnector {
     });
   }
 
+  /** Calls `listener` once when the socket closes or fails (not when `kill()` ends it) */
+  public onClosed(listener: () => void): void {
+    this.closeListeners.add(listener);
+  }
+
+  private closeListeners = new Set<() => void>();
+
+  private notifyClosed() {
+    const listeners = [...this.closeListeners];
+    this.closeListeners.clear();
+    for (const listener of listeners) listener();
+  }
+
   private onWebsocketClose = () => {
     this.closed = true;
+    this.notifyClosed();
     this.rejectAll(
       (pending) =>
         new ConnectionClosedError(`Websocket closed${pendingSuffix(pending)}`),
@@ -102,6 +116,7 @@ export class BiDiConnector {
 
   private onWebsocketError = (ev: Event) => {
     this.closed = true;
+    this.notifyClosed();
     this.rejectAll(
       (pending) =>
         new ConnectionClosedError(`Websocket error${pendingSuffix(pending)}`, {
