@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  isManagedBrowser,
-  LAUNCHABLE,
-  MANAGED_BROWSERS,
-  PINNED,
-} from "./pins.js";
+import { isManagedBrowser, MANAGED_BROWSERS, PINNED } from "./pins.js";
 
 describe("pins", () => {
   it("every pin has a build id and a label", () => {
@@ -15,9 +10,8 @@ describe("pins", () => {
     }
   });
 
-  it("lists firefox and chrome; both launch", () => {
+  it("lists firefox and chrome", () => {
     assert.deepEqual(MANAGED_BROWSERS, ["firefox", "chrome"]);
-    assert.deepEqual([...LAUNCHABLE], ["firefox", "chrome"]);
   });
 
   it("knows its names", () => {

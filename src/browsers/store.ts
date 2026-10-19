@@ -21,12 +21,7 @@ import {
   type Override,
   type OverrideSources,
 } from "./overrides.js";
-import {
-  isManagedBrowser,
-  LAUNCHABLE,
-  PINNED,
-  type ManagedBrowser,
-} from "./pins.js";
+import { isManagedBrowser, PINNED, type ManagedBrowser } from "./pins.js";
 
 export { COMPLETE_MARKER };
 
@@ -61,8 +56,6 @@ export interface BrowserStatus {
   /** unavailable: no download exists for this OS and architecture */
   state: "installed" | "missing" | "unavailable";
   executablePath?: string;
-  /** Whether the framework can launch it yet */
-  launchable: boolean;
   /** A path set on purpose, which launches use instead of the managed build */
   override?: Override;
 }
@@ -186,7 +179,6 @@ export function statusOf(
     name,
     label: pin.label,
     buildId: pin.buildId,
-    launchable: LAUNCHABLE.includes(name),
     ...(override && { override }),
   };
   if (!downloader.platform()) return { ...base, state: "unavailable" };

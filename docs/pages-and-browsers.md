@@ -175,10 +175,10 @@ The framework runs a build it downloaded itself, so every machine tests with the
 
 These builds are pinned by this framework version:
 
-| Browser            | Build                            | Launchable |
-| ------------------ | -------------------------------- | ---------- |
-| Firefox            | Firefox 158.0                    | yes        |
-| Chrome for Testing | Chrome for Testing 155.0.8059.79 | yes        |
+| Browser            | Build                            |
+| ------------------ | -------------------------------- |
+| Firefox            | Firefox 158.0                    |
+| Chrome for Testing | Chrome for Testing 155.0.8059.79 |
 
 Download them once per machine:
 
@@ -225,6 +225,10 @@ Firefox 158.0 is not installed. Run: samurai browsers install firefox
 ```
 
 A run with no tests to run does not need a browser.
+
+### Upgrading to 0.11
+
+Embedding apps: `LAUNCHABLE` and `BrowserStatus.launchable` (from `@itmetsam/samurai-framework/browsers`) are gone. They were always true for both managed browsers; both can be launched, so the list of managed browsers (`MANAGED_BROWSERS`) is the list you can launch. `page.captureScreenshot()` (a method that did nothing) was removed in 0.10.x; use `page.screenshot()`. Messages thrown by `Page`, `Locator` and the other public classes now read `name(): what is wrong`; code that matches on message text should match the new text.
 
 ### Upgrading to 0.10
 
