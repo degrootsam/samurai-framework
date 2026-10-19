@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { FakeWebSocket } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import { FakeWebSocket, makeConnector } from "../testing/fake-websocket.js";
 import {
   callFunction,
   ScriptError,
@@ -11,7 +10,7 @@ import { ElementHandle } from "./element-handle.js";
 
 function setup(reply: (params: any) => object | Error) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   let answered = 0;
   const pump = setInterval(() => {
     while (answered < ws.sent.length) {
