@@ -349,6 +349,7 @@ export class Browser {
     biDiConnector: BiDiConnector,
     browserName: SupportedBrowser,
   ): Promise<{ browser: Browser; page: Page }> {
+    biDiConnector.browserName = browserName;
     const downloadsDir = await prepareDownloadsDir(
       biDiConnector,
       path.resolve(
