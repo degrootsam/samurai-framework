@@ -77,6 +77,7 @@ interface Waiter {
  */
 export class NetworkTracker {
   private events = new EventEmitter();
+  private subscription: Subscription | undefined;
   private active = new Map<string, string>();
   /** The context each request in flight belongs to, by the same key */
   private contexts = new Map<string, string>();
@@ -125,8 +126,6 @@ export class NetworkTracker {
     }
     return tracker;
   }
-
-  private subscription: Subscription | undefined;
 
   /** Requests currently in flight */
   public get inflight(): number {
@@ -238,17 +237,14 @@ export class NetworkTracker {
     return context !== null && this.tree.isWithin(context, this.contextId);
   }
 
-  private static key(
-    data: RequestData,
-    redirectCount: number | Number,
-  ): string {
-    return `${data.request}:${Number(redirectCount)}`;
+  private static key(data: RequestData, redirectCount: number): string {
+    return `${data.request}:${redirectCount}`;
   }
 
   private onBeforeRequestSent = (params: BeforeRequestSentParameters) => {
     if (!this.owns(params.context)) return;
     const key = NetworkTracker.key(params.request, params.redirectCount);
-    const redirectCount = Number(params.redirectCount);
+    const { redirectCount } = params;
     const previousKey = `${params.request.request}:${redirectCount - 1}`;
     const redirectedFrom =
       redirectCount > 0 ? (this.hops.get(previousKey) ?? null) : null;
@@ -359,7 +355,7 @@ export function toRequest(
 }
 
 /** Header list to a lower-cased record; repeated names are joined, base64 values decoded */
-export function toHeaders(headers: Header[]): Record<string, string> {
+function toHeaders(headers: Header[]): Record<string, string> {
   const result: Record<string, string> = {};
   for (const { name, value } of headers) {
     const text =

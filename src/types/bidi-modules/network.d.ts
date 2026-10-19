@@ -14,7 +14,10 @@ export interface NetworkCommands {
     };
     result: AddInterceptResult;
   };
-  "network.removeIntercept": { params: { intercept: Intercept }; result: RemoveInterceptResult };
+  "network.removeIntercept": {
+    params: { intercept: Intercept };
+    result: RemoveInterceptResult;
+  };
   /** Lets a blocked request go on, optionally modified. */
   "network.continueRequest": {
     params: {
@@ -42,7 +45,11 @@ export interface NetworkCommands {
   "network.continueWithAuth": {
     params:
       | { request: Request; action: "default" | "cancel" }
-      | { request: Request; action: "provideCredentials"; credentials: AuthCredentials };
+      | {
+          request: Request;
+          action: "provideCredentials";
+          credentials: AuthCredentials;
+        };
     result: ContinueWithAuthResult;
   };
   /** Answers a blocked request without contacting the server. */
@@ -57,9 +64,15 @@ export interface NetworkCommands {
     };
     result: ProvideResponseResult;
   };
-  "network.failRequest": { params: { request: Request }; result: FailRequestResult };
+  "network.failRequest": {
+    params: { request: Request };
+    result: FailRequestResult;
+  };
   "network.setCacheBehavior": {
-    params: { cacheBehavior: "default" | "bypass"; contexts?: BrowsingContext[] | undefined };
+    params: {
+      cacheBehavior: "default" | "bypass";
+      contexts?: BrowsingContext[] | undefined;
+    };
     result: SetCacheBehaviorResult;
   };
   /** Starts retaining response bodies for later `network.getData`. */
@@ -73,7 +86,10 @@ export interface NetworkCommands {
     };
     result: AddDataCollectorResult;
   };
-  "network.removeDataCollector": { params: { collector: Collector }; result: RemoveDataCollectorResult };
+  "network.removeDataCollector": {
+    params: { collector: Collector };
+    result: RemoveDataCollectorResult;
+  };
   "network.getData": {
     params: {
       dataType: DataType;
@@ -89,9 +105,14 @@ export interface NetworkCommands {
   };
 }
 
-export type InterceptPhase = "beforeRequestSent" | "responseStarted" | "authRequired";
+export type InterceptPhase =
+  "beforeRequestSent" | "responseStarted" | "authRequired";
 export type DataType = "request" | "response";
-export type AuthCredentials = { type: "password"; username: string; password: string };
+export type AuthCredentials = {
+  type: "password";
+  username: string;
+  password: string;
+};
 export type UrlPattern =
   | { type: "string"; pattern: string }
   | {
@@ -202,7 +223,7 @@ export interface BaseParameters {
   /** Whether this request is currently blocked by an active intercept. */
   isBlocked: boolean;
   navigation: Navigation | null;
-  redirectCount: Number;
+  redirectCount: number;
   request: RequestData;
   timestamp: number;
   userContext?: UserContext | null;

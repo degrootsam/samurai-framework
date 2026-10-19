@@ -1,6 +1,6 @@
-import type { Browser } from "../browser/browser.ts";
-import type Page from "../browser/page.ts";
-import type { SupportedBrowser } from "./browser.ts";
+import type { Browser } from "../browser/browser.js";
+import type Page from "../browser/page.js";
+import type { SupportedBrowser } from "./browser.js";
 
 /** What a test function receives */
 export interface TestFixtures {

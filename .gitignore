@@ -3,8 +3,8 @@ dist
 browsers
 !src/browsers/
 logs
-results
 result/*
 .env
 .env.*
 !.env.example
+.DS_Store
