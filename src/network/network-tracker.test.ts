@@ -4,10 +4,18 @@ import { ContextTree } from "../browser/context-tree.js";
 import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import { WaitTimeoutError } from "../wait/wait-until.js";
-import { NetworkIdleTimeoutError, NetworkTracker, type NetworkRequest } from "./network-tracker.js";
+import {
+  NetworkIdleTimeoutError,
+  NetworkTracker,
+  type NetworkRequest,
+} from "./network-tracker.js";
 
 const TREE = [
-  { context: "top", parent: null, children: [{ context: "frame", parent: "top", children: [] }] },
+  {
+    context: "top",
+    parent: null,
+    children: [{ context: "frame", parent: "top", children: [] }],
+  },
   { context: "other", parent: null, children: [] },
 ];
 
@@ -17,18 +25,26 @@ afterEach(() => stops.splice(0).forEach((stop) => stop()));
 async function setup(options?: { ignore?: (r: NetworkRequest) => boolean }) {
   const ws = new FakeWebSocket();
   const connector = new BiDiConnector(ws as unknown as WebSocket);
-  stops.push(autoReply(ws, { "browsingContext.getTree": () => ({ contexts: TREE }) }));
+  stops.push(
+    autoReply(ws, { "browsingContext.getTree": () => ({ contexts: TREE }) }),
+  );
   const tree = await ContextTree.create(connector);
   const tracker = await NetworkTracker.start(connector, tree, "top", options);
   return { ws, tracker };
 }
 
-function requestData(id: string, url = `https://example.test/${id}`, extra: object = {}) {
+function requestData(
+  id: string,
+  url = `https://example.test/${id}`,
+  extra: object = {},
+) {
   return {
     request: id,
     url,
     method: "GET",
-    headers: [{ name: "Accept", value: { type: "string", value: "text/html" } }],
+    headers: [
+      { name: "Accept", value: { type: "string", value: "text/html" } },
+    ],
     cookies: [],
     headersSize: 0,
     bodySize: null,
@@ -38,7 +54,11 @@ function requestData(id: string, url = `https://example.test/${id}`, extra: obje
     ...extra,
   };
 }
-const base = (id: string, context: string | null, extra: { redirectCount?: number; url?: string; isBlocked?: boolean } = {}) => ({
+const base = (
+  id: string,
+  context: string | null,
+  extra: { redirectCount?: number; url?: string; isBlocked?: boolean } = {},
+) => ({
   context,
   isBlocked: extra.isBlocked ?? false,
   navigation: null,
@@ -46,7 +66,10 @@ const base = (id: string, context: string | null, extra: { redirectCount?: numbe
   request: requestData(id, extra.url),
   timestamp: 0,
 });
-const response = (status = 200, headers: Array<{ name: string; value: object }> = []) => ({
+const response = (
+  status = 200,
+  headers: Array<{ name: string; value: object }> = [],
+) => ({
   url: "https://example.test/x",
   protocol: "http/1.1",
   status,
@@ -59,15 +82,89 @@ const response = (status = 200, headers: Array<{ name: string; value: object }> 
   bodySize: 0,
   content: { size: 0 },
 });
-const start = (ws: FakeWebSocket, id: string, context: string | null = "top", extra = {}) =>
-  ws.emitEvent("network.beforeRequestSent", base(id, context, extra));
-const done = (ws: FakeWebSocket, id: string, context: string | null = "top", extra: { redirectCount?: number; status?: number; headers?: Array<{ name: string; value: object }> } = {}) =>
+const start = (
+  ws: FakeWebSocket,
+  id: string,
+  context: string | null = "top",
+  extra = {},
+) => ws.emitEvent("network.beforeRequestSent", base(id, context, extra));
+const done = (
+  ws: FakeWebSocket,
+  id: string,
+  context: string | null = "top",
+  extra: {
+    redirectCount?: number;
+    status?: number;
+    headers?: Array<{ name: string; value: object }>;
+  } = {},
+) =>
   ws.emitEvent("network.responseCompleted", {
     ...base(id, context, extra),
     response: response(extra.status, extra.headers),
   });
-const fail = (ws: FakeWebSocket, id: string, context: string | null = "top", extra = {}) =>
-  ws.emitEvent("network.fetchError", { ...base(id, context, extra), errorText: "NS_ERROR_NET_RESET" });
+const fail = (
+  ws: FakeWebSocket,
+  id: string,
+  context: string | null = "top",
+  extra = {},
+) =>
+  ws.emitEvent("network.fetchError", {
+    ...base(id, context, extra),
+    errorText: "NS_ERROR_NET_RESET",
+  });
+
+describe("NetworkTracker when a document is replaced", () => {
+  const commit = (ws: FakeWebSocket, context: string, navigation: string) =>
+    ws.emitEvent("browsingContext.navigationCommitted", {
+      context,
+      navigation,
+      timestamp: 0,
+      url: "https://example.test/next",
+    });
+
+  it("ends the requests of the old document that Chrome never reports as failed", async () => {
+    const { ws, tracker } = await setup();
+    const failed: string[] = [];
+    tracker.on("requestfailed", (r) => failed.push(r.url));
+    start(ws, "hang");
+    start(ws, "frame-hang", "frame");
+    assert.equal(tracker.inflight, 2);
+    commit(ws, "top", "nav-2");
+    assert.equal(
+      tracker.inflight,
+      0,
+      "the frame belongs to the replaced document",
+    );
+    assert.deepEqual(failed.sort(), [
+      "https://example.test/frame-hang",
+      "https://example.test/hang",
+    ]);
+  });
+
+  it("keeps the request of the navigation itself, and other pages' requests", async () => {
+    const { ws, tracker } = await setup();
+    ws.emitEvent("network.beforeRequestSent", {
+      ...base("doc", "top"),
+      navigation: "nav-2",
+    });
+    start(ws, "elsewhere", "other");
+    commit(ws, "top", "nav-2");
+    assert.equal(
+      tracker.inflight,
+      1,
+      "only the document request is counted: the other page is not ours",
+    );
+    commit(ws, "other", "nav-9");
+    assert.equal(tracker.inflight, 1);
+  });
+
+  it("ignores a commit of a page it does not track", async () => {
+    const { ws, tracker } = await setup();
+    start(ws, "hang");
+    commit(ws, "other", "nav-2");
+    assert.equal(tracker.inflight, 1);
+  });
+});
 
 describe("NetworkTracker in-flight bookkeeping", () => {
   it("counts a request from beforeRequestSent until responseCompleted", async () => {
@@ -119,8 +216,13 @@ describe("NetworkTracker in-flight bookkeeping", () => {
   });
 
   it("does not count requests the ignore predicate rejects, and not their completion either", async () => {
-    const { ws, tracker } = await setup({ ignore: (request: NetworkRequest) => request.url.endsWith("/events") });
-    ws.emitEvent("network.beforeRequestSent", base("s", "top", { url: "https://example.test/events" }));
+    const { ws, tracker } = await setup({
+      ignore: (request: NetworkRequest) => request.url.endsWith("/events"),
+    });
+    ws.emitEvent(
+      "network.beforeRequestSent",
+      base("s", "top", { url: "https://example.test/events" }),
+    );
     start(ws, "n");
     assert.equal(tracker.inflight, 1);
     assert.deepEqual(tracker.inflightUrls, ["https://example.test/n"]);
@@ -146,7 +248,9 @@ describe("NetworkTracker.waitForIdle", () => {
     const { ws, tracker } = await setup();
     start(ws, "1");
     let resolved = false;
-    const idle = tracker.waitForIdle({ idleTime: 60, timeout: 2000 }).then(() => (resolved = true));
+    const idle = tracker
+      .waitForIdle({ idleTime: 60, timeout: 2000 })
+      .then(() => (resolved = true));
     await tick(80);
     assert.equal(resolved, false, "a request is still in flight");
     done(ws, "1");
@@ -160,7 +264,9 @@ describe("NetworkTracker.waitForIdle", () => {
   it("restarts the idle timer when a new request starts", async () => {
     const { ws, tracker } = await setup();
     let resolved = false;
-    const idle = tracker.waitForIdle({ idleTime: 60, timeout: 2000 }).then(() => (resolved = true));
+    const idle = tracker
+      .waitForIdle({ idleTime: 60, timeout: 2000 })
+      .then(() => (resolved = true));
     await tick(40);
     start(ws, "1");
     await tick(60);
@@ -173,14 +279,20 @@ describe("NetworkTracker.waitForIdle", () => {
   it("times out with the URLs still in flight", async () => {
     const { ws, tracker } = await setup();
     for (let i = 0; i < 7; i++) start(ws, `r${i}`);
-    await assert.rejects(tracker.waitForIdle({ idleTime: 20, timeout: 60 }), (err: unknown) => {
-      assert.ok(err instanceof NetworkIdleTimeoutError);
-      assert.ok(err instanceof WaitTimeoutError);
-      assert.equal(err.timeout, 60);
-      assert.equal(err.last?.length, 5, "at most five URLs");
-      assert.match(err.message, /waitForNetworkIdle\(\): still 7 request\(s\) in flight after 60ms: https:\/\/example\.test\/r0/);
-      return true;
-    });
+    await assert.rejects(
+      tracker.waitForIdle({ idleTime: 20, timeout: 60 }),
+      (err: unknown) => {
+        assert.ok(err instanceof NetworkIdleTimeoutError);
+        assert.ok(err instanceof WaitTimeoutError);
+        assert.equal(err.timeout, 60);
+        assert.equal(err.last?.length, 5, "at most five URLs");
+        assert.match(
+          err.message,
+          /waitForNetworkIdle\(\): still 7 request\(s\) in flight after 60ms: https:\/\/example\.test\/r0/,
+        );
+        return true;
+      },
+    );
   });
 
   it("stops listening after it resolves or times out", async () => {
@@ -210,10 +322,19 @@ describe("NetworkTracker events", () => {
       request = r;
       seen.push(`request ${r.method} ${r.url}`);
     });
-    tracker.on("response", (r) => seen.push(`response ${r.status} ${r.request.url}`));
+    tracker.on("response", (r) =>
+      seen.push(`response ${r.status} ${r.request.url}`),
+    );
     tracker.on("requestfailed", (r) => seen.push(`failed ${r.errorText}`));
     start(ws, "1");
-    done(ws, "1", "top", { headers: [{ name: "Content-Type", value: { type: "string", value: "text/plain" } }] });
+    done(ws, "1", "top", {
+      headers: [
+        {
+          name: "Content-Type",
+          value: { type: "string", value: "text/plain" },
+        },
+      ],
+    });
     start(ws, "2");
     fail(ws, "2");
     assert.deepEqual(seen, [
@@ -234,7 +355,13 @@ describe("NetworkTracker events", () => {
     start(ws, "1");
     done(ws, "1", "top", {
       headers: [
-        { name: "X-B64", value: { type: "base64", value: Buffer.from("héllo").toString("base64") } },
+        {
+          name: "X-B64",
+          value: {
+            type: "base64",
+            value: Buffer.from("héllo").toString("base64"),
+          },
+        },
         { name: "Set-Cookie", value: { type: "string", value: "a=1" } },
         { name: "set-cookie", value: { type: "string", value: "b=2" } },
       ],
@@ -246,9 +373,15 @@ describe("NetworkTracker events", () => {
     const { ws, tracker } = await setup();
     const requests: NetworkRequest[] = [];
     tracker.on("request", (r) => requests.push(r));
-    start(ws, "1", "top", { redirectCount: 0, url: "https://example.test/old" });
+    start(ws, "1", "top", {
+      redirectCount: 0,
+      url: "https://example.test/old",
+    });
     done(ws, "1", "top", { redirectCount: 0, status: 301 });
-    start(ws, "1", "top", { redirectCount: 1, url: "https://example.test/new" });
+    start(ws, "1", "top", {
+      redirectCount: 1,
+      url: "https://example.test/new",
+    });
     assert.equal(requests[1]!.redirectedFrom, requests[0]);
     assert.equal(requests[0]!.redirectedFrom, null);
   });
@@ -287,13 +420,21 @@ describe("NetworkTracker events", () => {
 describe("NetworkTracker lifecycle", () => {
   it("subscribes to the three network events and releases them on dispose", async () => {
     const { ws, tracker } = await setup();
-    const subscribed = ws.sent.filter((m) => m.method === "session.subscribe").map((m) => (m.params as any).events[0]);
-    for (const event of ["network.beforeRequestSent", "network.responseCompleted", "network.fetchError"]) {
+    const subscribed = ws.sent
+      .filter((m) => m.method === "session.subscribe")
+      .map((m) => (m.params as any).events[0]);
+    for (const event of [
+      "network.beforeRequestSent",
+      "network.responseCompleted",
+      "network.fetchError",
+    ]) {
       assert.ok(subscribed.includes(event), event);
     }
     await tracker.dispose();
     await tick(10);
-    const unsubscribed = ws.sent.filter((m) => m.method === "session.unsubscribe").length;
+    const unsubscribed = ws.sent.filter(
+      (m) => m.method === "session.unsubscribe",
+    ).length;
     assert.ok(unsubscribed >= 3);
     start(ws, "1");
     assert.equal(tracker.inflight, 0, "listeners removed");

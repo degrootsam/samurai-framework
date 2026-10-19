@@ -12,6 +12,9 @@ import type {
 } from "../types/bidi-modules/network.js";
 import { WaitTimeoutError } from "../wait/wait-until.js";
 
+/** The error text of a request that the page left before it finished, when the browser says none */
+const ABORTED_BY_NAVIGATION = "aborted by navigation";
+
 /** How many URLs a timeout message names */
 const URLS_IN_MESSAGE = 5;
 
@@ -75,6 +78,8 @@ interface Waiter {
 export class NetworkTracker {
   private events = new EventEmitter();
   private active = new Map<string, string>();
+  /** The context each request in flight belongs to, by the same key */
+  private contexts = new Map<string, string>();
   /** Requests that may still be the source of a redirect, by hop key */
   private hops = new Map<string, NetworkRequest>();
   private waiters = new Set<Waiter>();
@@ -93,16 +98,26 @@ export class NetworkTracker {
     contextId: string,
     options: TrackerOptions = {},
   ): Promise<NetworkTracker> {
-    const tracker = new NetworkTracker(tree, contextId, options.ignore ?? (() => false), connector);
+    const tracker = new NetworkTracker(
+      tree,
+      contextId,
+      options.ignore ?? (() => false),
+      connector,
+    );
     // Listen first, then subscribe: nothing can arrive in between
     connector.onEvent("network.beforeRequestSent", tracker.onBeforeRequestSent);
     connector.onEvent("network.responseCompleted", tracker.onResponseCompleted);
     connector.onEvent("network.fetchError", tracker.onFetchError);
+    connector.onEvent(
+      "browsingContext.navigationCommitted",
+      tracker.onNavigationCommitted,
+    );
     try {
       tracker.subscription = await connector.subscribe([
         "network.beforeRequestSent",
         "network.responseCompleted",
         "network.fetchError",
+        "browsingContext.navigationCommitted",
       ]);
     } catch (err) {
       tracker.removeListeners();
@@ -128,11 +143,17 @@ export class NetworkTracker {
     return this.waiters.size;
   }
 
-  public on<E extends NetworkEventName>(event: E, listener: (...args: EventMap[E]) => void): void {
+  public on<E extends NetworkEventName>(
+    event: E,
+    listener: (...args: EventMap[E]) => void,
+  ): void {
     this.events.on(event, listener as (...args: unknown[]) => void);
   }
 
-  public off<E extends NetworkEventName>(event: E, listener: (...args: EventMap[E]) => void): void {
+  public off<E extends NetworkEventName>(
+    event: E,
+    listener: (...args: EventMap[E]) => void,
+  ): void {
     this.events.off(event, listener as (...args: unknown[]) => void);
   }
 
@@ -140,10 +161,18 @@ export class NetworkTracker {
    * Resolves once no request has been in flight for `idleTime` ms. A quiet page resolves after `idleTime`.
    * Rejects with NetworkIdleTimeoutError after `timeout` ms, or with "page closed" when disposed.
    */
-  public waitForIdle({ idleTime, timeout }: { idleTime: number; timeout: number }): Promise<void> {
+  public waitForIdle({
+    idleTime,
+    timeout,
+  }: {
+    idleTime: number;
+    timeout: number;
+  }): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       let idleTimer: ReturnType<typeof setTimeout> | undefined;
-      const waiter: Waiter = { reject: (reason) => finish(() => reject(reason)) };
+      const waiter: Waiter = {
+        reject: (reason) => finish(() => reject(reason)),
+      };
       const finish = (settle: () => void) => {
         clearTimeout(idleTimer);
         clearTimeout(deadline);
@@ -153,7 +182,8 @@ export class NetworkTracker {
       };
       const check = () => {
         clearTimeout(idleTimer);
-        if (this.active.size === 0) idleTimer = setTimeout(() => finish(resolve), idleTime);
+        if (this.active.size === 0)
+          idleTimer = setTimeout(() => finish(resolve), idleTime);
       };
       const deadline = setTimeout(
         () =>
@@ -180,22 +210,38 @@ export class NetworkTracker {
     this.disposed = true;
     this.removeListeners();
     this.active.clear();
+    this.contexts.clear();
     this.hops.clear();
-    [...this.waiters].forEach((waiter) => waiter.reject(new Error("page closed")));
+    [...this.waiters].forEach((waiter) =>
+      waiter.reject(new Error("page closed")),
+    );
     await this.subscription?.unsubscribe();
   }
 
   private removeListeners() {
-    this.connector.offEvent("network.beforeRequestSent", this.onBeforeRequestSent);
-    this.connector.offEvent("network.responseCompleted", this.onResponseCompleted);
+    this.connector.offEvent(
+      "network.beforeRequestSent",
+      this.onBeforeRequestSent,
+    );
+    this.connector.offEvent(
+      "network.responseCompleted",
+      this.onResponseCompleted,
+    );
     this.connector.offEvent("network.fetchError", this.onFetchError);
+    this.connector.offEvent(
+      "browsingContext.navigationCommitted",
+      this.onNavigationCommitted,
+    );
   }
 
   private owns(context: string | null): boolean {
     return context !== null && this.tree.isWithin(context, this.contextId);
   }
 
-  private static key(data: RequestData, redirectCount: number | Number): string {
+  private static key(
+    data: RequestData,
+    redirectCount: number | Number,
+  ): string {
     return `${data.request}:${Number(redirectCount)}`;
   }
 
@@ -204,13 +250,20 @@ export class NetworkTracker {
     const key = NetworkTracker.key(params.request, params.redirectCount);
     const redirectCount = Number(params.redirectCount);
     const previousKey = `${params.request.request}:${redirectCount - 1}`;
-    const redirectedFrom = redirectCount > 0 ? (this.hops.get(previousKey) ?? null) : null;
+    const redirectedFrom =
+      redirectCount > 0 ? (this.hops.get(previousKey) ?? null) : null;
     this.hops.delete(previousKey);
 
-    const request = toRequest(params.request, params.navigation, params.isBlocked, redirectedFrom);
+    const request = toRequest(
+      params.request,
+      params.navigation,
+      params.isBlocked,
+      redirectedFrom,
+    );
     if (this.ignore(request)) return;
     this.hops.set(key, request);
     this.active.set(key, request.url);
+    if (params.context) this.contexts.set(key, params.context);
     this.emit("request", request);
     this.events.emit("change");
   };
@@ -220,6 +273,7 @@ export class NetworkTracker {
     const key = NetworkTracker.key(params.request, params.redirectCount);
     const request = this.hops.get(key);
     if (!this.active.delete(key) || !request) return;
+    this.contexts.delete(key);
     const { response } = params;
     // A redirect response keeps its request around: the next hop links back to it
     if (response.status < 300 || response.status >= 400) this.hops.delete(key);
@@ -239,9 +293,39 @@ export class NetworkTracker {
     const key = NetworkTracker.key(params.request, params.redirectCount);
     const request = this.hops.get(key);
     if (!this.active.delete(key) || !request) return;
+    this.contexts.delete(key);
     this.hops.delete(key);
-    this.emit("requestfailed", Object.assign(request, { errorText: params.errorText }));
+    this.emit(
+      "requestfailed",
+      Object.assign(request, { errorText: params.errorText }),
+    );
     this.events.emit("change");
+  };
+
+  /**
+   * A document replaced another: the requests of the old one that are still in flight are over. Firefox reports each
+   * as failed (NS_BINDING_ABORTED); Chrome says nothing, which would keep the page "busy" for good.
+   */
+  private onNavigationCommitted = (params: {
+    context: string;
+    navigation: string | null;
+  }) => {
+    if (!this.owns(params.context)) return;
+    let changed = false;
+    for (const [key, requestContext] of [...this.contexts]) {
+      const request = this.hops.get(key);
+      if (!request || request.navigation === params.navigation) continue;
+      if (!this.tree.isWithin(requestContext, params.context)) continue;
+      this.contexts.delete(key);
+      this.active.delete(key);
+      this.hops.delete(key);
+      this.emit(
+        "requestfailed",
+        Object.assign(request, { errorText: ABORTED_BY_NAVIGATION }),
+      );
+      changed = true;
+    }
+    if (changed) this.events.emit("change");
   };
 
   /** A listener that throws must not stop the tracker or the other listeners */
@@ -278,7 +362,10 @@ export function toRequest(
 export function toHeaders(headers: Header[]): Record<string, string> {
   const result: Record<string, string> = {};
   for (const { name, value } of headers) {
-    const text = value.type === "base64" ? Buffer.from(value.value, "base64").toString("utf8") : value.value;
+    const text =
+      value.type === "base64"
+        ? Buffer.from(value.value, "base64").toString("utf8")
+        : value.value;
     const key = name.toLowerCase();
     result[key] = key in result ? `${result[key]}, ${text}` : text;
   }
