@@ -87,6 +87,9 @@ export interface RecordResult {
   firstFiles: boolean;
 }
 
+/** The browser's debugging port when none is given */
+const DEFAULT_PORT = 9223;
+
 const NEW_SPEC_HEADER = `import { expect, test } from "@itmetsam/samurai-framework";\n\n`;
 
 function addTest(source: string, title: string): string {
@@ -218,7 +221,7 @@ export async function recordSpec(
       browsersFor({ project: await readConfig("browsers") })[0]!;
     await ensureWarm(
       browserName,
-      { port: options.port ?? 9223 },
+      { port: options.port ?? DEFAULT_PORT },
       options.signal,
     );
     options.signal?.throwIfAborted();
@@ -245,7 +248,7 @@ export async function recordSpec(
     const { browser, page } = await Browser.launch(
       browserName,
       {
-        port: options.port ?? 9223,
+        port: options.port ?? DEFAULT_PORT,
         headless: options.headless ?? settings.headless,
       },
       options.signal,

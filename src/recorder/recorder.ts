@@ -579,10 +579,9 @@ export class Recorder {
     const recording = this.options.files!;
     const folder = filesFolder(recording.projectDir, recording.filesDir);
     const notSaved = (reason: MissingFile["reason"]) => {
+      const clean = cleanFileName(file.name);
       const missing: MissingFile = {
-        path: folder.relative
-          ? `${folder.relative}/${cleanFileName(file.name)}`
-          : cleanFileName(file.name),
+        path: folder.relative ? `${folder.relative}/${clean}` : clean,
         name: file.name,
         size: file.size,
         reason,

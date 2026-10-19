@@ -16,6 +16,7 @@ export async function rankLocator(
 ): Promise<LocatorSpec | undefined> {
   const verified: LocatorCall[] = [];
   for (const candidate of candidates) {
+    // The primary plus `maxFallbacks` fallbacks: stop once one more than that is verified
     if (verified.length > maxFallbacks) break;
     const found = await locatorFromSpec(page, {
       chain: [candidate],
