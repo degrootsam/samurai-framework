@@ -4,6 +4,7 @@ import type { SamuraiGroup } from "../types/config.js";
 import type { RegisteredTestCase, TestResult } from "../types/test.js";
 import type { ResolvedGroup } from "./groups.js";
 import {
+  concurrency,
   planItems,
   poolMode,
   runPooled,
@@ -99,6 +100,27 @@ describe("serialKeyOf", () => {
       browsers: ["firefox"],
     };
   }
+});
+
+describe("concurrency", () => {
+  const item = (index: number, serialKey?: string): WorkItem => ({
+    index,
+    file: "/p/src/a.spec.ts",
+    testName: `t${index}`,
+    browser: "firefox",
+    ...(serialKey !== undefined && { serialKey }),
+  });
+
+  it("counts every item without a key, and every key once", () => {
+    assert.equal(concurrency([item(0), item(1), item(2)]), 3);
+    assert.equal(concurrency([item(0, "g"), item(1, "g"), item(2)]), 2);
+    assert.equal(concurrency([item(0, "g"), item(1, "h")]), 2);
+  });
+
+  it("is 1 when one group that runs alone holds everything", () => {
+    assert.equal(concurrency([item(0, "g"), item(1, "g"), item(2, "g")]), 1);
+    assert.equal(concurrency([]), 0);
+  });
 });
 
 describe("poolMode", () => {
