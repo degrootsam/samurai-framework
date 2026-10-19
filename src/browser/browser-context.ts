@@ -1,11 +1,15 @@
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import type { Cookie as BiDiCookie, SameSite } from "../types/bidi-modules/network.js";
-import type { PartialCookie, PartitionDescriptor } from "../types/bidi-modules/storage.js";
+import type {
+  Cookie as BiDiCookie,
+  SameSite,
+} from "../types/bidi-modules/network.js";
+import type {
+  PartialCookie,
+  PartitionDescriptor,
+} from "../types/bidi-modules/storage.js";
 import { applyEmulation, type EmulationOptions } from "./emulation.js";
 import type Page from "./page.js";
-
-export type { SameSite } from "../types/bidi-modules/network.js";
 
 /** A cookie as `context.cookies()` returns it */
 export interface Cookie {
@@ -72,7 +76,10 @@ export class BrowserContext {
   /** Opens a tab in this context */
   public async newPage(): Promise<Page> {
     this.assertOpen();
-    return this.host.newPage({ type: "tab", ...(!this.isDefault && { userContext: this.id }) });
+    return this.host.newPage({
+      type: "tab",
+      ...(!this.isDefault && { userContext: this.id }),
+    });
   }
 
   /** The pages opened in this context that are still open */
@@ -92,7 +99,10 @@ export class BrowserContext {
     this.assertOpen();
     const prepared = cookies.map(toBiDiCookie);
     for (const cookie of prepared) {
-      await this.host.connector.send("storage.setCookie", { cookie, partition: this.partition() });
+      await this.host.connector.send("storage.setCookie", {
+        cookie,
+        partition: this.partition(),
+      });
     }
   }
 
@@ -123,7 +133,11 @@ export class BrowserContext {
    */
   public async emulate(options: EmulationOptions): Promise<void> {
     this.assertOpen();
-    await applyEmulation(this.host.connector, { userContexts: [this.id] }, options);
+    await applyEmulation(
+      this.host.connector,
+      { userContexts: [this.id] },
+      options,
+    );
   }
 
   /**
@@ -149,10 +163,13 @@ export class BrowserContext {
     if (this.isDefault) throw new Error("cannot close the default context");
     if (this.isClosed) return;
     try {
-      await this.host.connector.send("browser.removeUserContext", { userContext: this.id });
+      await this.host.connector.send("browser.removeUserContext", {
+        userContext: this.id,
+      });
     } catch (err) {
       // Already gone: the goal is met
-      if (!(err instanceof BiDiError && err.code === "no such user context")) throw err;
+      if (!(err instanceof BiDiError && err.code === "no such user context"))
+        throw err;
     }
     this.isClosed = true;
     const pages = this.opened;
@@ -178,7 +195,8 @@ function toBiDiCookie(input: CookieInput): PartialCookie {
     path ??= url.pathname;
     secure ??= url.protocol === "https:";
   }
-  if (domain === undefined) throw new TypeError(`cookie "${input.name}" needs a domain or a url`);
+  if (domain === undefined)
+    throw new TypeError(`cookie "${input.name}" needs a domain or a url`);
   return {
     name: input.name,
     value: { type: "string", value: input.value },

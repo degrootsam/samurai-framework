@@ -14,7 +14,7 @@ import {
 export const DEFAULT_COMMAND_TIMEOUT = 30000;
 
 export interface ConnectorOptions {
-  /** @default 30000 */
+  /** @default DEFAULT_COMMAND_TIMEOUT */
   commandTimeout?: number;
 }
 
@@ -60,6 +60,7 @@ export class BiDiConnector {
   /** Which browser is on the other end, when the launcher says; code that must treat browsers apart asks this */
   public browserName?: "firefox" | "chrome";
   private webSocket: WebSocket;
+  private closeListeners = new Set<() => void>();
   private eventEmitter: EventEmitter;
   private commandTimeout: number;
   private subscriptions: SubscriptionManager;
@@ -98,8 +99,6 @@ export class BiDiConnector {
   public onClosed(listener: () => void): void {
     this.closeListeners.add(listener);
   }
-
-  private closeListeners = new Set<() => void>();
 
   private notifyClosed() {
     const listeners = [...this.closeListeners];

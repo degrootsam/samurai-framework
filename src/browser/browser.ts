@@ -26,8 +26,6 @@ import type {
   PartitionDescriptor,
 } from "../types/bidi-modules/storage.js";
 
-export { SESSION_CAPABILITIES };
-
 /** session.new waits at least this long (ms): the first start after an install can take a while (macOS checks the new app) */
 const SESSION_START_TIMEOUT = 120_000;
 
@@ -300,7 +298,9 @@ export class Browser {
           )
         ) {
           browserProc.kill();
-          reject(`PORT ${launchOptions.port} is already in use!`);
+          reject(
+            `PORT ${launchOptions.port ?? defaultLaunchOptions(browserName).port} is already in use!`,
+          );
         }
       });
 

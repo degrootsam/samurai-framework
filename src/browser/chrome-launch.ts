@@ -15,7 +15,7 @@ export interface BrowserProcess {
   kill(signal?: NodeJS.Signals): boolean;
 }
 
-export interface ChromeLaunch {
+interface ChromeLaunch {
   executablePath: string;
   driverPath: string;
   profileDir: string;

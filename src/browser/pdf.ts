@@ -16,7 +16,7 @@ const PAPER = {
   A6: { width: 10.5, height: 14.8 },
 } as const;
 
-export type PaperFormat = keyof typeof PAPER;
+type PaperFormat = keyof typeof PAPER;
 
 export interface PdfOptions {
   /** Also write the PDF here (folders are created) */
@@ -45,7 +45,9 @@ export async function printPdf(
     throw new RangeError("pdf(): scale must be between 0.1 and 2");
   }
   if (format !== undefined && !(format in PAPER)) {
-    throw new RangeError(`pdf(): unknown paper format "${format}"; use one of ${Object.keys(PAPER).join(", ")}`);
+    throw new RangeError(
+      `pdf(): unknown paper format "${format}"; use one of ${Object.keys(PAPER).join(", ")}`,
+    );
   }
   const { data } = await connector.send("browsingContext.print", {
     context,
