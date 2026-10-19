@@ -4,8 +4,5 @@
  * Internal: user code keeps using `Locator`.
  */
 export class ElementHandle {
-  constructor(
-    public readonly sharedId: string,
-    public readonly handle?: string,
-  ) {}
+  constructor(public readonly sharedId: string) {}
 }

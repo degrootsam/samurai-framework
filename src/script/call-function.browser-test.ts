@@ -5,9 +5,8 @@ import type Page from "../browser/page.js";
 import { setContent } from "../testing/browser-fixture.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import { callFunction, disown, ScriptError } from "./call-function.js";
+import { callFunction, ScriptError } from "./call-function.js";
 import { ElementHandle } from "./element-handle.js";
-import { RemoteObject } from "./serialize.js";
 import { testBrowser } from "../testing/test-browser.js";
 
 let browser: Browser;
@@ -133,23 +132,6 @@ test(
     await assert.rejects(
       call(`(el) => el.textContent`, [handle]),
       (err: unknown) => err instanceof BiDiError && err.code === "no such node",
-    );
-  },
-);
-
-test(
-  "ownership root keeps a handle that disown releases, twice without error",
-  OPTIONS,
-  async () => {
-    const kept = await call<RemoteObject>(`() => ({ a: 1 })`, [], {
-      ownership: "root",
-    });
-    assert.ok(kept instanceof RemoteObject);
-    assert.ok(kept.handle);
-    assert.deepEqual(kept.value, { a: 1 });
-    await disown(connector, page.contextId, [kept.handle!]);
-    await assert.doesNotReject(
-      disown(connector, page.contextId, [kept.handle!]),
     );
   },
 );

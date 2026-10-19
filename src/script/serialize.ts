@@ -10,14 +10,9 @@ export type Arg = unknown;
 /** Deepest nesting `toLocalValue` accepts; a second guard next to cycle detection */
 const MAX_DEPTH = 100;
 
-/** A remote value that cannot be copied to plain JS (function, window, promise, …), kept by type and handle */
+/** A remote value that cannot be copied to plain JS (function, window, promise, …), kept by its type */
 export class RemoteObject {
-  constructor(
-    public readonly type: string,
-    public readonly handle?: string,
-    /** The deserialized value, when the browser sent one and handles were kept */
-    public readonly value?: unknown,
-  ) {}
+  constructor(public readonly type: string) {}
 }
 
 /**
@@ -69,11 +64,7 @@ function serialize(
       },
     };
   }
-  if (value instanceof ElementHandle) {
-    return value.handle === undefined
-      ? { sharedId: value.sharedId }
-      : { sharedId: value.sharedId, handle: value.handle };
-  }
+  if (value instanceof ElementHandle) return { sharedId: value.sharedId };
   if (value instanceof Date)
     return { type: "date", value: value.toISOString() };
   if (value instanceof RegExp) {
@@ -125,27 +116,14 @@ function numberValue(value: number): number | string {
   return value;
 }
 
-export interface DeserializeOptions {
-  /** Return objects that carry a handle as `RemoteObject`s (with `.value`), so the caller can disown them later */
-  keepHandles?: boolean;
-}
-
 /** Converts a remote value to plain JS; what cannot be copied becomes a `RemoteObject` */
-export function fromRemoteValue(
-  value: RemoteValue,
-  options: DeserializeOptions = {},
-): unknown {
-  return deserialize(value, new Map(), options);
+export function fromRemoteValue(value: RemoteValue): unknown {
+  return deserialize(value, new Map());
 }
 
-function deserialize(
-  value: RemoteValue,
-  known: Map<string, unknown>,
-  options: DeserializeOptions,
-): unknown {
+function deserialize(value: RemoteValue, known: Map<string, unknown>): unknown {
   const loose = value as RemoteValue & {
     value?: unknown;
-    handle?: string;
     internalId?: string;
     sharedId?: string;
   };
@@ -172,10 +150,10 @@ function deserialize(
       return new RegExp(pattern, flags);
     }
     case "node":
-      return new ElementHandle(loose.sharedId ?? "", loose.handle);
+      return new ElementHandle(loose.sharedId ?? "");
   }
 
-  const nested = (item: RemoteValue) => deserialize(item, known, options);
+  const nested = (item: RemoteValue) => deserialize(item, known);
   const remember = <T>(result: T): T => {
     if (loose.internalId !== undefined) known.set(loose.internalId, result);
     return result;
@@ -220,12 +198,10 @@ function deserialize(
           result = object;
         }
       }
-      return options.keepHandles && loose.handle !== undefined
-        ? new RemoteObject(value.type, loose.handle, result)
-        : result;
+      return result;
     }
   }
-  return new RemoteObject(value.type, loose.handle);
+  return new RemoteObject(value.type);
 }
 
 function specialNumber(value: number | string): number {
