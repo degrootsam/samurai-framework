@@ -15,8 +15,14 @@ import {
   type ResolvedGroup,
 } from "../../runner/groups.js";
 import { withProject, type ProjectOptions } from "../../runner/project.js";
+import { browsersFor } from "../../runner/browsers.js";
+import { DEFAULT_PORT } from "../../runner/ports.js";
 import { runTests } from "../../runner/run.js";
 import TestRunner from "../../runner/test-runner.js";
+import { WorkerPool, type PoolOptions } from "../../runner/worker-pool.js";
+import { processWorkerFactory } from "../../runner/worker-process.js";
+import type { WorkItem } from "../../runner/worker-protocol.js";
+import type { RunEvent } from "../../runner/reporter.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { FlowEvent, FlowSummary, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
@@ -47,6 +53,14 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   /** `"fail"` (default): a flow with a node that can't run is refused. `"skip"`: those nodes are skipped. */
   unsupported?: "fail" | "skip";
   port?: number;
+  /**
+   * How many worker processes the tests of the whole run share. 1 (the default) runs each Test and Group node
+   * through `runTests` in this process; more starts one pool that every node, and every branch of a Parallel
+   * node, takes its workers from
+   */
+  workers?: number;
+  /** @internal Replaces the worker pool (tests) */
+  createPool?: (options: PoolOptions) => Pick<WorkerPool, "run" | "dispose">;
   /** @internal Replaces the runner of each Test and Group node (tests) */
   testRunner?: typeof runTests;
   /** @internal */
@@ -72,6 +86,40 @@ export function chooseEnvironment(
   if (flow.envDefault && names.includes(flow.envDefault))
     return flow.envDefault;
   return config.defaultEnvironment ?? names[0] ?? "default";
+}
+
+/** The work items of a node: each test in each browser, the browsers one after the other */
+function itemsOf(
+  tests: NodeTest[],
+  browsers: readonly SupportedBrowser[],
+): WorkItem[] {
+  return browsers
+    .flatMap((browser) =>
+      tests.map((t) => ({ file: t.file, testName: t.name, browser })),
+    )
+    .map((item, index) => ({ ...item, index }));
+}
+
+/** Runs the tests of a node on the pool and reports them as a run would */
+async function runOnPool(
+  pool: Pick<WorkerPool, "run">,
+  items: WorkItem[],
+  onEvent: (event: RunEvent) => void,
+  signal: AbortSignal,
+): Promise<"passed" | "failed" | "cancelled"> {
+  const results = await pool.run(items, {
+    signal,
+    onEvent: (event) =>
+      onEvent({
+        type: event.type,
+        name: event.item.testName,
+        file: event.item.file,
+        browser: event.item.browser,
+        ...(event.type === "test-end" && { result: event.result }),
+      } as RunEvent),
+  });
+  if (signal.aborted) return "cancelled";
+  return results.every((r) => r.status === "success") ? "passed" : "failed";
 }
 
 /** A test of the project as flows see it */
@@ -233,7 +281,8 @@ export async function checkFlowInProject(
 /**
  * Checks and runs a flow of a project: loads its config, lists its tests and groups, refuses to start
  * when `checkFlow` finds errors (`FlowCheckError`), then walks the flow; each Test and Group node runs
- * its tests through `runTests`, one after the other. One at a time per process.
+ * its tests through `runTests`, one after the other, or on one shared worker pool when `workers` is above 1.
+ * One at a time per process.
  */
 export async function runFlowInProject(
   options: RunFlowInProjectOptions,
@@ -255,39 +304,81 @@ export async function runFlowInProject(
 
   const { nodeTests, nodeBrowsers } = nodeTestsOf(flow, tests, groups);
   const run = options.testRunner ?? runTests;
-  return runFlow({
-    flow,
-    nodeTests,
-    nodeBrowsers,
-    environment,
-    ...(options.signal && { signal: options.signal }),
-    ...(options.onEvent && { onEvent: options.onEvent }),
-    ...(options.sleep && { sleep: options.sleep }),
-    unsupported,
-    handlers: { ...HANDLERS, ...steps.handlers },
-    nodes: steps.nodes,
-    runTests: async ({ tests, onEvent, signal, browsers }) => {
-      const summary = await run({
-        projectDir,
-        config,
-        ...(options.dataDir !== undefined && { dataDir: options.dataDir }),
-        // The environment the expressions see, whenever the project defines it
-        ...(hasEnvironment(config, name) ? { environment: name } : {}),
-        ...(options.headless !== undefined && { headless: options.headless }),
-        ...(options.timeout !== undefined && { timeout: options.timeout }),
-        ...(options.expectTimeout !== undefined && {
-          expectTimeout: options.expectTimeout,
-        }),
-        ...(options.port !== undefined && { port: options.port }),
-        ...(browsers && { browsers }),
-        files: [...new Set(tests.map((t) => t.file))],
-        testNames: tests.map((t) => t.name),
-        reportPath: false,
-        signal,
-        onEvent,
-      });
-      if (signal.aborted) return "cancelled";
-      return summary.status === "success" ? "passed" : "failed";
-    },
-  });
+  const workers = options.workers ?? 1;
+  const files = [
+    ...new Set(
+      Object.values(nodeTests).flatMap((list) => list.map((t) => t.file)),
+    ),
+  ];
+  // One pool for the whole run: the nodes, and the branches of a Parallel node, share its workers
+  const pool =
+    workers > 1
+      ? (options.createPool ?? ((o) => new WorkerPool(o)))({
+          workers,
+          factory: processWorkerFactory(),
+          init: {
+            projectDir,
+            ...(options.dataDir !== undefined && { dataDir: options.dataDir }),
+            ...(hasEnvironment(config, name) && { environment: name }),
+            ...(options.timeout !== undefined && { timeout: options.timeout }),
+            ...(options.expectTimeout !== undefined && {
+              expectTimeout: options.expectTimeout,
+            }),
+            ...(options.headless !== undefined && {
+              headless: options.headless,
+            }),
+            files,
+            basePort: options.port ?? DEFAULT_PORT,
+          },
+        })
+      : undefined;
+  try {
+    return await runFlow({
+      flow,
+      nodeTests,
+      nodeBrowsers,
+      environment,
+      ...(options.signal && { signal: options.signal }),
+      ...(options.onEvent && { onEvent: options.onEvent }),
+      ...(options.sleep && { sleep: options.sleep }),
+      unsupported,
+      handlers: { ...HANDLERS, ...steps.handlers },
+      nodes: steps.nodes,
+      runTests: async ({ tests, onEvent, signal, browsers }) => {
+        if (pool)
+          return runOnPool(
+            pool,
+            itemsOf(
+              tests,
+              browsers ?? browsersFor({ project: config.browsers }),
+            ),
+            onEvent,
+            signal,
+          );
+        const summary = await run({
+          projectDir,
+          config,
+          ...(options.dataDir !== undefined && { dataDir: options.dataDir }),
+          // The environment the expressions see, whenever the project defines it
+          ...(hasEnvironment(config, name) ? { environment: name } : {}),
+          ...(options.headless !== undefined && { headless: options.headless }),
+          ...(options.timeout !== undefined && { timeout: options.timeout }),
+          ...(options.expectTimeout !== undefined && {
+            expectTimeout: options.expectTimeout,
+          }),
+          ...(options.port !== undefined && { port: options.port }),
+          ...(browsers && { browsers }),
+          files: [...new Set(tests.map((t) => t.file))],
+          testNames: tests.map((t) => t.name),
+          reportPath: false,
+          signal,
+          onEvent,
+        });
+        if (signal.aborted) return "cancelled";
+        return summary.status === "success" ? "passed" : "failed";
+      },
+    });
+  } finally {
+    await pool?.dispose();
+  }
 }

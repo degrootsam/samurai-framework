@@ -78,7 +78,10 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
       startedAt: options.startedAt ?? new Date().toISOString(),
     },
   };
-  const handlerRun: HandlerRun = {
+  const handlerRunFor = (
+    context: ExpressionContext,
+    signal: AbortSignal,
+  ): HandlerRun => ({
     flow,
     environment: options.environment,
     context,
@@ -96,13 +99,13 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     onTestEvent: (nodeId, event) => onEvent({ type: "test", nodeId, event }),
     nodes,
     log: (nodeId, level, text) => logger[level](`[${nodeId}] ${text}`),
-  };
+  });
   const walker = new FlowWalker({
     flow,
     signal,
     handlers,
     nodes,
-    handlerRun,
+    handlerRunFor,
     context,
     onEvent,
   });
