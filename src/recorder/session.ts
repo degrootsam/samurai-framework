@@ -4,6 +4,7 @@ import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { ensureWarm } from "../browser/warm-up.js";
 import { browsersFor } from "../runner/browsers.js";
+import { DEFAULT_PORT } from "../runner/ports.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import { loadConfig, projectDir, readConfig } from "../config/config.js";
 import { loadSecrets } from "../config/secrets.js";
@@ -41,7 +42,7 @@ export interface RecordSpecOptions extends ProjectOptions {
   url?: string;
   /** The browser to record in. @default the first of the config's `browsers`, else Firefox */
   browser?: SupportedBrowser;
-  /** The browser's debugging port. @default 9223 */
+  /** The browser's debugging port. @default DEFAULT_PORT (9223) */
   port?: number;
   /** Run the browser without a window. A person can't use it then; for tests and machines without a display. @default the config's `use.headless`, else headless on CI and a window otherwise */
   headless?: boolean;
@@ -86,9 +87,6 @@ export interface RecordResult {
   /** The files folder was created by this recording */
   firstFiles: boolean;
 }
-
-/** The browser's debugging port when none is given */
-const DEFAULT_PORT = 9223;
 
 const NEW_SPEC_HEADER = `import { expect, test } from "@itmetsam/samurai-framework";\n\n`;
 

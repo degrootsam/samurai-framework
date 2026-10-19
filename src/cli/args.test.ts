@@ -100,6 +100,12 @@ describe("parseRunnerFlags", () => {
     );
   });
 
+  test("takes values that were parsed already, so a command line is parsed once", () => {
+    const parsed = parseCommandLine(["--group", "smoke", "--env", "dev"]);
+    assert.deepEqual(parseRunnerFlags(parsed.values), { group: "smoke" });
+    assert.deepEqual(parseRunOverrides(parsed.values), { environment: "dev" });
+  });
+
   test("rejects a port that is not a port number", () => {
     assert.throws(() => parseRunnerFlags(["--port", "0"]), /--port/);
     assert.throws(() => parseRunnerFlags(["--port", "abc"]), /--port/);
