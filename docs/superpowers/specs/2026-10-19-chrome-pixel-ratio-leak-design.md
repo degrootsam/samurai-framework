@@ -1,7 +1,7 @@
 # A device pixel ratio set once stays on the page
 
 Date: 2026-10-19
-Status: approved
+Status: implemented (Task 5); the cause was not the pixel ratio
 Part of: [Chrome support](../chrome-support-todo.md), item 02
 
 ## Evidence
@@ -20,7 +20,13 @@ With `--hide-scrollbars` (spec 01) both symptoms are gone: `clip captures a box�
 
 One new observation: `setViewport changes the size and the pixel ratio, null puts the browser's size back` failed once in three runs (`[500, 320]` still read after `setViewport(null)`), and passed alone and in the two other runs. That looks like a race between the reset and the next read. Task 5 starts by reproducing that, and closes this spec if there is nothing left.
 
-## Cause
+## Result (Task 5)
+
+Repro on Chrome: after `setViewport(null)` the pixel ratio is back to 1 at once, but the size is not. Ten of twelve resets read the previous override (`400×300`), the others `500×320`, and only about 100 ms later the real `780×437`. Firefox reads the right size at once. So the BiDi command returns before Chrome has resized the window; nothing leaks.
+
+Fix: `setViewport(null)` watches the page for `resize` events (in a sandbox realm), sends the reset and waits until 50 ms pass without one, or 300 ms when the size does not change. Twelve of twelve resets read the right size at once on Chrome and Firefox; `page-api` passes the reset test in repeated runs, and the test now repeats the reset five times.
+
+## Cause (original reading, wrong)
 
 - Hypothesis, not yet verified: `browsingContext.setViewport({ devicePixelRatio: null })` resets the ratio in Firefox but not in Chrome's mapper, so the reset leaves 2 behind.
 - First step is a ten-line repro against `page.setViewport` to confirm which call leaves the ratio.

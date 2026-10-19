@@ -84,11 +84,16 @@ test(
   async () => {
     await page.setViewport({ width: 400, height: 300 });
     assert.deepEqual(await size(), [400, 300, 1]);
-    await page.setViewport({ width: 500, height: 320, devicePixelRatio: 2 });
-    assert.deepEqual(await size(), [500, 320, 2]);
-    await page.setViewport(null);
-    const reset = await size();
-    assert.notDeepEqual(reset.slice(0, 2), [500, 320]);
+    // Chrome used to answer a reset before the window had its size back, so it is repeated
+    for (let i = 0; i < 5; i++) {
+      await page.setViewport({ width: 500, height: 320, devicePixelRatio: 2 });
+      assert.deepEqual(await size(), [500, 320, 2]);
+      await page.setViewport(null);
+      const reset = await size();
+      assert.notDeepEqual(reset.slice(0, 2), [500, 320]);
+      assert.notDeepEqual(reset.slice(0, 2), [400, 300]);
+      assert.equal(reset[2], 1);
+    }
     await page.applyDefaultViewport();
     assert.deepEqual((await size()).slice(0, 2), [1280, 720]);
   },

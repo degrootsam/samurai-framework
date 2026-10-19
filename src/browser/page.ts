@@ -607,11 +607,13 @@ export default class Page {
   ): Promise<void> {
     this.assertOpen();
     if (viewport === null) {
-      await this.biDiConnector.send("browsingContext.setViewport", {
-        context: this.id,
-        viewport: null,
-        devicePixelRatio: null,
-      });
+      await this.untilResized(() =>
+        this.biDiConnector.send("browsingContext.setViewport", {
+          context: this.id,
+          viewport: null,
+          devicePixelRatio: null,
+        }),
+      );
       return;
     }
     const { width, height, devicePixelRatio } = viewport;
@@ -638,6 +640,50 @@ export default class Page {
       viewport: { width, height },
       ...(devicePixelRatio !== undefined && { devicePixelRatio }),
     });
+  }
+
+  /**
+   * Runs `change`, then waits until the page has stopped resizing. Chrome answers a viewport reset before the window
+   * has its own size back, so a read right after it can still show the old size. The wait ends 50 ms after the last
+   * `resize` event, and after 300 ms when the size does not change at all (no event comes). Never fails: a page that
+   * cannot be watched is simply not waited for.
+   */
+  private async untilResized(change: () => Promise<unknown>): Promise<void> {
+    const sandbox = { sandbox: "samurai-viewport" };
+    const watching = await callFunction(
+      this.biDiConnector,
+      this.id,
+      `() => {
+        globalThis.__resized = new Promise((resolve) => {
+          let timer;
+          const finish = () => {
+            clearTimeout(timer);
+            removeEventListener("resize", onResize);
+            resolve();
+          };
+          const onResize = () => {
+            clearTimeout(timer);
+            timer = setTimeout(finish, 50);
+          };
+          addEventListener("resize", onResize);
+          timer = setTimeout(finish, 300);
+        });
+      }`,
+      [],
+      { ...sandbox, awaitPromise: false },
+    ).then(
+      () => true,
+      () => false,
+    );
+    await change();
+    if (!watching) return;
+    await callFunction(
+      this.biDiConnector,
+      this.id,
+      "() => globalThis.__resized",
+      [],
+      sandbox,
+    ).catch(() => undefined);
   }
 
   /** Gives the page the size from config `use.viewport` (1280x720 by default); the browser does this when it opens a page */
