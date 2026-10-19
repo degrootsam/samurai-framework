@@ -1,7 +1,7 @@
 # Chrome's scrollbars shrink the viewport
 
 Date: 2026-10-19
-Status: approved
+Status: implemented (Task 2)
 Part of: [Chrome support](../chrome-support-todo.md), item 01
 
 ## Evidence

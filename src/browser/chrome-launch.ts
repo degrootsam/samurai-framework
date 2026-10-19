@@ -31,7 +31,8 @@ export const chromeFlags = ({
   "--no-default-browser-check",
   "--disable-search-engine-choice-screen",
   `--user-data-dir=${profileDir}`,
-  ...(headless ? ["--headless=new"] : []),
+  // Headless Chrome draws 15 px classic scrollbars inside the viewport; Firefox headless overlays them
+  ...(headless ? ["--headless=new", "--hide-scrollbars"] : []),
 ];
 
 /** The capabilities chromedriver gets: a classic session that also opens a BiDi socket */
