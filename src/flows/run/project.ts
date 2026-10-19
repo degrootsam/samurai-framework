@@ -15,65 +15,31 @@ import {
   type ResolvedGroup,
 } from "../../runner/groups.js";
 import logger, { keepLogFiles } from "../../logger/index.js";
+import { resolveRetries } from "../../runner/retries-option.js";
 import { resolveWorkers } from "../../runner/workers-option.js";
-import { withProject, type ProjectOptions } from "../../runner/project.js";
+import { withProject } from "../../runner/project.js";
 import { browsersFor } from "../../runner/browsers.js";
 import { DEFAULT_PORT } from "../../runner/ports.js";
 import { runTests } from "../../runner/run.js";
 import TestRunner from "../../runner/test-runner.js";
-import { WorkerPool, type PoolOptions } from "../../runner/worker-pool.js";
+import { WorkerPool } from "../../runner/worker-pool.js";
 import { processWorkerFactory } from "../../runner/worker-process.js";
-import type { WorkItem } from "../../runner/worker-protocol.js";
-import type { RunEvent } from "../../runner/reporter.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
-import type { FlowEvent, FlowSummary, NodeTest } from "./events.js";
+import type { FlowSummary, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
+import { itemsOf, runOnPool } from "./node-pool.js";
+import {
+  FlowCheckError,
+  type FlowRunOptions,
+  type RunFlowInProjectOptions,
+} from "./project-options.js";
 import { projectSteps, type StepSet } from "../steps/set.js";
 import { HANDLERS } from "./handlers/index.js";
 import { runFlow } from "./run.js";
 import type { SupportedBrowser } from "../../types/browser.js";
 
-/** The flow has errors; nothing was run */
-export class FlowCheckError extends Error {
-  constructor(public readonly problems: FlowProblem[]) {
-    super(
-      `This flow can't run:\n${problems.map((p) => `  - ${p.message}`).join("\n")}`,
-    );
-    this.name = "FlowCheckError";
-  }
-}
-
-export interface RunFlowInProjectOptions extends ProjectOptions {
-  /** The flow to run... */
-  flow?: FlowFile;
-  /** ...or the id of one in `<project>/flows` */
-  flowId?: string;
-  /** Beats the flow's `envDefault`, the config's `defaultEnvironment` and the first environment */
-  environment?: string;
-  signal?: AbortSignal;
-  onEvent?: (event: FlowEvent) => void;
-  /** `"fail"` (default): a flow with a node that can't run is refused. `"skip"`: those nodes are skipped. */
-  unsupported?: "fail" | "skip";
-  port?: number;
-  /**
-   * How many worker processes the tests of the whole run share: a number, or a percentage like `"50%"`. Unset
-   * takes `SAMURAI_WORKERS` (`workersEnv`), then the config's `workers`, then half the CPUs. 1 runs each Test
-   * and Group node through `runTests` in this process; more starts one pool that every node, and every branch
-   * of a Parallel node, takes its workers from
-   */
-  workers?: number | string;
-  /** The value of `SAMURAI_WORKERS`, when set */
-  workersEnv?: string;
-  /** @internal Replaces the worker pool (tests) */
-  createPool?: (options: PoolOptions) => Pick<WorkerPool, "run" | "dispose">;
-  /** @internal Replaces the runner of each Test and Group node (tests) */
-  testRunner?: typeof runTests;
-  /** @internal */
-  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
-}
-
-/** What `runFlowInProject` takes when the flow itself is given separately: everything but `flow` and `flowId` */
-export type FlowRunOptions = Omit<RunFlowInProjectOptions, "flow" | "flowId">;
+export { FlowCheckError };
+export type { FlowRunOptions, RunFlowInProjectOptions };
 
 /** Whether the project's config defines an environment of this name */
 function hasEnvironment(config: SamuraiTestConfig, name: string): boolean {
@@ -91,43 +57,6 @@ export function chooseEnvironment(
   if (flow.envDefault && names.includes(flow.envDefault))
     return flow.envDefault;
   return config.defaultEnvironment ?? names[0] ?? "default";
-}
-
-/** The work items of a node: each test in each browser, the browsers one after the other */
-function itemsOf(
-  tests: NodeTest[],
-  browsers: readonly SupportedBrowser[],
-): WorkItem[] {
-  return browsers
-    .flatMap((browser) =>
-      tests.map((t) => ({ file: t.file, testName: t.name, browser })),
-    )
-    .map((item, index) => ({ ...item, index }));
-}
-
-/** Runs the tests of a node on the pool and reports them as a run would */
-async function runOnPool(
-  pool: Pick<WorkerPool, "run">,
-  items: WorkItem[],
-  onEvent: (event: RunEvent) => void,
-  signal: AbortSignal,
-): Promise<"passed" | "failed" | "cancelled"> {
-  const results = await pool.run(items, {
-    signal,
-    onEvent: (event) =>
-      onEvent({
-        type: event.type,
-        name: event.item.testName,
-        file: event.item.file,
-        browser: event.item.browser,
-        ...(event.type === "test-end" && { result: event.result }),
-      } as RunEvent),
-  });
-  if (signal.aborted) return "cancelled";
-  // A skipped test is not a failure
-  return results.every((r) => r.status === "success" || r.status === "skipped")
-    ? "passed"
-    : "failed";
 }
 
 /** A test of the project as flows see it */
@@ -332,6 +261,12 @@ async function walkFlowInProject(
       Object.values(nodeTests).flatMap((list) => list.map((t) => t.file)),
     ),
   ];
+  // A failing test is run again as often as the project says, in a node as in a plain run
+  const retries = resolveRetries({
+    flag: options.retries,
+    env: options.retriesEnv,
+    config: config.retries,
+  });
   // One pool for the whole run: the nodes, and the branches of a Parallel node, share its workers
   const pool =
     workers > 1
@@ -351,6 +286,7 @@ async function walkFlowInProject(
             }),
             files,
             basePort: options.port ?? DEFAULT_PORT,
+            ...(retries > 0 && { retries }),
           },
         })
       : undefined;
@@ -389,6 +325,7 @@ async function walkFlowInProject(
             expectTimeout: options.expectTimeout,
           }),
           ...(options.port !== undefined && { port: options.port }),
+          ...(retries > 0 && { retries }),
           ...(browsers && { browsers }),
           files: [...new Set(tests.map((t) => t.file))],
           testNames: tests.map((t) => t.name),

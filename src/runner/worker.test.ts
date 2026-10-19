@@ -214,3 +214,35 @@ test("an error that escapes the test run is fatal", async () => {
     message: "sink broke",
   });
 });
+
+test("a test run again starts again: the retry's start is sent with its number, the end once", async () => {
+  const session: WorkerSession = {
+    tests: [testCase("first")],
+    async runTest(t, browser, _signal, onEvent: (event: RunEvent) => void) {
+      const start = { name: t.name, file: t.file, browser };
+      onEvent({ type: "test-start", ...start });
+      onEvent({ type: "test-start", ...start, retry: 1 });
+      onEvent({ type: "test-start", ...start, retry: 2 });
+      onEvent({
+        type: "test-end",
+        ...start,
+        result: resultOf(t.name, browser),
+      });
+    },
+    async close() {},
+  };
+  const worker = setup(undefined, async () => session);
+  await worker.send({ type: "init", init: INIT });
+  await worker.send({ type: "run", id: 3, item: item("first") });
+  assert.deepEqual(
+    worker.sent
+      .slice(1)
+      .map((m) => [m.type, "retry" in m ? m.retry : undefined]),
+    [
+      ["test-start", undefined],
+      ["test-start", 1],
+      ["test-start", 2],
+      ["test-end", undefined],
+    ],
+  );
+});

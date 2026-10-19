@@ -120,6 +120,16 @@ describe("parseRunnerFlags", () => {
       );
   });
 
+  test("reads --retries as typed, 0 included, and refuses what is not a whole number from 0", () => {
+    assert.deepEqual(parseRunnerFlags(["--retries", "2"]), { retries: "2" });
+    assert.deepEqual(parseRunnerFlags(["--retries", "0"]), { retries: "0" });
+    for (const bad of ["-1", "abc", "1.5", ""])
+      assert.throws(
+        () => parseRunnerFlags([`--retries=${bad}`]),
+        new RegExp(`--retries must be a whole number from 0, got "${bad}"`),
+      );
+  });
+
   test("rejects a port that is not a port number", () => {
     assert.throws(() => parseRunnerFlags(["--port", "0"]), /--port/);
     assert.throws(() => parseRunnerFlags(["--port", "abc"]), /--port/);
