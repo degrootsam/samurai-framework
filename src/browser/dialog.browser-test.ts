@@ -58,9 +58,13 @@ test(
     const seen: string[] = [];
     const onDialog = async (dialog: Dialog) => {
       seen.push(`${dialog.type()}: ${dialog.message()}`);
-      assert.equal(
-        await read("__afterAlert"),
-        undefined,
+      // Firefox answers a read during alert() with undefined; Chrome's page is blocked and answers only afterwards
+      const during = await Promise.race([
+        read("__afterAlert"),
+        new Promise((resolve) => setTimeout(resolve, 300, "blocked")),
+      ]);
+      assert.ok(
+        during === undefined || during === "blocked",
         "the page is still stuck in alert()",
       );
       await dialog.accept();

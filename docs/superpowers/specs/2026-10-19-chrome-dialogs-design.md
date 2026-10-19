@@ -1,7 +1,7 @@
 # JavaScript dialogs hang or do not match Firefox
 
 Date: 2026-10-19
-Status: approved
+Status: implemented (Task 9)
 Part of: [Chrome support](../chrome-support-todo.md), item 06
 
 ## Evidence
@@ -14,7 +14,13 @@ Chrome for Testing 155, headless, Linux, launched through chromedriver.
 
 Affects: dialog (3 tests; the other 5 pass).
 
-## Cause
+## Result (Task 9)
+
+One cause, in the first test. On Chrome the page's main thread is blocked during `alert()`, so the test's read of `window.__afterAlert` in the dialog handler never returned, the alert stayed open, and the next two tests were stuck behind it (the unhandled-alert click and the `beforeunload` navigation both waited on that open dialog). The framework was right: in isolation, a click that opens an unhandled alert is dismissed within 1 ms on Chrome, and the dialog path needed no change.
+
+The test now races its read against 300 ms, so it passes whether the browser answers `undefined` (Firefox) or stays blocked (Chrome). All 8 dialog tests pass on both browsers.
+
+## Cause (original reading)
 
 - Test 1 is a Firefox assumption: on Chrome the read can't run during `alert()`.
 - Tests 2 and 3 are likely real: the unhandled-dialog path in `page.ts` (around line 1500) may rely on a Firefox event order, and Chrome shows `beforeunload` only after a user gesture.
