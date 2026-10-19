@@ -1,5 +1,5 @@
 import EventEmitter from "node:events";
-import logger from "../logger/index.js";
+import { emitSafely } from "./emit.js";
 import { fromRemoteValue } from "../script/serialize.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
@@ -245,12 +245,6 @@ export class PageLogs {
 
   /** A listener that throws must not stop the recording or the other listeners */
   private emit<E extends LogEventName>(event: E, ...args: EventMap[E]) {
-    for (const listener of this.events.rawListeners(event)) {
-      try {
-        listener(...args);
-      } catch (err) {
-        logger.error("A %s listener threw", event, { err });
-      }
-    }
+    emitSafely(this.events, event, args);
   }
 }

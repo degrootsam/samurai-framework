@@ -1,5 +1,5 @@
 import EventEmitter from "node:events";
-import logger from "../logger/index.js";
+import { emitSafely } from "./emit.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
 import type {
@@ -32,7 +32,10 @@ export class DownloadTimeoutError extends WaitTimeoutError<undefined> {
   }
 }
 
-type Outcome = { status: "complete"; path: string } | { status: "canceled" } | { status: "closed" };
+type Outcome =
+  | { status: "complete"; path: string }
+  | { status: "canceled" }
+  | { status: "closed" };
 
 /** A file the page started to download */
 export class Download {
@@ -62,12 +65,18 @@ export class Download {
     const timeout = options.timeout ?? this.defaultTimeout;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new DownloadTimeoutError(this.address, timeout)), timeout);
+      timer = setTimeout(
+        () => reject(new DownloadTimeoutError(this.address, timeout)),
+        timeout,
+      );
     });
     try {
       const outcome = await Promise.race([this.outcome, late]);
       if (outcome.status === "complete") return outcome.path;
-      throw new DownloadError(this.address, outcome.status === "closed" ? "page closed" : "canceled");
+      throw new DownloadError(
+        this.address,
+        outcome.status === "closed" ? "page closed" : "canceled",
+      );
     } finally {
       clearTimeout(timer);
     }
@@ -110,7 +119,12 @@ export class DownloadTracker {
     contextId: string,
     options: { timeout: number },
   ): Promise<DownloadTracker> {
-    const tracker = new DownloadTracker(connector, tree, contextId, options.timeout);
+    const tracker = new DownloadTracker(
+      connector,
+      tree,
+      contextId,
+      options.timeout,
+    );
     connector.onEvent("browsingContext.downloadWillBegin", tracker.onBegin);
     connector.onEvent("browsingContext.downloadEnd", tracker.onEnd);
     try {
@@ -125,11 +139,17 @@ export class DownloadTracker {
     return tracker;
   }
 
-  public on(event: "download", listener: (...args: EventMap["download"]) => void): void {
+  public on(
+    event: "download",
+    listener: (...args: EventMap["download"]) => void,
+  ): void {
     this.events.on(event, listener as (...args: unknown[]) => void);
   }
 
-  public off(event: "download", listener: (...args: EventMap["download"]) => void): void {
+  public off(
+    event: "download",
+    listener: (...args: EventMap["download"]) => void,
+  ): void {
     this.events.off(event, listener as (...args: unknown[]) => void);
   }
 
@@ -138,7 +158,8 @@ export class DownloadTracker {
     if (this.disposed) return;
     this.disposed = true;
     this.removeListeners();
-    for (const download of this.active.values()) download.finish({ status: "closed" });
+    for (const download of this.active.values())
+      download.finish({ status: "closed" });
     this.active.clear();
     await this.subscription?.unsubscribe();
   }
@@ -150,15 +171,13 @@ export class DownloadTracker {
 
   private onBegin = (params: DownloadWillBeginParams) => {
     if (!this.tree.isWithin(params.context, this.contextId)) return;
-    const download = new Download(params.url, params.suggestedFilename, this.timeout);
+    const download = new Download(
+      params.url,
+      params.suggestedFilename,
+      this.timeout,
+    );
     this.active.set(params.navigation, download);
-    for (const listener of this.events.rawListeners("download")) {
-      try {
-        listener(download);
-      } catch (err) {
-        logger.error("A download listener threw", { err });
-      }
-    }
+    emitSafely(this.events, "download", [download]);
   };
 
   private onEnd = (params: DownloadEndParams) => {
@@ -166,7 +185,9 @@ export class DownloadTracker {
     if (!download) return;
     this.active.delete(params.navigation);
     download.finish(
-      params.status === "complete" ? { status: "complete", path: params.filepath } : { status: "canceled" },
+      params.status === "complete"
+        ? { status: "complete", path: params.filepath }
+        : { status: "canceled" },
     );
   };
 }
