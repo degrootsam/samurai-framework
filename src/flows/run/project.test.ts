@@ -206,6 +206,36 @@ describe("runFlowInProject", () => {
     assert.equal(cancelled.status, "cancelled");
   });
 
+  it("a run whose tests were skipped passes the node; a failure beside a skip fails it", async () => {
+    const flow = chain([
+      { id: "t", kind: "test", ref: { testId: "login.spec.ts::works" } },
+    ]);
+    const skipped = await runFlowInProject({
+      ...harness({
+        testRunner: (async () => ({
+          status: "success",
+          tests: [{ name: "works", status: "skipped" }],
+        })) as unknown as typeof runTests,
+      }).options,
+      flow,
+    });
+    assert.equal(skipped.nodes.t!.status, "passed");
+
+    const failing = await runFlowInProject({
+      ...harness({
+        testRunner: (async () => ({
+          status: "failed",
+          tests: [
+            { name: "a", status: "skipped" },
+            { name: "b", status: "failed" },
+          ],
+        })) as unknown as typeof runTests,
+      }).options,
+      flow,
+    });
+    assert.equal(failing.nodes.t!.status, "failed");
+  });
+
   it("expressions see the environment's variables", async () => {
     const h = harness({ environment: "staging" });
     const summary = await runFlowInProject({
@@ -223,7 +253,10 @@ describe("runFlowInProject", () => {
 
   describe("with workers", () => {
     /** A pool that answers every item with `status`, and remembers what it was asked */
-    function fakePool(status: "success" | "failed" = "success") {
+    type Status = "success" | "failed" | "skipped";
+    function fakePool(
+      status: Status | ((item: WorkItem) => Status) = "success",
+    ) {
       const state = {
         created: [] as PoolOptions[],
         runs: [] as WorkItem[][],
@@ -235,17 +268,20 @@ describe("runFlowInProject", () => {
           async run(items: WorkItem[], hooks: RunHooks = {}) {
             state.runs.push(items);
             return items.map((item) => {
+              const outcome =
+                typeof status === "function" ? status(item) : status;
               const result = {
                 name: item.testName,
                 file: item.file,
                 browser: item.browser,
                 startTime: 0,
-                duration: 1,
-                status,
-                ...(status === "failed" && {
+                duration: outcome === "skipped" ? 0 : 1,
+                status: outcome,
+                ...(outcome === "failed" && {
                   message: "no",
                   type: "error" as const,
                 }),
+                ...(outcome === "skipped" && { annotation: "skip" as const }),
               } as TestResult;
               hooks.onEvent?.({ type: "test-start", item, worker: 0 });
               hooks.onEvent?.({ type: "test-end", item, worker: 0, result });
@@ -385,6 +421,47 @@ describe("runFlowInProject", () => {
       });
       assert.equal(cancelled.status, "cancelled");
       assert.equal(pool.state.disposed, 1);
+    });
+
+    it("skipped tests do not fail a node: all skipped or skipped with passed is passed, any failure fails it", async () => {
+      const group = { id: "g", kind: "group", ref: { group: "cross" } };
+      const run = (status: Status | ((item: WorkItem) => Status)) =>
+        runFlowInProject({
+          ...harness().options,
+          workers: 2,
+          createPool: fakePool(status).createPool,
+          flow: chain([group]),
+        });
+
+      const allSkipped = await run("skipped");
+      assert.equal(allSkipped.nodes.g!.status, "passed");
+      assert.equal(allSkipped.status, "passed");
+
+      const mixed = await run((item) =>
+        item.browser === "firefox" ? "skipped" : "success",
+      );
+      assert.equal(mixed.nodes.g!.status, "passed");
+
+      const withFailure = await run((item) =>
+        item.browser === "firefox" ? "skipped" : "failed",
+      );
+      assert.equal(withFailure.nodes.g!.status, "failed");
+      assert.equal(withFailure.nodes.g!.error, "A test failed.");
+    });
+
+    it("the skipped test-end reaches the node's events unchanged", async () => {
+      const h = harness();
+      await runFlowInProject({
+        ...h.options,
+        workers: 2,
+        createPool: fakePool("skipped").createPool,
+        flow: chain([login]),
+      });
+      const end = h.events.find(
+        (e) => e.type === "test" && e.event.type === "test-end",
+      ) as { event: { result: { status: string; annotation: string } } };
+      assert.equal(end.event.result.status, "skipped");
+      assert.equal(end.event.result.annotation, "skip");
     });
 
     it("a pool that rejects fails the node, and is still disposed", async () => {
