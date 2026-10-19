@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  makeConnector,
+  tick,
+} from "../testing/fake-websocket.js";
 import { addPreload } from "./preload.js";
 import { ScriptError } from "./call-function.js";
 import { ChannelArg } from "./serialize.js";
@@ -21,7 +25,7 @@ interface Setup {
 
 function setup({ tree, callFunction, removePreload }: Setup = {}) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   const stop = autoReply(ws, {
     "script.addPreloadScript": () => ({ script: "preload-1" }),
     "browsingContext.getTree": (params) => ({ contexts: tree?.(params) ?? [] }),
@@ -117,7 +121,7 @@ describe("addPreload", () => {
 
   it("ignores a context that disappeared while running", async () => {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const timer = setInterval(() => {
       for (const m of ws.sent.splice(0)) {
         if (m.method === "script.addPreloadScript")
@@ -192,7 +196,7 @@ describe("addPreload", () => {
 
   it("rethrows when registering fails", async () => {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const timer = setInterval(() => {
       for (const m of ws.sent.splice(0))
         ws.replyError(m.id, "invalid argument", "bad script");
@@ -218,7 +222,7 @@ describe("addPreload", () => {
 
   it("dispose swallows no such script", async () => {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const timer = setInterval(() => {
       for (const m of ws.sent.splice(0)) {
         if (m.method === "script.addPreloadScript")
