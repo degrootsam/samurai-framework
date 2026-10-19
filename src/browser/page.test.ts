@@ -10,7 +10,7 @@ import { ResponseTimeoutError } from "../network/network-wait.js";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { UnsupportedOperationError } from "../locator/selector-errors.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
 import { ActionTimeoutError } from "../locator/action-timeout-error.js";
 import { Evidence } from "./evidence.js";
 
@@ -341,6 +341,41 @@ describe("Page network tracking", () => {
     await page.waitForNetworkIdle({ idleTime: 5, timeout: 1000 });
     // contextCreated + contextDestroyed for the tree; three network events and navigationCommitted for the network
     assert.equal(subscribes(), 6);
+    stop();
+  });
+
+  test("startTracking sizes the page and starts every tracker once, in the browser's order", async () => {
+    const { ws, page, stop } = trackedPage({
+      use: { viewport: { width: 800, height: 600 } },
+    });
+    await page.startTracking();
+    await page.startTracking();
+    const events = ws.sent
+      .filter((m) => m.method === "session.subscribe")
+      .flatMap((m) => (m.params as { events: string[] }).events);
+    // The tree first (everything attributes frames through it), then network, dialogs, logs, downloads, file pickers
+    const first = (prefix: string) =>
+      events.findIndex((event) => event.startsWith(prefix));
+    assert.ok(first("network.") < first("browsingContext.userPrompt"));
+    assert.ok(first("browsingContext.userPrompt") < first("log."));
+    assert.ok(first("log.") < first("browsingContext.download"));
+    assert.ok(first("browsingContext.download") < first("input."));
+    for (const event of [
+      "network.beforeRequestSent",
+      "log.entryAdded",
+      "input.fileDialogOpened",
+    ]) {
+      assert.equal(
+        events.filter((e) => e === event).length,
+        1,
+        `${event} once`,
+      );
+    }
+    assert.equal(
+      ws.sent.filter((m) => m.method === "browsingContext.setViewport").length,
+      2,
+      "the size is applied on each call; the trackers only once",
+    );
     stop();
   });
 

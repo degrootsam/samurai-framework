@@ -1,3 +1,4 @@
+import { painter } from "./paint.js";
 import type { RunEvent, TestResult, TestSummary } from "../runner/run.js";
 
 export interface ConsoleReporterOptions {
@@ -17,8 +18,7 @@ export class ConsoleReporter {
 
   constructor({ write, color }: ConsoleReporterOptions) {
     this.write = write;
-    this.paint = (code, text) =>
-      color ? `\u001b[${code}m${text}\u001b[0m` : text;
+    this.paint = painter(color);
   }
 
   public handle(event: RunEvent): void {

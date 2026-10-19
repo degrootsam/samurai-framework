@@ -1,78 +1,19 @@
-import { readFileSync } from "node:fs";
 import {
   parseCommandLine,
   parseRunnerFlags,
   parseRunOverrides,
 } from "./args.js";
-import { recordSpec } from "../recorder/index.js";
 import { listTests, runTests, type RunTestsOptions } from "../runner/run.js";
-import { stepToSource } from "../steps/index.js";
 import { ConsoleReporter } from "./console-reporter.js";
 import { browsersCommand } from "./browsers.js";
 import { flowCommand } from "./flow.js";
 import { initProject } from "./init.js";
 import type { Io } from "./io.js";
+import { recordCommand } from "./record.js";
+import { USAGE } from "./usage.js";
+import { frameworkVersion } from "./version.js";
 
-export const USAGE = `samurai: browser tests over WebDriver BiDi
-
-Usage:
-  samurai run [options]       Run the tests (the default command)
-  samurai list [options]      List the tests without running them
-  samurai record <spec>       Open a browser and record what you do into a spec file
-  samurai init [folder]       Scaffold a project: config, an example test, .env.example
-  samurai flow <command>      List, check and run the flows in ./flows (see below)
-  samurai browsers [command]  List, install and remove the browsers SAMURAI launches
-
-Options for run and list:
-  --env <name>                Environment to run against (or SAMURAI_ENV)
-  --file <spec>               Only this spec file; repeatable
-  --grep <text>               Only tests whose full name contains the text
-  --group <name>              Only the tests of this group of the config's groups
-  --browser <name>            Run in this browser (firefox or chrome) instead of the config's
-                              browsers; repeat it for more than one
-  --json                      Machine-readable output: JSON lines for run, one array for list
-
-Options for run:
-  --timeout <ms>              Time one test may take
-  --expect-timeout <ms>       Time actions and assertions retry
-  --headless, --no-headless   Run the browser without a window, or with one.
-                              Default: the config's use.headless, else headless when CI is set
-  --port <n>                  Browser debugging port (default 9223)
-
-Options for record (also --env, --port, --json, --headless, --no-headless):
-  --browser <name>            Record in this browser (default: the first of the config's browsers)
-  --new <title>               Add a test with this title (creates the spec file if needed)
-  --test <name|index>         Record into this test; not needed when the file has one
-  --at <n>                    Insert from step n (default: after the last step)
-  --url <url>                 Page to start on (default: the environment's baseURL)
-  Stop with Ctrl+C or by closing the browser window.
-
-  -h, --help                  Show this help
-  -v, --version               Show the version
-
-Exit code: 0 when every test passed, 1 when a test failed, 2 for a usage or configuration error.
-
-samurai flow:
-  list                        The flows in ./flows
-  check [<flow>...]           Check flows without running them
-  run <flow>... | --all       Run flows; each writes result/flows/<id>.json
-  Options for run: --env, --headless, --timeout, --expect-timeout, --port, --json, --allow-unsupported
-  Run \`samurai flow\` alone for the details.
-
-samurai browsers:
-  list                        The pinned browsers and every build in the cache (the default)
-  install [firefox|chrome|all]
-                              Download the pinned builds (default: all)
-  uninstall <name> [--build <id>] | --unused
-
-Run it in the project folder, the one holding samurai.config.ts.
-`;
-
-function version(): string {
-  const manifest = new URL("../../package.json", import.meta.url);
-  return (JSON.parse(readFileSync(manifest, "utf8")) as { version: string })
-    .version;
-}
+export { USAGE };
 
 /** The command line as `samurai` runs it. Returns the exit code */
 export async function main(argv: string[], io: Io): Promise<number> {
@@ -88,7 +29,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       return 0;
     }
     if (values.version) {
-      io.out(`${version()}\n`);
+      io.out(`${frameworkVersion()}\n`);
       return 0;
     }
 
@@ -105,108 +46,17 @@ export async function main(argv: string[], io: Io): Promise<number> {
       return 0;
     }
 
-    if (command === "record") {
-      const file = positionals[0];
-      if (!file)
-        throw new Error(
-          "Which spec? Usage: samurai record <spec> [--new <title>]",
-        );
-      const at = values.at === undefined ? undefined : Number(values.at);
-      if (at !== undefined && (!Number.isInteger(at) || at < 0))
-        throw new Error(`--at must be a step number, got "${values.at}"`);
-      const flags = parseRunnerFlags(rest);
-      if (flags.browsers && flags.browsers.length > 1)
-        throw new Error("--browser: a recording uses one browser");
-      const test =
-        values.test === undefined
-          ? undefined
-          : /^\d+$/.test(values.test)
-            ? Number(values.test)
-            : values.test;
-      let count = 0;
-      let state: "recording" | "paused" = "recording";
-      let toolbarWarned = false;
-      const result = await recordSpec({
-        ...parseRunOverrides(rest, io.env),
-        file,
-        ...(test !== undefined && { test }),
-        ...(values.new !== undefined && { create: values.new }),
-        ...(at !== undefined && { at }),
-        ...(values.url !== undefined && { url: values.url }),
-        ...(flags.headless !== undefined && { headless: flags.headless }),
-        ...(flags.port !== undefined && { port: flags.port }),
-        ...(flags.browsers && { browser: flags.browsers[0]! }),
-        ...(io.signal && { signal: io.signal }),
-        onStarted: () => {
-          if (!values.json)
-            io.out(
-              "Recording. Alt+click an element to assert on it. Press Stop in the toolbar, Ctrl+C or close the window to stop.\n",
-            );
-        },
-        onStatus: (status) => {
-          if (values.json) return;
-          if (!status.toolbar && !toolbarWarned) {
-            toolbarWarned = true;
-            io.out(
-              "The toolbar couldn't load on this page. Alt+click still records assertions.\n",
-            );
-          }
-          if (status.state !== state) {
-            state = status.state;
-            io.out(state === "paused" ? "Paused\n" : "Recording\n");
-          }
-        },
-        onMissingFile: (_file, text) => {
-          if (!values.json) io.out(`${text}\n`);
-        },
-        onEvent: (event) => {
-          if (values.json) return void io.out(`${JSON.stringify(event)}\n`);
-          if (event.op === "remove") {
-            count--;
-            return void io.out(
-              `  - step ${event.index + 1} (the click that opened the file picker)\n`,
-            );
-          }
-          io.out(
-            `  ${event.op === "insert" ? "+" : "~"} ${stepToSource(event.step)}\n`,
-          );
-          if (event.op === "insert") count++;
-        },
-      });
-      if (!values.json) {
-        io.out(
-          `\nRecorded ${count} ${count === 1 ? "step" : "steps"} into "${result.test}" in ${result.file}\n`,
-        );
-        if (result.unsetSecrets.length > 0) {
-          io.out(
-            `Set ${result.unsetSecrets.map((name) => `SAMURAI_SECRET_${name}`).join(", ")} (environment variable or .env.<environment>) before running it.\n`,
-          );
-        }
-        if (result.missingFiles.length > 0) {
-          io.out(
-            `Add ${result.missingFiles.map((f) => f.path).join(", ")} before running it (or use generatedFile).\n`,
-          );
-        }
-        const hasFiles = result.files.length + result.missingFiles.length > 0;
-        const folder = result.filesFolder === "" ? "." : result.filesFolder;
-        if (hasFiles && result.filesIgnored)
-          io.out(`${folder}/ is ignored by git; CI won't have these files.\n`);
-        if (hasFiles && result.firstFiles)
-          io.out(
-            `Recorded files are stored in ${folder}/ and committed with your tests.\n`,
-          );
-      }
-      return 0;
-    }
+    if (command === "record")
+      return await recordCommand({ values, positionals }, io);
 
     if (command !== "run" && command !== "list") {
       io.err(`Unknown command "${command}"\n\n${USAGE}`);
       return 2;
     }
 
-    const flags = parseRunnerFlags(rest);
+    const flags = parseRunnerFlags(values);
     const options: RunTestsOptions = {
-      ...parseRunOverrides(rest, io.env),
+      ...parseRunOverrides(values, io.env),
       ...(flags.headless !== undefined && { headless: flags.headless }),
       ...(flags.port !== undefined && { port: flags.port }),
       ...(flags.grep !== undefined && { grep: flags.grep }),

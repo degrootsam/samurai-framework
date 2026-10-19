@@ -1,4 +1,5 @@
-import { runNodeTests, type Handler } from "./support.js";
+import { runNodeTests } from "./support.js";
+import type { Handler } from "./types.js";
 
 export const test: Handler = async (node, run) => {
   const list = run.nodeTests[node.id];

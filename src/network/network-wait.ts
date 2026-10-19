@@ -4,7 +4,7 @@ import { matchUrl, type UrlPattern } from "./url-match.js";
 /** What `page.waitForRequest` / `waitForResponse` match: a URL pattern, or a function */
 export type NetworkMatch<T> = UrlPattern | ((item: T) => boolean);
 
-/** No matching request or response arrived in time */
+/** No matching request or response arrived in time; each subclass names itself */
 class NetworkWaitTimeoutError extends WaitTimeoutError<undefined> {
   constructor(
     operation: "waitForRequest" | "waitForResponse",
@@ -12,10 +12,7 @@ class NetworkWaitTimeoutError extends WaitTimeoutError<undefined> {
     timeout: number,
   ) {
     super(timeout, undefined);
-    this.name =
-      operation === "waitForRequest"
-        ? "RequestTimeoutError"
-        : "ResponseTimeoutError";
+    this.name = new.target.name;
     const kind = operation === "waitForRequest" ? "request" : "response";
     this.message = `${operation}(): no ${kind} matching ${describeMatch(match)} within ${timeout}ms`;
   }
@@ -23,6 +20,15 @@ class NetworkWaitTimeoutError extends WaitTimeoutError<undefined> {
 
 export class RequestTimeoutError extends NetworkWaitTimeoutError {}
 export class ResponseTimeoutError extends NetworkWaitTimeoutError {}
+
+/** waitForIdle ran out of time with requests still in flight; `last` holds (up to five of) their URLs */
+export class NetworkIdleTimeoutError extends WaitTimeoutError<string[]> {
+  constructor(timeout: number, inflight: number, urls: string[]) {
+    super(timeout, urls);
+    this.name = "NetworkIdleTimeoutError";
+    this.message = `waitForNetworkIdle(): still ${inflight} request(s) in flight after ${timeout}ms: ${urls.join(", ")}`;
+  }
+}
 
 function describeMatch(match: NetworkMatch<never>): string {
   if (typeof match === "function") return "the given function";

@@ -8,11 +8,3 @@ export class InvalidSelectorError extends Error {
     this.selector = selector;
   }
 }
-
-/** The browser does not implement this kind of locator */
-export class UnsupportedOperationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UnsupportedOperationError";
-  }
-}

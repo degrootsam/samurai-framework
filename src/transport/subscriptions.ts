@@ -14,7 +14,10 @@ export interface SubscribeOptions {
 
 /** Sends the two session commands; the connector provides it */
 export interface SessionCommands {
-  subscribe(params: { events: string[]; contexts?: string[] }): Promise<{ subscription: string }>;
+  subscribe(params: {
+    events: string[];
+    contexts?: string[];
+  }): Promise<{ subscription: string }>;
   unsubscribe(params: { subscriptions: string[] }): Promise<unknown>;
 }
 
@@ -34,7 +37,10 @@ export class SubscriptionManager {
 
   constructor(private commands: SessionCommands) {}
 
-  public async subscribe(events: EventName[], options: SubscribeOptions = {}): Promise<Subscription> {
+  public async subscribe(
+    events: EventName[],
+    options: SubscribeOptions = {},
+  ): Promise<Subscription> {
     if (options.contexts) return this.subscribeScoped(events, options.contexts);
 
     const acquired: EventName[] = [];
@@ -48,25 +54,25 @@ export class SubscriptionManager {
       throw err;
     }
 
-    let released = false;
     return {
-      unsubscribe: async () => {
-        if (released) return;
-        released = true;
+      unsubscribe: once(async () => {
         await Promise.all(acquired.map((event) => this.release(event)));
-      },
+      }),
     };
   }
 
-  private async subscribeScoped(events: EventName[], contexts: string[]): Promise<Subscription> {
-    const { subscription } = await this.commands.subscribe({ events, contexts });
-    let released = false;
+  private async subscribeScoped(
+    events: EventName[],
+    contexts: string[],
+  ): Promise<Subscription> {
+    const { subscription } = await this.commands.subscribe({
+      events,
+      contexts,
+    });
     return {
-      unsubscribe: async () => {
-        if (released) return;
-        released = true;
+      unsubscribe: once(async () => {
         await this.commands.unsubscribe({ subscriptions: [subscription] });
-      },
+      }),
     };
   }
 
@@ -84,7 +90,9 @@ export class SubscriptionManager {
     state.count++;
     const step = state.chain.then(async () => {
       if (state.count > 0 && state.id === undefined) {
-        state.id = (await this.commands.subscribe({ events: [event] })).subscription;
+        state.id = (
+          await this.commands.subscribe({ events: [event] })
+        ).subscription;
       }
     });
     state.chain = step.catch(() => {});
@@ -107,4 +115,14 @@ export class SubscriptionManager {
     state.chain = step.catch(() => {});
     return step;
   }
+}
+
+/** `fn` runs on the first call only; later calls resolve at once */
+function once(fn: () => Promise<void>): () => Promise<void> {
+  let called = false;
+  return async () => {
+    if (called) return;
+    called = true;
+    await fn();
+  };
 }

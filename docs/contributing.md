@@ -55,21 +55,20 @@ CI (`.github/workflows/ci.yml`) runs the typecheck, the unit tests (after a buil
 
 The table reads top to bottom: a folder mostly uses the ones below it. It is taken from the imports (`npx madge --json src`, with the exclusions in `.madgerc`), the real picture today is:
 
-| Folder                     | Imports from                                                                                   |
-| -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `cli`                      | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)                |
-| `runner`                   | `browser`, `browsers`, `assert`, `config`, `transport`, `logger`                               |
-| `recorder`                 | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`                       |
-| `flows/run`, `flows/steps` | `flows/core`, `runner`, `config` (and each other: handlers and steps)                          |
-| `browser`                  | `network`, `locator`, `script`, `steps`, `recorder`, `browsers`, `transport`, `wait`, `config` |
-| `network`, `steps`         | `browser` (`ContextTree`, `Page` types), `locator`, `transport`, `wait`                        |
-| `assert`                   | `locator`, `wait`                                                                              |
-| `locator`                  | `script`, `browser` (screenshots, generated files), `transport`, `wait`                        |
-| `script`                   | `transport`, `logger`, `locator` (the probe in `script/helpers.ts`)                            |
-| `transport`                | `wait`, `logger`                                                                               |
-| `wait`, `logger`, `config` | `wait` reads `config` (timeouts); `config` and `logger` import each other; nothing else        |
-| `project`, `browsers`      | `config`, `logger`                                                                             |
-| `flows/core`               | nothing (pure, no Node APIs; a test bundles it to prove that)                                  |
+| Folder                        | Imports from (values; `import type` is not counted)                                |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `cli`                         | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)    |
+| `runner`                      | `browser`, `browsers`, `assert`, `config`, `transport`, `logger`                   |
+| `recorder`                    | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`           |
+| `flows/run`, `flows/steps`    | `flows/core`, `runner`, `config` (and each other: handlers and steps)              |
+| `browser`                     | `network`, `locator`, `script`, `steps`, `browsers`, `transport`, `wait`, `config` |
+| `assert`                      | `locator`, `wait`, `config`                                                        |
+| `locator`                     | `script`, `browser` (screenshots, generated files), `transport`, `wait`, `config`  |
+| `network`, `script`           | `transport`, `wait`, `logger`                                                      |
+| `transport`                   | `wait`, `logger`                                                                   |
+| `config`, `logger`            | each other only                                                                    |
+| `project`, `browsers`         | `config`, `logger`                                                                 |
+| `steps`, `wait`, `flows/core` | nothing (`flows/core` is pure, no Node APIs; a test bundles it to prove that)      |
 
 Rules that keep it modular:
 
@@ -78,7 +77,7 @@ Rules that keep it modular:
 - `transport/` knows nothing of pages, locators or the recorder.
 - `import type` between files of one folder is fine; a value import that closes a loop is not. `npx madge --circular src` lists loops; `.madgerc` makes it ignore type-only imports and the generated BiDi `.d.ts` files, so it reports none today and a new one is a regression. `Page.record` loads the recorder with a dynamic `import()` for that reason: the recorder is built on `Page`.
 
-Known exceptions to the direction, the places to untangle next: `browser` imports `steps` and, lazily, the recorder (`Page.record`); `script/helpers.ts` imports the locator's probe; `locator` imports `screenshot` and `generated-files` from `browser/`; `network` imports `ContextTree` from `browser/`; `wait` reads `config/` for timeouts; `config` and `logger` import each other; `flows/steps` and `flows/run` import each other.
+Known exceptions to the direction, the places to untangle next: `browser` imports `steps` and, lazily, the recorder (`Page.record`); `locator` imports `screenshot` and `generated-files` from `browser/`; `config` and `logger` import each other; `flows/steps` and `flows/run` import each other.
 
 ## Keeping the code tidy
 

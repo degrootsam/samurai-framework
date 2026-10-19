@@ -4,7 +4,7 @@ import type {
   FlowProblem,
   StepInfo,
 } from "../core/index.js";
-import type { Handler } from "../run/handlers/support.js";
+import type { Handler } from "../run/handlers/types.js";
 import { infoOf, type StepDefinition } from "./define.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import { BUILTIN_SET, BUILTIN_STEPS, projectSteps } from "./set.js";

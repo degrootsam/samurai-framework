@@ -4,17 +4,13 @@ import type {
   BrowsingContext,
   ElementRectangle,
 } from "../types/bidi-modules/browsing-context.js";
-import type {
-  KeyDownAction,
-  KeyUpAction,
-} from "../types/bidi-modules/input.js";
 import { callFunction, ScriptError } from "../script/call-function.js";
 import {
   CALL_PROBE,
   HELPER_SANDBOX,
   HELPERS_MISSING,
   type HelperInstaller,
-} from "../script/helpers.js";
+} from "./helper-realm.js";
 import { ElementHandle } from "../script/element-handle.js";
 import {
   takeScreenshot,
@@ -26,12 +22,30 @@ import {
   type FileInput,
 } from "../browser/generated-files.js";
 import type { Arg } from "../script/serialize.js";
-import {
-  resolveTimeout,
-  waitUntil,
-  WaitTimeoutError,
-} from "../wait/wait-until.js";
+import { resolveTimeout } from "../config/timeouts.js";
+import { waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
+import {
+  clickRect,
+  DEFAULT_PAUSE_MS,
+  NAMED_KEYS,
+  pause,
+  pressKey,
+  typeText,
+} from "./input-actions.js";
+import {
+  ATTACHED_ONLY,
+  CLICK_CHECKS,
+  DROP_CHECKS,
+  DROP_EVENTS,
+  DROP_INPUT,
+  DROP_SANDBOX,
+  FILE_INPUT_CHECKS,
+  FILE_INPUT_INFO,
+  FILL_CHECKS,
+  PRESS_CHECKS,
+  SCREENSHOT_CHECKS,
+} from "./page-scripts.js";
 import {
   allPass,
   DETACHED_STATE,
@@ -46,10 +60,8 @@ import {
   type WaitForState,
 } from "./element-state.js";
 
-import {
-  InvalidSelectorError,
-  UnsupportedOperationError,
-} from "./selector-errors.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
+import { InvalidSelectorError } from "./selector-errors.js";
 import { LABEL_LOCATE } from "./label-locator.js";
 import { TEXT_LOCATE } from "./text-locator.js";
 import {
@@ -84,76 +96,6 @@ function unsupportedTypes(connector: BiDiConnector): Set<string> {
   if (!types) unsupportedByConnector.set(connector, (types = new Set()));
   return types;
 }
-
-/** What `setInputFiles` needs to know about the element before it sends files */
-const FILE_INPUT_INFO = `(el) => ({
-  tag: el.tagName.toLowerCase(),
-  type: (el.getAttribute("type") || "").toLowerCase(),
-  multiple: Boolean(el.multiple),
-})`;
-
-const FILE_INPUT_CHECKS: readonly CheckName[] = ["attached", "enabled"];
-const DROP_CHECKS: readonly CheckName[] = ["attached", "visible"];
-/** The sandbox `dropFiles` builds its files in */
-const DROP_SANDBOX = "samurai-drop";
-const DROP_KEY = `globalThis[Symbol.for("samurai.drop")]`;
-const DROP_INPUT = `() => {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.multiple = true;
-  ${DROP_KEY} = input;
-  return input;
-}`;
-/** Fires dragenter, dragover and drop at the element's centre with the input's files (retyped where asked) */
-const DROP_EVENTS = `(el, types) => {
-  const input = ${DROP_KEY};
-  delete ${DROP_KEY};
-  const data = new DataTransfer();
-  Array.from(input.files).forEach((file, i) => {
-    data.items.add(types[i] ? new File([file], file.name, { type: types[i], lastModified: file.lastModified }) : file);
-  });
-  const box = el.getBoundingClientRect();
-  const at = { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
-  for (const type of ["dragenter", "dragover", "drop"]) {
-    el.dispatchEvent(new DragEvent(type, Object.assign({ bubbles: true, cancelable: true, composed: true, dataTransfer: data }, at)));
-  }
-}`;
-const SCREENSHOT_CHECKS: readonly CheckName[] = ["attached", "visible"];
-
-const CLICK_CHECKS: readonly CheckName[] = [
-  "attached",
-  "visible",
-  "stable",
-  "enabled",
-  "hit target",
-];
-const FILL_CHECKS: readonly CheckName[] = [
-  "attached",
-  "visible",
-  "enabled",
-  "editable",
-  "hit target",
-];
-const PRESS_CHECKS: readonly CheckName[] = ["attached", "visible", "enabled"];
-const ATTACHED_ONLY: readonly CheckName[] = ["attached"];
-
-/** WebDriver code points of the named keys `press()` accepts; any other single character is typed as is */
-const NAMED_KEYS: Readonly<Record<string, string>> = {
-  Backspace: "\uE003",
-  Tab: "\uE004",
-  Enter: "\uE007",
-  Escape: "\uE00C",
-  Space: " ",
-  ArrowLeft: "\uE012",
-  ArrowUp: "\uE013",
-  ArrowRight: "\uE014",
-  ArrowDown: "\uE015",
-  Delete: "\uE017",
-  Home: "\uE011",
-  End: "\uE010",
-  PageUp: "\uE00E",
-  PageDown: "\uE00F",
-};
 
 /**
  * Chrome answers a command sent while the page swaps documents with an unknown error that says the context
@@ -616,37 +558,7 @@ export default class Locator {
       options,
     );
     // "attached" is always required, so the box is present
-    await this.clickRect(state.box!);
-  }
-
-  /** Clicks the centre of `rect` (viewport pixels) with real pointer input; `click()` and `fill()` use it */
-  private async clickRect(
-    rect: Pick<ElementRectangle, "x" | "y" | "width" | "height">,
-  ) {
-    await this.biDiConnector.send("input.performActions", {
-      context: this.contextId,
-      actions: [
-        {
-          type: "pointer",
-          id: "samurai-pointer",
-          actions: [
-            {
-              type: "pointerMove",
-              x: rect.x + rect.width / 2,
-              y: rect.y + rect.height / 2,
-            },
-            {
-              type: "pointerDown",
-              button: 0,
-            },
-            {
-              type: "pointerUp",
-              button: 0,
-            },
-          ],
-        },
-      ],
-    });
+    await clickRect(this.biDiConnector, this.contextId, state.box!);
   }
 
   /**
@@ -817,16 +729,8 @@ export default class Locator {
 
   /** Whether the element exists, has a non-empty box and is not hidden by CSS */
   public async isVisible(): Promise<boolean> {
-    const result = await this.callOnElement<unknown>(
-      false,
-      `
-      const rect = el.getBoundingClientRect();
-      const style = getComputedStyle(el);
-      return rect.width > 0 && rect.height > 0 &&
-        style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
-    `,
-    );
-    return result === true;
+    const state = await this.probeState({ scroll: false, hitTest: false });
+    return state.attached && state.visible;
   }
 
   /** Trimmed text content, or null when the element is missing */
@@ -881,22 +785,8 @@ export default class Locator {
   }
 
   /** Wait for certain time (ms). Default: 300ms  */
-  public async wait(duration: number = 300) {
-    await this.biDiConnector.send("input.performActions", {
-      context: this.contextId,
-      actions: [
-        {
-          type: "none",
-          id: "samurai-sleep",
-          actions: [
-            {
-              type: "pause",
-              duration,
-            },
-          ],
-        },
-      ],
-    });
+  public async wait(duration: number = DEFAULT_PAUSE_MS) {
+    await pause(this.biDiConnector, this.contextId, duration);
   }
 
   /**
@@ -920,19 +810,7 @@ export default class Locator {
       options,
     );
     await this.callOnElement(undefined, `el.focus();`);
-    await this.biDiConnector.send("input.performActions", {
-      context: this.contextId,
-      actions: [
-        {
-          type: "key",
-          id: "samurai-keyboard",
-          actions: [
-            { type: "keyDown", value: code },
-            { type: "keyUp", value: code },
-          ],
-        },
-      ],
-    });
+    await pressKey(this.biDiConnector, this.contextId, code);
   }
 
   /** Waits until the field is editable and not covered, then replaces its value by typing `value`; an empty string clears it */
@@ -946,21 +824,10 @@ export default class Locator {
 
     // Typing over the selected existing value replaces it; Backspace clears it for an empty value
     const keys = value === "" ? NAMED_KEYS.Backspace! : value;
-    const actions: Array<KeyDownAction | KeyUpAction> = Array.from(
-      keys,
-    ).flatMap((char) => [
-      {
-        type: "keyDown",
-        value: char,
-      },
-      {
-        type: "keyUp",
-        value: char,
-      },
-    ]);
 
-    await this.clickRect(state.box!);
+    await clickRect(this.biDiConnector, this.contextId, state.box!);
 
+    // Lets the focus the click caused (and the page's focus handlers) settle before the text is selected and typed over
     await this.wait();
 
     await this.callOnElement(
@@ -968,16 +835,7 @@ export default class Locator {
       `if (typeof el.select === "function") el.select();`,
     );
 
-    await this.biDiConnector.send("input.performActions", {
-      context: this.contextId,
-      actions: [
-        {
-          actions,
-          type: "key",
-          id: "samurai-keyboard",
-        },
-      ],
-    });
+    await typeText(this.biDiConnector, this.contextId, keys);
   }
 }
 

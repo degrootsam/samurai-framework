@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { ContextTree } from "../browser/context-tree.js";
 import logger from "../logger/index.js";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  tick,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { Router, type Route } from "./router.js";
 
 const TREE = [
@@ -39,7 +43,7 @@ async function setup({
   browser,
 }: Options = {}) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   if (browser) connector.browserName = browser;
   let intercepts = 0;
   stops.push(

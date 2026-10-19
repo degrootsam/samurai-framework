@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { onlyOn } from "../testing/test-browser.js";
-import { UnsupportedOperationError } from "../locator/selector-errors.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
 import { callFunction } from "../script/call-function.js";
 import { setContent } from "../testing/browser-fixture.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";

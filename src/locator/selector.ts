@@ -4,24 +4,21 @@ import type { NodeLocator } from "../types/bidi-modules/browsing-context.js";
 export type Selector =
   | { kind: "xpath"; value: string }
   | { kind: "css"; value: string }
-  | {
-      kind: "text";
-      value: string;
-      match: "full" | "partial";
-      ignoreCase: boolean;
-    }
+  | ({ kind: "text" } & TextMatch)
   | { kind: "role"; role: string; name?: string }
   /** Form controls named by a `<label>`, `aria-labelledby` or `aria-label` whose text matches */
-  | {
-      kind: "label";
-      value: string;
-      match: "full" | "partial";
-      ignoreCase: boolean;
-    }
+  | ({ kind: "label" } & TextMatch)
   /** Elements whose `data-testid` attribute equals `value` */
   | { kind: "testid"; value: string }
   /** Picks the n-th (0-based) of everything the chain so far matches; `all()` builds these */
   | { kind: "nth"; index: number };
+
+/** What a text or label step looks for */
+interface TextMatch {
+  value: string;
+  match: "full" | "partial";
+  ignoreCase: boolean;
+}
 
 export interface TextOptions {
   /** @default "full" */
@@ -43,28 +40,26 @@ export function cssSelector(value: string): Selector {
   return { kind: "css", value: nonEmpty(value, "a css selector") };
 }
 
+function textMatch(
+  value: string,
+  what: string,
+  { match = "full", ignoreCase = false }: TextOptions,
+): TextMatch {
+  return { value: nonEmpty(value, what), match, ignoreCase };
+}
+
 export function textSelector(
   value: string,
-  { match = "full", ignoreCase = false }: TextOptions = {},
+  options: TextOptions = {},
 ): Selector {
-  return {
-    kind: "text",
-    value: nonEmpty(value, "the text"),
-    match,
-    ignoreCase,
-  };
+  return { kind: "text", ...textMatch(value, "the text", options) };
 }
 
 export function labelSelector(
   value: string,
-  { match = "full", ignoreCase = false }: TextOptions = {},
+  options: TextOptions = {},
 ): Selector {
-  return {
-    kind: "label",
-    value: nonEmpty(value, "the label"),
-    match,
-    ignoreCase,
-  };
+  return { kind: "label", ...textMatch(value, "the label", options) };
 }
 
 export function testIdSelector(value: string): Selector {

@@ -9,10 +9,8 @@ import {
 import { BiDiError } from "../transport/bidi-error.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
 import Locator from "./locator.js";
-import {
-  InvalidSelectorError,
-  UnsupportedOperationError,
-} from "./selector-errors.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
+import { InvalidSelectorError } from "./selector-errors.js";
 import { cssSelector, textSelector, xpathSelector } from "./selector.js";
 
 type Sent = Array<{ method: string; params: unknown }>;
