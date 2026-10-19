@@ -1,18 +1,10 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-} from "node:fs";
+import { existsSync, mkdirSync, renameSync } from "node:fs";
 import path from "node:path";
 import logger from "../logger/index.js";
+import { removeIfEmpty } from "./downloads-dir.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
-import type {
-  DownloadEndParams,
-  DownloadWillBeginParams,
-} from "../types/bidi-modules/browsing-context.js";
+import type { DownloadEndParams } from "../types/bidi-modules/browsing-context.js";
 
 /** `report.csv` becomes `report(1).csv`, `report(2).csv`, … (the names Firefox gives) until a name is free in `dir` */
 export function uniqueName(dir: string, name: string): string {
@@ -63,8 +55,8 @@ export class ChromeDownloadFolders {
     this.connector.offEvent("browsingContext.downloadWillBegin", this.onBegin);
     this.connector.offEvent("browsingContext.downloadEnd", this.onEnd);
     await this.subscription?.unsubscribe().catch(() => undefined);
-    if (this.staging) this.removeIfEmpty(this.staging);
-    this.removeIfEmpty(this.stagingRoot());
+    if (this.staging) removeIfEmpty(this.staging);
+    removeIfEmpty(this.stagingRoot());
   }
 
   private stagingRoot() {
@@ -79,18 +71,10 @@ export class ChromeDownloadFolders {
     await this.connector.send("browser.setDownloadBehavior", {
       downloadBehavior: { type: "allowed", destinationFolder: this.staging },
     });
-    if (previous) this.removeIfEmpty(previous);
+    if (previous) removeIfEmpty(previous);
   }
 
-  private removeIfEmpty(dir: string) {
-    try {
-      if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
-    } catch {
-      // gone already, or not empty: leave it
-    }
-  }
-
-  private onBegin = (_params: DownloadWillBeginParams) => {
+  private onBegin = () => {
     if (this.disposed) return;
     this.rotate().catch((err) =>
       logger.error("Could not set a new download folder", { err }),
@@ -104,7 +88,7 @@ export class ChromeDownloadFolders {
       const to = path.join(this.dir, uniqueName(this.dir, path.basename(from)));
       renameSync(from, to);
       params.filepath = to;
-      this.removeIfEmpty(path.dirname(from));
+      removeIfEmpty(path.dirname(from));
     } catch (err) {
       logger.error("Could not move a finished download", { err });
     }
