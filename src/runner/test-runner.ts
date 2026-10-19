@@ -22,6 +22,7 @@ import {
   type PooledRunner,
 } from "./pooled-run.js";
 import { runOneTest } from "./run-test.js";
+import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveWorkers } from "./workers-option.js";
 import { WorkerPool, type PoolOptions } from "./worker-pool.js";
@@ -160,7 +161,7 @@ export default class TestRunner {
 
     if (mode === "pool") {
       const workers = Math.min(requested, lanes);
-      reporter.onStart(plan.items.length, workers);
+      reporter.onStart(plan.planned.length, workers);
       const pool = this.createPool(workers);
       try {
         await runPooled(pool, plan.planned, plan.items, reporter, signal);
@@ -173,6 +174,11 @@ export default class TestRunner {
     reporter.onStart(selected.length * browsers.length);
     for (const browser of browsers) {
       for (const test of selected) {
+        const annotation = staticSkip(test);
+        if (annotation) {
+          reporter.onTestSkipped(test, browser, { annotation });
+          continue;
+        }
         if (signal?.aborted) {
           reporter.onTestStart(test, browser);
           reporter.onTestEnd(test, browser, {
