@@ -6,13 +6,20 @@ import path from "node:path";
 import TestReporter from "./reporter.js";
 import { MASK, registerSecret, resetSecrets } from "../config/mask.js";
 import type { RegisteredTestCase } from "../types/test.js";
+import { newSuite } from "./suite.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "samurai-reporter-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 afterEach(() => resetSecrets());
 
 function testCase(file: string, name: string): RegisteredTestCase {
-  return { file, name, titlePath: name.split(" > "), function: async () => {} };
+  return {
+    file,
+    name,
+    titlePath: name.split(" > "),
+    suite: newSuite(),
+    function: async () => {},
+  };
 }
 
 async function report(run: (reporter: TestReporter) => void) {

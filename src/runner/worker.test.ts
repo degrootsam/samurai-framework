@@ -4,6 +4,7 @@ import type { SupportedBrowser } from "../types/browser.js";
 import type { RegisteredTestCase, TestResult } from "../types/test.js";
 import type { RunEvent } from "./reporter.js";
 import type { FromWorker, ToWorker, WorkerInit } from "./worker-protocol.js";
+import { newSuite } from "./suite.js";
 import {
   handleMessages,
   type WorkerDeps,
@@ -22,6 +23,7 @@ function testCase(name: string): RegisteredTestCase {
     file: "/proj/a.spec.ts",
     name,
     titlePath: [name],
+    suite: newSuite(),
     function: async () => {},
   };
 }
