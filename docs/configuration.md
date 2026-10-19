@@ -7,7 +7,7 @@ import { defineConfig } from "@itmetsam/samurai-framework";
 
 export default defineConfig({
   srcDir: "./src/tests",
-  browser: "firefox",
+  browsers: ["firefox"],
   timeout: 30000,
   expect: { timeout: 5000 },
   environments: {
@@ -23,33 +23,60 @@ export default defineConfig({
 
 ## Options
 
-| Option                  | Default                                  | Meaning                                                                                              |
-| ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                                  |
-| `browser`               | `"firefox"`                              | Browser for every test: `firefox` or `chrome`                                                        |
-| `timeout`               | `30000`                                  | Time (ms) one test may take                                                                          |
-| `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                                              |
-| `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying                 |
-| `environments`          | none                                     | Named environments, see [Environments and secrets](environments-and-secrets.md)                      |
-| `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                                           |
-| `browserPaths`          | none                                     | Executables to launch instead of the downloaded builds, see [Browser paths](#browser-paths)          |
-| `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                                 |
-| `filesDir`              | `"files"`                                | Folder (relative to the project) where the recorder stores uploaded files and steps point at them    |
-| `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                                      |
-| `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)                  |
-| `bidi.commandTimeout`   | `30000`                                  | Time (ms) a protocol command may wait for its reply                                                  |
-| `navigation.timeout`    | `30000`                                  | Time (ms) a navigation or load-state wait may take                                                   |
-| `navigation.waitUntil`  | `"complete"`                             | When `navigateTo` resolves: `"none"`, `"interactive"` or `"complete"`                                |
-| `network.track`         | `true`                                   | Follow requests from the start. When `false`, `waitForNetworkIdle()` throws                          |
-| `network.idleTime`      | `500`                                    | Time (ms) without requests in flight that counts as idle                                             |
-| `network.routeTimeout`  | `30000`                                  | Time (ms) a `page.route` handler may take before the request is let through                          |
-| `network.collectBodies` | `false`                                  | Keep every response body so `response.body()` always works (costs memory)                            |
-| `network.maxBodySize`   | `10485760`                               | Largest body (bytes) that is kept                                                                    |
-| `logs.capture`          | `"failures"`                             | Which tests get the page's log in the report: `"off"`, `"failures"`, `"all"`                         |
-| `logs.failOnPageError`  | `false`                                  | Fail a passing test when the page threw an uncaught exception                                        |
-| `logs.ignoreErrors`     | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                                            |
-| `groups`                | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option (see below)                |
-| `steps`                 | none                                     | Flow steps of this project, made with `defineStep`; see [Writing a step](steps.md#steps-of-your-own) |
+| Option                  | Default                                  | Meaning                                                                                                                            |
+| ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                                                                |
+| `browsers`              | `["firefox"]`                            | Browsers every test runs in, one after the other: `firefox`, `chrome` or both; a group can name its own, see [Browsers](#browsers) |
+| `timeout`               | `30000`                                  | Time (ms) one test may take                                                                                                        |
+| `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                                                                            |
+| `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying                                               |
+| `environments`          | none                                     | Named environments, see [Environments and secrets](environments-and-secrets.md)                                                    |
+| `defaultEnvironment`    | none                                     | Environment used when `--env` and `SAMURAI_ENV` are absent                                                                         |
+| `browserPaths`          | none                                     | Executables to launch instead of the downloaded builds, see [Browser paths](#browser-paths)                                        |
+| `downloadsDir`          | `"result/downloads"`                     | Where downloads are saved (a folder per browser, removed when empty)                                                               |
+| `filesDir`              | `"files"`                                | Folder (relative to the project) where the recorder stores uploaded files and steps point at them                                  |
+| `use.viewport`          | `{ width: 1280, height: 720 }`           | Viewport of every new page; `null` keeps the browser's own size                                                                    |
+| `use.headless`          | headless when `CI` is set, else a window | Run the browser without a window. Needed on machines without a display (CI runners)                                                |
+| `bidi.commandTimeout`   | `30000`                                  | Time (ms) a protocol command may wait for its reply                                                                                |
+| `navigation.timeout`    | `30000`                                  | Time (ms) a navigation or load-state wait may take                                                                                 |
+| `navigation.waitUntil`  | `"complete"`                             | When `navigateTo` resolves: `"none"`, `"interactive"` or `"complete"`                                                              |
+| `network.track`         | `true`                                   | Follow requests from the start. When `false`, `waitForNetworkIdle()` throws                                                        |
+| `network.idleTime`      | `500`                                    | Time (ms) without requests in flight that counts as idle                                                                           |
+| `network.routeTimeout`  | `30000`                                  | Time (ms) a `page.route` handler may take before the request is let through                                                        |
+| `network.collectBodies` | `false`                                  | Keep every response body so `response.body()` always works (costs memory)                                                          |
+| `network.maxBodySize`   | `10485760`                               | Largest body (bytes) that is kept                                                                                                  |
+| `logs.capture`          | `"failures"`                             | Which tests get the page's log in the report: `"off"`, `"failures"`, `"all"`                                                       |
+| `logs.failOnPageError`  | `false`                                  | Fail a passing test when the page threw an uncaught exception                                                                      |
+| `logs.ignoreErrors`     | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                                                                          |
+| `groups`                | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option (see below)                                              |
+| `steps`                 | none                                     | Flow steps of this project, made with `defineStep`; see [Writing a step](steps.md#steps-of-your-own)                               |
+
+### Browsers
+
+`browsers` lists the browsers the tests run in. Every selected test runs once in each, one browser after the other, so `browsers: ["firefox", "chrome"]` doubles the run and gives each test a result per browser.
+
+```ts
+export default defineConfig({
+  browsers: ["firefox"], // the default
+  groups: [
+    { name: "smoke", src: "./src/smoke" }, // the project's browsers
+    {
+      name: "cross-browser",
+      src: "./src/checkout",
+      browsers: ["firefox", "chrome"],
+    },
+  ],
+});
+```
+
+The first that is set wins:
+
+1. the command line (`--browser`, repeatable)
+2. the group being run (`groups[].browsers`), which replaces the project's list
+3. the project (`browsers`)
+4. `["firefox"]`
+
+Names are `firefox` or `chrome`, each at most once, and a list is not empty; anything else is an error that names the key (`Unknown browser "edge" in browsers. Choose firefox or chrome.`). The old `browser` key is rejected, not ignored: `"browser" was replaced by "browsers": use browsers: ["chrome"]`. A browser that is not installed stops the run before any test starts, for every browser of the run. A test can read the browser it runs in with the [`browserName` fixture](writing-tests.md#fixtures).
 
 ### Environment options
 
@@ -81,6 +108,7 @@ groups: [
 | `src`       | Folder to search, relative to the project; default `srcDir`. Only specs below it count                                                                                                                                      |
 | `testMatch` | Glob matched against the spec path below `src`; default `**/*.spec.ts`                                                                                                                                                      |
 | `tests`     | Tests picked by hand: `file` relative to `srcDir`, `title` the full name (`describe` titles joined with `>`). Overrides `src` and `testMatch`; a picked test that no longer exists is reported as `missing` by `listGroups` |
+| `browsers`  | The browsers this group's tests run in, instead of the project's `browsers` (see [Browsers](#browsers))                                                                                                                     |
 
 A test's id is `<file relative to srcDir, with />::<full name>`. An unknown group name is an error that lists the groups.
 

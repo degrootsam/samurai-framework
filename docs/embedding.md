@@ -50,9 +50,9 @@ const summary = await runTests({
   testNames: ["Checkout > applies a coupon"], // or grep: "coupon", or files: ["specs/checkout.spec.ts"]
   signal: controller.signal,
   onEvent: (event) => {
-    // { type: "run-start", environment, total }
-    // { type: "test-start", name, file }
-    // { type: "test-end", name, file, result }   result: status "success" | "failed" plus the error
+    // { type: "run-start", environment, total, browsers }   total = tests x browsers
+    // { type: "test-start", name, file, browser }
+    // { type: "test-end", name, file, browser, result }   result: status "success" | "failed" plus the error
     // { type: "run-end", summary }
   },
 });

@@ -21,17 +21,18 @@ Spec files are TypeScript; the command loads them with [`tsx`](https://tsx.is), 
 samurai run --env staging --headless --grep coupon
 ```
 
-| Option                        | Meaning                                                                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                              |
-| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                         |
-| `--group <name>`              | Only the tests of this entry of the config's `groups`; an unknown name is an error listing the groups. Combines with `--file` and `--grep` |
-| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                            |
-| `--timeout <ms>`              | Time one test may take                                                                                                                     |
-| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                          |
-| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set        |
-| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                                |
-| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                                   |
+| Option                        | Meaning                                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--env <name>`                | Environment to run against (or `SAMURAI_ENV`)                                                                                                                 |
+| `--file <spec>`               | Only this spec file, relative to the working directory. Repeatable                                                                                            |
+| `--group <name>`              | Only the tests of this entry of the config's `groups`; an unknown name is an error listing the groups. Combines with `--file` and `--grep`                    |
+| `--grep <text>`               | Only tests whose full name (`describe` titles and test title) contains the text                                                                               |
+| `--browser <name>`            | Run in this browser (`firefox` or `chrome`) instead of the config's [`browsers`](configuration.md#browsers). Repeatable: `--browser firefox --browser chrome` |
+| `--timeout <ms>`              | Time one test may take                                                                                                                                        |
+| `--expect-timeout <ms>`       | Time actions and assertions retry                                                                                                                             |
+| `--headless`, `--no-headless` | Run the browser without a window, or with one. Default: [`use.headless`](configuration.md#headless), else headless when `CI` is set                           |
+| `--port <n>`                  | The browser's debugging port (default 9223)                                                                                                                   |
+| `--json`                      | JSON lines on stdout instead of the human output (below)                                                                                                      |
 
 Output:
 
@@ -51,6 +52,16 @@ Checkout > rejects an expired coupon
 1 failed, 2 passed (10.3s)
 ```
 
+With more than one browser each test line ends with its browser, and the header names them:
+
+```text
+Running 4 tests against staging in firefox, chrome
+  ✔ Checkout > applies a coupon [firefox] (2.2s)
+  ✔ Checkout > applies a coupon [chrome] (2.4s)
+```
+
+An unknown name is exit code 2: `Unknown browser "edge" in --browser. Choose firefox or chrome.` `--browser` beats the group's and the project's list.
+
 Colour is used when stdout is a terminal (and `NO_COLOR` is not set). The report is still written to `result/report.json`.
 
 ### Exit codes
@@ -66,9 +77,9 @@ Colour is used when stdout is a terminal (and `NO_COLOR` is not set). The report
 One JSON object per line on stdout, the same events `runTests` gives to `onEvent`:
 
 ```json
-{"type":"run-start","environment":"staging","total":2}
-{"type":"test-start","name":"Checkout > applies a coupon","file":"/work/shop/tests/checkout.spec.ts"}
-{"type":"test-end","name":"Checkout > applies a coupon","file":"…","result":{"status":"success","duration":2210.8,"…":"…"}}
+{"type":"run-start","environment":"staging","total":2,"browsers":["firefox"]}
+{"type":"test-start","name":"Checkout > applies a coupon","file":"/work/shop/tests/checkout.spec.ts","browser":"firefox"}
+{"type":"test-end","name":"Checkout > applies a coupon","file":"…","browser":"firefox","result":{"status":"success","duration":2210.8,"…":"…"}}
 {"type":"run-end","summary":{"status":"success","environment":"staging","tests":["…"]}}
 ```
 
@@ -85,6 +96,8 @@ Opens a browser window on your environment's `baseURL`, and writes what you do i
 ```sh
 samurai record tests/login.spec.ts --new "signs in" --env staging
 ```
+
+It records in the first of the config's `browsers`; `--browser chrome` picks another. A recording uses one browser, so `--browser` twice is an error; replay is where the second one comes in.
 
 ```text
   + await page.goto("/login");

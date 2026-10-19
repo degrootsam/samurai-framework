@@ -28,12 +28,22 @@ describe("Checkout", () => {
 
 The test function receives one object:
 
-| Fixture   | Type             | What it is                                                                                                                 |
-| --------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `page`    | `Page`           | The tab the test drives. See [Locators](locators.md) and [Pages and browsers](pages-and-browsers.md)                       |
-| `browser` | `Browser`        | The browser process. Use it for extra [contexts and pages](pages-and-browsers.md#contexts)                                 |
-| `env`     | read-only object | The chosen environment's `variables`. Reading a name that is not defined throws                                            |
-| `secrets` | read-only object | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](environments-and-secrets.md#secrets) |
+| Fixture       | Type                    | What it is                                                                                                                 |
+| ------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `page`        | `Page`                  | The tab the test drives. See [Locators](locators.md) and [Pages and browsers](pages-and-browsers.md)                       |
+| `browser`     | `Browser`               | The browser process. Use it for extra [contexts and pages](pages-and-browsers.md#contexts)                                 |
+| `browserName` | `"firefox" \| "chrome"` | The browser this run of the test is in. With several [`browsers`](configuration.md#browsers) the test runs once in each    |
+| `env`         | read-only object        | The chosen environment's `variables`. Reading a name that is not defined throws                                            |
+| `secrets`     | read-only object        | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](environments-and-secrets.md#secrets) |
+
+```ts
+// The field is labelled differently in the two browsers' date pickers
+test("books a date", async ({ page, browserName }) => {
+  await page.goto("/booking");
+  const label = browserName === "chrome" ? "Date" : "Date (yyyy-mm-dd)";
+  await page.getByLabel(label).fill("2026-10-19");
+});
+```
 
 ```ts
 test("uses test data", async ({ page, env, secrets }) => {
