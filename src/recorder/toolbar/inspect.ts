@@ -43,7 +43,7 @@ interface Found {
 }
 
 /** A locator call in short, as the Assert panel shows it: `heading "Sign in"`, `label "Email"`, `li.item` */
-export function describeCall(call: LocatorCall): string {
+function describeCall(call: LocatorCall): string {
   switch (call.method) {
     case "getByRole":
       return call.name === undefined

@@ -8,10 +8,11 @@ import {
 } from "../testing/stub-connector.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
-import Locator, {
+import Locator from "./locator.js";
+import {
   InvalidSelectorError,
   UnsupportedOperationError,
-} from "./locator.js";
+} from "./selector-errors.js";
 import { cssSelector, textSelector, xpathSelector } from "./selector.js";
 
 type Sent = Array<{ method: string; params: unknown }>;

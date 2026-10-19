@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { main, type Io } from "./main.js";
+import type { Io } from "./io.js";
+import { main } from "./main.js";
 
 const API = JSON.stringify(path.resolve("src/api.ts"));
 

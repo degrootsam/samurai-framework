@@ -1,40 +1,45 @@
-import assert from "node:assert";
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { SupportedBrowser } from "../types/browser.js";
 import logger from "../logger/index.js";
 
-const supportedBrowsers: SupportedBrowser[] = ["firefox"];
-const macBrowserPaths: Record<SupportedBrowser, string> = {
-  chrome: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+/** The only browser the system search knows; Chrome is launched from the build SAMURAI downloads */
+type FindableBrowser = "firefox";
+const supportedBrowsers: FindableBrowser[] = ["firefox"];
+const isFindable = (name: SupportedBrowser): name is FindableBrowser =>
+  (supportedBrowsers as string[]).includes(name);
+const macBrowserPaths: Record<FindableBrowser, string> = {
   firefox: "/Applications/Firefox.app/Contents/MacOS/Firefox",
 };
 
 /** @deprecated Launches use the builds SAMURAI downloads (`samurai browsers install`); removed in a later major */
 export function findBrowser(browserName: SupportedBrowser) {
   logger.verbose("Checking install location for %s", browserName);
-  if (!supportedBrowsers.includes(browserName)) {
+  if (!isFindable(browserName)) {
     throw new Error(
       "This browser is not supported. Supported browsers include: " +
         supportedBrowsers.join(", "),
     );
   }
 
-  let browserLocation = "";
-  const notFoundMsg = `Cannot find browser ${browserName} on this machine! Is it installed?`;
+  let browserLocation: string;
   try {
     browserLocation = tryFindBrowser(browserName);
   } catch (err) {
-    throw new Error(notFoundMsg);
+    throw Object.assign(
+      new Error(
+        `Cannot find browser ${browserName} on this machine! Is it installed?`,
+      ),
+      { cause: err },
+    );
   }
 
-  assert(browserLocation, notFoundMsg);
   logger.verbose("Browser found at: %s", browserLocation);
 
   return browserLocation;
 }
 
-function tryFindBrowser(browserName: SupportedBrowser): string {
+function tryFindBrowser(browserName: FindableBrowser): string {
   logger.debug("Current platform: %s", process.platform);
   switch (process.platform) {
     case "win32":
@@ -48,10 +53,10 @@ function tryFindBrowser(browserName: SupportedBrowser): string {
   }
 }
 
-function findBrowserWindows(browserName: SupportedBrowser): string {
+function findBrowserWindows(browserName: FindableBrowser): string {
   // Function to prevent search the entire file system
   // We'll only try the most common paths
-  const possibleDirs = ["Program\ Files", "Program\ Files (x86)"];
+  const possibleDirs = ["Program Files", "Program Files (x86)"];
 
   const where = (dirPath: string) => {
     const command: string = `where /r ${dirPath} ${browserName}.exe`;
@@ -83,7 +88,7 @@ function findBrowserWindows(browserName: SupportedBrowser): string {
   return result;
 }
 
-function findBrowserMac(browserName: SupportedBrowser): string {
+function findBrowserMac(browserName: FindableBrowser): string {
   const checkPathExists = (path: string) => {
     logger.debug("Checking path: %s", path);
     const exists = existsSync(path);
@@ -95,12 +100,11 @@ function findBrowserMac(browserName: SupportedBrowser): string {
   return checkPathExists(macBrowserPaths[browserName]);
 }
 
-const linuxBinaryNames: Record<SupportedBrowser, string> = {
-  chrome: "google-chrome",
+const linuxBinaryNames: Record<FindableBrowser, string> = {
   firefox: "firefox",
 };
 
-function findBrowserLinux(browserName: SupportedBrowser): string {
+function findBrowserLinux(browserName: FindableBrowser): string {
   const command = `which ${linuxBinaryNames[browserName]}`;
   logger.debug("Running command: %s", command);
   const result = execSync(command, {

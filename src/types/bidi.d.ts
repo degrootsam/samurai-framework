@@ -4,7 +4,10 @@ import type {
   BrowsingContextModule as BrowsingContextCommands,
   BrowsingContextResult,
 } from "./bidi-modules/browsing-context.js";
-import type { EmulationCommands, EmulationResult } from "./bidi-modules/emulation.js";
+import type {
+  EmulationCommands,
+  EmulationResult,
+} from "./bidi-modules/emulation.js";
 import type {
   InputCommands,
   InputEvents,
@@ -24,7 +27,6 @@ import type {
 } from "./bidi-modules/script.js";
 import type { SessionModule, SessionResult } from "./bidi-modules/session.js";
 import type { StorageCommands, StorageResult } from "./bidi-modules/storage.js";
-import type { WebExtensionResult } from "./bidi-modules/web-extensions.js";
 import type { CommandResponse } from "./bidi-protocols/command.js";
 import type { ErrorResponse } from "./bidi-protocols/error.js";
 import type { BiDiEvent } from "./bidi-protocols/event.js";
@@ -55,8 +57,7 @@ export type ResultData =
   | NetworkResult
   | ScriptResult
   | SessionResult
-  | StorageResult
-  | WebExtensionResult;
+  | StorageResult;
 
 export type EmptyResult = Extensible;
 

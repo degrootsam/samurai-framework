@@ -57,7 +57,7 @@ export type Observation =
   | { type: "screenshot"; name: string; fullPage: boolean }
   | { type: "goto"; url: string };
 
-export interface NormaliserOptions {
+interface NormaliserOptions {
   /** Index the first recorded step gets */
   at: number;
   /** Relative URLs are written against this */
@@ -69,7 +69,7 @@ export interface NormaliserOptions {
 const TEXT_LIMIT = 100;
 
 /** A picker that opens within this many ms of a click was opened by it */
-export const PICKER_WINDOW = 1000;
+const PICKER_WINDOW = 1000;
 
 /** The name a secret gets in `secrets.<NAME>`: the field's name or id, upper snake case */
 export function secretNameFor(hint: string | undefined): string {

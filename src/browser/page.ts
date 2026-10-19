@@ -1,4 +1,5 @@
-import Locator, { type TextOptions } from "../locator/locator.js";
+import Locator from "../locator/locator.js";
+import type { TextOptions } from "../locator/selector.js";
 import {
   cssSelector,
   labelSelector,
@@ -20,7 +21,7 @@ import type {
   NetworkResponse,
   FailedRequest,
 } from "../network/network-tracker.js";
-import { Recorder, type RecorderOptions } from "../recorder/recorder.js";
+import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
 import { ContextTree } from "./context-tree.js";
 import { Dialog } from "./dialog.js";
 import type { BrowserContext } from "./browser-context.js";
@@ -81,6 +82,12 @@ const DEFAULT_NAVIGATION_TIMEOUT = 30000;
 const HISTORY_SETTLE_TIMEOUT = 1000;
 /** Time (ms) without requests in flight that counts as idle */
 const DEFAULT_IDLE_TIME = 500;
+/** Time (ms) without a `resize` event after which a viewport reset counts as done */
+const RESIZE_QUIET_TIME = 50;
+/** Time (ms) a viewport reset waits for a `resize` event that may never come (the size did not change) */
+const RESIZE_MAX_WAIT = 300;
+/** How many navigations keep their load progress */
+const NAVIGATIONS_REMEMBERED = 20;
 
 /** Options that otherwise come from `samurai.config.ts` */
 export type PageSettings = Pick<
@@ -196,6 +203,7 @@ export default class Page {
   /** The context tree once loaded, for handlers that cannot wait for it */
   private loadedTree: ContextTree | undefined;
   private openDialogs = new Map<string, Dialog>();
+  private evidence: Evidence | undefined;
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
   constructor(
@@ -321,8 +329,10 @@ export default class Page {
    * Starts recording what a person does in the page as steps (see `Recorder`). The page must be driven by
    * a person; stop with `recorder.stop()`.
    */
-  public record(options: RecorderOptions): Promise<Recorder> {
+  public async record(options: RecorderOptions): Promise<Recorder> {
     this.assertOpen();
+    // Loaded when asked for: the recorder is built on Page, so a static import would be a loop
+    const { Recorder } = await import("../recorder/recorder.js");
     return Recorder.start(
       { page: this, connector: this.biDiConnector, context: this.id },
       options,
@@ -717,9 +727,9 @@ export default class Page {
 
   /**
    * Runs `change`, then waits until the page has stopped resizing. Chrome answers a viewport reset before the window
-   * has its own size back, so a read right after it can still show the old size. The wait ends 50 ms after the last
-   * `resize` event, and after 300 ms when the size does not change at all (no event comes). Never fails: a page that
-   * cannot be watched is simply not waited for.
+   * has its own size back, so a read right after it can still show the old size. The wait ends `RESIZE_QUIET_TIME`
+   * after the last `resize` event, and after `RESIZE_MAX_WAIT` when the size does not change at all (no event
+   * comes). Never fails: a page that cannot be watched is simply not waited for.
    */
   private async untilResized(change: () => Promise<unknown>): Promise<void> {
     const sandbox = { sandbox: "samurai-viewport" };
@@ -736,10 +746,10 @@ export default class Page {
           };
           const onResize = () => {
             clearTimeout(timer);
-            timer = setTimeout(finish, 50);
+            timer = setTimeout(finish, ${RESIZE_QUIET_TIME});
           };
           addEventListener("resize", onResize);
-          timer = setTimeout(finish, 300);
+          timer = setTimeout(finish, ${RESIZE_MAX_WAIT});
         });
       }`,
       [],
@@ -784,8 +794,6 @@ export default class Page {
     }
     return image;
   }
-
-  private evidence: Evidence | undefined;
 
   /** @internal The runner gives each test its own evidence folder */
   public setEvidence(evidence: Evidence | undefined): void {
@@ -938,7 +946,7 @@ export default class Page {
       progress = { domContentLoaded: false, load: false };
       this.navigationProgress.set(navigation, progress);
       // Only the latest few navigations matter
-      if (this.navigationProgress.size > 20) {
+      if (this.navigationProgress.size > NAVIGATIONS_REMEMBERED) {
         this.navigationProgress.delete(
           this.navigationProgress.keys().next().value as string,
         );
@@ -1697,24 +1705,6 @@ export default class Page {
       accept ? "accepted" : "dismissed",
     );
     await (accept ? dialog.accept() : dialog.dismiss());
-  }
-
-  /** Captures an image of the given navigable, and returns it as a Base64-encoded string */
-  public async captureScreenshot(
-    clip?: BiDiCommands["browsingContext.captureScreenshot"]["params"]["clip"],
-    format?: BiDiCommands["browsingContext.captureScreenshot"]["params"]["format"],
-    origin?: BiDiCommands["browsingContext.captureScreenshot"]["params"]["origin"],
-  ) {
-    const screenshot = await this.biDiConnector.send(
-      "browsingContext.captureScreenshot",
-      {
-        context: this.id,
-        clip,
-        format,
-        origin,
-      },
-    );
-    // TODO: Store screenshot according to config specs
   }
 }
 

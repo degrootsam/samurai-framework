@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/index.ts",
+    "src/api.ts",
+    "src/runner/run.ts",
+    "src/steps/index.ts",
+    "src/recorder/index.ts",
+    "src/cli/init.ts",
+    "src/browsers/index.ts",
+    "src/browser/index.ts",
+    "src/flows/core/index.ts",
+    "src/flows/run/index.ts",
+    "src/flows/steps/index.ts",
+    "src/project/index.ts",
+    "src/**/*.test.ts",
+    "src/**/*.browser-test.ts",
+    "src/**/*.cli-test.ts",
+    "scripts/*.mjs"
+  ],
+  "project": ["src/**/*.ts"],
+  "ignore": ["src/types/bidi-commands.test-d.ts", "src/tests/**"]
+}

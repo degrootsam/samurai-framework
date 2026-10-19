@@ -184,7 +184,7 @@ export async function runFlowInProject(
   const errors = problems.filter((p) => p.level === "error");
   if (errors.length) throw new FlowCheckError(errors);
 
-  // Phase 3: walk it
+  // Walk it
   const byId = new Map(tests.map((t) => [t.id, t]));
   const nodeTests: Record<string, NodeTest[]> = {};
   const nodeBrowsers: Record<string, SupportedBrowser[]> = {};

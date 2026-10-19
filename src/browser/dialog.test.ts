@@ -3,12 +3,16 @@ import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import logger from "../logger/index.js";
 import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
 import { BiDiConnector } from "../transport/bidi-connection.js";
-import { SESSION_CAPABILITIES } from "./browser.js";
+import { SESSION_CAPABILITIES } from "./session-capabilities.js";
 import type { Dialog } from "./dialog.js";
 import Page from "./page.js";
 
 const TREE = [
-  { context: "ctx-1", parent: null, children: [{ context: "frame", parent: "ctx-1", children: [] }] },
+  {
+    context: "ctx-1",
+    parent: null,
+    children: [{ context: "frame", parent: "ctx-1", children: [] }],
+  },
   { context: "other", parent: null, children: [] },
 ];
 
@@ -44,9 +48,16 @@ function setup(handlers: Record<string, (params: any) => object | Error> = {}) {
       ...extra,
     });
   const closed = (extra: object = {}) =>
-    ws.emitEvent("browsingContext.userPromptClosed", { context: "ctx-1", accepted: true, type: "confirm", ...extra });
+    ws.emitEvent("browsingContext.userPromptClosed", {
+      context: "ctx-1",
+      accepted: true,
+      type: "confirm",
+      ...extra,
+    });
   const handled = () =>
-    ws.sent.filter((m) => m.method === "browsingContext.handleUserPrompt").map((m) => m.params as any);
+    ws.sent
+      .filter((m) => m.method === "browsingContext.handleUserPrompt")
+      .map((m) => m.params as any);
   return { ws, page, opened, closed, handled };
 }
 
@@ -89,7 +100,9 @@ describe("Dialog", () => {
 
   it("accept sends the text, dismiss does not accept", async () => {
     const { page, opened, handled } = setup();
-    page.on("dialog", (dialog) => (dialog.type() === "prompt" ? dialog.accept("Sam") : dialog.dismiss()));
+    page.on("dialog", (dialog) =>
+      dialog.type() === "prompt" ? dialog.accept("Sam") : dialog.dismiss(),
+    );
     await page.startDialogHandling();
     opened({ type: "prompt" });
     opened({ type: "confirm" });
@@ -123,8 +136,12 @@ describe("Dialog", () => {
   });
 
   it("swallows no such alert: the dialog is gone, which is what the caller wanted", async () => {
-    const gone = Object.assign(new Error("no alert open"), { code: "no such alert" });
-    const { page, opened } = setup({ "browsingContext.handleUserPrompt": () => gone });
+    const gone = Object.assign(new Error("no alert open"), {
+      code: "no such alert",
+    });
+    const { page, opened } = setup({
+      "browsingContext.handleUserPrompt": () => gone,
+    });
     let outcome = "not run";
     page.on("dialog", async (dialog) => {
       await dialog.accept();
@@ -138,7 +155,9 @@ describe("Dialog", () => {
 
   it("other browser errors reach the caller", async () => {
     const broken = Object.assign(new Error("boom"), { code: "unknown error" });
-    const { page, opened } = setup({ "browsingContext.handleUserPrompt": () => broken });
+    const { page, opened } = setup({
+      "browsingContext.handleUserPrompt": () => broken,
+    });
     let outcome: unknown;
     page.on("dialog", async (dialog) => {
       outcome = await dialog.accept().catch((err: Error) => err);
@@ -174,8 +193,12 @@ describe("default policy", () => {
     await tick(30);
     assert.deepEqual(handled(), [{ context: "ctx-1", accept: false }]);
     assert.equal(warn.mock.callCount(), 1);
-    const [template, message, outcome] = warn.mock.calls[0]!.arguments as string[];
-    assert.match(template!, /Dialog "%s" was %s automatically; add page\.on\("dialog"\) to handle it/);
+    const [template, message, outcome] = warn.mock.calls[0]!
+      .arguments as string[];
+    assert.match(
+      template!,
+      /Dialog "%s" was %s automatically; add page\.on\("dialog"\) to handle it/,
+    );
     assert.deepEqual([message, outcome], ["Saved!", "dismissed"]);
   });
 
@@ -185,7 +208,10 @@ describe("default policy", () => {
     opened({ type: "confirm" });
     opened({ type: "prompt" });
     await tick(30);
-    assert.deepEqual(handled().map((h) => h.accept), [false, false]);
+    assert.deepEqual(
+      handled().map((h) => h.accept),
+      [false, false],
+    );
   });
 
   it("accepts beforeunload so navigation can go on", async () => {
@@ -297,7 +323,13 @@ describe("listener management", () => {
     const { ws, page } = setup();
     page.on("dialog", () => {});
     await tick(40);
-    assert.ok(ws.sent.some((m) => m.method === "session.subscribe" && (m.params as any).events.includes("browsingContext.userPromptOpened")));
+    assert.ok(
+      ws.sent.some(
+        (m) =>
+          m.method === "session.subscribe" &&
+          (m.params as any).events.includes("browsingContext.userPromptOpened"),
+      ),
+    );
   });
 
   it("dispose stops handling and unsubscribes", async () => {
@@ -308,14 +340,18 @@ describe("listener management", () => {
     opened();
     await tick(20);
     assert.deepEqual(handled(), []);
-    assert.ok(ws.sent.filter((m) => m.method === "session.unsubscribe").length >= 2);
+    assert.ok(
+      ws.sent.filter((m) => m.method === "session.unsubscribe").length >= 2,
+    );
   });
 
   it("startDialogHandling is idempotent", async () => {
     const { ws, page } = setup();
     await Promise.all([page.startDialogHandling(), page.startDialogHandling()]);
     const prompts = ws.sent.filter(
-      (m) => m.method === "session.subscribe" && (m.params as any).events[0].startsWith("browsingContext.userPrompt"),
+      (m) =>
+        m.method === "session.subscribe" &&
+        (m.params as any).events[0].startsWith("browsingContext.userPrompt"),
     );
     assert.equal(prompts.length, 2, "opened + closed, once");
   });

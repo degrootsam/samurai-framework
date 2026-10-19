@@ -5,10 +5,7 @@ import type { RemoteValue } from "../types/bidi-modules/script.js";
 
 /** `{ error }` rejects the command like a BiDi error reply (e.g. "no such node") */
 export type StubResponse =
-  | RemoteValue
-  | { exception: string }
-  | { hang: true }
-  | { error: ErrorCode };
+  RemoteValue | { exception: string } | { hang: true } | { error: ErrorCode };
 
 /** Converts plain JS (JSON-like) to the RemoteValue the browser would answer with */
 export function remote(value: unknown): RemoteValue {
@@ -20,7 +17,10 @@ export function remote(value: unknown): RemoteValue {
   if (Array.isArray(value)) return { type: "array", value: value.map(remote) };
   return {
     type: "object",
-    value: Object.entries(value as object).map(([key, item]) => [key, remote(item)]),
+    value: Object.entries(value as object).map(([key, item]) => [
+      key,
+      remote(item),
+    ]),
   };
 }
 
@@ -36,7 +36,10 @@ function decodeArgument(argument: any): unknown {
       return argument.value.map(decodeArgument);
     case "object":
       return Object.fromEntries(
-        argument.value.map(([key, item]: [string, unknown]) => [key, decodeArgument(item)]),
+        argument.value.map(([key, item]: [string, unknown]) => [
+          key,
+          decodeArgument(item),
+        ]),
       );
     default:
       return argument.value;
@@ -44,7 +47,7 @@ function decodeArgument(argument: any): unknown {
 }
 
 /** A `script.callFunction` the stub received */
-export interface StubCall {
+interface StubCall {
   functionDeclaration: string;
   /** Arguments decoded to plain JS */
   args: unknown[];
@@ -83,7 +86,11 @@ export function stubConnector(...responses: StubResponse[]) {
       if (method === "browsingContext.locateNodes") {
         if (locateFailure) throw locateFailure;
         if (unsupported.has(params.locator.type)) {
-          throw new BiDiError(method, "unsupported operation", `${params.locator.type} is not supported`);
+          throw new BiDiError(
+            method,
+            "unsupported operation",
+            `${params.locator.type} is not supported`,
+          );
         }
         const available = counts[Math.min(locateCalls++, counts.length - 1)]!;
         const length = Math.min(available, params.maxNodeCount ?? Infinity);
@@ -106,11 +113,14 @@ export function stubConnector(...responses: StubResponse[]) {
       } else if (method === "script.callFunction") {
         const args = (params.arguments ?? []).map(decodeArgument);
         calls.push({ functionDeclaration: params.functionDeclaration, args });
-        expressions.push(`${params.functionDeclaration}\n/* args: ${JSON.stringify(args)} */`);
+        expressions.push(
+          `${params.functionDeclaration}\n/* args: ${JSON.stringify(args)} */`,
+        );
       } else {
         throw new Error(`stubConnector does not handle ${method}`);
       }
-      const response = responses[Math.min(scriptCalls++, responses.length - 1)]!;
+      const response =
+        responses[Math.min(scriptCalls++, responses.length - 1)]!;
       if ("hang" in response) {
         return new Promise(() => {});
       }

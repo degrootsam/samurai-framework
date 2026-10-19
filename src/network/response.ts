@@ -32,7 +32,9 @@ export class Response {
   /** The body as bytes. Read once from the browser, then kept */
   public body(): Promise<Buffer> {
     if (this.status >= 300 && this.status < 400 && "location" in this.headers) {
-      return Promise.reject(new ResponseBodyUnavailableError(this.url, "redirect response"));
+      return Promise.reject(
+        new ResponseBodyUnavailableError(this.url, "redirect response"),
+      );
     }
     this.body_ ??= this.loadBody(this).catch((err) => {
       this.body_ = undefined; // let a later call try again
@@ -52,7 +54,9 @@ export class Response {
     try {
       return JSON.parse(text) as T;
     } catch (err) {
-      throw new Error(`Response body of ${this.url} is not JSON: ${(err as Error).message}`);
+      throw new Error(
+        `Response body of ${this.url} is not JSON: ${(err as Error).message}`,
+      );
     }
   }
 }

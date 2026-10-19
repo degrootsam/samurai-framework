@@ -11,6 +11,7 @@ import { ConsoleReporter } from "./console-reporter.js";
 import { browsersCommand } from "./browsers.js";
 import { flowCommand } from "./flow.js";
 import { initProject } from "./init.js";
+import type { Io } from "./io.js";
 
 export const USAGE = `samurai: browser tests over WebDriver BiDi
 
@@ -66,16 +67,6 @@ samurai browsers:
 
 Run it in the project folder, the one holding samurai.config.ts.
 `;
-
-export interface Io {
-  out: (text: string) => void;
-  err: (text: string) => void;
-  /** Whether output goes to a terminal that shows colours */
-  color: boolean;
-  env: Partial<NodeJS.ProcessEnv>;
-  /** Aborts a recording (Ctrl+C) */
-  signal?: AbortSignal;
-}
 
 function version(): string {
   const manifest = new URL("../../package.json", import.meta.url);

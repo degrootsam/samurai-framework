@@ -1,6 +1,6 @@
 # Steps and the recorder
 
-Two building blocks for a recorder UI, and the toolbar that the recorder shows in the browser window. The Electron app (item 5 of the [recorder roadmap](superpowers/recorder-roadmap.md)) builds on them; all three work and are tested.
+Two building blocks for a recorder UI, and the toolbar that the recorder shows in the browser window. The Electron app (item 5 of the [roadmap](roadmap.md)) builds on them; all three work and are tested.
 
 - the **step codec** turns a `.spec.ts` into a list of steps and writes edits back with minimal diffs
 - the **recorder engine** watches a person use the browser and reports steps as they happen

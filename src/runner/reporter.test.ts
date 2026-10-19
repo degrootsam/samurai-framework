@@ -22,7 +22,7 @@ async function report(run: (reporter: TestReporter) => void) {
     browsers: ["firefox"],
     output,
   });
-  reporter.onStart();
+  reporter.onStart(0);
   run(reporter);
   await reporter.onEnd();
   return JSON.parse(readFileSync(output, "utf8"));
