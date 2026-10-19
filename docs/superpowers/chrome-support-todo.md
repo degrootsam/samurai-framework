@@ -1,6 +1,6 @@
 # Chrome support: to do
 
-Status: specs approved. Implementation plan: [chrome-support-plan](plans/2026-10-19-chrome-support-plan.md).
+Status: implemented on `feat/chrome-support` (all specs, plan tasks 0–16). Open items are listed under "Not covered by the tests". Implementation plan: [chrome-support-plan](plans/2026-10-19-chrome-support-plan.md).
 
 Roadmap item 6. Chrome launches through chromedriver (`src/browser/chrome-launch.ts`). The browser suite run on Chrome 155 (Linux, headless): 17 of 27 files pass, 36 tests fail in the other 10, and `navigation.browser-test.ts` hangs. One spec per issue:
 
@@ -26,13 +26,13 @@ Suggested order: 00 first (the other specs need it to check their work), then 01
 
 ## Not covered by the tests
 
-- [ ] Docs: `pages-and-browsers.md` (the Chrome "not yet" row, which options differ), `configuration.md` (`browser`, `browserPaths`), `roadmap.md` (item 6 and "Browsers"), `cli.md`, and the non-goal in the browser-management spec.
-- [ ] `src/types/config.d.ts` still says "Only firefox can launch today".
+- [x] Docs: `pages-and-browsers.md` (the Chrome "not yet" row, which options differ), `configuration.md` (`browser`, `browserPaths`), `roadmap.md` (item 6 and "Browsers"), `cli.md`, and the non-goal in the browser-management spec.
+- [x] `src/types/config.d.ts` said "Only firefox can launch today".
 - [ ] Verify the Chrome launch on macOS and Windows (only Linux was run). `--no-sandbox`, `--headless=new` and the chromedriver path are the parts that can differ.
-- [ ] `launchOptions.port` is ignored for Chrome (chromedriver picks one). Document it or drop the option for Chrome.
-- [ ] Unit tests for `BiDiConnector.onClosed` and `ChromeProcess` (exit on socket close, `kill` deletes the session).
-- [ ] The first-start warm-up (`ensureWarm`) was not exercised on Chrome; check the `.samurai-launched` stamp.
-- [ ] `SAMURAI_CHROMEDRIVER_PATH` needs a line in the docs; `samurai browsers` must show Chrome as launchable.
+- [x] `launchOptions.port` is ignored for Chrome (chromedriver picks one). Document it or drop the option for Chrome.
+- [x] Unit tests for `BiDiConnector.onClosed` and `ChromeProcess` (exit on socket close, `kill` deletes the session).
+- [x] The first-start warm-up (`ensureWarm`) was not exercised on Chrome; check the `.samurai-launched` stamp.
+- [x] `SAMURAI_CHROMEDRIVER_PATH` needs a line in the docs; `samurai browsers` must show Chrome as launchable.
 - [ ] A Chrome that is still running on the project profile (`browsers/profiles/chrome`) makes the next launch hang until the start timeout: chromedriver waits for it. Found when killed test runs left Chrome processes behind. Detect the profile lock (`SingletonLock`) and fail fast with a clear message, or use a profile folder per launch.
-- [ ] CI: a Chrome job once the suite is green; the cache key includes chromedriver.
+- [x] CI: a Chrome job once the suite is green; the cache key includes chromedriver.
 - [ ] Roadmap item 7 (embedded recording browser) stays separate, with its own `chromium-bidi` plan.

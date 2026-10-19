@@ -26,7 +26,7 @@ export default defineConfig({
 | Option                  | Default                                  | Meaning                                                                                              |
 | ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `srcDir`                | `"./src"`                                | Folder searched (recursively) for `*.spec.ts` files                                                  |
-| `browser`               | `"firefox"`                              | Browser for every test. Only `firefox` is supported today                                            |
+| `browser`               | `"firefox"`                              | Browser for every test: `firefox` or `chrome`                                                        |
 | `timeout`               | `30000`                                  | Time (ms) one test may take                                                                          |
 | `baseURL`               | none                                     | What `page.goto("/…")` resolves against                                                              |
 | `expect.timeout`        | `5000`                                   | Time (ms) assertions, actions (`click`, `fill`, `focus`) and `waitFor` keep retrying                 |
@@ -119,7 +119,7 @@ export default defineConfig({
 });
 ```
 
-Keys are `firefox` and `chrome`. A relative path is relative to the project folder. The path must exist, or the launch fails. `SAMURAI_FIREFOX_PATH` and `SAMURAI_CHROME_PATH` win over this key. See [Which browser runs](pages-and-browsers.md#which-browser-runs).
+Keys are `firefox` and `chrome`; Chrome also needs its chromedriver, which `samurai browsers install chrome` downloads with it (`SAMURAI_CHROMEDRIVER_PATH` replaces it). A relative path is relative to the project folder. The path must exist, or the launch fails. `SAMURAI_FIREFOX_PATH` and `SAMURAI_CHROME_PATH` win over this key. See [Which browser runs](pages-and-browsers.md#which-browser-runs).
 
 ## Headless
 

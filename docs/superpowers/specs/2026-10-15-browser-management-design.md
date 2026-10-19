@@ -11,7 +11,7 @@ Every machine (a developer's laptop, a CI runner, the Electron app) tests with t
 
 ## Non-goals
 
-- Launching Chrome. Chrome for Testing is pinned and downloads, but `LAUNCHABLE` is `["firefox"]` until the `chromium-bidi` work (recorder roadmap item 6).
+- Launching Chrome. Out of scope here; done afterwards through chromedriver (see the [Chrome support plan](../plans/2026-10-19-chrome-support-plan.md)).
 - Downloading during a launch. A launch never downloads: a missing build is an error that says which command fixes it.
 - Using the browser installed on the computer. `findBrowser` (the old behaviour) stays exported but deprecated.
 - Installing the system libraries a browser needs on minimal Linux images.
@@ -56,5 +56,4 @@ Every machine (a developer's laptop, a CI runner, the Electron app) tests with t
 
 ## Open
 
-- Launching Chrome (recorder roadmap item 6).
 - Checksums for downloads.

@@ -31,7 +31,7 @@ Each item gets its own spec in `docs/superpowers/specs/` and its own plan. Order
 
 ### Phase 4 — browsers
 
-- [ ] **6. Chrome support** — likely via the `chromium-bidi` mapper (BiDi over CDP). Separate from the recorder, but item 7 builds on it.
+- [x] **6. Chrome support** — done through chromedriver (BiDi over its `webSocketUrl` session), not the `chromium-bidi` mapper: see the [plan](plans/2026-10-19-chrome-support-plan.md). Item 7 still needs the mapper inside Electron.
 - [ ] **7. Embedded recording browser (Electron + chromium-bidi)** ← 6 — **required**: the designs show the recorded page inside the editor panel.
   - Idea: render the page under test in a `WebContentsView`, expose CDP (`remote-debugging-port` or `webContents.debugger`), run the `chromium-bidi` mapper in the main process, and add a framework transport that talks BiDi to it. Everything above the transport stays unchanged.
   - Risks to settle in a spike first:

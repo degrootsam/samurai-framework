@@ -339,8 +339,8 @@ describe("Page network tracking", () => {
       page.startNetworkTracking(),
     ]);
     await page.waitForNetworkIdle({ idleTime: 5, timeout: 1000 });
-    // contextCreated + contextDestroyed for the tree, three for the network
-    assert.equal(subscribes(), 5);
+    // contextCreated + contextDestroyed for the tree; three network events and navigationCommitted for the network
+    assert.equal(subscribes(), 6);
     stop();
   });
 

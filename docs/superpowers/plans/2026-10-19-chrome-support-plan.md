@@ -1,5 +1,7 @@
 # Chrome support Implementation Plan
 
+> **Status:** done on `feat/chrome-support` (version 0.9.0). Findings that changed the plan are in each spec's "Result" section.
+
 > **For agentic workers:** Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Chrome runs the same tests, flows and recordings as Firefox: the browser suite passes on both browsers, or a test is skipped on one of them with a stated reason.
