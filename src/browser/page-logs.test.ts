@@ -3,10 +3,19 @@ import { afterEach, describe, it } from "node:test";
 import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
 import { BiDiConnector } from "../transport/bidi-connection.js";
 import { ContextTree } from "./context-tree.js";
-import { ConsoleMessage, PageError, PageLogs } from "./page-logs.js";
+import {
+  ConsoleMessage,
+  PageError,
+  PageLogs,
+  pageErrorText,
+} from "./page-logs.js";
 
 const TREE = [
-  { context: "top", parent: null, children: [{ context: "frame", parent: "top", children: [] }] },
+  {
+    context: "top",
+    parent: null,
+    children: [{ context: "frame", parent: "top", children: [] }],
+  },
   { context: "other", parent: null, children: [] },
 ];
 const stops: Array<() => void> = [];
@@ -15,15 +24,26 @@ afterEach(() => stops.splice(0).forEach((stop) => stop()));
 async function setup(options?: { maxEntries?: number }) {
   const ws = new FakeWebSocket();
   const connector = new BiDiConnector(ws as unknown as WebSocket);
-  stops.push(autoReply(ws, { "browsingContext.getTree": () => ({ contexts: TREE }) }));
+  stops.push(
+    autoReply(ws, { "browsingContext.getTree": () => ({ contexts: TREE }) }),
+  );
   const tree = await ContextTree.create(connector);
   const logs = await PageLogs.start(connector, tree, "top", options);
   return { ws, logs };
 }
 
-const source = (context: string | undefined) => ({ realm: "r", userContext: "default", ...(context && { context }) });
+const source = (context: string | undefined) => ({
+  realm: "r",
+  userContext: "default",
+  ...(context && { context }),
+});
 const str = (value: string) => ({ type: "string", value });
-const consoleEntry = (context: string | undefined, method: string, text: string, extra: object = {}) => ({
+const consoleEntry = (
+  context: string | undefined,
+  method: string,
+  text: string,
+  extra: object = {},
+) => ({
   type: "console",
   method,
   level: method === "error" ? "error" : method === "warn" ? "warn" : "info",
@@ -33,7 +53,11 @@ const consoleEntry = (context: string | undefined, method: string, text: string,
   source: source(context),
   ...extra,
 });
-const errorEntry = (context: string | undefined, text: string, extra: object = {}) => ({
+const errorEntry = (
+  context: string | undefined,
+  text: string,
+  extra: object = {},
+) => ({
   type: "javascript",
   level: "error",
   text,
@@ -41,7 +65,8 @@ const errorEntry = (context: string | undefined, text: string, extra: object = {
   source: source(context),
   ...extra,
 });
-const emit = (ws: FakeWebSocket, entry: object) => ws.emitEvent("log.entryAdded", entry);
+const emit = (ws: FakeWebSocket, entry: object) =>
+  ws.emitEvent("log.entryAdded", entry);
 
 describe("PageLogs console messages", () => {
   it("turns a console entry into a ConsoleMessage with deserialized arguments", async () => {
@@ -50,8 +75,21 @@ describe("PageLogs console messages", () => {
     logs.on("console", (message) => seen.push(message));
     emit(ws, {
       ...consoleEntry("top", "log", "a 1 {…}", {
-        args: [str("a"), { type: "number", value: 1 }, { type: "object", value: [["k", str("v")]] }],
-        stackTrace: { callFrames: [{ functionName: "run", url: "https://x.test/app.js", lineNumber: 4, columnNumber: 2 }] },
+        args: [
+          str("a"),
+          { type: "number", value: 1 },
+          { type: "object", value: [["k", str("v")]] },
+        ],
+        stackTrace: {
+          callFrames: [
+            {
+              functionName: "run",
+              url: "https://x.test/app.js",
+              lineNumber: 4,
+              columnNumber: 2,
+            },
+          ],
+        },
       }),
     });
     assert.equal(seen.length, 1);
@@ -62,7 +100,11 @@ describe("PageLogs console messages", () => {
     assert.equal(message.level, "info");
     assert.deepEqual(message.args, ["a", 1, { k: "v" }]);
     assert.equal(message.timestamp, 1000);
-    assert.deepEqual(message.location(), { url: "https://x.test/app.js", lineNumber: 4, columnNumber: 2 });
+    assert.deepEqual(message.location(), {
+      url: "https://x.test/app.js",
+      lineNumber: 4,
+      columnNumber: 2,
+    });
   });
 
   it("has no location without a stack, and an empty text for null", async () => {
@@ -90,14 +132,27 @@ describe("PageLogs page errors", () => {
     const { ws, logs } = await setup();
     const seen: PageError[] = [];
     logs.on("pageerror", (error) => seen.push(error));
-    emit(ws, errorEntry("top", "TypeError: x is null", {
-      stackTrace: {
-        callFrames: [
-          { functionName: "click", url: "https://x.test/app.js", lineNumber: 10, columnNumber: 5 },
-          { functionName: "", url: "https://x.test/app.js", lineNumber: 20, columnNumber: 1 },
-        ],
-      },
-    }));
+    emit(
+      ws,
+      errorEntry("top", "TypeError: x is null", {
+        stackTrace: {
+          callFrames: [
+            {
+              functionName: "click",
+              url: "https://x.test/app.js",
+              lineNumber: 10,
+              columnNumber: 5,
+            },
+            {
+              functionName: "",
+              url: "https://x.test/app.js",
+              lineNumber: 20,
+              columnNumber: 1,
+            },
+          ],
+        },
+      }),
+    );
     assert.equal(seen.length, 1);
     const [error] = seen as [PageError];
     assert.ok(error instanceof Error);
@@ -110,7 +165,10 @@ describe("PageLogs page errors", () => {
       "TypeError: x is null\n    at click (https://x.test/app.js:10:5)\n    at https://x.test/app.js:20:1",
     );
     assert.deepEqual(logs.errors, [error]);
-    assert.deepEqual(logs.entries.map((entry) => entry.type), ["javascript"]);
+    assert.deepEqual(
+      logs.entries.map((entry) => entry.type),
+      ["javascript"],
+    );
   });
 
   it("a PageError without a stack is just its text", async () => {
@@ -120,13 +178,30 @@ describe("PageLogs page errors", () => {
   });
 });
 
+describe("pageErrorText", () => {
+  it("removes the prefix Chrome puts before an unhandled rejection", () => {
+    assert.equal(pageErrorText("Uncaught (in promise) Error: x"), "Error: x");
+  });
+
+  it("leaves other text alone, also when the prefix is not at the start", () => {
+    assert.equal(pageErrorText("TypeError: x is null"), "TypeError: x is null");
+    assert.equal(
+      pageErrorText("Error: Uncaught (in promise) inner"),
+      "Error: Uncaught (in promise) inner",
+    );
+  });
+});
+
 describe("PageLogs scope", () => {
   it("keeps entries of iframes, drops other pages and entries without a context", async () => {
     const { ws, logs } = await setup();
     emit(ws, consoleEntry("frame", "log", "from frame"));
     emit(ws, consoleEntry("other", "log", "from another page"));
     emit(ws, consoleEntry(undefined, "log", "from a worker"));
-    assert.deepEqual(logs.entries.map((entry) => entry.text), ["from frame"]);
+    assert.deepEqual(
+      logs.entries.map((entry) => entry.text),
+      ["from frame"],
+    );
   });
 
   it("records entries of other types without emitting an event", async () => {
@@ -134,9 +209,18 @@ describe("PageLogs scope", () => {
     let events = 0;
     logs.on("console", () => events++);
     logs.on("pageerror", () => events++);
-    emit(ws, { type: "deprecation", level: "warn", text: "old api", timestamp: 3, source: source("top") });
+    emit(ws, {
+      type: "deprecation",
+      level: "warn",
+      text: "old api",
+      timestamp: 3,
+      source: source("top"),
+    });
     assert.equal(events, 0);
-    assert.deepEqual(logs.entries.map((entry) => [entry.type, entry.text]), [["deprecation", "old api"]]);
+    assert.deepEqual(
+      logs.entries.map((entry) => [entry.type, entry.text]),
+      [["deprecation", "old api"]],
+    );
   });
 });
 
@@ -144,16 +228,30 @@ describe("PageLogs buffer", () => {
   it("keeps the newest entries and counts what it dropped", async () => {
     const { ws, logs } = await setup({ maxEntries: 3 });
     for (let i = 1; i <= 5; i++) emit(ws, consoleEntry("top", "log", `m${i}`));
-    assert.deepEqual(logs.entries.map((entry) => entry.text), ["m3", "m4", "m5"]);
+    assert.deepEqual(
+      logs.entries.map((entry) => entry.text),
+      ["m3", "m4", "m5"],
+    );
     assert.equal(logs.dropped, 2);
   });
 
   it("records level, type, method, text and timestamp", async () => {
     const { ws, logs } = await setup();
     emit(ws, consoleEntry("top", "warn", "careful"));
-    assert.deepEqual(logs.entries[0], { level: "warn", type: "console", method: "warn", text: "careful", timestamp: 1000 });
+    assert.deepEqual(logs.entries[0], {
+      level: "warn",
+      type: "console",
+      method: "warn",
+      text: "careful",
+      timestamp: 1000,
+    });
     emit(ws, errorEntry("top", "Error: x"));
-    assert.deepEqual(logs.entries[1], { level: "error", type: "javascript", text: "Error: x", timestamp: 2000 });
+    assert.deepEqual(logs.entries[1], {
+      level: "error",
+      type: "javascript",
+      text: "Error: x",
+      timestamp: 2000,
+    });
   });
 
   it("clear empties entries, errors and the dropped count", async () => {
@@ -201,12 +299,21 @@ describe("PageLogs lifecycle", () => {
 
   it("subscribes to log.entryAdded and releases it on dispose", async () => {
     const { ws, logs } = await setup();
-    assert.ok(ws.sent.some((m) => m.method === "session.subscribe" && (m.params as any).events[0] === "log.entryAdded"));
+    assert.ok(
+      ws.sent.some(
+        (m) =>
+          m.method === "session.subscribe" &&
+          (m.params as any).events[0] === "log.entryAdded",
+      ),
+    );
     await logs.dispose();
     await tick(10);
     emit(ws, consoleEntry("top", "log", "late"));
     assert.equal(logs.entries.length, 0);
-    assert.ok(ws.sent.some((m) => m.method === "session.unsubscribe"), "the log subscription was released");
+    assert.ok(
+      ws.sent.some((m) => m.method === "session.unsubscribe"),
+      "the log subscription was released",
+    );
     await assert.doesNotReject(logs.dispose());
   });
 });

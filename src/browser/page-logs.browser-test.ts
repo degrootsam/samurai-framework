@@ -113,7 +113,7 @@ test(
 );
 
 test(
-  "an unhandled promise rejection is reported as a page error too (Firefox)",
+  "an unhandled promise rejection is reported as a page error too",
   OPTIONS,
   async () => {
     page.clearLogs();

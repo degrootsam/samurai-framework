@@ -3,7 +3,11 @@ import logger from "../logger/index.js";
 import { fromRemoteValue } from "../script/serialize.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
-import type { ConsoleLogEntry, Entry, Level } from "../types/bidi-modules/log.js";
+import type {
+  ConsoleLogEntry,
+  Entry,
+  Level,
+} from "../types/bidi-modules/log.js";
 import type { StackFrame, StackTrace } from "../types/bidi-modules/script.js";
 import type { ContextTree } from "./context-tree.js";
 
@@ -53,8 +57,27 @@ export class ConsoleMessage {
   /** Where the call was made, when the browser says */
   public location(): SourceLocation | undefined {
     const frame = this.stackTrace?.callFrames[0];
-    return frame && { url: frame.url, lineNumber: frame.lineNumber, columnNumber: frame.columnNumber };
+    return (
+      frame && {
+        url: frame.url,
+        lineNumber: frame.lineNumber,
+        columnNumber: frame.columnNumber,
+      }
+    );
   }
+}
+
+/**
+ * Chrome starts the text of an unhandled promise rejection with this; Firefox does not. Removed, so a page error
+ * reads the same on both browsers.
+ */
+const REJECTION_PREFIX = "Uncaught (in promise) ";
+
+/** The text of a page error as it reads on every browser */
+export function pageErrorText(text: string): string {
+  return text.startsWith(REJECTION_PREFIX)
+    ? text.slice(REJECTION_PREFIX.length)
+    : text;
 }
 
 /** An exception nobody caught in the page */
@@ -65,11 +88,19 @@ export class PageError extends Error {
     super(text);
     this.name = "PageError";
     this.timestamp = timestamp;
-    this.stack = [text, ...(stackTrace?.callFrames ?? []).map(formatFrame)].join("\n");
+    this.stack = [
+      text,
+      ...(stackTrace?.callFrames ?? []).map(formatFrame),
+    ].join("\n");
   }
 }
 
-function formatFrame({ functionName, url, lineNumber, columnNumber }: StackFrame): string {
+function formatFrame({
+  functionName,
+  url,
+  lineNumber,
+  columnNumber,
+}: StackFrame): string {
   const where = `${url}:${lineNumber}:${columnNumber}`;
   return functionName ? `    at ${functionName} (${where})` : `    at ${where}`;
 }
@@ -105,7 +136,12 @@ export class PageLogs {
     contextId: string,
     options: { maxEntries?: number } = {},
   ): Promise<PageLogs> {
-    const logs = new PageLogs(connector, tree, contextId, options.maxEntries ?? DEFAULT_MAX_ENTRIES);
+    const logs = new PageLogs(
+      connector,
+      tree,
+      contextId,
+      options.maxEntries ?? DEFAULT_MAX_ENTRIES,
+    );
     connector.onEvent("log.entryAdded", logs.onEntry);
     try {
       logs.subscription = await connector.subscribe(["log.entryAdded"]);
@@ -131,11 +167,17 @@ export class PageLogs {
     return this.droppedCount;
   }
 
-  public on<E extends LogEventName>(event: E, listener: (...args: EventMap[E]) => void): void {
+  public on<E extends LogEventName>(
+    event: E,
+    listener: (...args: EventMap[E]) => void,
+  ): void {
     this.events.on(event, listener as (...args: unknown[]) => void);
   }
 
-  public off<E extends LogEventName>(event: E, listener: (...args: EventMap[E]) => void): void {
+  public off<E extends LogEventName>(
+    event: E,
+    listener: (...args: EventMap[E]) => void,
+  ): void {
     this.events.off(event, listener as (...args: unknown[]) => void);
   }
 
@@ -164,7 +206,9 @@ export class PageLogs {
     const record: LogRecord = {
       level: entry.level,
       type: entry.type,
-      ...(entry.type === "console" && { method: (entry as ConsoleLogEntry).method }),
+      ...(entry.type === "console" && {
+        method: (entry as ConsoleLogEntry).method,
+      }),
       text,
       timestamp: entry.timestamp,
     };
@@ -188,7 +232,11 @@ export class PageLogs {
         ),
       );
     } else if (entry.type === "javascript") {
-      const error = new PageError(text, entry.timestamp, entry.stackTrace);
+      const error = new PageError(
+        pageErrorText(text),
+        entry.timestamp,
+        entry.stackTrace,
+      );
       this.uncaught.push(error);
       if (this.uncaught.length > this.maxEntries) this.uncaught.shift();
       this.emit("pageerror", error);
