@@ -1,4 +1,4 @@
-import type { TestSummary } from "../types/test.js";
+import type { Modifier, TestSummary } from "../types/test.js";
 import type { PreparedRun } from "./prepare-run.js";
 import { withProject, type ProjectOptions } from "./project.js";
 import type { ResolvedGroup } from "./groups.js";
@@ -65,6 +65,8 @@ export interface FoundTest {
   /** Full name: `describe` titles and the test title joined with " > " */
   name: string;
   file: string;
+  /** `skip` or `fixme` (not run), or `only` (focused); absent for a plain test. A modifier on a `describe` counts. */
+  modifier?: Modifier;
 }
 
 /** Imports the project's specs without running anything and lists the tests the options select */
@@ -72,7 +74,11 @@ export async function listTests(
   options: RunTestsOptions = {},
 ): Promise<FoundTest[]> {
   return inProject(options, async (runner) =>
-    (await runner.register()).map(({ name, file }) => ({ name, file })),
+    (await runner.register()).map(({ name, file, modifier }) => ({
+      name,
+      file,
+      ...(modifier && { modifier }),
+    })),
   );
 }
 
@@ -86,7 +92,12 @@ export async function listGroups(
 export { BROWSER_NAMES, checkBrowserList } from "../config/browsers.js";
 export { parseWorkers } from "../config/workers.js";
 export type { RunEvent } from "./reporter.js";
-export type { TestError, TestResult, TestSummary } from "../types/test.js";
+export type {
+  Modifier,
+  TestError,
+  TestResult,
+  TestSummary,
+} from "../types/test.js";
 export type { ResolvedGroup } from "./groups.js";
 export type { RunnerOptions } from "./options.js";
 export type { ProjectOptions } from "./project.js";

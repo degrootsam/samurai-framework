@@ -70,7 +70,10 @@ export async function main(argv: string[], io: Io): Promise<number> {
       const tests = await listTests(options);
       if (values.json) io.out(`${JSON.stringify(tests, null, 2)}\n`);
       else
-        for (const found of tests) io.out(`${found.name}\n    ${found.file}\n`);
+        for (const found of tests)
+          io.out(
+            `${found.name}${found.modifier ? ` [${found.modifier}]` : ""}\n    ${found.file}\n`,
+          );
       return 0;
     }
 
