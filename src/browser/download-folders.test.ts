@@ -11,8 +11,12 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { FakeWebSocket, autoReply, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  FakeWebSocket,
+  autoReply,
+  tick,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { ChromeDownloadFolders, uniqueName } from "./download-folders.js";
 
 let dir: string;
@@ -34,7 +38,7 @@ describe("uniqueName", () => {
 describe("ChromeDownloadFolders", () => {
   async function setup() {
     const ws = new FakeWebSocket();
-    const connector = new BiDiConnector(ws as unknown as WebSocket);
+    const connector = makeConnector(ws);
     const stop = autoReply(ws, {
       "session.subscribe": () => ({ subscription: "sub-1" }),
     });

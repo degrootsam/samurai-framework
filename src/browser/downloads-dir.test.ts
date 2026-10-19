@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, afterEach, describe, it } from "node:test";
-import { autoReply, FakeWebSocket } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { prepareDownloadsDir, removeIfEmpty } from "./downloads-dir.js";
 
 const stops: Array<() => void> = [];
@@ -14,8 +24,10 @@ after(() => rmSync(base, { recursive: true, force: true }));
 
 function setup(handlers: Record<string, (params: any) => object | Error> = {}) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
-  stops.push(autoReply(ws, { "browser.setDownloadBehavior": () => ({}), ...handlers }));
+  const connector = makeConnector(ws);
+  stops.push(
+    autoReply(ws, { "browser.setDownloadBehavior": () => ({}), ...handlers }),
+  );
   return { ws, connector };
 }
 const failing = (code: string) => Object.assign(new Error(code), { code });
@@ -27,7 +39,9 @@ describe("prepareDownloadsDir", () => {
     assert.ok(dir);
     assert.equal(path.dirname(dir), path.join(base, "a"));
     assert.ok(existsSync(dir));
-    assert.deepEqual(ws.sent[0]!.params, { downloadBehavior: { type: "allowed", destinationFolder: dir } });
+    assert.deepEqual(ws.sent[0]!.params, {
+      downloadBehavior: { type: "allowed", destinationFolder: dir },
+    });
   });
 
   it("every call gets a folder of its own", async () => {
@@ -38,16 +52,23 @@ describe("prepareDownloadsDir", () => {
   });
 
   it("a browser that cannot be told gets no folder, and none is left behind", async () => {
-    const { connector } = setup({ "browser.setDownloadBehavior": () => failing("unknown command") });
+    const { connector } = setup({
+      "browser.setDownloadBehavior": () => failing("unknown command"),
+    });
     const target = path.join(base, "c");
     assert.equal(await prepareDownloadsDir(connector, target), undefined);
     assert.deepEqual(readdirSync(target), []);
   });
 
   it("other errors are thrown, folder removed", async () => {
-    const { connector } = setup({ "browser.setDownloadBehavior": () => failing("invalid argument") });
+    const { connector } = setup({
+      "browser.setDownloadBehavior": () => failing("invalid argument"),
+    });
     const target = path.join(base, "d");
-    await assert.rejects(prepareDownloadsDir(connector, target), { name: "BiDiError", code: "invalid argument" });
+    await assert.rejects(prepareDownloadsDir(connector, target), {
+      name: "BiDiError",
+      code: "invalid argument",
+    });
     assert.deepEqual(readdirSync(target), []);
   });
 });

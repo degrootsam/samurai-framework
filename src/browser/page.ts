@@ -12,23 +12,14 @@ import path from "node:path";
 import { projectDir } from "../config/config.js";
 import { peekRunSettings } from "../config/run-settings.js";
 import logger from "../logger/index.js";
-import { NetworkTracker } from "../network/network-tracker.js";
-import type {
-  NetworkRequest,
-  NetworkResponse,
-} from "../network/network-tracker.js";
+import type { NetworkRequest } from "../network/network-tracker.js";
 import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
 import { ContextTree } from "./context-tree.js";
-import { Dialog } from "./dialog.js";
 import type { BrowserContext } from "./browser-context.js";
 import { printPdf, type PdfOptions } from "./pdf.js";
 import { applyEmulation, type EmulationOptions } from "./emulation.js";
-import { Download, DownloadTracker } from "./download.js";
-import { FileChooser, FileChooserTracker } from "./file-chooser.js";
-import {
-  DownloadWaitTimeoutError,
-  FileChooserTimeoutError,
-} from "./page-wait.js";
+import type { Download } from "./download.js";
+import type { FileChooser } from "./file-chooser.js";
 import {
   takeScreenshot,
   writeOutput,
@@ -37,34 +28,21 @@ import {
 import { Evidence } from "./evidence.js";
 import { PageLogs, type LogRecord, type PageError } from "./page-logs.js";
 import { Lazy } from "./lazy.js";
-import { Router, type RouteHandler } from "../network/router.js";
-import {
-  DataCollector,
-  ResponseBodyUnavailableError,
-} from "../network/data-collector.js";
+import type { RouteHandler } from "../network/router.js";
 import { Response } from "../network/response.js";
-import {
-  RequestTimeoutError,
-  ResponseTimeoutError,
-  toPredicate,
-  type NetworkMatch,
-} from "../network/network-wait.js";
-import {
-  isUnsupported,
-  UnsupportedOperationError,
-} from "../transport/unsupported.js";
+import type { NetworkMatch } from "../network/network-wait.js";
+import { UnsupportedOperationError } from "../transport/unsupported.js";
 import type { UrlPattern } from "../network/url-match.js";
-import type {
-  UserPromptClosedParameters,
-  UserPromptOpenedParameters,
-} from "../types/bidi-modules/browsing-context.js";
 import { traverseHistory } from "./history.js";
+import { DialogHandling } from "./dialog-handling.js";
+import { DocumentWatcher } from "./document-watcher.js";
+import { PageNetwork } from "./page-network.js";
+import { PageTransfers } from "./page-transfers.js";
 import { initScriptSource } from "./init-script.js";
 import {
   sourcesFor,
   waitForPageEvent,
   type EventSource,
-  type NetworkEvents,
   type PageEventName,
   type PageEvents,
   type WaitableEventName,
@@ -88,14 +66,10 @@ import { HelperRealm } from "../locator/helper-realm.js";
 import { addPreload, type PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import type { Subscription } from "../transport/subscriptions.js";
 import { WaitTimeoutError } from "../wait/wait-until.js";
 import { LoadStateTimeoutError, NavigationError } from "./navigation-error.js";
 import { callFunction } from "../script/call-function.js";
 import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js";
-
-/** How many navigations keep their load progress */
-const NAVIGATIONS_REMEMBERED = 20;
 
 export type LoadState = "load" | "domcontentloaded" | "networkidle";
 
@@ -111,23 +85,6 @@ export interface NavigateOptions {
 /** What a navigation answers with: its id (null when the browser gave none) and the URL it ended on */
 export type NavigationResult = { navigation: string | null; url: string };
 
-/** Events a connection's browser rejected as unknown, so nothing asks for them again */
-const unsupportedEventsByConnector = new WeakMap<BiDiConnector, Set<string>>();
-
-function unsupportedEvents(connector: BiDiConnector): Set<string> {
-  let events = unsupportedEventsByConnector.get(connector);
-  if (!events)
-    unsupportedEventsByConnector.set(connector, (events = new Set()));
-  return events;
-}
-
-class NetworkTrackingDisabledError extends Error {
-  constructor() {
-    super("network tracking is disabled");
-    this.name = "NetworkTrackingDisabledError";
-  }
-}
-
 export default class Page {
   private biDiConnector: BiDiConnector;
   private id: BrowsingContext;
@@ -135,29 +92,19 @@ export default class Page {
   private helperRealm: HelperRealm;
   private initScripts = new Set<PreloadHandle>();
   private pageConfig: PageConfig;
-  private lazyNetwork = new Lazy<NetworkTracker>();
   private pageEvents = new EventEmitter();
   /** The navigation started by the last navigateTo; failures of it fail a wait */
   private lastNavigation: string | undefined;
   /** Base for relative page.goto URLs; falls back to the active run's baseURL */
   private baseURL: string | undefined;
-  /** How far navigations that did not wait for the load got, by navigation id (the latest few) */
-  private navigationProgress = new Map<
-    string,
-    { domContentLoaded: boolean; load: boolean }
-  >();
-  private lazyDocumentEvents = new Lazy<Subscription>();
-  private lazyDialogs = new Lazy<Subscription>();
+  private documents: DocumentWatcher;
+  private net: PageNetwork;
+  private dialogs: DialogHandling;
   private lazyLogs = new Lazy<PageLogs>();
   private errorsAllowed = false;
   private isClosed = false;
   private browserContext: BrowserContext | undefined;
-  private lazyDownloads = new Lazy<DownloadTracker>();
-  private lazyFileChoosers = new Lazy<FileChooserTracker>();
-  private lazyCollector = new Lazy<DataCollector>();
-  private responses = new WeakMap<NetworkResponse, Response>();
-  private lazyRouter = new Lazy<Router>();
-  private openDialogs = new Map<string, Dialog>();
+  private transfers: PageTransfers;
   private evidence: Evidence | undefined;
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
@@ -170,6 +117,27 @@ export default class Page {
     this.id = contextId;
     this.pageConfig = new PageConfig(settings);
     this.helperRealm = new HelperRealm(biDiConnector, contextId);
+    this.documents = new DocumentWatcher(biDiConnector, contextId);
+    this.net = new PageNetwork(biDiConnector, contextId, {
+      config: this.pageConfig,
+      tree: { ensure: () => this.tree(), peek: () => this.lazyTree.peek() },
+      emitter: this.pageEvents,
+      waitForEvent: (event, matches, options, onTimeout) =>
+        this.waitForPageEvent(event, matches, options, onTimeout),
+    });
+    this.transfers = new PageTransfers(biDiConnector, contextId, {
+      config: this.pageConfig,
+      tree: { ensure: () => this.tree(), peek: () => this.lazyTree.peek() },
+      emitter: this.pageEvents,
+      waitForEvent: (event, matches, options, onTimeout) =>
+        this.waitForPageEvent(event, matches, options, onTimeout),
+    });
+    this.dialogs = new DialogHandling(
+      biDiConnector,
+      contextId,
+      { ensure: () => this.tree(), peek: () => this.lazyTree.peek() },
+      this.pageEvents,
+    );
   }
 
   /** The BiDi browsing context id of this page's top-level context */
@@ -264,45 +232,22 @@ export default class Page {
   /** Removes everything the page registered in the browser: init scripts, framework helpers and event subscriptions */
   public async dispose(): Promise<void> {
     const scripts = [...this.initScripts];
-    const tracker = this.lazyNetwork.take();
     const results = await Promise.allSettled([
       ...scripts.map((handle) => handle.dispose()),
       this.helperRealm.dispose(),
       // The tracker goes before the tree it reads
-      tracker?.then((resolved) => resolved.dispose()).catch(() => undefined),
+      this.net.disposeTracker(),
     ]);
     const tree = this.lazyTree.take();
-    const documentEvents = this.lazyDocumentEvents.take();
-    const dialogHandling = this.lazyDialogs.take();
     const pageLogs = this.lazyLogs.take();
-    const downloads = this.lazyDownloads.take();
-    const fileChoosers = this.lazyFileChoosers.take();
-    const collector = this.lazyCollector.take();
-    const router = this.lazyRouter.take();
-    this.biDiConnector.offEvent(
-      "browsingContext.userPromptOpened",
-      this.onPromptOpened,
-    );
-    this.biDiConnector.offEvent(
-      "browsingContext.userPromptClosed",
-      this.onPromptClosed,
-    );
-    this.openDialogs.clear();
-    this.biDiConnector.offEvent(
-      "browsingContext.domContentLoaded",
-      this.onDomContentLoaded,
-    );
-    this.biDiConnector.offEvent("browsingContext.load", this.onLoad);
     results.push(
       ...(await Promise.allSettled([
         tree?.then((resolved) => resolved.dispose()),
-        documentEvents?.then((subscription) => subscription.unsubscribe()),
-        dialogHandling?.then((subscription) => subscription.unsubscribe()),
+        this.documents.dispose(),
+        this.dialogs.dispose(),
         pageLogs?.then((logs) => logs.dispose()),
-        router?.then((resolved) => resolved.dispose()),
-        collector?.then((resolved) => resolved.dispose()),
-        downloads?.then((resolved) => resolved.dispose()),
-        fileChoosers?.then((resolved) => resolved.dispose()),
+        ...this.net.disposeRest(),
+        ...this.transfers.dispose(),
       ])),
     );
     const failed = results.find((result) => result.status === "rejected");
@@ -389,13 +334,13 @@ export default class Page {
     send: (options: { timeout: number }) => Promise<NavigationResult>,
   ): Promise<NavigationResult> {
     // A navigation that does not wait for the load needs watching, or waitForLoadState cannot tell it from the old page
-    if (wait !== "complete") await this.watchDocumentEvents();
+    if (wait !== "complete") await this.documents.watch();
     try {
       const result = await send({ timeout });
       this.lastNavigation = result.navigation ?? undefined;
       if (result.navigation && wait !== "complete") {
         // Tracked from now on: the document still showing is the old one until this navigation commits
-        const progress = this.progressOf(result.navigation);
+        const progress = this.documents.progressOf(result.navigation);
         if (wait === "interactive") progress.domContentLoaded = true;
       }
       return result;
@@ -671,205 +616,17 @@ export default class Page {
     this.assertOpen();
     const timeout = await this.pageConfig.navigationTimeout(options.timeout);
     try {
-      await this.waitForDocumentState(
+      await this.documents.waitForState(
         state === "domcontentloaded" ? "domcontentloaded" : "load",
         timeout,
+        this.lastNavigation,
       );
     } catch (err) {
       if (err instanceof WaitTimeoutError)
         throw new LoadStateTimeoutError(state, timeout);
       throw err;
     }
-    if (state === "networkidle") {
-      const tracker = await this.network();
-      const idleTime = await this.pageConfig.idleTime();
-      await tracker.waitForIdle({ idleTime, timeout });
-    }
-  }
-
-  private progressOf(navigation: string) {
-    let progress = this.navigationProgress.get(navigation);
-    if (!progress) {
-      progress = { domContentLoaded: false, load: false };
-      this.navigationProgress.set(navigation, progress);
-      // Only the latest few navigations matter
-      if (this.navigationProgress.size > NAVIGATIONS_REMEMBERED) {
-        this.navigationProgress.delete(
-          this.navigationProgress.keys().next().value as string,
-        );
-      }
-    }
-    return progress;
-  }
-
-  private onDocumentEvent =
-    (kind: "domContentLoaded" | "load") =>
-    (info: { context: string; navigation: string | null }) => {
-      if (info.context !== this.id || info.navigation === null) return;
-      const progress = this.progressOf(info.navigation);
-      progress.domContentLoaded = true;
-      if (kind === "load") progress.load = true;
-    };
-  private onDomContentLoaded = this.onDocumentEvent("domContentLoaded");
-  private onLoad = this.onDocumentEvent("load");
-
-  /** Starts recording which navigations reached DOMContentLoaded and load; kept until dispose */
-  private watchDocumentEvents(): Promise<Subscription> {
-    return this.lazyDocumentEvents.get(async () => {
-      this.biDiConnector.onEvent(
-        "browsingContext.domContentLoaded",
-        this.onDomContentLoaded,
-      );
-      this.biDiConnector.onEvent("browsingContext.load", this.onLoad);
-      try {
-        return await this.biDiConnector.subscribe([
-          "browsingContext.domContentLoaded",
-          "browsingContext.load",
-        ]);
-      } catch (err) {
-        this.biDiConnector.offEvent(
-          "browsingContext.domContentLoaded",
-          this.onDomContentLoaded,
-        );
-        this.biDiConnector.offEvent("browsingContext.load", this.onLoad);
-        throw err;
-      }
-    });
-  }
-
-  private canBeAborted(): boolean {
-    return !unsupportedEvents(this.biDiConnector).has(
-      "browsingContext.navigationAborted",
-    );
-  }
-
-  /** Subscribes to what a wait listens for; a browser that lacks the navigationAborted event (Firefox) is asked only once */
-  private async subscribeToDocumentEvents(
-    reachedEvent: "browsingContext.load" | "browsingContext.domContentLoaded",
-  ) {
-    const required = [
-      reachedEvent,
-      "browsingContext.navigationFailed",
-    ] as const;
-    if (!this.canBeAborted())
-      return this.biDiConnector.subscribe([...required]);
-    try {
-      return await this.biDiConnector.subscribe([
-        ...required,
-        "browsingContext.navigationAborted",
-      ]);
-    } catch (err) {
-      if (!(err instanceof BiDiError) || err.code !== "invalid argument")
-        throw err;
-      unsupportedEvents(this.biDiConnector).add(
-        "browsingContext.navigationAborted",
-      );
-      return this.biDiConnector.subscribe([...required]);
-    }
-  }
-
-  private async waitForDocumentState(
-    target: "load" | "domcontentloaded",
-    timeout: number,
-  ) {
-    const connector = this.biDiConnector;
-    const reachedEvent =
-      target === "load"
-        ? "browsingContext.load"
-        : "browsingContext.domContentLoaded";
-    const subscription = await this.subscribeToDocumentEvents(reachedEvent);
-    const abort = new AbortController();
-    const last = this.lastNavigation;
-    const listen = { timeout, signal: abort.signal };
-    const failure = (info: { url: string }, what: string) => {
-      throw new NavigationError(info.url, what, undefined, "waitForLoadState");
-    };
-    try {
-      // Registered before the state is read, so an event in between is not lost
-      const events = Promise.race([
-        connector.waitForEvent(
-          reachedEvent,
-          (p) => p.context === this.id,
-          listen,
-        ),
-        connector
-          .waitForEvent(
-            "browsingContext.navigationFailed",
-            (p) =>
-              p.context === this.id &&
-              (last === undefined || p.navigation === last),
-            listen,
-          )
-          .then((p) => failure(p, "navigation failed")),
-        ...(this.canBeAborted()
-          ? [
-              connector
-                .waitForEvent(
-                  "browsingContext.navigationAborted",
-                  (p) =>
-                    p.context === this.id &&
-                    last !== undefined &&
-                    p.navigation === last,
-                  listen,
-                )
-                .then((p) => failure(p, "navigation aborted")),
-            ]
-          : []),
-      ]);
-      events.catch(() => {}); // settled below, or aborted in finally
-      const known =
-        last === undefined ? undefined : this.navigationProgress.get(last);
-      // A navigation we started and saw fall short of the state beats the document that is showing
-      let reached: boolean;
-      if (known && !(target === "load" ? known.load : known.domContentLoaded)) {
-        reached = false;
-      } else {
-        const readyState = await callFunction<string>(
-          connector,
-          this.id,
-          "() => document.readyState",
-          [],
-          {
-            awaitPromise: false,
-          },
-        );
-        reached =
-          target === "load"
-            ? readyState === "complete"
-            : readyState === "interactive" || readyState === "complete";
-      }
-      if (!reached) await events;
-    } finally {
-      abort.abort();
-      await subscription.unsubscribe();
-    }
-  }
-
-  /** The network tracker, created on first use. Rejects with NetworkTrackingDisabledError when config turned tracking off */
-  private network(): Promise<NetworkTracker> {
-    return this.lazyNetwork.get(
-      async () => {
-        const settings = await this.pageConfig.network();
-        if (settings.track === false) throw new NetworkTrackingDisabledError();
-        const tracker = await NetworkTracker.start(
-          this.biDiConnector,
-          await this.tree(),
-          this.id,
-        );
-        tracker.on("request", (request) =>
-          this.pageEvents.emit("request", request),
-        );
-        tracker.on("response", (response) =>
-          this.pageEvents.emit("response", this.responseFor(response)),
-        );
-        tracker.on("requestfailed", (failed) =>
-          this.pageEvents.emit("requestfailed", failed),
-        );
-        if (settings.collectBodies) await this.startBodyCollection();
-        return tracker;
-      },
-      (err) => err instanceof NetworkTrackingDisabledError,
-    );
+    if (state === "networkidle") await this.net.waitForIdle({ timeout });
   }
 
   /**
@@ -877,25 +634,18 @@ export default class Page {
    * browser calls this when it opens a page; without it, tracking starts on first use. Does nothing when
    * config `network.track` is false.
    */
-  public async startNetworkTracking(): Promise<void> {
-    try {
-      await this.network();
-    } catch (err) {
-      if (!(err instanceof NetworkTrackingDisabledError)) throw err;
-    }
+  public startNetworkTracking(): Promise<void> {
+    return this.net.startTracking();
   }
 
   /**
    * Waits until no request has been in flight for `idleTime` ms (default config `network.idleTime`, then 500).
    * Long-lived requests (server-sent events, long polling) keep the page busy until `timeout`.
    */
-  public async waitForNetworkIdle(
+  public waitForNetworkIdle(
     options: { idleTime?: number; timeout?: number } = {},
   ): Promise<void> {
-    const tracker = await this.network();
-    const idleTime = await this.pageConfig.idleTime(options.idleTime);
-    const timeout = await this.pageConfig.navigationTimeout(options.timeout);
-    await tracker.waitForIdle({ idleTime, timeout });
+    return this.net.waitForIdle(options);
   }
 
   /**
@@ -947,35 +697,13 @@ export default class Page {
   }
 
   /** Starts following downloads; the browser does this when it opens a page, `page.on("download")` and `waitForDownload` when needed */
-  public async startDownloadTracking(): Promise<void> {
-    await this.lazyDownloads.get(async () => {
-      const timeout = await this.pageConfig.navigationTimeout();
-      const tracker = await DownloadTracker.start(
-        this.biDiConnector,
-        await this.tree(),
-        this.id,
-        { timeout },
-      );
-      tracker.on("download", (download) =>
-        this.pageEvents.emit("download", download),
-      );
-      return tracker;
-    });
+  public startDownloadTracking(): Promise<void> {
+    return this.transfers.startDownloadTracking();
   }
 
   /** Starts following file pickers; the browser does this when it opens a page, `page.on("filechooser")` and `waitForFileChooser` when needed */
-  public async startFileChooserTracking(): Promise<void> {
-    await this.lazyFileChoosers.get(async () => {
-      const tracker = await FileChooserTracker.start(
-        this.biDiConnector,
-        await this.tree(),
-        this.id,
-      );
-      tracker.on("filechooser", (chooser) =>
-        this.pageEvents.emit("filechooser", chooser),
-      );
-      return tracker;
-    });
+  public startFileChooserTracking(): Promise<void> {
+    return this.transfers.startFileChooserTracking();
   }
 
   /**
@@ -987,13 +715,7 @@ export default class Page {
    */
   public async waitForDownload(options: WaitOptions = {}): Promise<Download> {
     this.assertOpen();
-    await this.startDownloadTracking();
-    return this.waitForPageEvent(
-      "download",
-      () => true,
-      options,
-      (timeout) => new DownloadWaitTimeoutError(timeout),
-    );
+    return this.transfers.waitForDownload(options);
   }
 
   /**
@@ -1007,13 +729,7 @@ export default class Page {
     options: WaitOptions = {},
   ): Promise<FileChooser> {
     this.assertOpen();
-    await this.startFileChooserTracking();
-    return this.waitForPageEvent(
-      "filechooser",
-      () => true,
-      options,
-      (timeout) => new FileChooserTimeoutError(timeout),
-    );
+    return this.transfers.waitForFileChooser(options);
   }
 
   /**
@@ -1046,22 +762,14 @@ export default class Page {
         >;
       case "download":
         this.assertOpen();
-        await this.startDownloadTracking();
-        return this.waitForPageEvent(
-          "download",
-          accepts,
-          options,
-          (timeout) => new DownloadWaitTimeoutError(timeout),
-        ) as Promise<PageEvents[E][0]>;
+        return this.transfers.waitForDownload(options, accepts) as Promise<
+          PageEvents[E][0]
+        >;
       case "filechooser":
         this.assertOpen();
-        await this.startFileChooserTracking();
-        return this.waitForPageEvent(
-          "filechooser",
-          accepts,
-          options,
-          (timeout) => new FileChooserTimeoutError(timeout),
-        ) as Promise<PageEvents[E][0]>;
+        return this.transfers.waitForFileChooser(options, accepts) as Promise<
+          PageEvents[E][0]
+        >;
       default:
         throw new Error(
           `page.waitForEvent() does not support "${String(event)}": use page.on()`,
@@ -1074,38 +782,8 @@ export default class Page {
    * when this ran before the request started. `page.on("response")` and `waitForResponse` call it; config
    * `network.collectBodies` calls it when the browser opens the page.
    */
-  public async startBodyCollection(): Promise<void> {
-    await this.lazyCollector.get(this.openCollector);
-  }
-
-  private openCollector = async (): Promise<DataCollector> => {
-    const { maxBodySize } = await this.pageConfig.network();
-    return DataCollector.start(this.biDiConnector, this.id, {
-      ...(maxBodySize !== undefined && { maxBodySize }),
-    });
-  };
-
-  /** One Response per network response, whoever asks, so a body is read from the browser once */
-  private responseFor(data: NetworkResponse): Response {
-    let response = this.responses.get(data);
-    if (!response) {
-      response = new Response(data, (loaded) => this.loadBody(loaded));
-      this.responses.set(data, response);
-    }
-    return response;
-  }
-
-  private async loadBody(response: Response): Promise<Buffer> {
-    if (!this.lazyCollector.started) {
-      throw new ResponseBodyUnavailableError(
-        response.url,
-        "no body collection was running: call page.startBodyCollection() before the request, or listen with page.on('response')",
-      );
-    }
-    const collector = await this.lazyCollector.get(this.openCollector);
-    const body = await collector.read(response.id, response.url);
-    void collector.release(response.id);
-    return body;
+  public startBodyCollection(): Promise<void> {
+    return this.net.startBodyCollection();
   }
 
   /**
@@ -1115,44 +793,19 @@ export default class Page {
    *  const response = await page.waitForResponse("**\/api/users", { trigger: () => button.click() });
    *  const users = await response.json();
    */
-  public async waitForResponse(
+  public waitForResponse(
     match: NetworkMatch<Response>,
     options: WaitOptions = {},
   ): Promise<Response> {
-    await Promise.all([this.network(), this.startBodyCollection()]);
-    return this.waitForNetworkEvent("response", match, options);
+    return this.net.waitForResponse(match, options);
   }
 
   /** Like `waitForResponse`, for requests */
-  public async waitForRequest(
+  public waitForRequest(
     match: NetworkMatch<NetworkRequest>,
     options: WaitOptions = {},
   ): Promise<NetworkRequest> {
-    await this.network();
-    return this.waitForNetworkEvent("request", match, options);
-  }
-
-  private waitForNetworkEvent<E extends "request" | "response">(
-    event: E,
-    match: NetworkMatch<NetworkEvents[E][0]>,
-    options: WaitOptions,
-  ): Promise<NetworkEvents[E][0]> {
-    const matches = toPredicate(match as NetworkMatch<{ url: string }>) as (
-      item: NetworkEvents[E][0],
-    ) => boolean;
-    const Timeout =
-      event === "request" ? RequestTimeoutError : ResponseTimeoutError;
-    return this.waitForPageEvent(
-      event,
-      matches,
-      options,
-      (timeout) =>
-        new Timeout(
-          event === "request" ? "waitForRequest" : "waitForResponse",
-          match as never,
-          timeout,
-        ),
-    );
+    return this.net.waitForRequest(match, options);
   }
 
   /**
@@ -1177,35 +830,8 @@ export default class Page {
   }
 
   /** Turns the browser's HTTP cache off (`true`) or back on for this page: every request then goes to the server */
-  public async setCacheDisabled(disabled: boolean): Promise<void> {
-    try {
-      await this.biDiConnector.send("network.setCacheBehavior", {
-        cacheBehavior: disabled ? "bypass" : "default",
-        contexts: [this.id],
-      });
-    } catch (err) {
-      if (isUnsupported(err)) {
-        throw new UnsupportedOperationError(
-          "page.setCacheDisabled() is not supported by the browser",
-        );
-      }
-      throw err;
-    }
-  }
-
-  private router(): Promise<Router> {
-    return this.lazyRouter.get(async () => {
-      const routeTimeout = (await this.pageConfig.network()).routeTimeout;
-      const router = new Router(
-        this.biDiConnector,
-        await this.tree(),
-        this.id,
-        {
-          ...(routeTimeout !== undefined && { routeTimeout }),
-        },
-      );
-      return router;
-    });
+  public setCacheDisabled(disabled: boolean): Promise<void> {
+    return this.net.setCacheDisabled(disabled);
   }
 
   /**
@@ -1219,23 +845,21 @@ export default class Page {
    */
   public async route(url: UrlPattern, handler: RouteHandler): Promise<void> {
     this.assertOpen();
-    await (await this.router()).route(url, handler);
+    await this.net.route(url, handler);
   }
 
   /** Removes the routes for `url` (only the one with `handler`, when given) */
-  public async unroute(url: UrlPattern, handler?: RouteHandler): Promise<void> {
-    if (!this.lazyRouter.started) return;
-    await (await this.router()).unroute(url, handler);
+  public unroute(url: UrlPattern, handler?: RouteHandler): Promise<void> {
+    return this.net.unroute(url, handler);
   }
 
-  public async unrouteAll(): Promise<void> {
-    if (!this.lazyRouter.started) return;
-    await (await this.router()).unrouteAll();
+  public unrouteAll(): Promise<void> {
+    return this.net.unrouteAll();
   }
 
   /** Errors thrown by route handlers so far */
   public routeErrors(): readonly Error[] {
-    return this.lazyRouter.peek()?.errors ?? [];
+    return this.net.routeErrors();
   }
 
   /**
@@ -1289,87 +913,7 @@ export default class Page {
   }
 
   /** Starts watching for dialogs; the browser does this when it opens a page, `page.on("dialog")` when needed */
-  public async startDialogHandling(): Promise<void> {
-    await this.lazyDialogs.get(async () => {
-      await this.tree();
-      this.biDiConnector.onEvent(
-        "browsingContext.userPromptOpened",
-        this.onPromptOpened,
-      );
-      this.biDiConnector.onEvent(
-        "browsingContext.userPromptClosed",
-        this.onPromptClosed,
-      );
-      try {
-        return await this.biDiConnector.subscribe([
-          "browsingContext.userPromptOpened",
-          "browsingContext.userPromptClosed",
-        ]);
-      } catch (err) {
-        this.biDiConnector.offEvent(
-          "browsingContext.userPromptOpened",
-          this.onPromptOpened,
-        );
-        this.biDiConnector.offEvent(
-          "browsingContext.userPromptClosed",
-          this.onPromptClosed,
-        );
-        throw err;
-      }
-    });
-  }
-
-  private ownsContext(context: string): boolean {
-    return (
-      this.lazyTree.peek()?.isWithin(context, this.id) ?? context === this.id
-    );
-  }
-
-  private onPromptOpened = (params: UserPromptOpenedParameters) => {
-    if (!this.ownsContext(params.context)) return;
-    this.dispatchDialog(
-      new Dialog(this.biDiConnector, this.id, params),
-      params,
-    ).catch((err) => logger.error("Handling a dialog failed", { err }));
-  };
-
-  private onPromptClosed = (params: UserPromptClosedParameters) => {
-    if (!this.ownsContext(params.context)) return;
-    const dialog = this.openDialogs.get(params.context);
-    this.openDialogs.delete(params.context);
-    dialog?.markClosed({
-      accepted: params.accepted,
-      ...(params.userText !== undefined && { userText: params.userText }),
-    });
-  };
-
-  /** Lets the listeners answer; a dialog still open afterwards gets the default answer, so nothing hangs */
-  private async dispatchDialog(
-    dialog: Dialog,
-    params: UserPromptOpenedParameters,
-  ) {
-    this.openDialogs.set(params.context, dialog);
-    // rawListeners: the wrappers that make a `once` listener remove itself when called
-    const listeners = this.pageEvents.rawListeners("dialog") as Array<
-      (dialog: Dialog) => unknown
-    >;
-    await Promise.all(
-      listeners.map(async (listener) => {
-        try {
-          await listener(dialog);
-        } catch (err) {
-          logger.error("A dialog listener threw", { err });
-        }
-      }),
-    );
-    if (dialog.handled) return;
-    // Staying on a page is not what a test that navigates wants: leave it, dismiss everything else
-    const accept = params.type === "beforeunload";
-    logger.warn(
-      'Dialog "%s" was %s automatically; add page.on("dialog") to handle it',
-      params.message,
-      accept ? "accepted" : "dismissed",
-    );
-    await (accept ? dialog.accept() : dialog.dismiss());
+  public startDialogHandling(): Promise<void> {
+    return this.dialogs.start();
   }
 }

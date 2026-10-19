@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { autoReply, FakeWebSocket, tick } from "../testing/fake-websocket.js";
-import { BiDiConnector } from "../transport/bidi-connection.js";
+import {
+  autoReply,
+  FakeWebSocket,
+  tick,
+  makeConnector,
+} from "../testing/fake-websocket.js";
 import { traverseHistory } from "./history.js";
 
 const stops: Array<() => void> = [];
@@ -16,7 +20,7 @@ const failing = (code: string) => Object.assign(new Error(code), { code });
 
 function setup(handlers: Record<string, (params: any) => object | Error> = {}) {
   const ws = new FakeWebSocket();
-  const connector = new BiDiConnector(ws as unknown as WebSocket);
+  const connector = makeConnector(ws);
   stops.push(
     autoReply(ws, {
       "script.callFunction": () => bool(false),
