@@ -414,7 +414,8 @@ test("the rail stays inside the window", OPTIONS, async () => {
       true,
     );
   } finally {
-    await page.setViewport(null);
+    // Not setViewport(null): that is the window's own size, 780×437 in headless Chrome, which the later tests do not fit
+    await page.applyDefaultViewport();
   }
 });
 
