@@ -19,6 +19,8 @@ export interface PageMessage {
   type: "click" | "input" | "press" | "assert";
   target: ElementHandle;
   candidates: LocatorCall[];
+  /** Of a click or press: the candidates that matched only the target when it happened, checked in the page */
+  unique?: LocatorCall[];
   textEntry?: boolean;
   /** The key of a `press` message */
   pressed?: string;

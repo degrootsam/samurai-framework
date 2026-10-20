@@ -15,17 +15,19 @@ const RUN_KEY = "samurai.recorder.run";
  * listeners; those of the earlier run go quiet, as their run is no longer the current one.
  * Reports what the tester does in the top-level document:
  *
- * - `{ type: "click", target, candidates, textEntry }`: a click, retargeted to the nearest interactive
+ * - `{ type: "click", target, candidates, unique, textEntry }`: a click, retargeted to the nearest interactive
  *   element (a label click reports its control; the click the browser forwards to the control is dropped).
  * - `{ type: "input", target, candidates, value, secret, secretName }`: text typed into a field. Password
  *   values never leave the page: `secret` is set and `value` is left out.
- * - `{ type: "press", target, candidates, pressed }`: Enter, Tab or Escape (Enter in a button, link or textarea is a
+ * - `{ type: "press", target, candidates, unique, pressed }`: Enter, Tab or Escape (Enter in a button, link or textarea is a
  *   click or typing, which are reported as such).
  * - `{ type: "assert", target, candidates, text, value }`: an Alt+click, which does not reach the page.
  *   While Alt is held, the element under the pointer is outlined.
  *
  * `candidates` are locator calls for the element, most stable first (test id, role and name, label,
  * text, css, and an absolute xpath that always exists). The recorder checks each one against the page.
+ * `unique` lists the candidates that matched only the element when it was clicked or pressed, before the
+ * page's own handlers ran: a button the click removes (Sign in, Delete) is gone by the time the recorder checks.
  * Runs in the page's own realm; a string, so no transpiler helper can end up in it.
  */
 export const CAPTURE_SOURCE = String.raw`(send) => {
@@ -42,6 +44,7 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
   const MUTED = Symbol.for("${MUTED_KEY}");
   const off = () => window[RUN] !== run || window[OFF] === true || window[MUTED] === true;
   let lastClick = { el: null, at: 0 };
+  let lastEnter = { form: null, at: 0 };
   let outlined = null;
   let outlinedStyle = "";
   const unhighlight = () => {
@@ -72,8 +75,11 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
     const now = Date.now();
     // The browser forwards a label click to its control as a second click
     if (lastClick.el === el && now - lastClick.at < 150) return;
+    // An Enter in a field submits its form with a click on the submit button: the Enter is the step
+    if (event.detail === 0 && el.form && el.form === lastEnter.form && now - lastEnter.at < 150) return;
     lastClick = { el, at: now };
-    report({ type: "click", target: el, candidates: candidatesOf(el), textEntry: isTextEntry(el) });
+    const candidates = candidatesOf(el);
+    report({ type: "click", target: el, candidates, unique: uniqueOf(el, candidates), textEntry: isTextEntry(el) });
   }, true);
 
   document.addEventListener("input", (event) => {
@@ -101,7 +107,9 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
     if (RECORDED_KEYS.indexOf(event.key) < 0 || !(event.target instanceof Element)) return;
     const el = event.target;
     if (event.key === "Enter" && (el.closest(ACTIVATES) || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-    report({ type: "press", target: el, candidates: candidatesOf(el), pressed: event.key });
+    const candidates = candidatesOf(el);
+    report({ type: "press", target: el, candidates, unique: uniqueOf(el, candidates), pressed: event.key });
+    if (event.key === "Enter") lastEnter = { form: el.form || null, at: Date.now() };
   }, true);
 
   document.addEventListener("mousemove", (event) => {
