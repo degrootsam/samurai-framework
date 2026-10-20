@@ -274,3 +274,39 @@ test(
     );
   },
 );
+
+/** The steps `events` write into an empty test */
+function stepsOf(events: RecorderEvent[]) {
+  let source = `test("t", async ({ page }) => {\n});\n`;
+  for (const event of events) source = applyRecorderEvent(source, 0, event);
+  return parseSpec(source)[0]!.steps.map(({ step }) => step);
+}
+
+test(
+  "an Enter that submits a form is one press, not also a click on its submit button",
+  OPTIONS,
+  async () => {
+    await setContent(
+      page,
+      `<form id="f"><label for="q">Search</label><input id="q"><button type="submit">Go</button></form>`,
+      `document.getElementById("f").addEventListener("submit", (event) => event.preventDefault());`,
+    );
+    await page.getByLabel("Search").fill("milk");
+    const events: RecorderEvent[] = [];
+    const recorder = await page.record({
+      onEvent: (event) => events.push(event),
+      initialGoto: false,
+    });
+    await page.getByLabel("Search").press("Enter");
+    await pause(500);
+    await page.getByRole("button", { name: "Go" }).click();
+    await pause(500);
+    await recorder.stop();
+
+    assert.deepEqual(
+      stepsOf(events).map((step) => step.kind),
+      ["press", "click"],
+      "the Enter's own submit click is dropped; a real click on the button is kept",
+    );
+  },
+);

@@ -42,6 +42,7 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
   const MUTED = Symbol.for("${MUTED_KEY}");
   const off = () => window[RUN] !== run || window[OFF] === true || window[MUTED] === true;
   let lastClick = { el: null, at: 0 };
+  let lastEnter = { form: null, at: 0 };
   let outlined = null;
   let outlinedStyle = "";
   const unhighlight = () => {
@@ -72,6 +73,8 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
     const now = Date.now();
     // The browser forwards a label click to its control as a second click
     if (lastClick.el === el && now - lastClick.at < 150) return;
+    // An Enter in a field submits its form with a click on the submit button: the Enter is the step
+    if (event.detail === 0 && el.form && el.form === lastEnter.form && now - lastEnter.at < 150) return;
     lastClick = { el, at: now };
     report({ type: "click", target: el, candidates: candidatesOf(el), textEntry: isTextEntry(el) });
   }, true);
@@ -102,6 +105,7 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
     const el = event.target;
     if (event.key === "Enter" && (el.closest(ACTIVATES) || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
     report({ type: "press", target: el, candidates: candidatesOf(el), pressed: event.key });
+    if (event.key === "Enter") lastEnter = { form: el.form || null, at: Date.now() };
   }, true);
 
   document.addEventListener("mousemove", (event) => {
