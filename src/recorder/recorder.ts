@@ -27,7 +27,7 @@ import {
   type PageMessage,
 } from "./page-messages.js";
 import { listSandboxRealms } from "./realms.js";
-import { rankLocator } from "./ranking.js";
+import { rankLocator, specOf } from "./ranking.js";
 import { TOOLBAR_HOOK, ToolbarBridge } from "./toolbar-bridge.js";
 import type { ToolbarController } from "./toolbar/controller.js";
 import { TOOLBAR_SANDBOX } from "./toolbar/protocol.js";
@@ -287,14 +287,15 @@ export class Recorder {
   private async locatorFor(message: {
     target: ElementHandle;
     candidates: LocatorCall[];
+    unique?: LocatorCall[];
   }): Promise<LocatorSpec | undefined> {
     const { sharedId } = message.target;
     if (this.known.has(sharedId)) return this.known.get(sharedId);
-    const spec = await rankLocator(
-      this.page,
-      message.target,
-      message.candidates,
-    );
+    // The page may have removed the element by now (a Sign in that leaves the form): then what matched
+    // only it when it was used is the best there is
+    const spec =
+      (await rankLocator(this.page, message.target, message.candidates)) ??
+      specOf(message.unique ?? []);
     this.known.set(sharedId, spec);
     return spec;
   }
