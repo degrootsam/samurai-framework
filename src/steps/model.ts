@@ -1,3 +1,5 @@
+import type { Modifier } from "../types/test.js";
+
 /** One call of a locator expression, as written in a spec: `page.getByRole("button", { name: "Save" })` */
 export type LocatorCall =
   | { method: "locator"; xpath: string }
@@ -104,4 +106,6 @@ export interface ParsedTest {
    * Undefined when the parameter can't take one: a plain identifier, or a rest element
    */
   fixtures?: { names: string[]; at: number; shape: "list" | "empty" | "none" };
+  /** `skip` or `fixme` (not run), or `only` (focused), as the runner applies it: a modifier on a `describe` counts */
+  modifier?: Modifier;
 }
