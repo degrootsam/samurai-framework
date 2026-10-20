@@ -122,6 +122,10 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 4. Add a browser test for what only a real browser can show.
 5. Document it in the matching wiki page and tick the Roadmap page.
 
+## Publishing
+
+`npm publish` (and `npm pack`) run the `prepack` script first, which rebuilds `dist/` from the sources in the working tree. A tarball can't carry a `dist/` from an older checkout (0.15.0 shipped without retries that way). Publish from an up-to-date `main` with a clean working tree; a version on npm can't be replaced, only followed by a new one.
+
 ## The command line stays separable
 
 `src/cli` and `bin/` use the framework only through its public entry points, the files behind the `exports` in `package.json` (such as `runner/run.ts`, `recorder/index.ts`, `steps/index.ts`, `flows/run/index.ts`). A unit test (`src/cli/boundary.test.ts`) fails when a file in `src/cli` imports anything else. If the command needs something more, export it from an entry point first. That keeps the command movable into a package of its own: a folder move, not a refactor. Command-line parsing lives in `src/cli/args.ts`, not in the framework's config code.
