@@ -1,4 +1,5 @@
 import ts from "typescript";
+import type { Modifier } from "../types/test.js";
 import type { ParsedStep, ParsedTest } from "./model.js";
 import { stringOf } from "./parse/literals.js";
 import { readStep } from "./parse/step.js";
@@ -57,13 +58,32 @@ function callbackBody(node: ts.Expression | undefined): ts.Block | undefined {
     : undefined;
 }
 
-/** `describe.skip`, `describe.fixme` and `describe.only`: tests written inside keep their place in the title */
-function isDescribeWithModifier(expression: ts.Expression): boolean {
-  return (
+/** `test(...)` or `describe(...)` with its modifier: `test.skip(...)` gives `{ name: "test", modifier: "skip" }` */
+function calleeOf(
+  expression: ts.Expression,
+): { name: string; modifier?: Modifier } | undefined {
+  if (ts.isIdentifier(expression)) return { name: expression.text };
+  if (
     ts.isPropertyAccessExpression(expression) &&
     ts.isIdentifier(expression.expression) &&
-    expression.expression.text === "describe" &&
     ["skip", "fixme", "only"].includes(expression.name.text)
+  )
+    return {
+      name: expression.expression.text,
+      modifier: expression.name.text as Modifier,
+    };
+  return undefined;
+}
+
+/** What the runner applies to a test (see `modifierOf` in the runner): the innermost `skip` or `fixme`, else `only` */
+function effectiveModifier(
+  own: Modifier | undefined,
+  describes: (Modifier | undefined)[],
+): Modifier | undefined {
+  const chain = [own, ...[...describes].reverse()];
+  return (
+    chain.find((m) => m === "skip" || m === "fixme") ??
+    (chain.includes("only") ? "only" : undefined)
   );
 }
 
@@ -78,21 +98,21 @@ export function parseSpec(source: string): ParsedTest[] {
   );
   const tests: ParsedTest[] = [];
 
-  const visit = (node: ts.Node, titles: string[]) => {
-    if (ts.isCallExpression(node) && isDescribeWithModifier(node.expression)) {
-      // `describe.skip("Old", () => ...)`: a describe block for the names of the tests inside it
+  const visit = (
+    node: ts.Node,
+    titles: string[],
+    describes: (Modifier | undefined)[],
+  ) => {
+    const callee = ts.isCallExpression(node)
+      ? calleeOf(node.expression)
+      : undefined;
+    if (ts.isCallExpression(node) && callee) {
       const title = stringOf(node.arguments[0]);
       const body = callbackBody(node.arguments[1]);
-      if (title !== undefined && body) {
-        ts.forEachChild(body, (child) => visit(child, [...titles, title]));
-        return;
-      }
-    }
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      const title = stringOf(node.arguments[0]);
-      const body = callbackBody(node.arguments[1]);
-      if (title !== undefined && body && node.expression.text === "test") {
+      if (title !== undefined && body && callee.name === "test") {
+        // `test.skip(condition, reason)` has no title and no body, so it stays a step of the test it is in
         const titlePath = [...titles, title];
+        const modifier = effectiveModifier(callee.modifier, describes);
         tests.push({
           titlePath,
           name: titlePath.join(" > "),
@@ -105,16 +125,19 @@ export function parseSpec(source: string): ParsedTest[] {
             node.arguments[1] as ts.ArrowFunction | ts.FunctionExpression,
             sourceFile,
           ),
+          ...(modifier && { modifier }),
         });
         return;
       }
-      if (title !== undefined && body && node.expression.text === "describe") {
-        ts.forEachChild(body, (child) => visit(child, [...titles, title]));
+      if (title !== undefined && body && callee.name === "describe") {
+        ts.forEachChild(body, (child) =>
+          visit(child, [...titles, title], [...describes, callee.modifier]),
+        );
         return;
       }
     }
-    ts.forEachChild(node, (child) => visit(child, titles));
+    ts.forEachChild(node, (child) => visit(child, titles, describes));
   };
-  visit(sourceFile, []);
+  visit(sourceFile, [], []);
   return tests;
 }
