@@ -1,6 +1,7 @@
 /**
  * Declarations that turn an element into locator candidates (test id, role and name, label, text, css and
- * an absolute xpath), plus `inToolbar(event)`, which is true for events from the recorder toolbar. A string
+ * an absolute xpath), `uniqueOf(el, candidates)`, the candidates that match only that element right now, and
+ * `inToolbar(event)`, which is true for events from the recorder toolbar. A string
  * of plain declarations, interpolated into the capture script (page realm) and the toolbar script
  * (sandbox realm), so no transpiler helper can end up in it.
  */
@@ -99,6 +100,48 @@ const candidatesOf = (el) => {
   found.push({ method: "locator", xpath: xpathOf(el) });
   return found;
 };
+
+// Not searched by text, as the framework's text locator skips them
+const UNTEXTED = ["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD", "TITLE", "META", "LINK"];
+
+// The elements a candidate matches in this document, found the way the framework's locators find them
+const matchesOf = (call) => {
+  const all = () => Array.prototype.slice.call(document.querySelectorAll("*"));
+  switch (call.method) {
+    case "getByTestId":
+      return all().filter((node) => node.getAttribute("data-testid") === call.testId);
+    case "getByRole":
+      return all().filter((node) => roleOf(node) === call.role && nameOf(node, call.role) === call.name);
+    case "getByLabel":
+      return all().filter((node) => labelTexts(node).indexOf(call.text) >= 0);
+    case "getByText": {
+      const matches = all().filter((node) => UNTEXTED.indexOf(node.tagName) < 0 && textOf(node) === call.text);
+      // Only the innermost count: a wrapper around the matching element is not a match
+      return matches.filter((node) => !matches.some((other) => other !== node && node.contains(other)));
+    }
+    case "getByCss":
+      try {
+        return Array.prototype.slice.call(document.querySelectorAll(call.css));
+      } catch (error) {
+        return [];
+      }
+    case "locator": {
+      const found = document.evaluate(call.xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const nodes = [];
+      for (let i = 0; i < found.snapshotLength; i++) nodes.push(found.snapshotItem(i));
+      return nodes;
+    }
+    default:
+      return [];
+  }
+};
+
+// The candidates that match only el right now: what the recorder falls back to once the page has removed el
+const uniqueOf = (el, candidates) =>
+  candidates.filter((call) => {
+    const found = matchesOf(call);
+    return found.length === 1 && found[0] === el;
+  });
 
 const isTextEntry = (el) => {
   const tag = el.tagName.toLowerCase();
