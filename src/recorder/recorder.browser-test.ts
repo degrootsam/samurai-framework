@@ -282,6 +282,115 @@ function stepsOf(events: RecorderEvent[]) {
   return parseSpec(source)[0]!.steps.map(({ step }) => step);
 }
 
+/** A sign-in form that, like a React app after a successful login, replaces itself on submit */
+const SIGN_IN = [
+  `<form id="f"><label for="email">Email</label><input id="email" type="email">
+   <label for="pw">Password</label><input id="pw" type="password">
+   <button type="submit">Sign in</button></form>`,
+  `document.getElementById("f").addEventListener("submit", (event) => {
+     event.preventDefault();
+     document.body.innerHTML = "<p>Welcome</p><button>Sign out</button>";
+   });`,
+] as const;
+
+test(
+  "records a click on a button that its own click removes, like Sign in after a login",
+  OPTIONS,
+  async () => {
+    await setContent(page, ...SIGN_IN);
+    const events: RecorderEvent[] = [];
+    const recorder = await page.record({
+      onEvent: (event) => events.push(event),
+      initialGoto: false,
+    });
+    await page.getByLabel("Email").fill("sam@example.com");
+    await page.getByLabel("Password").fill("samurai");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await pause(500);
+    await recorder.stop();
+
+    const steps = stepsOf(events);
+    assert.deepEqual(
+      steps.map((step) => step.kind),
+      ["fill", "fill", "click"],
+    );
+    const click = steps[2] as Extract<
+      (typeof steps)[number],
+      { kind: "click" }
+    >;
+    assert.deepEqual(click.locator.chain, [
+      { method: "getByRole", role: "button", name: "Sign in" },
+    ]);
+  },
+);
+
+test(
+  "records an Enter that submits a form which then removes itself",
+  OPTIONS,
+  async () => {
+    await setContent(page, ...SIGN_IN);
+    // Filled before the recording (a browser's autofill): the Enter is the first the recorder sees of it
+    await page.getByLabel("Password").fill("samurai");
+    const events: RecorderEvent[] = [];
+    const recorder = await page.record({
+      onEvent: (event) => events.push(event),
+      initialGoto: false,
+    });
+    await page.getByLabel("Password").press("Enter");
+    await pause(500);
+    await recorder.stop();
+
+    const steps = stepsOf(events);
+    assert.deepEqual(
+      steps.map((step) => step.kind),
+      ["press"],
+    );
+    const press = steps[0] as Extract<
+      (typeof steps)[number],
+      { kind: "press" }
+    >;
+    assert.deepEqual(press.locator.chain, [
+      { method: "getByLabel", text: "Password" },
+    ]);
+  },
+);
+
+test(
+  "a removed button gets only locators that matched it alone when it was clicked",
+  OPTIONS,
+  async () => {
+    await setContent(
+      page,
+      `<ul><li>Milk <button id="del-1">Delete</button></li><li>Eggs <button id="del-2">Delete</button></li></ul>`,
+      `for (const button of document.querySelectorAll("button"))
+         button.addEventListener("click", () => button.parentElement.remove());`,
+    );
+    const events: RecorderEvent[] = [];
+    const recorder = await page.record({
+      onEvent: (event) => events.push(event),
+      initialGoto: false,
+    });
+    await page.getByCss("#del-1").click();
+    await pause(500);
+    await recorder.stop();
+
+    const steps = stepsOf(events);
+    assert.deepEqual(
+      steps.map((step) => step.kind),
+      ["click"],
+    );
+    const click = steps[0] as Extract<
+      (typeof steps)[number],
+      { kind: "click" }
+    >;
+    assert.deepEqual(
+      click.locator.chain,
+      [{ method: "getByCss", css: "#del-1" }],
+      "two buttons were named Delete: role and text did not pick this one out",
+    );
+  },
+);
+
 test(
   "an Enter that submits a form is one press, not also a click on its submit button",
   OPTIONS,

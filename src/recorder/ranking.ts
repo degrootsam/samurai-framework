@@ -25,8 +25,19 @@ export async function rankLocator(
     if (found.length === 1 && found[0]!.sharedId === target.sharedId)
       verified.push(candidate);
   }
+  return specOf(verified, maxFallbacks);
+}
+
+/** The first of `verified` as the primary, up to `maxFallbacks` more as its fallbacks; undefined when empty */
+export function specOf(
+  verified: readonly LocatorCall[],
+  maxFallbacks = 2,
+): LocatorSpec | undefined {
   const [primary, ...fallbacks] = verified;
   return (
-    primary && { chain: [primary], fallbacks: fallbacks.map((call) => [call]) }
+    primary && {
+      chain: [primary],
+      fallbacks: fallbacks.slice(0, maxFallbacks).map((call) => [call]),
+    }
   );
 }
