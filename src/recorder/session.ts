@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
-import { loadConfig, projectDir } from "../config/config.js";
+import { loadRawConfig, projectDir } from "../config/config.js";
 import { loadSecrets } from "../config/secrets.js";
 import { filesFolder, isFolderIgnored } from "../project/index.js";
 import { withProject, type ProjectOptions } from "../runner/project.js";
@@ -108,7 +108,7 @@ export async function recordSpec(
       ...options,
       headless: options.headless ?? settings.headless,
     });
-    const loaded = await loadConfig();
+    const loaded = await loadRawConfig();
     const folder = filesFolder(projectDir(), loaded.filesDir);
     const hadFolder = existsSync(folder.absolute);
     let recorder: Recorder | undefined;

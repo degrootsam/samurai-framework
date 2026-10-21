@@ -1,5 +1,5 @@
 import { availableParallelism } from "node:os";
-import { parseWorkers } from "../config/workers.js";
+import { parseWorkers } from "./workers.js";
 
 export interface WorkersInput {
   /** The command line's `--workers` (or the `workers` run option) */

@@ -1,6 +1,10 @@
 import path from "node:path";
 import { removeGeneratedFiles } from "../browser/generated-files.js";
-import { loadConfig, projectDir, setActiveProject } from "../config/config.js";
+import {
+  loadRawConfig,
+  projectDir,
+  setActiveProject,
+} from "../config/config.js";
 import { resetSecrets } from "../config/mask.js";
 import { setRunSettings, type RunOverrides } from "../config/run-settings.js";
 import type { SamuraiTestConfig } from "../types/config.js";
@@ -43,7 +47,7 @@ export async function withProject<T>(
   const releaseLogs = keepLogFiles(path.resolve(dir ?? previousDir));
   try {
     setActiveProject({ dir: dir ?? previousDir, config, dataDir });
-    const loaded = config ?? (await loadConfig());
+    const loaded = config ?? (await loadRawConfig());
     setActiveProject({ dir: dir ?? previousDir, config: loaded, dataDir });
     resetSecrets();
     const run = prepareRun(loaded, {

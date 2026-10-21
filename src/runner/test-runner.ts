@@ -2,7 +2,7 @@ import { glob } from "node:fs/promises";
 import path from "path";
 import { ensureWarm } from "../browser/warm-up.js";
 import { projectBrowser } from "../browsers/resolve.js";
-import { loadConfig, projectDir, readConfig } from "../config/config.js";
+import { loadRawConfig, projectDir, readConfig } from "../config/config.js";
 import { forbidsOnly } from "../config/forbid-only.js";
 import logger from "../logger/index.js";
 import type { RegisteredTestCase } from "../types/test.js";
@@ -27,7 +27,7 @@ import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveRetries } from "./retries-option.js";
 import { runWithRetries } from "./retry.js";
-import { resolveWorkers } from "./workers-option.js";
+import { resolveWorkers } from "../config/workers-option.js";
 import { WorkerPool, type PoolOptions } from "./worker-pool.js";
 import { processWorkerFactory } from "./worker-process.js";
 
@@ -122,7 +122,7 @@ export default class TestRunner {
     const { reportPath, onEvent, signal } = this.options;
     // The specs are imported once: their top-level code runs once per run
     const loaded = await loadSpecs(this.testFiles);
-    const config = await loadConfig();
+    const config = await loadRawConfig();
     // A focused test the config refuses stops the run before anything starts; else only the focused ones run
     assertNoOnly(loaded.all, forbidsOnly(config), loaded.srcDir);
     const selected = narrowToOnly(selectTests(loaded, this.options));

@@ -42,7 +42,7 @@ export function browsersDir(): string {
 }
 
 /** The whole `samurai.config.ts` of the project (the working directory unless a project is active) */
-export async function loadConfig(): Promise<SamuraiTestConfig> {
+export async function loadRawConfig(): Promise<SamuraiTestConfig> {
   if (activeProject?.config) {
     validateBrowserConfig(activeProject.config);
     validateWorkersConfig(activeProject.config);
@@ -78,7 +78,7 @@ export async function projectConfig(options: {
   const previous = activeProject;
   setActiveProject({ dir: path.resolve(options.projectDir ?? process.cwd()) });
   try {
-    return await loadConfig();
+    return await loadRawConfig();
   } finally {
     setActiveProject(previous);
   }
@@ -87,7 +87,7 @@ export async function projectConfig(options: {
 export async function readConfig<K extends keyof SamuraiTestConfig>(
   key: K,
 ): Promise<SamuraiTestConfig[K]> {
-  const value = (await loadConfig())[key];
+  const value = (await loadRawConfig())[key];
   logger.debug("Resolved config value: ", { value });
   return value;
 }

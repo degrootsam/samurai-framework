@@ -1,10 +1,10 @@
 import path from "path";
 import { pathToFileURL } from "url";
-import { loadConfig } from "../config/config.js";
+import { loadRawConfig } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { RegisteredTestCase } from "../types/test.js";
-import { browsersFor } from "./browsers.js";
+import { browsersFor } from "../config/browsers-for.js";
 import {
   findGroup,
   resolveGroups,
@@ -60,7 +60,7 @@ export function idOf(test: RegisteredTestCase, srcDir: string): string {
 
 /** The config's groups, resolved against the tests the specs register */
 async function resolveAll(tests: RegisteredTestCase[]) {
-  const config = await loadConfig();
+  const config = await loadRawConfig();
   const { dir, srcDir } = realDirs(config.srcDir);
   const groups = resolveGroups(
     config,
@@ -103,7 +103,7 @@ export async function browsersOfRun(
   options: RunnerOptions,
 ): Promise<SupportedBrowser[]> {
   const { browsers: flag, group } = options;
-  const config = await loadConfig();
+  const config = await loadRawConfig();
   const ofGroup =
     group !== undefined && !(flag && flag.length > 0)
       ? findGroup(groups, group).browsers

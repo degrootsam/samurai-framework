@@ -16,9 +16,9 @@ import {
 } from "../../runner/groups.js";
 import logger, { keepLogFiles } from "../../logger/index.js";
 import { resolveRetries } from "../../runner/retries-option.js";
-import { resolveWorkers } from "../../runner/workers-option.js";
+import { resolveWorkers } from "../../config/workers-option.js";
 import { withProject } from "../../runner/project.js";
-import { browsersFor } from "../../runner/browsers.js";
+import { browsersFor } from "../../config/browsers-for.js";
 import { DEFAULT_PORT } from "../../runner/ports.js";
 import { runTests } from "../../runner/run.js";
 import TestRunner from "../../runner/test-runner.js";
