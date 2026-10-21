@@ -128,7 +128,7 @@ describe("main", () => {
       `import { test } from ${JSON.stringify(path.resolve("src/api.ts"))};
 test("plain", async () => {});
 test.skip("later", async () => {});
-test.fixme("broken", async () => {});
+test.fixme("broken", { reason: "flaky on CI" }, async () => {});
 test.only("focus", async () => {});`,
     );
     const previous = process.cwd();
@@ -139,7 +139,7 @@ test.only("focus", async () => {});`,
       const lines = human.out().split("\n");
       assert.ok(lines.includes("plain"), human.out());
       assert.ok(lines.includes("later [skip]"), human.out());
-      assert.ok(lines.includes("broken [fixme]"), human.out());
+      assert.ok(lines.includes("broken [fixme: flaky on CI]"), human.out());
       assert.ok(lines.includes("focus [only]"), human.out());
 
       const json = io();
@@ -147,14 +147,15 @@ test.only("focus", async () => {});`,
       const listed = JSON.parse(json.out()) as {
         name: string;
         modifier?: string;
+        reason?: string;
       }[];
       assert.deepEqual(
-        listed.map((t) => [t.name, t.modifier]),
+        listed.map((t) => [t.name, t.modifier, t.reason]),
         [
-          ["plain", undefined],
-          ["later", "skip"],
-          ["broken", "fixme"],
-          ["focus", "only"],
+          ["plain", undefined, undefined],
+          ["later", "skip", undefined],
+          ["broken", "fixme", "flaky on CI"],
+          ["focus", "only", undefined],
         ],
       );
     } finally {
@@ -174,7 +175,7 @@ test.only("focus", async () => {});`,
       path.join(dir, "specs/a.spec.ts"),
       `import { test } from ${JSON.stringify(path.resolve("src/api.ts"))};
 test.skip("later", async () => {});
-test.fixme("broken", async () => {});`,
+test.fixme("broken", { reason: "flaky on CI" }, async () => {});`,
     );
     const previous = process.cwd();
     process.chdir(dir);
@@ -182,16 +183,26 @@ test.fixme("broken", async () => {});`,
       const human = io();
       assert.equal(await main(["run"], human.target), 0);
       assert.match(human.out(), /- later \(skipped\)/);
-      assert.match(human.out(), /- broken \(fixme\)/);
+      assert.match(human.out(), /- broken \(fixme: flaky on CI\)/);
       assert.match(human.out(), /0 passed, 2 skipped/);
 
       const json = io();
       assert.equal(await main(["run", "--json"], json.target), 0);
-      const types = json
+      const events = json
         .out()
         .trim()
         .split("\n")
-        .map((line) => (JSON.parse(line) as { type: string }).type);
+        .map(
+          (line) =>
+            JSON.parse(line) as { type: string; result?: { reason?: string } },
+        );
+      const types = events.map((event) => event.type);
+      assert.deepEqual(
+        events
+          .filter((e) => e.type === "test-end")
+          .map((e) => e.result?.reason),
+        [undefined, "flaky on CI"],
+      );
       assert.deepEqual(types, [
         "run-start",
         "test-start",

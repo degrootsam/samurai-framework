@@ -14,7 +14,11 @@ export {
   type StepResult,
   type StepRunInput,
 } from "./flows/steps/index.js";
-export type { AllHookFixtures, TestFixtures } from "./types/test.js";
+export type {
+  AllHookFixtures,
+  TestDetails,
+  TestFixtures,
+} from "./types/test.js";
 export {
   generatedFile,
   type GeneratedFile,

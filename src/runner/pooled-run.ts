@@ -107,8 +107,8 @@ export async function runPooled(
 ): Promise<void> {
   reporter.setOrder(planned);
   for (const { test, browser } of planned) {
-    const annotation = staticSkip(test);
-    if (annotation) reporter.onTestSkipped(test, browser, { annotation });
+    const skip = staticSkip(test);
+    if (skip) reporter.onTestSkipped(test, browser, skip);
   }
   const started = new Set<number>();
   const ended = new Set<number>();

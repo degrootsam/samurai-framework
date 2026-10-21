@@ -120,6 +120,47 @@ describe.skip("C", () => {
     assert.ok(!tests.some((t) => t.name.endsWith("reason")));
   });
 
+  it("reads the { reason } of a skip or fixme, from the test or the describe that decides", () => {
+    const source = `test.skip("a", { reason: "waits for v2" }, async ({ page }) => {
+  await page.goto("/a");
+});
+test.fixme("b", {}, async () => {});
+describe.skip("Old", { reason: "replaced" }, () => {
+  test("c", async () => {});
+  test.fixme("d", { reason: "own" }, async () => {});
+});
+describe.only("Focus", () => {
+  test.only("e", async () => {});
+});
+`;
+    const tests = parseSpec(source);
+    assert.deepEqual(
+      tests.map((t) => [t.name, t.modifier, t.reason]),
+      [
+        ["a", "skip", "waits for v2"],
+        ["b", "fixme", undefined],
+        ["Old > c", "skip", "replaced"],
+        ["Old > d", "fixme", "own"],
+        ["Focus > e", "only", undefined],
+      ],
+    );
+    assert.ok(!("reason" in tests[1]!), "no reason key without one");
+    assert.deepEqual(
+      tests[0]!.steps.map((s) => s.step),
+      [{ kind: "goto", url: "/a" }],
+    );
+    const edited = applyEdit(source, {
+      op: "insert",
+      test: 0,
+      index: 1,
+      step: { kind: "goto", url: "/more" },
+    });
+    assert.ok(
+      edited.includes('test.skip("a", { reason: "waits for v2" }, async'),
+    );
+    assert.equal(parseSpec(edited)[0]!.steps.length, 2);
+  });
+
   it("does not take a hook for a test", () => {
     const names = parseSpec(SPEC).map((t) => t.name);
     assert.ok(!names.some((n) => n.includes("beforeEach")));
