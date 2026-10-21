@@ -18,6 +18,7 @@ describe("capabilities", () => {
       testIds: true,
       resolvedConfig: true,
       recorderStartStatus: true,
+      outputDir: true,
     });
   });
 

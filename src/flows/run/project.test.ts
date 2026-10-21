@@ -142,6 +142,19 @@ describe("runFlowInProject", () => {
     assert.equal(h.calls[0]!.reportPath, false);
   });
 
+  it("passes outputDir to the runs of its nodes", async () => {
+    const h = harness();
+    const outputDir = path.resolve("/runs/1");
+    await runFlowInProject({
+      ...h.options,
+      outputDir,
+      flow: chain([
+        { id: "t", kind: "test", ref: { testId: "login.spec.ts::works" } },
+      ]),
+    });
+    assert.equal(h.calls[0]!.outputDir, outputDir);
+  });
+
   it("a Group node runs the tests the group resolves to, one run for the node", async () => {
     const h = harness();
     await runFlowInProject({
@@ -351,6 +364,7 @@ describe("runFlowInProject", () => {
         headless: true,
         timeout: 5000,
         environment: "staging",
+        outputDir: "runs/1",
         createPool: pool.createPool,
         flow: chain([
           login,
@@ -371,6 +385,7 @@ describe("runFlowInProject", () => {
       assert.equal(options.init.timeout, 5000);
       assert.equal(options.init.environment, "staging");
       assert.equal(options.init.projectDir, path.resolve(dir));
+      assert.equal(options.init.outputDir, "runs/1");
       assert.deepEqual([...options.init.files].sort(), [
         real("src/checkout/cart.spec.ts"),
         real("src/login.spec.ts"),

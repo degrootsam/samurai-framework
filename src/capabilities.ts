@@ -27,6 +27,8 @@ export const CAPABILITIES = {
   resolvedConfig: true,
   /** The recorder's first `onStatus` call, `{ state: "recording", toolbar }`, right after it starts, and a `RecordResult` with every field always present. */
   recorderStartStatus: true,
+  /** `outputDir` on `runTests` and `runFlowInProject`: a folder per run for the report and the screenshots. */
+  outputDir: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */

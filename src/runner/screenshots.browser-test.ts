@@ -60,3 +60,33 @@ test(
     assert.deepEqual(report.tests[0]?.screenshots, expected);
   },
 );
+
+test(
+  "with outputDir, the report and the screenshots go there and result/ stays empty",
+  { timeout: 90000 },
+  async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-project-"));
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    mkdirSync(path.join(dir, "specs"));
+    writeFileSync(path.join(dir, "specs/shots.spec.ts"), SPEC);
+    const outputDir = path.join(dir, "runs", "1");
+    const summary = await runTests({
+      projectDir: dir,
+      config: { ...browserConfig(), srcDir: "./specs", timeout: 30000 },
+      dataDir: path.join(dir, "data"),
+      headless: true,
+      port: 9254,
+      outputDir,
+    });
+    assert.equal(summary.status, "success");
+
+    const relative = `screenshots/${testBrowser()}/shots.spec/takes-screenshots/first-view.png`;
+    assert.ok(existsSync(path.join(outputDir, ...relative.split("/"))));
+    const report = JSON.parse(
+      readFileSync(path.join(outputDir, "report.json"), "utf8"),
+    ) as { tests: { screenshots?: { path: string }[] }[] };
+    assert.equal(report.tests[0]?.screenshots?.[0]?.path, relative);
+    assert.ok(!existsSync(path.join(dir, "result", "report.json")));
+    assert.ok(!existsSync(path.join(dir, "result", "screenshots")));
+  },
+);

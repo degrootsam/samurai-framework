@@ -54,6 +54,9 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
               ...(init.reportPath !== undefined && {
                 reportPath: init.reportPath,
               }),
+              ...(init.outputDir !== undefined && {
+                outputDir: init.outputDir,
+              }),
               port,
               signal,
             };

@@ -28,6 +28,7 @@ import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveRetries } from "./retries-option.js";
 import { runWithRetries } from "./retry.js";
 import { resolveWorkers } from "../config/workers-option.js";
+import { runOutput } from "./output.js";
 import { WorkerPool, type PoolOptions } from "./worker-pool.js";
 import { processWorkerFactory } from "./worker-process.js";
 
@@ -119,7 +120,7 @@ export default class TestRunner {
    * was also written to the report. With more than one worker the tests run at the same time in worker processes.
    */
   public async start() {
-    const { reportPath, onEvent, signal } = this.options;
+    const { onEvent, signal } = this.options;
     // The specs are imported once: their top-level code runs once per run
     const loaded = await loadSpecs(this.testFiles);
     const config = await loadRawConfig();
@@ -130,7 +131,7 @@ export default class TestRunner {
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
       browsers,
-      ...(reportPath !== undefined && { output: reportPath }),
+      output: runOutput(this.options, projectDir()).report,
       ...(onEvent && { onEvent }),
     });
 
@@ -248,7 +249,7 @@ export default class TestRunner {
   /** The pool of a run: up to `workers` worker processes that read the same project and settings as this run */
   private createPool(workers: number, retries: number) {
     const { settings } = this.run;
-    const { reportPath, headless, port } = this.options;
+    const { reportPath, outputDir, headless, port } = this.options;
     const options: PoolOptions = {
       workers,
       factory: processWorkerFactory(),
@@ -262,6 +263,7 @@ export default class TestRunner {
         expectTimeout: settings.expectTimeout,
         ...(headless !== undefined && { headless }),
         ...(typeof reportPath === "string" && { reportPath }),
+        ...(outputDir !== undefined && { outputDir }),
         files: this.testFiles,
         basePort: port ?? DEFAULT_PORT,
         ...(retries > 0 && { retries }),

@@ -26,6 +26,8 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   /** `"fail"` (default): a flow with a node that can't run is refused. `"skip"`: those nodes are skipped. */
   unsupported?: "fail" | "skip";
   port?: number;
+  /** The folder the tests' named screenshots go in, instead of `<project>/result` (see `runTests`). Relative to the project folder */
+  outputDir?: string;
   /**
    * How many worker processes the tests of the whole run share: a number, or a percentage like `"50%"`. Unset
    * takes `SAMURAI_WORKERS` (`workersEnv`), then the config's `workers`, then half the CPUs. 1 runs each Test
