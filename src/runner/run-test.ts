@@ -1,4 +1,3 @@
-import path from "path";
 import { takePendingAssertions } from "../assert/expect.js";
 import { Browser } from "../browser/browser.js";
 import { Evidence } from "../browser/evidence.js";
@@ -24,6 +23,7 @@ import { runWithEachHooks } from "./hooks.js";
 import { isSkipSignal, staticSkip, type SkipSignal } from "./skip.js";
 import type { PreparedRun } from "./prepare-run.js";
 import type { TestSink } from "./reporter.js";
+import { runOutput } from "./output.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
 
@@ -123,11 +123,7 @@ export async function runOneTest(
   const outcome = new TestOutcome(reporter, test, browserName);
   const { settings, secrets } = run;
   const timeout = settings.timeout;
-  const { reportPath } = options;
-  const resultDir =
-    typeof reportPath === "string"
-      ? path.dirname(reportPath)
-      : path.join(projectDir(), "result");
+  const { resultDir } = runOutput(options, projectDir());
 
   let browser: Browser | undefined;
   let page: Page | undefined;
