@@ -2,8 +2,7 @@ import path from "path";
 import type { Modifier, TestSummary } from "../types/test.js";
 import type { PreparedRun } from "./prepare-run.js";
 import { withProject, type ProjectOptions } from "./project.js";
-import { toPosix, type ResolvedGroup } from "./groups.js";
-import { idOf } from "./select.js";
+import { testId, toPosix, type ResolvedGroup } from "./groups.js";
 import TestRunner from "./test-runner.js";
 import type { RunnerOptions } from "./options.js";
 
@@ -91,11 +90,12 @@ export async function listTests(
     const { tests, srcDir } = await runner.list();
     return tests.map((test) => {
       const { name, file, modifier, reason } = test;
+      const relativeFile = toPosix(path.relative(srcDir, file));
       return {
-        id: idOf(test, srcDir),
+        id: testId(relativeFile, name),
         name,
         file,
-        relativeFile: toPosix(path.relative(srcDir, file)),
+        relativeFile,
         ...(modifier && { modifier }),
         ...(reason !== undefined && { reason }),
       };
