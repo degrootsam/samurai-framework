@@ -10,6 +10,7 @@ import {
 import EventEmitter from "node:events";
 import path from "node:path";
 import { projectDir } from "../config/config.js";
+import { DEFAULT_VIEWPORT } from "../config/defaults.js";
 import logger from "../logger/index.js";
 import type { NetworkRequest } from "../network/network-tracker.js";
 import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
@@ -65,7 +66,7 @@ import {
   type ReadinessState,
 } from "./page-settings.js";
 export type { PageSettings, ReadinessState };
-import { applyViewport, DEFAULT_VIEWPORT, type Viewport } from "./viewport.js";
+import { applyViewport, type Viewport } from "./viewport.js";
 import { HelperRealm } from "../locator/helper-realm.js";
 import { addPreload, type PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";

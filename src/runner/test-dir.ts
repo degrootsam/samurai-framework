@@ -2,7 +2,8 @@ import path from "path";
 import { projectDir } from "../config/config.js";
 import { cleanName } from "../browser/evidence.js";
 import type { RegisteredTestCase } from "../types/test.js";
-import { DEFAULT_SRC_DIR, realPath, toPosix } from "./groups.js";
+import { DEFAULT_SRC_DIR } from "../config/defaults.js";
+import { realPath, toPosix } from "./groups.js";
 
 /** The project and source folders as real paths: registered test files come from stack traces, which resolve symlinks */
 export function realDirs(configuredSrcDir: string | undefined) {

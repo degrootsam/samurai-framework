@@ -1,9 +1,6 @@
 import { callFunction } from "../script/call-function.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 
-/** The size a page gets unless config `use.viewport` says otherwise */
-export const DEFAULT_VIEWPORT = { width: 1280, height: 720 };
-
 /** Time (ms) without a `resize` event after which a viewport reset counts as done */
 const RESIZE_QUIET_TIME = 50;
 /** Time (ms) a viewport reset waits for a `resize` event that may never come (the size did not change) */

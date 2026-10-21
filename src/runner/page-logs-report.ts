@@ -1,4 +1,5 @@
 import type { LogRecord, PageError } from "../browser/page-logs.js";
+import { DEFAULT_LOGS_CAPTURE } from "../config/defaults.js";
 import type { SamuraiTestConfig } from "../types/config.js";
 import type { TestError } from "../types/test.js";
 import { toTestError } from "./test-error.js";
@@ -11,7 +12,9 @@ export class PageErrorsError extends Error {
   public readonly errors: readonly PageError[];
 
   constructor(errors: readonly PageError[]) {
-    super(`${errors.length} uncaught page error(s): ${errors.map((error) => error.message).join("\n")}`);
+    super(
+      `${errors.length} uncaught page error(s): ${errors.map((error) => error.message).join("\n")}`,
+    );
     this.name = "PageErrorsError";
     this.errors = errors;
   }
@@ -22,7 +25,9 @@ export class RouteErrorsError extends Error {
   public readonly errors: readonly Error[];
 
   constructor(errors: readonly Error[]) {
-    super(`${errors.length} route handler error(s): ${errors.map((error) => error.message).join("\n")}`);
+    super(
+      `${errors.length} route handler error(s): ${errors.map((error) => error.message).join("\n")}`,
+    );
     this.name = "RouteErrorsError";
     this.errors = errors;
   }
@@ -50,9 +55,14 @@ export interface PageLogsVerdict {
   logsDropped?: number;
 }
 
-function isIgnored(error: PageError, ignore: readonly (string | RegExp)[]): boolean {
+function isIgnored(
+  error: PageError,
+  ignore: readonly (string | RegExp)[],
+): boolean {
   return ignore.some((pattern) =>
-    typeof pattern === "string" ? error.message.includes(pattern) : pattern.test(error.message),
+    typeof pattern === "string"
+      ? error.message.includes(pattern)
+      : pattern.test(error.message),
   );
 }
 
@@ -61,14 +71,24 @@ function isIgnored(error: PageError, ignore: readonly (string | RegExp)[]): bool
  * `capture` "failures" (default) attaches them to failed tests, "all" always, "off" never.
  */
 export function judgePageLogs(input: PageLogsInput): PageLogsVerdict {
-  const { config, entries, errors, dropped, testFailed, allowPageErrors, routeErrors = [] } = input;
-  const capture = config?.capture ?? "failures";
+  const {
+    config,
+    entries,
+    errors,
+    dropped,
+    testFailed,
+    allowPageErrors,
+    routeErrors = [],
+  } = input;
+  const capture = config?.capture ?? DEFAULT_LOGS_CAPTURE;
 
   let error: TestError | undefined;
   if (routeErrors.length > 0 && !testFailed) {
     error = toTestError(new RouteErrorsError(routeErrors));
   } else if (config?.failOnPageError && !testFailed && !allowPageErrors) {
-    const counted = errors.filter((pageError) => !isIgnored(pageError, config.ignoreErrors ?? []));
+    const counted = errors.filter(
+      (pageError) => !isIgnored(pageError, config.ignoreErrors ?? []),
+    );
     if (counted.length > 0) error = toTestError(new PageErrorsError(counted));
   }
 

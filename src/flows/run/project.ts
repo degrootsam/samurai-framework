@@ -1,4 +1,5 @@
 import path from "node:path";
+import { DEFAULT_SRC_DIR } from "../../config/defaults.js";
 import { projectConfig } from "../../config/config.js";
 import {
   checkFlow,
@@ -7,7 +8,6 @@ import {
   type FlowProblem,
 } from "../core/index.js";
 import {
-  DEFAULT_SRC_DIR,
   realPath,
   resolveGroups,
   testId,

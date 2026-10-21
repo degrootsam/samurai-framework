@@ -1,4 +1,5 @@
 import type { ContextTree } from "../browser/context-tree.js";
+import { DEFAULT_ROUTE_TIMEOUT } from "../config/defaults.js";
 import logger from "../logger/index.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { BeforeRequestSentParameters } from "../types/bidi-modules/network.js";
@@ -16,8 +17,6 @@ import { matchUrl, samePattern, type UrlPattern } from "./url-match.js";
 export type { RouteHandler } from "./route.js";
 export { Route } from "./route.js";
 
-/** Time (ms) a handler may take to answer a request before the router lets it continue */
-const DEFAULT_ROUTE_TIMEOUT = 30000;
 /** How many handler errors the router keeps */
 const MAX_ERRORS = 100;
 

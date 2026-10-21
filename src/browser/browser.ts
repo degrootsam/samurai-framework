@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import path from "node:path";
+import { DEFAULT_DOWNLOADS_DIR } from "../config/defaults.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import { projectBrowser } from "../browsers/resolve.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
@@ -146,7 +147,7 @@ export class Browser {
       biDiConnector,
       path.resolve(
         projectDir(),
-        (await readDownloadsDir()) ?? "result/downloads",
+        (await readDownloadsDir()) ?? DEFAULT_DOWNLOADS_DIR,
       ),
     );
     // Chrome replaces a file that has the name of a download; this keeps every download

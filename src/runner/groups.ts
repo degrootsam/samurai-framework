@@ -2,12 +2,8 @@ import { realpathSync } from "node:fs";
 import { matchesGlob, relative, resolve } from "node:path";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { SamuraiGroup } from "../types/config.js";
+import { DEFAULT_TEST_MATCH } from "../config/defaults.js";
 import { browsersFor } from "./browsers.js";
-
-/** The test folder when the config names none */
-export const DEFAULT_SRC_DIR = "./src";
-/** The spec pattern when a group names none */
-export const DEFAULT_TEST_MATCH = "**/*.spec.ts";
 
 /** A test as groups see it: its spec file (relative to `srcDir`, or any path inside it) and full name */
 export interface GroupTest {
