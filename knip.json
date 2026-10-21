@@ -13,6 +13,7 @@
     "src/flows/run/index.ts",
     "src/flows/steps/index.ts",
     "src/project/index.ts",
+    "src/capabilities.ts",
     "src/**/*.test.ts",
     "src/**/*.browser-test.ts",
     "src/**/*.cli-test.ts",

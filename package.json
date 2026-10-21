@@ -48,6 +48,10 @@
       "types": "./dist/project/index.d.ts",
       "default": "./dist/project/index.js"
     },
+    "./capabilities": {
+      "types": "./dist/capabilities.d.ts",
+      "default": "./dist/capabilities.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
