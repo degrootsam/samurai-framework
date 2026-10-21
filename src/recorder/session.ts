@@ -50,7 +50,8 @@ export interface RecordSpecOptions extends ProjectOptions {
   /**
    * Called once with the recording's first status right after `onStarted` resolves (`{ state: "recording" }`,
    * and `toolbar: false` if the toolbar had already failed to load), then whenever the recording is paused
-   * or resumed, or the toolbar fails (or comes back) on a page.
+   * or resumed, or the toolbar fails (or comes back) on a page. Statuses that arrive while `onStarted` runs are held
+   * and sent once it resolves, after the first status.
    */
   onStatus?: (status: {
     state: "recording" | "paused";
