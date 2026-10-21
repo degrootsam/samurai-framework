@@ -1,4 +1,5 @@
 import path from "node:path";
+import { cleanName } from "../../browser/evidence.js";
 import { DEFAULT_SRC_DIR } from "../../config/defaults.js";
 import { projectConfig } from "../../config/config.js";
 import {
@@ -284,9 +285,6 @@ async function walkFlowInProject(
             ...(options.headless !== undefined && {
               headless: options.headless,
             }),
-            ...(options.outputDir !== undefined && {
-              outputDir: options.outputDir,
-            }),
             files,
             basePort: options.port ?? DEFAULT_PORT,
             ...(retries > 0 && { retries }),
@@ -305,13 +303,19 @@ async function walkFlowInProject(
       unsupported,
       handlers: { ...HANDLERS, ...steps.handlers },
       nodes: steps.nodes,
-      runTests: async ({ tests, onEvent, signal, browsers }) => {
+      runTests: async ({ nodeId, tests, onEvent, signal, browsers }) => {
+        // Each node gets a folder of its own: the same test in two nodes would overwrite its screenshots
+        const outputDir =
+          options.outputDir !== undefined
+            ? path.join(options.outputDir, "nodes", cleanName(nodeId))
+            : undefined;
         if (pool)
           return runOnPool(
             pool,
             itemsOf(
               tests,
               browsers ?? browsersFor({ project: config.browsers }),
+              outputDir,
             ),
             onEvent,
             signal,
@@ -333,9 +337,7 @@ async function walkFlowInProject(
           files: [...new Set(tests.map((t) => t.file))],
           testNames: tests.map((t) => t.name),
           reportPath: false,
-          ...(options.outputDir !== undefined && {
-            outputDir: options.outputDir,
-          }),
+          ...(outputDir !== undefined && { outputDir }),
           signal,
           onEvent,
         });

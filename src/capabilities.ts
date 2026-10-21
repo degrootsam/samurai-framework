@@ -31,6 +31,8 @@ export const CAPABILITIES = {
   recorderStartStatus: true,
   /** `outputDir` on `runTests` and `runFlowInProject`: a folder per run for the report and the screenshots. */
   outputDir: true,
+  /** `runFlowInProject`'s `outputDir` gives each node its own folder, `nodes/<node id>/`. */
+  flowNodeFolders: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */

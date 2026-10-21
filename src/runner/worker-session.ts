@@ -42,7 +42,7 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
         });
         resolve({
           tests: loaded.all,
-          async runTest(test, browser, signal, onEvent) {
+          async runTest(test, browser, signal, onEvent, perTest = {}) {
             const reporter = new TestReporter({
               environment: run.settings.environment,
               browsers: [browser],
@@ -54,8 +54,8 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
               ...(init.reportPath !== undefined && {
                 reportPath: init.reportPath,
               }),
-              ...(init.outputDir !== undefined && {
-                outputDir: init.outputDir,
+              ...((perTest.outputDir ?? init.outputDir) !== undefined && {
+                outputDir: perTest.outputDir ?? init.outputDir,
               }),
               port,
               signal,

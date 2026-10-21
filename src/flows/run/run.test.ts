@@ -98,6 +98,30 @@ describe("runFlow", () => {
     );
   });
 
+  test("tells runTests which node the tests are for", async () => {
+    const nodeIds: string[] = [];
+    const h = harness(
+      flowOf(
+        [
+          { id: "start", kind: "start" },
+          { id: "a", kind: "test" },
+          { id: "b", kind: "test" },
+          { id: "end", kind: "end" },
+        ],
+        chain("start", "a", "b", "end"),
+      ),
+      {},
+      {
+        runTests: async ({ nodeId }) => {
+          nodeIds.push(nodeId);
+          return "passed";
+        },
+      },
+    );
+    await runFlow(h.options);
+    assert.deepEqual(nodeIds, ["a", "b"]);
+  });
+
   test("a failure with Stop ends the run; the rest is not run", async () => {
     const h = harness(
       flowOf(
