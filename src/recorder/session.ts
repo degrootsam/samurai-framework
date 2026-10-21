@@ -48,8 +48,9 @@ export interface RecordSpecOptions extends ProjectOptions {
   /** Called after each step is written to the file, with the file's new content */
   onEvent?: (event: RecorderEvent, source: string) => void;
   /**
-   * Called when the recording is paused or resumed, or the toolbar fails (or comes back) on a page.
-   * There is no initial call: until the first one the recording is `{ state: "recording", toolbar: true }`
+   * Called once with the recording's first status right after `onStarted` resolves (`{ state: "recording" }`,
+   * and `toolbar: false` if the toolbar had already failed to load), then whenever the recording is paused
+   * or resumed, or the toolbar fails (or comes back) on a page.
    */
   onStatus?: (status: {
     state: "recording" | "paused";
@@ -64,6 +65,9 @@ export interface RecordSpecOptions extends ProjectOptions {
   }) => void | Promise<void>;
 }
 
+type Status = Parameters<NonNullable<RecordSpecOptions["onStatus"]>>[0];
+
+/** What a recording returns; every field is always present, empty when there is nothing to report. */
 export interface RecordResult {
   file: string;
   /** Full name of the test the steps went into */
@@ -113,6 +117,14 @@ export async function recordSpec(
     const hadFolder = existsSync(folder.absolute);
     let recorder: Recorder | undefined;
     const addedSecrets = new Set<string>();
+    // Statuses that come while `onStarted` runs wait behind the first one, which is always the first
+    let waiting: Status[] | undefined = [];
+    let toolbarLoaded = true;
+    const onStatus = (status: Status) => {
+      toolbarLoaded = status.toolbar;
+      if (waiting) waiting.push(status);
+      else options.onStatus?.(status);
+    };
     let stopRequested!: () => void;
     const stopped = new Promise<void>((resolve) => (stopRequested = resolve));
     try {
@@ -133,7 +145,7 @@ export async function recordSpec(
             testIndex,
           )),
           projectDir: projectDir(),
-          ...(options.onStatus && { onStatus: options.onStatus }),
+          ...(options.onStatus && { onStatus }),
           onSecretAdded: (name) => addedSecrets.add(name),
           onStop: () => stopRequested(),
         },
@@ -152,6 +164,10 @@ export async function recordSpec(
         },
       });
       await options.onStarted?.({ page, browser });
+      const queued = waiting ?? [];
+      waiting = undefined;
+      options.onStatus?.({ state: "recording", toolbar: toolbarLoaded });
+      for (const status of queued) options.onStatus?.(status);
 
       let windowClosed = false;
       void browser.exited.then(() => (windowClosed = true));

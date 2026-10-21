@@ -25,6 +25,8 @@ export const CAPABILITIES = {
   testIds: true,
   /** `loadConfig` from `./project`: the config with every default applied, the way a run uses it. */
   resolvedConfig: true,
+  /** The recorder's first `onStatus` call, `{ state: "recording", toolbar }`, right after it starts, and a `RecordResult` with every field always present. */
+  recorderStartStatus: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */

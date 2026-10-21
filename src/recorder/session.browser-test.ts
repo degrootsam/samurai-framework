@@ -148,6 +148,59 @@ test("recordSpec ends when the browser window is closed", OPTIONS, async () => {
 });
 
 test(
+  "recordSpec sends a first recording status right after it starts",
+  OPTIONS,
+  async () => {
+    const { dir, config } = project();
+    const statuses: { state: string; toolbar: boolean }[] = [];
+    const controller = new AbortController();
+    await recordSpec({
+      projectDir: dir,
+      config,
+      dataDir: path.join(dir, "data"),
+      file: "tests/first.spec.ts",
+      create: "first status",
+      url: PAGE,
+      headless: true,
+      port: 9246,
+      signal: controller.signal,
+      onStatus: (status) => statuses.push(status),
+      onStarted: () => controller.abort(),
+    });
+    assert.deepEqual(statuses[0], { state: "recording", toolbar: true });
+    assert.equal(statuses.length, 1);
+  },
+);
+
+test(
+  "a recording with nothing recorded returns every result field",
+  OPTIONS,
+  async () => {
+    const { dir, config } = project();
+    const controller = new AbortController();
+    const result = await recordSpec({
+      projectDir: dir,
+      config,
+      dataDir: path.join(dir, "data"),
+      file: "tests/empty.spec.ts",
+      create: "nothing",
+      url: PAGE,
+      headless: true,
+      port: 9247,
+      signal: controller.signal,
+      onStarted: () => controller.abort(),
+    });
+    assert.deepEqual(result.files, []);
+    assert.deepEqual(result.missingFiles, []);
+    assert.equal(result.filesIgnored, false);
+    assert.equal(result.firstFiles, false);
+    assert.deepEqual(result.secrets, []);
+    assert.deepEqual(result.unsetSecrets, []);
+    assert.equal(typeof result.filesFolder, "string");
+  },
+);
+
+test(
   "recordSpec resolves when the toolbar's Stop is pressed, and reports its status",
   OPTIONS,
   async () => {
@@ -183,6 +236,7 @@ test(
     });
     assert.equal(result.test, "stops");
     assert.deepEqual(statuses, [
+      { state: "recording", toolbar: true },
       { state: "paused", toolbar: true },
       { state: "recording", toolbar: true },
     ]);
