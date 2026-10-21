@@ -154,7 +154,7 @@ async function prepare(
       environment: name,
     },
     async (run) => {
-      const found = await (await TestRunner.init(run)).register();
+      const { tests: found } = await (await TestRunner.init(run)).list();
       const tests = found.map((t) => ({
         id: testId(toPosix(path.relative(srcDir, t.file)), t.name),
         file: t.file,

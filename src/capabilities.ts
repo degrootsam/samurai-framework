@@ -21,6 +21,8 @@ export const CAPABILITIES = {
   modifiers: true,
   /** A reason given with a skipped test, shown in the results. */
   skipReason: true,
+  /** An id and a relative file on each test `listTests` finds, the same ids the groups use. */
+  testIds: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */

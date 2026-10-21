@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { listTests } from "./run.js";
+import { listGroups, listTests } from "./run.js";
 
 const API = JSON.stringify(path.resolve("src/api.ts"));
 let dir: string;
@@ -48,5 +54,55 @@ describe("listTests", () => {
       [undefined, undefined, "flaky on CI", undefined, "replaced"],
     );
     assert.ok(!("reason" in tests[1]!), "no reason key without one");
+  });
+
+  it("gives each test the id its groups use, and its file relative to srcDir", async () => {
+    const options = {
+      projectDir: dir,
+      config: {
+        srcDir: "./src",
+        forbidOnly: false,
+        groups: [{ name: "all" }],
+      },
+    };
+    const tests = await listTests(options);
+    assert.equal(tests[0]!.relativeFile, "shop.spec.ts");
+    assert.equal(tests[0]!.id, "shop.spec.ts::plain");
+    assert.deepEqual(Object.keys(tests[0]!), [
+      "id",
+      "name",
+      "file",
+      "relativeFile",
+    ]);
+    const [all] = await listGroups(options);
+    assert.deepEqual(
+      all!.testIds,
+      tests.map((t) => t.id),
+    );
+  });
+
+  it("ids match groups when the project folder is a symlink", async () => {
+    const holder = mkdtempSync(path.join(tmpdir(), "samurai-list-link-"));
+    try {
+      const link = path.join(holder, "link");
+      symlinkSync(dir, link);
+      const options = {
+        projectDir: link,
+        config: {
+          srcDir: "./src",
+          forbidOnly: false,
+          groups: [{ name: "all" }],
+        },
+      };
+      const tests = await listTests(options);
+      const [all] = await listGroups(options);
+      assert.equal(tests[0]!.relativeFile, "shop.spec.ts");
+      assert.deepEqual(
+        tests.map((t) => t.id),
+        all!.testIds,
+      );
+    } finally {
+      rmSync(holder, { recursive: true, force: true });
+    }
   });
 });

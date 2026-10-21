@@ -15,6 +15,7 @@ describe("capabilities", () => {
       managedBrowsers: true,
       modifiers: true,
       skipReason: true,
+      testIds: true,
     });
   });
 
