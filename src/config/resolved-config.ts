@@ -58,7 +58,7 @@ export interface ResolvedIgnoreError {
 export interface ResolvedConfig {
   /** The project folder, absolute */
   projectDir: string;
-  /** The test folder, absolute */
+  /** The test folder, absolute and not resolved through symlinks: use `FoundTest.relativeFile` rather than computing paths against it */
   srcDir: string;
   /** The test folder as the config writes it */
   srcDirRelative: string;
@@ -187,6 +187,7 @@ export function resolveConfig(
     bidiCommandTimeout: config.bidi?.commandTimeout ?? DEFAULT_COMMAND_TIMEOUT,
     ...(config.workers !== undefined && { workers: config.workers }),
     workersResolved: resolveWorkers({ config: config.workers }),
+    // Matches the runner's `resolveRetries` without the command line flag and the environment (config/ cannot import runner/)
     retries: config.retries ?? DEFAULT_RETRIES,
     forbidOnly: forbidsOnly(config, env),
     headless: project.headless,
@@ -226,7 +227,8 @@ export function resolveConfig(
 /**
  * A project's `samurai.config.ts` with every default applied, the way a run uses it (see {@link ResolvedConfig}).
  * Leaves no project active. The caller registers `tsx` first (the framework does not), so the config file can be
- * imported; an app does that in the child process that calls this.
+ * imported; an app does that in the child process that calls this. The config module is imported once per process
+ * (Node caches it): a later edit to `samurai.config.ts` is seen only in a new process.
  * @param options.projectDir The project folder. @default the working directory
  * @param options.env Where `CI` is read from. @default `process.env`
  */
