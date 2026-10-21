@@ -3,7 +3,7 @@ import { matchesGlob, relative, resolve } from "node:path";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { SamuraiGroup } from "../types/config.js";
 import { DEFAULT_TEST_MATCH } from "../config/defaults.js";
-import { browsersFor } from "./browsers.js";
+import { browsersFor } from "../config/browsers-for.js";
 
 /** A test as groups see it: its spec file (relative to `srcDir`, or any path inside it) and full name */
 export interface GroupTest {

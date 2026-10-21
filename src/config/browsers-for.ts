@@ -1,4 +1,4 @@
-import { DEFAULT_BROWSERS } from "../config/defaults.js";
+import { DEFAULT_BROWSERS } from "./defaults.js";
 import type { SupportedBrowser } from "../types/browser.js";
 
 /**

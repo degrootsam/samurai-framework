@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import {
   browsersDir,
-  loadConfig,
+  loadRawConfig,
   projectConfig,
   projectDir,
   setActiveProject,
@@ -37,12 +37,12 @@ describe("active project", () => {
       timeout: 77,
     });
     assert.equal(projectDir(), path.resolve("/work/shop"));
-    assert.deepEqual(await loadConfig(), { timeout: 1 });
+    assert.deepEqual(await loadRawConfig(), { timeout: 1 });
   });
 
   it("serves its own config instead of reading a file", async () => {
     setActiveProject({ dir: "/nowhere", config: { timeout: 1234 } });
-    assert.deepEqual(await loadConfig(), { timeout: 1234 });
+    assert.deepEqual(await loadRawConfig(), { timeout: 1234 });
   });
 
   it("keeps browser profiles in the project, in dataDir, or in SAMURAI_DATA_DIR", () => {
