@@ -102,9 +102,16 @@ export default class TestRunner {
     return (await loadSpecs(this.testFiles)).groups;
   }
 
-  /** Imports the spec files and returns the tests the options select: by `group`, `testNames` and `grep` */
-  public async register(): Promise<RegisteredTestCase[]> {
-    return selectTests(await loadSpecs(this.testFiles), this.options);
+  /**
+   * Imports the spec files and returns the tests the options select (by `group`, `testNames` and `grep`)
+   * with the real `srcDir` their ids are relative to
+   */
+  public async list(): Promise<{
+    tests: RegisteredTestCase[];
+    srcDir: string;
+  }> {
+    const loaded = await loadSpecs(this.testFiles);
+    return { tests: selectTests(loaded, this.options), srcDir: loaded.srcDir };
   }
 
   /**

@@ -1,7 +1,9 @@
+import path from "path";
 import type { Modifier, TestSummary } from "../types/test.js";
 import type { PreparedRun } from "./prepare-run.js";
 import { withProject, type ProjectOptions } from "./project.js";
-import type { ResolvedGroup } from "./groups.js";
+import { toPosix, type ResolvedGroup } from "./groups.js";
+import { idOf } from "./select.js";
 import TestRunner from "./test-runner.js";
 import type { RunnerOptions } from "./options.js";
 
@@ -62,27 +64,43 @@ export async function runTests(
 
 /** A test found in a spec file */
 export interface FoundTest {
+  /**
+   * The id the groups use for this test (`ResolvedGroup.testIds`): its spec file relative to `srcDir` with `/`
+   * separators, then `::` and its full name, e.g. `checkout/cart.spec.ts::Cart > adds`
+   */
+  id: string;
   /** Full name: `describe` titles and the test title joined with " > " */
   name: string;
   file: string;
+  /** The spec file relative to `srcDir`, with `/` separators */
+  relativeFile: string;
   /** `skip` or `fixme` (not run), or `only` (focused); absent for a plain test. A modifier on a `describe` counts. */
   modifier?: Modifier;
   /** The `{ reason }` given with the `skip` or `fixme` that applies */
   reason?: string;
 }
 
-/** Imports the project's specs without running anything and lists the tests the options select */
+/**
+ * Imports the project's specs without running anything and lists the tests the options select, each with the id
+ * its group uses and its spec file relative to `srcDir`
+ */
 export async function listTests(
   options: RunTestsOptions = {},
 ): Promise<FoundTest[]> {
-  return inProject(options, async (runner) =>
-    (await runner.register()).map(({ name, file, modifier, reason }) => ({
-      name,
-      file,
-      ...(modifier && { modifier }),
-      ...(reason !== undefined && { reason }),
-    })),
-  );
+  return inProject(options, async (runner) => {
+    const { tests, srcDir } = await runner.list();
+    return tests.map((test) => {
+      const { name, file, modifier, reason } = test;
+      return {
+        id: idOf(test, srcDir),
+        name,
+        file,
+        relativeFile: toPosix(path.relative(srcDir, file)),
+        ...(modifier && { modifier }),
+        ...(reason !== undefined && { reason }),
+      };
+    });
+  });
 }
 
 /** Imports the project's specs without running anything and lists the config's groups with the tests each holds */

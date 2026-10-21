@@ -6,6 +6,7 @@ import {
   resolveGroup,
   resolveGroups,
   testId,
+  toPosix,
   type GroupTest,
 } from "./groups.js";
 
@@ -72,6 +73,7 @@ describe("testId", () => {
       testId("checkout\\cart.spec.ts", "A"),
       "checkout/cart.spec.ts::A",
     );
+    assert.equal(testId(toPosix("a\\b.spec.ts"), "x"), "a/b.spec.ts::x");
   });
 });
 

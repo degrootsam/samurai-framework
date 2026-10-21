@@ -22,7 +22,10 @@ export interface ResolvedGroup {
   kind: "picked" | "pattern";
   /** What selects the tests of a pattern group, for display */
   pattern?: string;
-  /** Ids (see `testId`) of the found tests in the group */
+  /**
+   * Ids of the found tests in the group: the spec file relative to `srcDir` with `/` separators, `::`, then the
+   * full name (`FoundTest.id` is the same)
+   */
   testIds: string[];
   /** Picked tests that no longer exist */
   missing: { file: string; title: string }[];
