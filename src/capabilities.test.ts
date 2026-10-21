@@ -16,6 +16,7 @@ describe("capabilities", () => {
       modifiers: true,
       skipReason: true,
       testIds: true,
+      resolvedConfig: true,
     });
   });
 

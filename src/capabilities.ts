@@ -23,6 +23,8 @@ export const CAPABILITIES = {
   skipReason: true,
   /** An id and a relative file on each test `listTests` finds, the same ids the groups use. */
   testIds: true,
+  /** `loadConfig` from `./project`: the config with every default applied, the way a run uses it. */
+  resolvedConfig: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */

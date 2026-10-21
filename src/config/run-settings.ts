@@ -26,7 +26,7 @@ export interface RunSettings {
 }
 
 /** The environment of a config without `environments` */
-const IMPLICIT_ENVIRONMENT = "default";
+export const IMPLICIT_ENVIRONMENT = "default";
 
 export class UnknownEnvironmentError extends Error {
   constructor(message: string) {

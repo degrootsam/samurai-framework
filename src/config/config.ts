@@ -41,13 +41,18 @@ export function browsersDir(): string {
   );
 }
 
+/** Throws the error a run throws for a config with a bad key */
+export function validateConfig(config: SamuraiTestConfig): void {
+  validateBrowserConfig(config);
+  validateWorkersConfig(config);
+  validateForbidOnlyConfig(config);
+  validateRetriesConfig(config);
+}
+
 /** The whole `samurai.config.ts` of the project (the working directory unless a project is active) */
 export async function loadRawConfig(): Promise<SamuraiTestConfig> {
   if (activeProject?.config) {
-    validateBrowserConfig(activeProject.config);
-    validateWorkersConfig(activeProject.config);
-    validateForbidOnlyConfig(activeProject.config);
-    validateRetriesConfig(activeProject.config);
+    validateConfig(activeProject.config);
     return activeProject.config;
   }
   const configUrl = path.join(projectDir(), "samurai.config.ts");
@@ -62,10 +67,7 @@ export async function loadRawConfig(): Promise<SamuraiTestConfig> {
       "samurai.config.ts does not export defineConfig as default!",
     );
   }
-  validateBrowserConfig(config.default);
-  validateWorkersConfig(config.default);
-  validateForbidOnlyConfig(config.default);
-  validateRetriesConfig(config.default);
+  validateConfig(config.default);
   return config.default;
 }
 
