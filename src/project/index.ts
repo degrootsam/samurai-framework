@@ -14,3 +14,9 @@ export {
   RECORD_LIMIT,
   storeFile,
 } from "./files-store.js";
+export {
+  loadConfig,
+  type ResolvedConfig,
+  type ResolvedEnvironment,
+  type ResolvedIgnoreError,
+} from "../config/resolved-config.js";
