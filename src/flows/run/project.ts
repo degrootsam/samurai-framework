@@ -1,4 +1,5 @@
 import path from "node:path";
+import { DEFAULT_SRC_DIR } from "../../config/defaults.js";
 import { projectConfig } from "../../config/config.js";
 import {
   checkFlow,
@@ -7,7 +8,6 @@ import {
   type FlowProblem,
 } from "../core/index.js";
 import {
-  DEFAULT_SRC_DIR,
   realPath,
   resolveGroups,
   testId,
@@ -16,9 +16,9 @@ import {
 } from "../../runner/groups.js";
 import logger, { keepLogFiles } from "../../logger/index.js";
 import { resolveRetries } from "../../runner/retries-option.js";
-import { resolveWorkers } from "../../runner/workers-option.js";
+import { resolveWorkers } from "../../config/workers-option.js";
 import { withProject } from "../../runner/project.js";
-import { browsersFor } from "../../runner/browsers.js";
+import { browsersFor } from "../../config/browsers-for.js";
 import { DEFAULT_PORT } from "../../runner/ports.js";
 import { runTests } from "../../runner/run.js";
 import TestRunner from "../../runner/test-runner.js";
@@ -154,7 +154,7 @@ async function prepare(
       environment: name,
     },
     async (run) => {
-      const found = await (await TestRunner.init(run)).register();
+      const { tests: found } = await (await TestRunner.init(run)).list();
       const tests = found.map((t) => ({
         id: testId(toPosix(path.relative(srcDir, t.file)), t.name),
         file: t.file,

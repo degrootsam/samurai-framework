@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { browsersFor } from "./browsers.js";
+import { browsersFor } from "./browsers-for.js";
 
 describe("browsersFor", () => {
   it("takes the flag, then the group, then the project, then Firefox", () => {

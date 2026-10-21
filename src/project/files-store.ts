@@ -2,6 +2,7 @@ import { constants, createReadStream } from "node:fs";
 import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { DEFAULT_FILES_DIR } from "../config/defaults.js";
 
 /** Files bigger than this aren't stored while recording */
 export const RECORD_LIMIT = 50 * 1024 * 1024;
@@ -25,7 +26,7 @@ export function cleanFileName(name: string): string {
 /** The files folder: absolute, and relative to the project with forward slashes */
 export function filesFolder(
   projectDir: string,
-  filesDir = "files",
+  filesDir = DEFAULT_FILES_DIR,
 ): { absolute: string; relative: string } {
   const absolute = path.resolve(projectDir, filesDir);
   return {

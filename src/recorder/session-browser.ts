@@ -2,7 +2,7 @@ import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { ensureWarm } from "../browser/warm-up.js";
 import { readConfig } from "../config/config.js";
-import { browsersFor } from "../runner/browsers.js";
+import { browsersFor } from "../config/browsers-for.js";
 import { DEFAULT_PORT } from "../runner/ports.js";
 import type { SupportedBrowser } from "../types/browser.js";
 

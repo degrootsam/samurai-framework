@@ -2,12 +2,8 @@ import { realpathSync } from "node:fs";
 import { matchesGlob, relative, resolve } from "node:path";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { SamuraiGroup } from "../types/config.js";
-import { browsersFor } from "./browsers.js";
-
-/** The test folder when the config names none */
-export const DEFAULT_SRC_DIR = "./src";
-/** The spec pattern when a group names none */
-export const DEFAULT_TEST_MATCH = "**/*.spec.ts";
+import { DEFAULT_TEST_MATCH } from "../config/defaults.js";
+import { browsersFor } from "../config/browsers-for.js";
 
 /** A test as groups see it: its spec file (relative to `srcDir`, or any path inside it) and full name */
 export interface GroupTest {
@@ -22,7 +18,10 @@ export interface ResolvedGroup {
   kind: "picked" | "pattern";
   /** What selects the tests of a pattern group, for display */
   pattern?: string;
-  /** Ids (see `testId`) of the found tests in the group */
+  /**
+   * Ids of the found tests in the group: the spec file relative to `srcDir` with `/` separators, `::`, then the
+   * full name (`FoundTest.id` is the same)
+   */
   testIds: string[];
   /** Picked tests that no longer exist */
   missing: { file: string; title: string }[];

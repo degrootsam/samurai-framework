@@ -100,6 +100,15 @@ export interface ParsedTest {
   /** Offset just after the `{` of the test body, and of its closing `}` */
   bodyStart: number;
   bodyEnd: number;
+  /** Where the whole test starts: the full start of its statement, so the comments and blank line above are included */
+  start: number;
+  /** Where the whole test ends: the end of its statement, after the `;` */
+  end: number;
+  /**
+   * False when the test call isn't a statement of its own (a loop or `if` body without braces, an arrow's
+   * expression body), so it can't be removed without breaking the file
+   */
+  removable: boolean;
   /**
    * The fixtures the test's callback destructures, and the offset where another one goes: after the last one
    * (`list`), inside an empty `{}` (`empty`) or inside the empty `()` of a callback without parameters (`none`).
@@ -110,4 +119,13 @@ export interface ParsedTest {
   modifier?: Modifier;
   /** The `{ reason }` written with the `skip` or `fixme` that applies, when it is a string literal */
   reason?: string;
+}
+
+/** A `test` or `describe` call the codec can't read: its title isn't a plain string, or its function isn't written inline */
+export interface UnparsedTest {
+  kind: "test" | "describe";
+  /** The statement's range, as for `ParsedTest` */
+  start: number;
+  end: number;
+  reason: "dynamic-title" | "not-inline";
 }

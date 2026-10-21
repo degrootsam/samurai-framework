@@ -1,7 +1,5 @@
-import {
-  type BiDiConnector,
-  DEFAULT_COMMAND_TIMEOUT,
-} from "../transport/bidi-connection.js";
+import { DEFAULT_COMMAND_TIMEOUT } from "../config/defaults.js";
+import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import { SESSION_CAPABILITIES } from "./session-capabilities.js";
 

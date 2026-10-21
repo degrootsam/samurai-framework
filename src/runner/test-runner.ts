@@ -2,13 +2,13 @@ import { glob } from "node:fs/promises";
 import path from "path";
 import { ensureWarm } from "../browser/warm-up.js";
 import { projectBrowser } from "../browsers/resolve.js";
-import { loadConfig, projectDir, readConfig } from "../config/config.js";
+import { loadRawConfig, projectDir, readConfig } from "../config/config.js";
 import { forbidsOnly } from "../config/forbid-only.js";
 import logger from "../logger/index.js";
 import type { RegisteredTestCase } from "../types/test.js";
 import { AllHooks } from "./all-hooks.js";
 import { assertNoOnly, narrowToOnly } from "./focus.js";
-import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "./groups.js";
+import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "../config/defaults.js";
 import type { ResolvedGroup } from "./groups.js";
 import type { RunnerOptions } from "./options.js";
 import { DEFAULT_PORT } from "./ports.js";
@@ -27,7 +27,7 @@ import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveRetries } from "./retries-option.js";
 import { runWithRetries } from "./retry.js";
-import { resolveWorkers } from "./workers-option.js";
+import { resolveWorkers } from "../config/workers-option.js";
 import { WorkerPool, type PoolOptions } from "./worker-pool.js";
 import { processWorkerFactory } from "./worker-process.js";
 
@@ -102,9 +102,16 @@ export default class TestRunner {
     return (await loadSpecs(this.testFiles)).groups;
   }
 
-  /** Imports the spec files and returns the tests the options select: by `group`, `testNames` and `grep` */
-  public async register(): Promise<RegisteredTestCase[]> {
-    return selectTests(await loadSpecs(this.testFiles), this.options);
+  /**
+   * Imports the spec files and returns the tests the options select (by `group`, `testNames` and `grep`)
+   * with the real `srcDir` their ids are relative to
+   */
+  public async list(): Promise<{
+    tests: RegisteredTestCase[];
+    srcDir: string;
+  }> {
+    const loaded = await loadSpecs(this.testFiles);
+    return { tests: selectTests(loaded, this.options), srcDir: loaded.srcDir };
   }
 
   /**
@@ -115,7 +122,7 @@ export default class TestRunner {
     const { reportPath, onEvent, signal } = this.options;
     // The specs are imported once: their top-level code runs once per run
     const loaded = await loadSpecs(this.testFiles);
-    const config = await loadConfig();
+    const config = await loadRawConfig();
     // A focused test the config refuses stops the run before anything starts; else only the focused ones run
     assertNoOnly(loaded.all, forbidsOnly(config), loaded.srcDir);
     const selected = narrowToOnly(selectTests(loaded, this.options));

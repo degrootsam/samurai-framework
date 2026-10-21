@@ -1,12 +1,12 @@
 import { readConfig } from "../config/config.js";
+import {
+  DEFAULT_IDLE_TIME,
+  DEFAULT_NAVIGATION_TIMEOUT,
+  DEFAULT_WAIT_UNTIL,
+} from "../config/defaults.js";
 import logger from "../logger/index.js";
 import type { SamuraiTestConfig } from "../types/config.js";
 import type { BiDiCommands } from "../types/bidi.js";
-
-/** Time (ms) a navigation or a wait for a load state may take */
-const DEFAULT_NAVIGATION_TIMEOUT = 30000;
-/** Time (ms) without requests in flight that counts as idle */
-const DEFAULT_IDLE_TIME = 500;
 
 /** Options that otherwise come from `samurai.config.ts` */
 export type PageSettings = Pick<
@@ -66,7 +66,9 @@ export class PageConfig {
   public async navigationWait(
     override?: ReadinessState,
   ): Promise<ReadinessState> {
-    return override ?? (await this.navigation()).waitUntil ?? "complete";
+    return (
+      override ?? (await this.navigation()).waitUntil ?? DEFAULT_WAIT_UNTIL
+    );
   }
 
   /** Time (ms) without requests in flight that counts as idle: the call's, else config `network.idleTime`, else 500 */

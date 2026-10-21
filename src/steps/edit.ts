@@ -9,7 +9,14 @@ export type StepEdit =
   | { op: "insert"; test: number; index: number; step: Step }
   | { op: "remove"; test: number; index: number }
   /** Moves a step so it ends up at position `to` */
-  | { op: "move"; test: number; from: number; to: number };
+  | { op: "move"; test: number; from: number; to: number }
+  /**
+   * Removes the whole test, with the comments and the blank line above it. For several tests, apply from the last index to the first.
+   * It removes all leading trivia from the end of the previous statement, so comments above the test go with it: a
+   * file-header comment when the test is the first statement, and a trailing `// comment` on the previous test's line.
+   * Throws for a test that isn't `removable`
+   */
+  | { op: "remove-test"; test: number };
 
 const lineStart = (source: string, offset: number) =>
   source.lastIndexOf("\n", offset - 1) + 1;
@@ -186,6 +193,12 @@ export function applyEdit(source: string, edit: StepEdit): string {
     }
     case "remove":
       return removeStep(source, parsed, edit.index);
+    case "remove-test":
+      if (!parsed.removable)
+        throw new Error(
+          `Cannot remove test "${parsed.name}": it is not a statement of its own`,
+        );
+      return splice(source, parsed.start, parsed.end, "");
     case "move": {
       const { start, end } = pickStep(parsed, edit.from);
       if (edit.to < 0 || edit.to >= parsed.steps.length)

@@ -1,5 +1,6 @@
 import EventEmitter from "node:events";
 import type { BiDiCommands, BiDiEvents } from "../types/bidi.js";
+import { DEFAULT_COMMAND_TIMEOUT } from "../config/defaults.js";
 import logger from "../logger/index.js";
 import { WaitTimeoutError } from "../wait/wait-until.js";
 import { BiDiError } from "./bidi-error.js";
@@ -10,9 +11,6 @@ import {
   type Subscription,
   type SubscribeOptions,
 } from "./subscriptions.js";
-
-/** Time (ms) a command may wait for its reply before it fails with code "timeout" */
-export const DEFAULT_COMMAND_TIMEOUT = 30000;
 
 export interface ConnectorOptions {
   /** @default DEFAULT_COMMAND_TIMEOUT */
