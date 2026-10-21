@@ -8,7 +8,7 @@ import logger from "../logger/index.js";
 import type { RegisteredTestCase } from "../types/test.js";
 import { AllHooks } from "./all-hooks.js";
 import { assertNoOnly, narrowToOnly } from "./focus.js";
-import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "./groups.js";
+import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "../config/defaults.js";
 import type { ResolvedGroup } from "./groups.js";
 import type { RunnerOptions } from "./options.js";
 import { DEFAULT_PORT } from "./ports.js";

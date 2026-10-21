@@ -1,7 +1,5 @@
+import { DEFAULT_BROWSERS } from "../config/defaults.js";
 import type { SupportedBrowser } from "../types/browser.js";
-
-/** The browsers of a run that names none */
-const DEFAULT_BROWSERS: readonly SupportedBrowser[] = ["firefox"];
 
 /**
  * The browsers a run uses, the first that is set winning: the command line, the group being run, the project, then

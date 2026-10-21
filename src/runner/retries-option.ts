@@ -1,3 +1,4 @@
+import { DEFAULT_RETRIES } from "../config/defaults.js";
 import { parseRetries } from "../config/retries.js";
 
 export interface RetriesInput {
@@ -15,5 +16,5 @@ export function resolveRetries({ flag, env, config }: RetriesInput): number {
   if (flag !== undefined) return parseRetries(flag, "--retries");
   if (fromEnv !== undefined) return parseRetries(fromEnv, "SAMURAI_RETRIES");
   if (config !== undefined) return parseRetries(config, "retries");
-  return 0;
+  return DEFAULT_RETRIES;
 }

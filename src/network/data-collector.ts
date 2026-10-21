@@ -1,9 +1,7 @@
+import { DEFAULT_MAX_BODY_SIZE } from "../config/defaults.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import type { Collector } from "../types/bidi-modules/network.js";
-
-/** How large a response body may be to be kept: 10 MiB */
-const DEFAULT_MAX_BODY_SIZE = 10 * 1024 * 1024;
 
 /**
  * Chrome counts the headers of a response in the size it compares with the collector's limit (a 14-byte body

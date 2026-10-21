@@ -1,5 +1,9 @@
 import type EventEmitter from "node:events";
 import {
+  DEFAULT_COLLECT_BODIES,
+  DEFAULT_TRACK_NETWORK,
+} from "../config/defaults.js";
+import {
   DataCollector,
   ResponseBodyUnavailableError,
 } from "../network/data-collector.js";
@@ -77,7 +81,8 @@ export class PageNetwork {
     return this.lazyTracker.get(
       async () => {
         const settings = await this.deps.config.network();
-        if (settings.track === false) throw new NetworkTrackingDisabledError();
+        if ((settings.track ?? DEFAULT_TRACK_NETWORK) === false)
+          throw new NetworkTrackingDisabledError();
         const tracker = await NetworkTracker.start(
           this.connector,
           await this.deps.tree.ensure(),
@@ -91,7 +96,8 @@ export class PageNetwork {
         tracker.on("requestfailed", (failed) =>
           emitter.emit("requestfailed", failed),
         );
-        if (settings.collectBodies) await this.startBodyCollection();
+        if (settings.collectBodies ?? DEFAULT_COLLECT_BODIES)
+          await this.startBodyCollection();
         return tracker;
       },
       (err) => err instanceof NetworkTrackingDisabledError,

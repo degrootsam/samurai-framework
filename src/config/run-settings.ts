@@ -1,4 +1,5 @@
 import type { SamuraiTestConfig } from "../types/config.js";
+import { DEFAULT_EXPECT_TIMEOUT, DEFAULT_TIMEOUT } from "./defaults.js";
 
 export type Variables = Record<string, string | number | boolean>;
 
@@ -24,8 +25,6 @@ export interface RunSettings {
   headless: boolean;
 }
 
-const DEFAULT_TIMEOUT = 30000;
-const DEFAULT_EXPECT_TIMEOUT = 5000;
 /** The environment of a config without `environments` */
 const IMPLICIT_ENVIRONMENT = "default";
 
