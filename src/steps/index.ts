@@ -1,4 +1,4 @@
-export { parseSpec } from "./parse.js";
+export { parseSpec, parseSpecFile } from "./parse.js";
 export { applyEdit, type StepEdit } from "./edit.js";
 export {
   stepToSource,
@@ -20,4 +20,5 @@ export type {
   Step,
   TextMatcher,
   TextValue,
+  UnparsedTest,
 } from "./model.js";
