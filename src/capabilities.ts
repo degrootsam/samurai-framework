@@ -25,6 +25,8 @@ export const CAPABILITIES = {
   testIds: true,
   /** `loadConfig` from `./project`: the config with every default applied, the way a run uses it. */
   resolvedConfig: true,
+  /** `loadConfig({ written: true })`: the config as written next to the resolved one, and `writtenConfig`. */
+  writtenConfig: true,
   /** The recorder's first `onStatus` call, `{ state: "recording", toolbar }`, right after it starts, and a `RecordResult` with every field always present. */
   recorderStartStatus: true,
   /** `outputDir` on `runTests` and `runFlowInProject`: a folder per run for the report and the screenshots. */

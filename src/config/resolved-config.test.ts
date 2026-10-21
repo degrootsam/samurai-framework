@@ -25,7 +25,7 @@ import {
   DEFAULT_VIEWPORT,
   DEFAULT_WAIT_UNTIL,
 } from "./defaults.js";
-import { loadConfig, resolveConfig } from "./resolved-config.js";
+import { loadConfig, resolveConfig, writtenConfig } from "./resolved-config.js";
 import { validateWorkersConfig } from "./workers.js";
 import { resolveWorkers } from "./workers-option.js";
 
@@ -211,7 +211,91 @@ describe("resolveConfig", () => {
   });
 });
 
+describe("writtenConfig", () => {
+  it("is the config as the file states it: nothing filled in", () => {
+    assert.deepEqual(writtenConfig({}), {});
+    const written = writtenConfig({ timeout: 1000, use: { headless: true } });
+    assert.deepEqual(written, { timeout: 1000, use: { headless: true } });
+    assert.ok(!("workers" in written));
+    assert.ok(!("environments" in written));
+  });
+
+  it("is JSON: patterns become text, steps become their kinds", () => {
+    const written = writtenConfig({
+      logs: { capture: "all", ignoreErrors: ["boom", /x+/gi] },
+      steps: [
+        defineStep({
+          kind: "my-step",
+          label: "Mine",
+          icon: "globe",
+          section: "integrations",
+          fields: [],
+          async run() {},
+        }),
+      ],
+      environments: { staging: { baseURL: "https://s", variables: { n: 1 } } },
+    });
+    assert.deepEqual(written, {
+      logs: {
+        capture: "all",
+        ignoreErrors: [
+          { text: "boom", regexp: false },
+          { text: "x+", regexp: true, flags: "gi" },
+        ],
+      },
+      steps: ["my-step"],
+      environments: { staging: { baseURL: "https://s", variables: { n: 1 } } },
+    });
+    assert.deepEqual(JSON.parse(JSON.stringify(written)), written);
+  });
+
+  it("does not share objects with the config", () => {
+    const config: SamuraiTestConfig = {
+      use: { viewport: { width: 1, height: 2 } },
+    };
+    const written = writtenConfig(config);
+    assert.notEqual(written.use, config.use);
+  });
+});
+
 describe("loadConfig", () => {
+  it("with written: true gives the config as written next to the resolved one", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-written-"));
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      "export default { timeout: 1234, logs: { ignoreErrors: [/boom/i] } };\n",
+    );
+    const both = await loadConfig({ projectDir: dir, env: {}, written: true });
+    assert.deepEqual(both.written, {
+      timeout: 1234,
+      logs: { ignoreErrors: [{ text: "boom", regexp: true, flags: "i" }] },
+    });
+    assert.equal(both.resolved?.timeout, 1234);
+    assert.equal(both.resolved?.workersResolved, resolveWorkers({}));
+    assert.ok(!("error" in both));
+  });
+
+  it("with written: true still gives the written config when it is invalid", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-written-"));
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      "export default { workers: 0 };\n",
+    );
+    let expected: Error | undefined;
+    try {
+      validateWorkersConfig({ workers: 0 });
+    } catch (error) {
+      expected = error as Error;
+    }
+    const both = await loadConfig({ projectDir: dir, env: {}, written: true });
+    assert.deepEqual(both.written, { workers: 0 });
+    assert.equal(both.resolved, undefined);
+    assert.equal(both.error, expected?.message);
+    await assert.rejects(loadConfig({ projectDir: dir, env: {} }), {
+      message: expected?.message,
+    });
+  });
+
   it("reads a project's config and leaves no project active", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-resolved-"));
     writeFileSync(
