@@ -118,6 +118,12 @@ function effectiveMark(own: Mark, describes: Mark[]): Mark {
   return chain.some((m) => m.modifier === "only") ? { modifier: "only" } : {};
 }
 
+/** The range of a whole test: its statement with the comments above it, or the call alone when it isn't a statement */
+function wholeRange(call: ts.CallExpression): { start: number; end: number } {
+  const statement = ts.isExpressionStatement(call.parent) ? call.parent : call;
+  return { start: statement.getFullStart(), end: statement.end };
+}
+
 /** The tests in a spec file, with their steps and where each statement sits */
 export function parseSpec(source: string): ParsedTest[] {
   const sourceFile = ts.createSourceFile(
@@ -152,6 +158,7 @@ export function parseSpec(source: string): ParsedTest[] {
           ),
           bodyStart: body.getStart(sourceFile) + 1,
           bodyEnd: body.end - 1,
+          ...wholeRange(node),
           fixtures: callbackFixtures(
             callback as ts.ArrowFunction | ts.FunctionExpression,
             sourceFile,
