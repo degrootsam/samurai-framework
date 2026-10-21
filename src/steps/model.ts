@@ -100,6 +100,10 @@ export interface ParsedTest {
   /** Offset just after the `{` of the test body, and of its closing `}` */
   bodyStart: number;
   bodyEnd: number;
+  /** Where the whole test starts: the full start of its statement, so the comments and blank line above are included */
+  start: number;
+  /** Where the whole test ends: the end of its statement, after the `;` */
+  end: number;
   /**
    * The fixtures the test's callback destructures, and the offset where another one goes: after the last one
    * (`list`), inside an empty `{}` (`empty`) or inside the empty `()` of a callback without parameters (`none`).
