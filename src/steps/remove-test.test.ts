@@ -140,4 +140,48 @@ test("b", async ({ page }) => {
       RangeError,
     );
   });
+
+  it("marks a normal test as removable", () => {
+    assert.ok(parseSpec(spec).every((t) => t.removable));
+  });
+
+  const notStatements: [string, string][] = [
+    [
+      "a loop body without braces",
+      'for (const u of users) test("logs in", async () => {});',
+    ],
+    [
+      "an if body without braces",
+      'if (process.env.SLOW) test("slow", async () => {});',
+    ],
+    [
+      "an arrow's expression body",
+      '["a"].forEach(() => test("each", async () => {}));',
+    ],
+  ];
+  for (const [label, source] of notStatements) {
+    it(`refuses to remove a test that is ${label}`, () => {
+      const [found, ...rest] = parseSpec(source);
+      assert.equal(rest.length, 0);
+      assert.equal(found!.removable, false);
+      assert.throws(
+        () => applyEdit(source, { op: "remove-test", test: 0 }),
+        (error: Error) =>
+          !(error instanceof RangeError) &&
+          error.message.includes(found!.name) &&
+          error.message.includes("not a statement of its own"),
+      );
+    });
+  }
+
+  it("removes a test inside a braced loop body", () => {
+    const source =
+      'for (const u of users) {\n  test("logs in", async () => {});\n}\n';
+    const [found] = parseSpec(source);
+    assert.equal(found!.removable, true);
+    assert.equal(
+      applyEdit(source, { op: "remove-test", test: 0 }),
+      "for (const u of users) {\n}\n",
+    );
+  });
 });

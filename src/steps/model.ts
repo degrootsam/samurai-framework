@@ -105,6 +105,11 @@ export interface ParsedTest {
   /** Where the whole test ends: the end of its statement, after the `;` */
   end: number;
   /**
+   * False when the test call isn't a statement of its own (a loop or `if` body without braces, an arrow's
+   * expression body), so it can't be removed without breaking the file
+   */
+  removable: boolean;
+  /**
    * The fixtures the test's callback destructures, and the offset where another one goes: after the last one
    * (`list`), inside an empty `{}` (`empty`) or inside the empty `()` of a callback without parameters (`none`).
    * Undefined when the parameter can't take one: a plain identifier, or a rest element
