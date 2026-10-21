@@ -21,6 +21,7 @@ export async function runNodeTests(
   let result: "passed" | "failed" | "cancelled";
   try {
     result = await run.runTests(
+      node.id,
       list,
       (e) => run.onTestEvent(node.id, e),
       run.nodeBrowsers?.[node.id],

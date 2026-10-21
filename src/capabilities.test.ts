@@ -20,6 +20,7 @@ describe("capabilities", () => {
       writtenConfig: true,
       recorderStartStatus: true,
       outputDir: true,
+      flowNodeFolders: true,
     });
   });
 

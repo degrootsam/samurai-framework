@@ -18,6 +18,7 @@ export interface WorkerSession {
     browser: SupportedBrowser,
     signal: AbortSignal,
     onEvent: (event: RunEvent) => void,
+    options?: { outputDir?: string },
   ): Promise<void>;
   /** Ends the project's session */
   close(): Promise<void>;
@@ -89,18 +90,24 @@ export function handleMessages(
     let ended = false;
     current = new AbortController();
     try {
-      await session.runTest(test, item.browser, current.signal, (event) => {
-        // The first start was sent above; a test run again starts again, saying which attempt
-        if (event.type === "test-start" && event.retry)
-          channel.send({ type: "test-start", id, retry: event.retry });
-        if (event.type !== "test-end") return;
-        ended = true;
-        channel.send({
-          type: "test-end",
-          id,
-          result: { ...event.result, worker: workerIndex },
-        });
-      });
+      await session.runTest(
+        test,
+        item.browser,
+        current.signal,
+        (event) => {
+          // The first start was sent above; a test run again starts again, saying which attempt
+          if (event.type === "test-start" && event.retry)
+            channel.send({ type: "test-start", id, retry: event.retry });
+          if (event.type !== "test-end") return;
+          ended = true;
+          channel.send({
+            type: "test-end",
+            id,
+            result: { ...event.result, worker: workerIndex },
+          });
+        },
+        item.outputDir !== undefined ? { outputDir: item.outputDir } : {},
+      );
     } finally {
       current = undefined;
     }

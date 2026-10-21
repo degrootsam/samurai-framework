@@ -52,8 +52,16 @@ function setup(
   let closed = 0;
   const session: WorkerSession = {
     tests: [testCase("first"), testCase("second")],
-    async runTest(t, browser, signal, onEvent: (event: RunEvent) => void) {
-      events.push(`run ${t.name} ${browser}`);
+    async runTest(
+      t,
+      browser,
+      signal,
+      onEvent: (event: RunEvent) => void,
+      options,
+    ) {
+      events.push(
+        `run ${t.name} ${browser}${options?.outputDir ? ` in ${options.outputDir}` : ""}`,
+      );
       onEvent({
         type: "test-start",
         name: t.name,
@@ -122,6 +130,17 @@ test("run reports the start and the end, and stamps the result with the worker's
       result: { ...resultOf("second", "chrome"), worker: 2 },
     },
   ]);
+});
+
+test("an item's outputDir reaches the test", async () => {
+  const worker = setup();
+  await worker.send({ type: "init", init: INIT });
+  await worker.send({
+    type: "run",
+    id: 1,
+    item: { ...item("first"), outputDir: "runs/1/nodes/a" },
+  });
+  assert.deepEqual(worker.events, ["run first firefox in runs/1/nodes/a"]);
 });
 
 test("a test that is not in the files is a failed result, not a crash", async () => {

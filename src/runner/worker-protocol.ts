@@ -12,6 +12,8 @@ export interface WorkItem {
   browser: SupportedBrowser;
   /** Items with the same key never run at the same time */
   serialKey?: string;
+  /** Where this test's screenshots go, instead of the run's `outputDir` (a flow gives each node its own) */
+  outputDir?: string;
 }
 
 /** What a worker needs to start: the project and the settings that are the same for every test */
