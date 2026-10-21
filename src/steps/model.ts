@@ -108,4 +108,6 @@ export interface ParsedTest {
   fixtures?: { names: string[]; at: number; shape: "list" | "empty" | "none" };
   /** `skip` or `fixme` (not run), or `only` (focused), as the runner applies it: a modifier on a `describe` counts */
   modifier?: Modifier;
+  /** The `{ reason }` written with the `skip` or `fixme` that applies, when it is a string literal */
+  reason?: string;
 }

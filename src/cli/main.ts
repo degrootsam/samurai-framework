@@ -73,7 +73,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       else
         for (const found of tests)
           io.out(
-            `${found.name}${found.modifier ? ` [${found.modifier}]` : ""}\n    ${found.file}\n`,
+            `${found.name}${found.modifier ? ` [${found.modifier}${found.reason ? `: ${found.reason}` : ""}]` : ""}\n    ${found.file}\n`,
           );
       return 0;
     }

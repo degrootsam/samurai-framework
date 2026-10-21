@@ -139,6 +139,55 @@ test("a skip beats a focus, whichever is outside", () => {
   );
 });
 
+test("test.skip and test.fixme take an optional { reason } before the body", () => {
+  samuraiTest.skip("skipped", { reason: "waits for the new API" }, noop);
+  samuraiTest.fixme("broken", { reason: "flaky on CI" }, noop);
+  samuraiTest.skip("no reason", {}, noop);
+  samuraiTest.skip("plain form", noop);
+  assert.deepEqual(
+    registeredTests().map((t) => [t.name, t.modifier, t.reason, t.function]),
+    [
+      ["skipped", "skip", "waits for the new API", noop],
+      ["broken", "fixme", "flaky on CI", noop],
+      ["no reason", "skip", undefined, noop],
+      ["plain form", "skip", undefined, noop],
+    ],
+  );
+  assert.ok(!("reason" in registeredTests()[2]!), "no reason key without one");
+});
+
+test("describe.skip and describe.fixme take a { reason } that their tests get, the innermost skip's reason winning", () => {
+  samuraiDescribe.skip("Old", { reason: "replaced by v2" }, () => {
+    samuraiTest("a", noop);
+    samuraiTest.fixme("b", { reason: "own reason" }, noop);
+    samuraiTest.fixme("c", noop);
+  });
+  samuraiDescribe.fixme("Broken", () => samuraiTest("d", noop));
+  samuraiDescribe.only("Focus", () =>
+    samuraiDescribe.fixme("Inner", { reason: "inner" }, () =>
+      samuraiTest.only("e", noop),
+    ),
+  );
+  assert.deepEqual(
+    registeredTests().map((t) => [t.name, t.modifier, t.reason]),
+    [
+      ["Old > a", "skip", "replaced by v2"],
+      ["Old > b", "fixme", "own reason"],
+      ["Old > c", "fixme", undefined],
+      ["Broken > d", "fixme", undefined],
+      ["Focus > Inner > e", "fixme", "inner"],
+    ],
+  );
+});
+
+test("test.skip with a title but no body is refused", () => {
+  assert.throws(
+    // @ts-expect-error a test needs a body
+    () => samuraiTest.skip("no body", { reason: "x" }),
+    /test\.skip\("no body"\) needs a function/,
+  );
+});
+
 test("a test knows the describe block it is written in", () => {
   samuraiDescribe("A", () => {
     samuraiTest("one", noop);

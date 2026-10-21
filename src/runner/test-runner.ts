@@ -190,9 +190,9 @@ export default class TestRunner {
     try {
       for (const browser of browsers) {
         for (const test of selected) {
-          const annotation = staticSkip(test);
-          if (annotation) {
-            reporter.onTestSkipped(test, browser, { annotation });
+          const skip = staticSkip(test);
+          if (skip) {
+            reporter.onTestSkipped(test, browser, skip);
             continue;
           }
           if (signal?.aborted) {

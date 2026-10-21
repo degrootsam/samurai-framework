@@ -12,11 +12,13 @@ export function newSuite(
   title?: string,
   parent?: Suite,
   modifier?: Modifier,
+  reason?: string,
 ): Suite {
   return {
     ...(title !== undefined && { title }),
     ...(parent && { parent }),
     ...(modifier && { modifier }),
+    ...(reason !== undefined && { reason }),
   };
 }
 
@@ -37,8 +39,9 @@ export function enterSuite(
   file: string,
   title: string,
   modifier?: Modifier,
+  reason?: string,
 ): Suite {
-  const suite = newSuite(title, currentSuite(file), modifier);
+  const suite = newSuite(title, currentSuite(file), modifier, reason);
   open.push(suite);
   return suite;
 }
@@ -55,19 +58,30 @@ export function resetSuites(): void {
 
 /**
  * What applies to a test: the innermost `skip` or `fixme` (the test's own, then its suites', inside out), else
- * `only` when the test or any suite around it is focused. A skip beats a focus.
+ * `only` when the test or any suite around it is focused. A skip beats a focus. The reason comes with the skip
+ * or fixme that applies.
  */
-export function modifierOf(
-  own: Modifier | undefined,
-  suite: Suite,
-): Modifier | undefined {
-  let focused = own === "only";
-  let found: Modifier | undefined = own === "only" ? undefined : own;
-  for (let s: Suite | undefined = suite; s && !found; s = s.parent) {
+export function modifierOf(own: Mark, suite: Suite): Mark {
+  if (own.modifier === "skip" || own.modifier === "fixme") return markOf(own);
+  let focused = own.modifier === "only";
+  for (let s: Suite | undefined = suite; s; s = s.parent) {
     if (s.modifier === "only") focused = true;
-    else found = s.modifier;
+    else if (s.modifier) return markOf(s);
   }
-  return found ?? (focused ? "only" : undefined);
+  return focused ? { modifier: "only" } : {};
+}
+
+/** A modifier and the reason given with it */
+export interface Mark {
+  modifier?: Modifier;
+  reason?: string;
+}
+
+function markOf({ modifier, reason }: Mark): Mark {
+  return {
+    ...(modifier && { modifier }),
+    ...(reason !== undefined && { reason }),
+  };
 }
 
 /** The suites from the file's root down to `suite` */
