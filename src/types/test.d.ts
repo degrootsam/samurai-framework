@@ -21,6 +21,12 @@ export type TestCase = TestCaseBase;
 /** `skip`: not run. `fixme`: not run, known to be broken. `only`: the only test that runs when any is focused */
 export type Modifier = "skip" | "fixme" | "only";
 
+/** The optional second argument of `test.skip`, `test.fixme`, `describe.skip` and `describe.fixme` */
+export interface TestDetails {
+  /** Why the tests are not run; shown in the report and by `samurai list` */
+  reason?: string;
+}
+
 /** Runs before or after each test of a suite, in the test's browser, with the test's fixtures */
 export type EachHook = (fixtures: TestFixtures) => Promise<void> | void;
 
@@ -39,6 +45,8 @@ export interface Suite {
   title?: string;
   parent?: Suite;
   modifier?: Modifier;
+  /** The `{ reason }` of a `describe.skip` or `describe.fixme` */
+  reason?: string;
   beforeEach?: EachHook[];
   afterEach?: EachHook[];
   beforeAll?: AllHook[];
@@ -54,6 +62,8 @@ export interface RegisteredTestCase extends TestCaseBase {
   suite: Suite;
   /** What applies to the test: its own modifier, or the one of a suite around it */
   modifier?: Modifier;
+  /** The reason given with the `skip` or `fixme` that applies */
+  reason?: string;
 }
 
 export interface TestCaseBase {

@@ -115,7 +115,7 @@ export async function runOneTest(
   // A test marked skip or fixme never runs, whoever asked for it (a flow's test node, a worker)
   const marked = staticSkip(test);
   if (marked) {
-    reporter.onTestSkipped(test, browserName, { annotation: marked });
+    reporter.onTestSkipped(test, browserName, marked);
     return;
   }
   logger.verbose("Starting test: %s in %s", test.name, browserName);

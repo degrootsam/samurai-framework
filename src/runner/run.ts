@@ -67,6 +67,8 @@ export interface FoundTest {
   file: string;
   /** `skip` or `fixme` (not run), or `only` (focused); absent for a plain test. A modifier on a `describe` counts. */
   modifier?: Modifier;
+  /** The `{ reason }` given with the `skip` or `fixme` that applies */
+  reason?: string;
 }
 
 /** Imports the project's specs without running anything and lists the tests the options select */
@@ -74,10 +76,11 @@ export async function listTests(
   options: RunTestsOptions = {},
 ): Promise<FoundTest[]> {
   return inProject(options, async (runner) =>
-    (await runner.register()).map(({ name, file, modifier }) => ({
+    (await runner.register()).map(({ name, file, modifier, reason }) => ({
       name,
       file,
       ...(modifier && { modifier }),
+      ...(reason !== undefined && { reason }),
     })),
   );
 }

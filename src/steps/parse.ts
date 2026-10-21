@@ -1,7 +1,7 @@
 import ts from "typescript";
 import type { Modifier } from "../types/test.js";
 import type { ParsedStep, ParsedTest } from "./model.js";
-import { stringOf } from "./parse/literals.js";
+import { readObject, stringOf } from "./parse/literals.js";
 import { readStep } from "./parse/step.js";
 
 function parseStatement(
@@ -75,16 +75,47 @@ function calleeOf(
   return undefined;
 }
 
-/** What the runner applies to a test (see `modifierOf` in the runner): the innermost `skip` or `fixme`, else `only` */
-function effectiveModifier(
-  own: Modifier | undefined,
-  describes: (Modifier | undefined)[],
-): Modifier | undefined {
+/** A modifier and the `{ reason }` written with it */
+interface Mark {
+  modifier?: Modifier;
+  reason?: string;
+}
+
+/**
+ * The callback of `test(title, fn)` and `describe(title, fn)`, and for a skip or fixme also of
+ * `(title, { reason }, fn)` with the reason when it is a literal
+ */
+function callbackOf(
+  node: ts.CallExpression,
+  modifier: Modifier | undefined,
+): { callback: ts.Expression | undefined; reason?: string } {
+  const [, second, third] = node.arguments;
+  if (
+    (modifier === "skip" || modifier === "fixme") &&
+    second &&
+    ts.isObjectLiteralExpression(second)
+  ) {
+    const reason = readObject(second, ["reason"])?.reason;
+    return {
+      callback: third,
+      ...(typeof reason === "string" && { reason }),
+    };
+  }
+  return { callback: second };
+}
+
+/** What the runner applies to a test (see `modifierOf` in the runner): the innermost `skip` or `fixme` with its reason, else `only` */
+function effectiveMark(own: Mark, describes: Mark[]): Mark {
   const chain = [own, ...[...describes].reverse()];
-  return (
-    chain.find((m) => m === "skip" || m === "fixme") ??
-    (chain.includes("only") ? "only" : undefined)
+  const skip = chain.find(
+    (m) => m.modifier === "skip" || m.modifier === "fixme",
   );
+  if (skip)
+    return {
+      modifier: skip.modifier!,
+      ...(skip.reason !== undefined && { reason: skip.reason }),
+    };
+  return chain.some((m) => m.modifier === "only") ? { modifier: "only" } : {};
 }
 
 /** The tests in a spec file, with their steps and where each statement sits */
@@ -98,21 +129,21 @@ export function parseSpec(source: string): ParsedTest[] {
   );
   const tests: ParsedTest[] = [];
 
-  const visit = (
-    node: ts.Node,
-    titles: string[],
-    describes: (Modifier | undefined)[],
-  ) => {
+  const visit = (node: ts.Node, titles: string[], describes: Mark[]) => {
     const callee = ts.isCallExpression(node)
       ? calleeOf(node.expression)
       : undefined;
     if (ts.isCallExpression(node) && callee) {
       const title = stringOf(node.arguments[0]);
-      const body = callbackBody(node.arguments[1]);
+      const { callback, reason } = callbackOf(node, callee.modifier);
+      const body = callbackBody(callback);
+      const mark: Mark = {
+        ...(callee.modifier && { modifier: callee.modifier }),
+        ...(reason !== undefined && { reason }),
+      };
       if (title !== undefined && body && callee.name === "test") {
         // `test.skip(condition, reason)` has no title and no body, so it stays a step of the test it is in
         const titlePath = [...titles, title];
-        const modifier = effectiveModifier(callee.modifier, describes);
         tests.push({
           titlePath,
           name: titlePath.join(" > "),
@@ -122,16 +153,16 @@ export function parseSpec(source: string): ParsedTest[] {
           bodyStart: body.getStart(sourceFile) + 1,
           bodyEnd: body.end - 1,
           fixtures: callbackFixtures(
-            node.arguments[1] as ts.ArrowFunction | ts.FunctionExpression,
+            callback as ts.ArrowFunction | ts.FunctionExpression,
             sourceFile,
           ),
-          ...(modifier && { modifier }),
+          ...effectiveMark(mark, describes),
         });
         return;
       }
       if (title !== undefined && body && callee.name === "describe") {
         ts.forEachChild(body, (child) =>
-          visit(child, [...titles, title], [...describes, callee.modifier]),
+          visit(child, [...titles, title], [...describes, mark]),
         );
         return;
       }
