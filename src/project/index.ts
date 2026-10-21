@@ -16,7 +16,10 @@ export {
 } from "./files-store.js";
 export {
   loadConfig,
+  writtenConfig,
+  type ConfigViews,
   type ResolvedConfig,
   type ResolvedEnvironment,
   type ResolvedIgnoreError,
+  type WrittenConfig,
 } from "../config/resolved-config.js";

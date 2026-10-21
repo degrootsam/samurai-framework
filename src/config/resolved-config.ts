@@ -2,7 +2,7 @@ import path from "node:path";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { SamuraiGroup, SamuraiTestConfig } from "../types/config.js";
 import { browsersFor } from "./browsers-for.js";
-import { projectConfig, validateConfig } from "./config.js";
+import { importConfigFile, projectConfig, validateConfig } from "./config.js";
 import {
   DEFAULT_COLLECT_BODIES,
   DEFAULT_COMMAND_TIMEOUT,
@@ -225,17 +225,80 @@ export function resolveConfig(
 }
 
 /**
+ * `samurai.config.ts` as the file states it, as JSON: nothing filled in (an absent `workers` stays absent, a config
+ * without `environments` has none), `logs.ignoreErrors` patterns as {@link ResolvedIgnoreError}, and `steps` as
+ * their kinds. For showing and editing the config; {@link ResolvedConfig} is what a run uses.
+ */
+export type WrittenConfig = Omit<SamuraiTestConfig, "logs" | "steps"> & {
+  logs?: Omit<NonNullable<SamuraiTestConfig["logs"]>, "ignoreErrors"> & {
+    ignoreErrors?: ResolvedIgnoreError[];
+  };
+  steps?: string[];
+};
+
+/** Both views of a config: as written, and resolved; `resolved` is absent, and `error` says why, when the config is invalid */
+export interface ConfigViews {
+  written: WrittenConfig;
+  resolved?: ResolvedConfig;
+  /** The error a run would throw for this config */
+  error?: string;
+}
+
+/** The config as written, as plain JSON (see {@link WrittenConfig}). Pure: reads no files. */
+export function writtenConfig(config: SamuraiTestConfig): WrittenConfig {
+  const { logs, steps, ...rest } = config;
+  const { ignoreErrors, ...logSettings } = logs ?? {};
+  const written: WrittenConfig = {
+    ...rest,
+    ...(logs && {
+      logs: {
+        ...logSettings,
+        ...(ignoreErrors && { ignoreErrors: ignoreErrorsOf(ignoreErrors) }),
+      },
+    }),
+    ...(steps && { steps: steps.map((step) => step.kind) }),
+  };
+  // A JSON copy: shares nothing with the config, and leaves out what JSON can't carry
+  return JSON.parse(JSON.stringify(written)) as WrittenConfig;
+}
+
+/**
  * A project's `samurai.config.ts` with every default applied, the way a run uses it (see {@link ResolvedConfig}).
  * Leaves no project active. The caller registers `tsx` first (the framework does not), so the config file can be
  * imported; an app does that in the child process that calls this. The config module is imported once per process
  * (Node caches it): a later edit to `samurai.config.ts` is seen only in a new process.
  * @param options.projectDir The project folder. @default the working directory
  * @param options.env Where `CI` is read from. @default `process.env`
+ * @param options.written Also return the config as written (see {@link ConfigViews})
  */
+export async function loadConfig(options?: {
+  projectDir?: string;
+  env?: Env;
+  written?: false;
+}): Promise<ResolvedConfig>;
+/** With `written: true`: the config as written next to the resolved one (see {@link ConfigViews}); an invalid config is reported in `error`, not thrown */
+export async function loadConfig(options: {
+  projectDir?: string;
+  env?: Env;
+  written: true;
+}): Promise<ConfigViews>;
 export async function loadConfig(
-  options: { projectDir?: string; env?: Env } = {},
-): Promise<ResolvedConfig> {
+  options: { projectDir?: string; env?: Env; written?: boolean } = {},
+): Promise<ResolvedConfig | ConfigViews> {
   const projectDir = path.resolve(options.projectDir ?? process.cwd());
-  const config = await projectConfig({ projectDir });
-  return resolveConfig(config, { projectDir, env: options.env ?? process.env });
+  const env = options.env ?? process.env;
+  if (!options.written) {
+    const config = await projectConfig({ projectDir });
+    return resolveConfig(config, { projectDir, env });
+  }
+  const config = await importConfigFile(projectDir);
+  const written = writtenConfig(config);
+  try {
+    return { written, resolved: resolveConfig(config, { projectDir, env }) };
+  } catch (error) {
+    return {
+      written,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
