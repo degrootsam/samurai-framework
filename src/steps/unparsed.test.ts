@@ -11,6 +11,18 @@ const summary = (source: string) => {
 };
 
 describe("parseSpecFile", () => {
+  it("reports an unparsed test inside a readable describe next to a parsed one", () => {
+    assert.deepEqual(
+      summary(
+        'describe("d", () => { test("ok", async () => {}); test(name, async () => {}); })',
+      ),
+      {
+        names: ["d > ok"],
+        unparsed: [{ kind: "test", reason: "dynamic-title" }],
+      },
+    );
+  });
+
   it("reports a template title with a substitution as a dynamic title", () => {
     assert.deepEqual(summary("test(`user ${i}`, async () => {});"), {
       names: [],

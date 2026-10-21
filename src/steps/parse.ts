@@ -124,6 +124,18 @@ function wholeRange(call: ts.CallExpression): { start: number; end: number } {
   return { start: statement.getFullStart(), end: statement.end };
 }
 
+/** Whether the call is a statement directly inside a block, a module block or the file, so removing its range leaves valid code */
+function isRemovable(call: ts.CallExpression): boolean {
+  const statement = call.parent;
+  if (!ts.isExpressionStatement(statement)) return false;
+  const container = statement.parent;
+  return (
+    ts.isBlock(container) ||
+    ts.isSourceFile(container) ||
+    ts.isModuleBlock(container)
+  );
+}
+
 /** A test or describe the codec can't read, with where its statement sits */
 function unreadable(
   node: ts.CallExpression,
@@ -202,6 +214,7 @@ export function parseSpecFile(source: string): {
           bodyStart: body.getStart(sourceFile) + 1,
           bodyEnd: body.end - 1,
           ...wholeRange(node),
+          removable: isRemovable(node),
           fixtures: callbackFixtures(
             callback as ts.ArrowFunction | ts.FunctionExpression,
             sourceFile,
