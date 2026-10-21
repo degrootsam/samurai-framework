@@ -55,7 +55,16 @@ export async function loadRawConfig(): Promise<SamuraiTestConfig> {
     validateConfig(activeProject.config);
     return activeProject.config;
   }
-  const configUrl = path.join(projectDir(), "samurai.config.ts");
+  const config = await importConfigFile(projectDir());
+  validateConfig(config);
+  return config;
+}
+
+/** The default export of `samurai.config.ts` in `dir`, not validated */
+export async function importConfigFile(
+  dir: string,
+): Promise<SamuraiTestConfig> {
+  const configUrl = path.join(dir, "samurai.config.ts");
   logger.debug("Reading config from: %s", configUrl);
 
   const config = (await import(pathToFileURL(configUrl).href)) as {
@@ -67,7 +76,6 @@ export async function loadRawConfig(): Promise<SamuraiTestConfig> {
       "samurai.config.ts does not export defineConfig as default!",
     );
   }
-  validateConfig(config.default);
   return config.default;
 }
 
