@@ -1,6 +1,6 @@
 import ts from "typescript";
 import type { Modifier } from "../types/test.js";
-import type { ParsedStep, ParsedTest } from "./model.js";
+import type { ParsedStep, ParsedTest, UnparsedTest } from "./model.js";
 import { readObject, stringOf } from "./parse/literals.js";
 import { readStep } from "./parse/step.js";
 
@@ -124,8 +124,37 @@ function wholeRange(call: ts.CallExpression): { start: number; end: number } {
   return { start: statement.getFullStart(), end: statement.end };
 }
 
-/** The tests in a spec file, with their steps and where each statement sits */
-export function parseSpec(source: string): ParsedTest[] {
+/** A test or describe the codec can't read, with where its statement sits */
+function unreadable(
+  node: ts.CallExpression,
+  kind: UnparsedTest["kind"],
+  reason: UnparsedTest["reason"],
+): UnparsedTest {
+  return { kind, reason, ...wholeRange(node) };
+}
+
+/** `test.skip(condition, reason)` inside a body: it takes a condition where a test takes a title, so it is neither a test nor unparsed */
+function isConditionForm(
+  node: ts.CallExpression,
+  callee: { modifier?: Modifier },
+) {
+  const [first] = node.arguments;
+  return (
+    (callee.modifier === "skip" || callee.modifier === "fixme") &&
+    !(
+      first &&
+      (ts.isStringLiteral(first) ||
+        ts.isNoSubstitutionTemplateLiteral(first) ||
+        ts.isTemplateExpression(first))
+    )
+  );
+}
+
+/** The tests in a spec file, with their steps and where each statement sits, and the tests and describes it can't read */
+export function parseSpecFile(source: string): {
+  tests: ParsedTest[];
+  unparsed: UnparsedTest[];
+} {
   const sourceFile = ts.createSourceFile(
     "spec.ts",
     source,
@@ -134,21 +163,35 @@ export function parseSpec(source: string): ParsedTest[] {
     ts.ScriptKind.TS,
   );
   const tests: ParsedTest[] = [];
+  const unparsed: UnparsedTest[] = [];
 
   const visit = (node: ts.Node, titles: string[], describes: Mark[]) => {
     const callee = ts.isCallExpression(node)
       ? calleeOf(node.expression)
       : undefined;
-    if (ts.isCallExpression(node) && callee) {
+    if (
+      ts.isCallExpression(node) &&
+      callee &&
+      (callee.name === "test" || callee.name === "describe") &&
+      !(callee.name === "test" && isConditionForm(node, callee))
+    ) {
+      const kind = callee.name;
       const title = stringOf(node.arguments[0]);
       const { callback, reason } = callbackOf(node, callee.modifier);
       const body = callbackBody(callback);
+      if (title === undefined) {
+        unparsed.push(unreadable(node, kind, "dynamic-title"));
+        return;
+      }
+      if (!body) {
+        unparsed.push(unreadable(node, kind, "not-inline"));
+        return;
+      }
       const mark: Mark = {
         ...(callee.modifier && { modifier: callee.modifier }),
         ...(reason !== undefined && { reason }),
       };
-      if (title !== undefined && body && callee.name === "test") {
-        // `test.skip(condition, reason)` has no title and no body, so it stays a step of the test it is in
+      if (kind === "test") {
         const titlePath = [...titles, title];
         tests.push({
           titlePath,
@@ -167,15 +210,18 @@ export function parseSpec(source: string): ParsedTest[] {
         });
         return;
       }
-      if (title !== undefined && body && callee.name === "describe") {
-        ts.forEachChild(body, (child) =>
-          visit(child, [...titles, title], [...describes, mark]),
-        );
-        return;
-      }
+      ts.forEachChild(body, (child) =>
+        visit(child, [...titles, title], [...describes, mark]),
+      );
+      return;
     }
     ts.forEachChild(node, (child) => visit(child, titles, describes));
   };
   visit(sourceFile, [], []);
-  return tests;
+  return { tests, unparsed };
+}
+
+/** The tests in a spec file, with their steps and where each statement sits */
+export function parseSpec(source: string): ParsedTest[] {
+  return parseSpecFile(source).tests;
 }

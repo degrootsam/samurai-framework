@@ -115,3 +115,12 @@ export interface ParsedTest {
   /** The `{ reason }` written with the `skip` or `fixme` that applies, when it is a string literal */
   reason?: string;
 }
+
+/** A `test` or `describe` call the codec can't read: its title isn't a plain string, or its function isn't written inline */
+export interface UnparsedTest {
+  kind: "test" | "describe";
+  /** The statement's range, as for `ParsedTest` */
+  start: number;
+  end: number;
+  reason: "dynamic-title" | "not-inline";
+}
