@@ -17,6 +17,7 @@ describe("capabilities", () => {
       skipReason: true,
       testIds: true,
       resolvedConfig: true,
+      writtenConfig: true,
       recorderStartStatus: true,
     });
   });
