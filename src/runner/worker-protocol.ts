@@ -26,6 +26,8 @@ export interface WorkerInit {
   retries?: number;
   /** Where the run's report goes when it is not the default; screenshots are kept beside it */
   reportPath?: string;
+  /** The run's `outputDir`: screenshots go there */
+  outputDir?: string;
   /** Spec files to import, absolute */
   files: string[];
   /** 0 for the first worker; picks the worker's browser port and profile folder */

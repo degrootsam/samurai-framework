@@ -284,6 +284,9 @@ async function walkFlowInProject(
             ...(options.headless !== undefined && {
               headless: options.headless,
             }),
+            ...(options.outputDir !== undefined && {
+              outputDir: options.outputDir,
+            }),
             files,
             basePort: options.port ?? DEFAULT_PORT,
             ...(retries > 0 && { retries }),
@@ -330,6 +333,9 @@ async function walkFlowInProject(
           files: [...new Set(tests.map((t) => t.file))],
           testNames: tests.map((t) => t.name),
           reportPath: false,
+          ...(options.outputDir !== undefined && {
+            outputDir: options.outputDir,
+          }),
           signal,
           onEvent,
         });

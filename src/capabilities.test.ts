@@ -19,6 +19,7 @@ describe("capabilities", () => {
       resolvedConfig: true,
       writtenConfig: true,
       recorderStartStatus: true,
+      outputDir: true,
     });
   });
 

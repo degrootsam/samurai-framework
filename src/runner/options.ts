@@ -29,7 +29,13 @@ export interface RunnerOptions {
   headless?: boolean;
   /** Remote debugging port of the browser. @default DEFAULT_PORT (9223) */
   port?: number;
-  /** Where the report is written; `false` writes none. @default `<project>/result/report.json` */
+  /**
+   * The folder for what the run writes, instead of `<project>/result`: `report.json` and the named screenshots
+   * (their paths in the results are relative to it). Relative to the project folder.
+   * @default `<project>/result`
+   */
+  outputDir?: string;
+  /** Where the report is written; `false` writes none. Beats `outputDir` for the report. @default `report.json` in `outputDir` */
   reportPath?: string | false;
   /** Receives start and end of the run and of every test, as they happen */
   onEvent?: (event: RunEvent) => void;
