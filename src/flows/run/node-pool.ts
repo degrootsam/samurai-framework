@@ -8,10 +8,16 @@ import type { NodeTest } from "./events.js";
 export function itemsOf(
   tests: NodeTest[],
   browsers: readonly SupportedBrowser[],
+  outputDir?: string,
 ): WorkItem[] {
   return browsers
     .flatMap((browser) =>
-      tests.map((t) => ({ file: t.file, testName: t.name, browser })),
+      tests.map((t) => ({
+        file: t.file,
+        testName: t.name,
+        browser,
+        ...(outputDir !== undefined && { outputDir }),
+      })),
     )
     .map((item, index) => ({ ...item, index }));
 }

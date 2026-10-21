@@ -35,6 +35,8 @@ export interface RunFlowOptions {
   signal?: AbortSignal;
   onEvent?: (event: FlowEvent) => void;
   runTests: (input: {
+    /** The node the tests are for: a node runs at most once in a run */
+    nodeId: string;
     tests: NodeTest[];
     onEvent: (e: RunEvent) => void;
     signal: AbortSignal;
@@ -89,8 +91,9 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     ...(options.nodeBrowsers && { nodeBrowsers: options.nodeBrowsers }),
     signal,
     sleep: options.sleep ?? defaultSleep,
-    runTests: (tests, onTestEvent, browsers) =>
+    runTests: (nodeId, tests, onTestEvent, browsers) =>
       options.runTests({
+        nodeId,
         tests,
         onEvent: onTestEvent,
         signal,

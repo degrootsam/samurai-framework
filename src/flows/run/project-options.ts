@@ -26,7 +26,11 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   /** `"fail"` (default): a flow with a node that can't run is refused. `"skip"`: those nodes are skipped. */
   unsupported?: "fail" | "skip";
   port?: number;
-  /** The folder the tests' named screenshots go in, instead of `<project>/result` (see `runTests`). Relative to the project folder */
+  /**
+   * The folder for the tests' named screenshots, instead of `<project>/result` (see `runTests`). Each node writes to
+   * `nodes/<node id>/` inside it, so a test that runs in two nodes keeps both sets; screenshot paths in a node's
+   * results are relative to that folder. Relative to the project folder
+   */
   outputDir?: string;
   /**
    * How many worker processes the tests of the whole run share: a number, or a percentage like `"50%"`. Unset

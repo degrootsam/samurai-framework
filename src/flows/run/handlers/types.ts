@@ -18,6 +18,7 @@ export interface HandlerRun {
   nodeBrowsers?: Record<string, SupportedBrowser[]>;
   signal: AbortSignal;
   runTests: (
+    nodeId: string,
     tests: NodeTest[],
     onEvent: (e: RunEvent) => void,
     browsers?: SupportedBrowser[],
