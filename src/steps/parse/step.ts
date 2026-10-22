@@ -1,7 +1,11 @@
 import ts from "typescript";
 import type { Step } from "../model.js";
 import { readLocator } from "./call.js";
-import { readExpectation, readValue } from "./expectation.js";
+import {
+  readExpectation,
+  readPageExpectation,
+  readValue,
+} from "./expectation.js";
 import { readFiles } from "./file-entry.js";
 import { readObject, stringOf } from "./literals.js";
 
@@ -65,7 +69,14 @@ export function readStep(statement: ts.Statement): Step | undefined {
     subject.expression.text === "expect" &&
     subject.arguments.length === 1
   ) {
-    const locator = readLocator(subject.arguments[0]!);
+    const arg = subject.arguments[0]!;
+    if (ts.isIdentifier(arg) && arg.text === "page") {
+      const expectation = readPageExpectation(name.text, args);
+      return expectation
+        ? { kind: "expectPage", not: negated, expectation }
+        : undefined;
+    }
+    const locator = readLocator(arg);
     const expectation = readExpectation(name.text, args);
     return locator && expectation
       ? { kind: "expect", locator, not: negated, expectation }

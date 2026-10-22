@@ -35,13 +35,21 @@ export type TextValue =
 export type TextMatcher = string | { regex: { source: string; flags: string } };
 
 export type Expectation =
-  | { matcher: "toBeVisible" }
+  | { matcher: "toBeVisible" | "toBeHidden" | "toBeEnabled" | "toBeChecked" }
+  | { matcher: "toHaveClass"; expected: TextMatcher }
+  | { matcher: "toHaveCSS"; name: string; expected: TextMatcher }
   | {
       matcher: "toHaveText" | "toContainText" | "toHaveValue";
       expected: TextMatcher;
     }
   | { matcher: "toHaveAttribute"; name: string; expected: TextMatcher }
   | { matcher: "toHaveCount"; expected: number };
+
+/** What an assertion expects of the page itself: its URL or title */
+export interface PageExpectation {
+  matcher: "toHaveURL" | "toHaveTitle";
+  expected: TextMatcher;
+}
 
 /** A file generated when the step runs: seeded random bytes of `size`, never stored in the project */
 export interface GeneratedFileSpec {
@@ -68,6 +76,8 @@ export type Step =
       not: boolean;
       expectation: Expectation;
     }
+  /** An assertion on the page, `expect(page).toHaveURL(…)` */
+  | { kind: "expectPage"; not: boolean; expectation: PageExpectation }
   /** A key pressed while the element has focus, e.g. `Enter` to submit a field. Named as Playwright names keys */
   | { kind: "press"; locator: LocatorSpec; key: string }
   | { kind: "waitForNetworkIdle" }

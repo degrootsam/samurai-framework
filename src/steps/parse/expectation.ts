@@ -1,5 +1,10 @@
 import ts from "typescript";
-import type { Expectation, TextMatcher, TextValue } from "../model.js";
+import type {
+  Expectation,
+  PageExpectation,
+  TextMatcher,
+  TextValue,
+} from "../model.js";
 import { stringOf } from "./literals.js";
 
 const TEXT_MATCHERS = ["toHaveText", "toContainText", "toHaveValue"] as const;
@@ -48,8 +53,26 @@ export function readExpectation(
   matcher: string,
   args: readonly ts.Expression[],
 ): Expectation | undefined {
-  if (matcher === "toBeVisible")
+  if (
+    matcher === "toBeVisible" ||
+    matcher === "toBeHidden" ||
+    matcher === "toBeEnabled" ||
+    matcher === "toBeChecked"
+  )
     return args.length === 0 ? { matcher } : undefined;
+  if (matcher === "toHaveClass") {
+    const expected = readTextMatcher(args[0]);
+    return args.length === 1 && expected !== undefined
+      ? { matcher, expected }
+      : undefined;
+  }
+  if (matcher === "toHaveCSS") {
+    const name = stringOf(args[0]);
+    const expected = readTextMatcher(args[1]);
+    return args.length === 2 && name !== undefined && expected !== undefined
+      ? { matcher, name, expected }
+      : undefined;
+  }
   if (matcher === "toHaveCount") {
     const [count] = args;
     return args.length === 1 && count && ts.isNumericLiteral(count)
@@ -70,4 +93,15 @@ export function readExpectation(
       : undefined;
   }
   return undefined;
+}
+
+export function readPageExpectation(
+  matcher: string,
+  args: readonly ts.Expression[],
+): PageExpectation | undefined {
+  if (matcher !== "toHaveURL" && matcher !== "toHaveTitle") return undefined;
+  const expected = readTextMatcher(args[0]);
+  return args.length === 1 && expected !== undefined
+    ? { matcher, expected }
+    : undefined;
 }

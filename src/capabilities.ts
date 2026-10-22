@@ -33,6 +33,10 @@ export const CAPABILITIES = {
   outputDir: true,
   /** `runFlowInProject`'s `outputDir` gives each node its own folder, `nodes/<node id>/`. */
   flowNodeFolders: true,
+  /** Assertion matchers version 2: `toBeHidden`, `toBeEnabled`, `toBeChecked`, `toHaveClass` and `toHaveCSS`, in the framework and the step codec. */
+  assertionMatchers: 2,
+  /** `expect(page).toHaveURL` and `toHaveTitle`, and the `expectPage` step in the step codec. */
+  pageAssertions: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */
