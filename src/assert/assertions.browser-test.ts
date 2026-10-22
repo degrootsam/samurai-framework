@@ -1,8 +1,11 @@
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { after, before, test } from "node:test";
 import { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import { setContent } from "../testing/browser-fixture.js";
 import { testBrowser } from "../testing/test-browser.js";
+import { AssertionError } from "./assertion-error.js";
 import { expect } from "./expect.js";
 
 let browser: Browser;
@@ -121,5 +124,58 @@ test(
     );
     await expect(paragraph).toHaveCSS("--brand", /blue/, WAIT);
     await expect(paragraph).not.toHaveCSS("color", "rgb(0, 0, 255)", WAIT);
+  },
+);
+
+test(
+  "toHaveURL resolves a path against the base URL and waits for the change",
+  OPTIONS,
+  async () => {
+    const server = createServer((_req, res) => res.end("<title>x</title>"));
+    await new Promise<void>((resolve) => server.listen(9263, resolve));
+    try {
+      await page.navigateTo("http://localhost:9263/a", "complete");
+      page.setBaseURL("http://localhost:9263/");
+      await setContent(
+        page,
+        "",
+        `setTimeout(() => { history.replaceState(null, "", "/b#done"); }, 300);`,
+      );
+      await expect(page).not.toHaveURL("/b#done", { timeout: 0 });
+      await expect(page).toHaveURL("/b#done", WAIT);
+      await expect(page).toHaveURL(/#done$/, WAIT);
+      await expect(page).toHaveURL("http://localhost:9263/b#done", WAIT);
+      await expect(page).not.toHaveURL("/a", WAIT);
+    } finally {
+      page.setBaseURL(undefined);
+      server.close();
+      await page.navigateTo("about:blank", "complete");
+    }
+  },
+);
+
+test("toHaveTitle waits for a title set later", OPTIONS, async () => {
+  await setContent(
+    page,
+    "",
+    `setTimeout(() => { document.title = " Done "; }, 300);`,
+  );
+  await expect(page).toHaveTitle("Done", WAIT);
+  await expect(page).toHaveTitle(/^Done$/, WAIT);
+});
+
+test(
+  "a failing toHaveURL throws an AssertionError for the page",
+  OPTIONS,
+  async () => {
+    await assert.rejects(
+      expect(page).toHaveURL("https://nowhere.test/", { timeout: 200 }),
+      (err: AssertionError) => {
+        assert.ok(err instanceof AssertionError);
+        assert.equal(err.matcher, "toHaveURL");
+        assert.equal(err.locator, "page");
+        return true;
+      },
+    );
   },
 );
