@@ -33,6 +33,14 @@ export interface NavigationDeps {
   waitForNetworkIdle(options: { timeout: number }): Promise<void>;
 }
 
+/** A URL starting with "/", "./" or "../" */
+const RELATIVE_URL = /^\.{0,2}\//;
+
+/** Resolves a slash-led `url` against `base`; any other URL is returned as given */
+export function resolveRelativeURL(url: string, base: string): string {
+  return RELATIVE_URL.test(url) ? new URL(url, base).href : url;
+}
+
 /** Navigating one page: `goto`, `navigateTo`, `reload` and the wait for a load state */
 export class PageNavigation {
   /** The navigation started by the last navigateTo; failures of it fail a wait */
@@ -51,18 +59,23 @@ export class PageNavigation {
     this.baseURL = url;
   }
 
+  /** The full URL `url` stands for: slash-led URLs resolve against the base URL, others stay as given */
+  public resolveURL(url: string, method = "goto"): string {
+    if (!RELATIVE_URL.test(url)) return url;
+    const base = this.baseURL ?? peekRunSettings()?.baseURL;
+    if (!base) {
+      throw new Error(
+        `${method}(): "${url}" needs a baseURL; set one in samurai.config.ts or the environment`,
+      );
+    }
+    return resolveRelativeURL(url, base);
+  }
+
   public async goto(
     url: string,
     options?: NavigateOptions,
   ): Promise<NavigationResult> {
-    if (!/^\.{0,2}\//.test(url)) return this.navigateTo(url, options);
-    const base = this.baseURL ?? peekRunSettings()?.baseURL;
-    if (!base) {
-      throw new Error(
-        `goto(): "${url}" needs a baseURL; set one in samurai.config.ts or the environment`,
-      );
-    }
-    return this.navigateTo(new URL(url, base).href, options);
+    return this.navigateTo(this.resolveURL(url), options);
   }
 
   public async navigateTo(
