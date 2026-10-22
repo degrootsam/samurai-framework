@@ -16,3 +16,13 @@ export function textCheck(
 ): (actual: string | null) => boolean {
   return (actual) => actual !== null && matchesText(actual, expected, mode);
 }
+
+/** A check for a class attribute: a string equals it after collapsing whitespace and trimming both sides, a RegExp tests it as written */
+export function classCheck(
+  expected: string | RegExp,
+): (actual: string) => boolean {
+  if (expected instanceof RegExp)
+    return (actual) => matchesText(actual, expected, "exact");
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+  return (actual) => normalize(actual) === normalize(expected);
+}
