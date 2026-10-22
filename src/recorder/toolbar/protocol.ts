@@ -1,17 +1,11 @@
-import type { LocatorCall } from "../../steps/model.js";
+import type { Expectation, LocatorCall } from "../../steps/model.js";
 
 /** The BiDi sandbox realm the toolbar script runs in */
 export const TOOLBAR_SANDBOX = "samurai-toolbar";
 /** `Symbol.for(TOOLBAR_KEY)` on the sandbox global holds the toolbar's hook: `update`, `reply`, `press`, `root` */
 export const TOOLBAR_KEY = "samurai.toolbar";
 
-type MatcherChoice =
-  | "toBeVisible"
-  | "toHaveText"
-  | "toContainText"
-  | "toHaveValue"
-  | "toHaveAttribute"
-  | "toHaveCount";
+type MatcherChoice = Expectation["matcher"];
 
 /** What the toolbar draws; secrets are names only */
 export interface ToolbarState {

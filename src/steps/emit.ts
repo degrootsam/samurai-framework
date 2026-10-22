@@ -4,6 +4,7 @@ import type {
   FileEntry,
   LocatorCall,
   LocatorSpec,
+  PageExpectation,
   Step,
   TextMatcher,
   TextValue,
@@ -80,12 +81,19 @@ function matcherToSource(expected: TextMatcher): string {
     : `/${expected.regex.source}/${expected.regex.flags}`;
 }
 
-function expectationToSource(expectation: Expectation): string {
+function expectationToSource(
+  expectation: Expectation | PageExpectation,
+): string {
   switch (expectation.matcher) {
     case "toBeVisible":
-      return "toBeVisible()";
+    case "toBeHidden":
+    case "toBeEnabled":
+    case "toBeChecked":
+      return `${expectation.matcher}()`;
     case "toHaveAttribute":
       return `toHaveAttribute(${str(expectation.name)}, ${matcherToSource(expectation.expected)})`;
+    case "toHaveCSS":
+      return `toHaveCSS(${str(expectation.name)}, ${matcherToSource(expectation.expected)})`;
     case "toHaveCount":
       return `toHaveCount(${expectation.expected})`;
     default:
@@ -106,6 +114,8 @@ export function stepToSource(step: Step): string {
       return `await ${locatorToSource(step.locator)}.press(${str(step.key)});`;
     case "expect":
       return `await expect(${locatorToSource(step.locator)})${step.not ? ".not" : ""}.${expectationToSource(step.expectation)};`;
+    case "expectPage":
+      return `await expect(page)${step.not ? ".not" : ""}.${expectationToSource(step.expectation)};`;
     case "waitForNetworkIdle":
       return "await page.waitForNetworkIdle();";
     case "waitForTimeout":
