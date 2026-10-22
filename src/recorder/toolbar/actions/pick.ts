@@ -2,7 +2,7 @@ import { expectationFor } from "../../expectation.js";
 import type { PickInfo } from "../protocol.js";
 
 /**
- * A field may hold an inserted secret: its value (and any text or attribute equal to a secret) is left out,
+ * A field may hold an inserted secret: its value (and any text, attribute, class or CSS value holding a secret) is left out,
  * and the first matcher follows the Alt+click rule without a value, so neither the page nor the spec gets it.
  */
 export function withoutSecrets(
@@ -18,6 +18,8 @@ export function withoutSecrets(
     !secret(info.value) &&
     !secret(info.text) &&
     !secret(info.first.expected) &&
+    !secret(info.className ?? undefined) &&
+    !secret(info.css.value) &&
     !info.attributes.some((a) => secret(a.value))
   )
     return info;
@@ -28,6 +30,8 @@ export function withoutSecrets(
     ...rest,
     text,
     attributes: info.attributes.filter((a) => !secret(a.value)),
+    className: secret(info.className ?? undefined) ? null : info.className,
+    css: secret(info.css.value) ? { ...info.css, value: "" } : info.css,
     first: {
       matcher: first.matcher,
       ...("expected" in first && { expected: String(first.expected) }),

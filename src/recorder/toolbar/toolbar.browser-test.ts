@@ -510,6 +510,10 @@ test(
       attributes: [{ name: "id", value: "title" }],
       first: { matcher: "toHaveText", expected: "Sign in" },
       counts: [],
+      checkable: false,
+      disableable: false,
+      className: null,
+      css: { name: "color", value: "rgb(0, 0, 0)" },
     });
     const panel = await inSandbox<{
       text: string;
@@ -553,6 +557,142 @@ test(
     assert.equal(
       await inSandbox(`() => ${HOOK}.root.querySelector(".panel") === null`),
       true,
+    );
+  },
+);
+
+test(
+  "the Assert panel offers only the element matchers that fit; Has CSS re-reads the value for another property",
+  OPTIONS,
+  async () => {
+    await page.navigateTo(
+      `data:text/html,<input type="checkbox" id="c" class="tick"><p id="p" style="color:red;background-color:blue">text</p>`,
+      "complete",
+    );
+    const channel = await install();
+    await readyOn(channel);
+    await update();
+    const base = {
+      ok: true,
+      text: "",
+      attributes: [{ name: "id", value: "c" }],
+      first: { matcher: "toBeVisible" },
+      counts: [],
+    };
+    const MATCHERS = [
+      "toBeHidden",
+      "toBeEnabled",
+      "toBeChecked",
+      "toHaveClass",
+      "toHaveCSS",
+    ];
+    const disabled = () =>
+      inSandbox<Record<string, boolean | null>>(
+        `(matchers) => Object.fromEntries(matchers.map((m) => {
+          const button = ${HOOK}.root.querySelector('[data-matcher="' + m + '"]');
+          return [m, button ? button.disabled : null];
+        }))`,
+        MATCHERS,
+      );
+    const pickById = async (id: string, count: number) => {
+      // Assert closes an open Assert panel; the second press starts picking
+      await press("assert");
+      if (!(await inSandbox(`() => ${HOOK}.picking()`))) await press("assert");
+      await inSandbox(
+        `(id) => { ${HOOK}.press("pick", { target: document.getElementById(id) }); }`,
+        id,
+      );
+      return waitFor(() => messagesOn(channel, "pick")[count - 1], "pick");
+    };
+
+    const box = await pickById("c", 1);
+    await reply(box.data.id as number, {
+      ...base,
+      label: "checkbox",
+      checkable: true,
+      disableable: true,
+      className: "tick",
+      css: { name: "color", value: "rgb(0, 0, 0)" },
+    });
+    assert.deepEqual(await disabled(), {
+      toBeHidden: false,
+      toBeEnabled: false,
+      toBeChecked: false,
+      toHaveClass: false,
+      toHaveCSS: false,
+    });
+    await press("matcher", { matcher: "toHaveClass" });
+    assert.equal(
+      await inSandbox(
+        `() => ${HOOK}.root.querySelector('input[data-field="expected"]').value`,
+      ),
+      "tick",
+    );
+    await press("matcher", { matcher: "toBeChecked" });
+    assert.equal(
+      await inSandbox(
+        `() => ${HOOK}.root.querySelector('input[data-field="expected"]')`,
+      ),
+      null,
+      "Checked takes no value",
+    );
+
+    const text = await pickById("p", 2);
+    await reply(text.data.id as number, {
+      ...base,
+      label: "p",
+      checkable: false,
+      disableable: false,
+      className: null,
+      css: { name: "color", value: "rgb(255, 0, 0)" },
+    });
+    assert.deepEqual(await disabled(), {
+      toBeHidden: false,
+      toBeEnabled: true,
+      toBeChecked: true,
+      toHaveClass: true,
+      toHaveCSS: false,
+    });
+    await press("matcher", { matcher: "toHaveCSS" });
+    const fields = () =>
+      inSandbox<{ name: string; expected: string }>(`() => ({
+        name: ${HOOK}.root.querySelector('input[data-field="cssName"]').value,
+        expected: ${HOOK}.root.querySelector('input[data-field="expected"]').value,
+      })`);
+    assert.deepEqual(await fields(), {
+      name: "color",
+      expected: "rgb(255, 0, 0)",
+    });
+    await inSandbox(`() => {
+      const el = ${HOOK}.root.querySelector('input[data-field="cssName"]');
+      el.value = "background-color";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }`);
+    assert.deepEqual(await fields(), {
+      name: "background-color",
+      expected: "rgb(0, 0, 255)",
+    });
+    await press("assert-add");
+    const [sent] = await waitFor(
+      () =>
+        messagesOn(channel, "assert").length
+          ? messagesOn(channel, "assert")
+          : undefined,
+      "the assert",
+    );
+    assert.deepEqual(
+      { ...sent!.data, target: undefined, candidates: undefined },
+      {
+        type: "toolbar",
+        action: "assert",
+        id: text.data.id,
+        target: undefined,
+        candidates: undefined,
+        matcher: "toHaveCSS",
+        cssName: "background-color",
+        expected: "rgb(0, 0, 255)",
+        not: false,
+      },
     );
   },
 );

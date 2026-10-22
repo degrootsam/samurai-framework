@@ -14,6 +14,12 @@ export const FIELDS_JS = String.raw`  const press = (action, detail) => {
       ui.assert.attribute = value;
       ui.assert.expected = prefill(ui.assert, "toHaveAttribute");
       render();
+    } else if (field === "cssName" && ui.assert) {
+      if (ui.assert.cssName === value) return;
+      ui.assert.cssName = value;
+      ui.assert.cssValue = cssValueOf(ui.assert.target, value);
+      ui.assert.expected = prefill(ui.assert, "toHaveCSS");
+      render();
     } else if (field === "countIndex" && ui.assert) {
       ui.assert.countIndex = Number(value);
       ui.assert.expected = prefill(ui.assert, "toHaveCount");

@@ -37,6 +37,8 @@ export const RECORDER_SIDE_JS = String.raw`  // ---- The recorder's side ----
         a.matcher = result.first.matcher;
         a.attribute = result.attributes[0] ? result.attributes[0].name : null;
         a.countIndex = 0;
+        a.cssName = result.css.name;
+        a.cssValue = result.css.value;
         a.expected = prefill(a, a.matcher);
       }
     } else if (ok) {

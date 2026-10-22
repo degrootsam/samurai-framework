@@ -73,6 +73,60 @@ describe("ToolbarController pick and assert", () => {
         },
       ],
       [
+        { matcher: "toBeHidden", not: false },
+        {
+          type: "expect",
+          locator: LOCATOR,
+          not: false,
+          expectation: { matcher: "toBeHidden" },
+        },
+      ],
+      [
+        { matcher: "toBeEnabled", not: true },
+        {
+          type: "expect",
+          locator: LOCATOR,
+          not: true,
+          expectation: { matcher: "toBeEnabled" },
+        },
+      ],
+      [
+        { matcher: "toBeChecked", not: false },
+        {
+          type: "expect",
+          locator: LOCATOR,
+          not: false,
+          expectation: { matcher: "toBeChecked" },
+        },
+      ],
+      [
+        { matcher: "toHaveClass", expected: "btn primary", not: false },
+        {
+          type: "expect",
+          locator: LOCATOR,
+          not: false,
+          expectation: { matcher: "toHaveClass", expected: "btn primary" },
+        },
+      ],
+      [
+        {
+          matcher: "toHaveCSS",
+          cssName: "background-color",
+          expected: "rgb(255, 0, 0)",
+          not: false,
+        },
+        {
+          type: "expect",
+          locator: LOCATOR,
+          not: false,
+          expectation: {
+            matcher: "toHaveCSS",
+            name: "background-color",
+            expected: "rgb(255, 0, 0)",
+          },
+        },
+      ],
+      [
         { matcher: "toHaveCount", countIndex: 0, expected: "3", not: false },
         {
           type: "expect",
@@ -95,6 +149,30 @@ describe("ToolbarController pick and assert", () => {
         }),
       );
       assert.deepEqual(observed, [expected]);
+    }
+  });
+
+  it("fails Has CSS without a property name", async () => {
+    for (const cssName of [undefined, "", "  "]) {
+      const { controller, replies, observed } = setup();
+      await controller.handle(pick(24));
+      await controller.handle(
+        msg({
+          action: "assert",
+          id: 24,
+          target: TARGET,
+          candidates: CANDIDATES,
+          matcher: "toHaveCSS",
+          cssName,
+          expected: "red",
+          not: false,
+        }),
+      );
+      assert.deepEqual(observed, []);
+      assert.deepEqual(lastOf(replies), {
+        id: 24,
+        result: { ok: false, error: "Choose a CSS property" },
+      });
     }
   });
 
@@ -143,6 +221,8 @@ describe("ToolbarController pick and assert", () => {
               { name: "value", value: SECRET },
             ],
             first: { matcher: "toHaveValue", expected: SECRET },
+            className: `field ${SECRET}`,
+            css: { name: "color", value: SECRET },
           },
           counts: [],
         }),
@@ -153,6 +233,8 @@ describe("ToolbarController pick and assert", () => {
     assert.equal(reply.value, undefined);
     assert.deepEqual(reply.first, { matcher: "toBeVisible" });
     assert.deepEqual(reply.attributes, [{ name: "id", value: "pw" }]);
+    assert.equal(reply.className, null);
+    assert.deepEqual(reply.css, { name: "color", value: "" });
     await controller.handle(
       msg({
         action: "assert",

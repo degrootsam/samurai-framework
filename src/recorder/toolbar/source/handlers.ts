@@ -47,8 +47,9 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
       const a = ui.panel === "assert" && ui.assert;
       if (!a || ui.busy || !a.info || !a.info.ok) return;
       const message = { action: "assert", id: a.id, target: a.target, candidates: a.candidates, matcher: a.matcher, not: a.not };
-      if (a.matcher !== "toBeVisible") message.expected = a.expected;
+      if (!VALUELESS.includes(a.matcher)) message.expected = a.expected;
       if (a.matcher === "toHaveAttribute") message.attribute = a.attribute;
+      if (a.matcher === "toHaveCSS") message.cssName = a.cssName;
       if (a.matcher === "toHaveCount") message.countIndex = a.countIndex;
       ui.busy = true;
       a.error = null;

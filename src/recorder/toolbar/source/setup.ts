@@ -21,7 +21,11 @@ export const SETUP_JS = String.raw`  if (window !== window.top) return;
   const MATCHERS = [
     ["toBeVisible", "Visible"], ["toHaveText", "Has text"], ["toContainText", "Contains text"],
     ["toHaveValue", "Has value"], ["toHaveAttribute", "Has attribute"], ["toHaveCount", "Count"],
+    ["toBeHidden", "Hidden"], ["toBeEnabled", "Enabled"], ["toBeChecked", "Checked"],
+    ["toHaveClass", "Has class"], ["toHaveCSS", "Has CSS"],
   ];
+  // Matchers that take no expected value
+  const VALUELESS = ["toBeVisible", "toBeHidden", "toBeEnabled", "toBeChecked"];
 
   let channel = send;
   let state = Object.assign({}, DEFAULTS);

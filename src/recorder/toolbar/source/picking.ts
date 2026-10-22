@@ -45,7 +45,8 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
     const candidates = candidatesOf(target);
     const r = target.getBoundingClientRect();
     ui.assert = {
-      id, target, candidates, info: null, matcher: "toBeVisible", expected: "", attribute: null, countIndex: 0, not: false, error: null,
+      id, target, candidates, info: null, matcher: "toBeVisible", expected: "", attribute: null, countIndex: 0,
+      cssName: "", cssValue: "", not: false, error: null,
       rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
     };
     ui.panel = "assert";

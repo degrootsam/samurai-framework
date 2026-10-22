@@ -10,6 +10,8 @@ import type Page from "../../browser/page.js";
 import { callFunction } from "../../script/call-function.js";
 import { ElementHandle } from "../../script/element-handle.js";
 import { ChannelArg } from "../../script/serialize.js";
+import { expect } from "../../assert/expect.js";
+import { locatorFromSpec } from "../../steps/build.js";
 import { parseSpec } from "../../steps/parse.js";
 import type { Step } from "../../steps/model.js";
 import type { BiDiConnector } from "../../transport/bidi-connection.js";
@@ -473,6 +475,63 @@ test(
           expectation: { matcher: "toHaveCount", expected: 3 },
         },
       ],
+    );
+  },
+);
+
+test(
+  "Checked is offered for a checkbox only; Has CSS records the computed value and the step passes",
+  OPTIONS,
+  async () => {
+    pages.set(
+      "/styled",
+      `<label><input type="checkbox" class="tick"> Agree</label><p style="color:red">Red text</p>`,
+    );
+    await page.navigateTo(`${bases[0]}/styled`, "complete");
+    const { steps } = await record();
+    const checkedDisabled = () =>
+      inSandbox<boolean>(
+        `() => ${HOOK}.root.querySelector('[data-matcher="toBeChecked"]').disabled`,
+      );
+    const panelReady = () =>
+      waitFor(
+        () =>
+          inSandbox<boolean>(
+            `() => Boolean(${HOOK}.root.querySelector('[data-matcher="toBeChecked"]'))`,
+          ),
+        "the Assert panel's matchers",
+      );
+
+    await press("assert");
+    await pickElement("input");
+    await panelReady();
+    assert.equal(await checkedDisabled(), false, "a checkbox can be checked");
+    await press("assert");
+    await press("assert");
+    await pickElement("p");
+    await panelReady();
+    assert.equal(await checkedDisabled(), true, "a paragraph cannot");
+
+    await press("matcher", { matcher: "toHaveCSS" });
+    assert.equal(
+      await inSandbox(
+        `() => ${HOOK}.root.querySelector('input[data-field="expected"]').value`,
+      ),
+      "rgb(255, 0, 0)",
+      "the computed value, not the written one",
+    );
+    await press("assert-add");
+    await waitFor(() => steps().length === 1, "the expect step");
+    const [step] = steps() as [Extract<Step, { kind: "expect" }>];
+    assert.deepEqual(step.expectation, {
+      matcher: "toHaveCSS",
+      name: "color",
+      expected: "rgb(255, 0, 0)",
+    });
+    await expect(locatorFromSpec(page, step.locator)).toHaveCSS(
+      step.expectation.name,
+      step.expectation.expected as string,
+      { timeout: 2000 },
     );
   },
 );
