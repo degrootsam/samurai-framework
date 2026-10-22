@@ -33,6 +33,7 @@ import {
   type WaitForState,
 } from "./element-state.js";
 import type { HelperInstaller } from "./helper-realm.js";
+import { cssPropertyName, IS_CHECKED_BODY } from "./element-reads.js";
 import {
   clickRect,
   DEFAULT_PAUSE_MS,
@@ -504,6 +505,41 @@ export default class Locator {
     return state.attached && state.enabled;
   }
 
+  /** Like `isEnabled`, but null when the element is missing, so callers can tell "disabled" from "not there"; does not wait */
+  public async enabledState(): Promise<boolean | null> {
+    const state = await this.probeState({ scroll: false, hitTest: false });
+    return state.attached ? state.enabled : null;
+  }
+
+  /** Whether a checkbox or radio input is checked or the element has `aria-checked="true"`; null when the element is missing */
+  public async isChecked(): Promise<boolean | null> {
+    return booleanOrNull(
+      await this.callOnElement<unknown>(null, IS_CHECKED_BODY),
+    );
+  }
+
+  /** The class attribute as written ("" when the element has none), or null when the element is missing */
+  public async classAttribute(): Promise<string | null> {
+    return stringOrNull(
+      await this.callOnElement<unknown>(
+        null,
+        `return el.getAttribute("class") ?? "";`,
+      ),
+    );
+  }
+
+  /** Computed value of a CSS property (camelCase names become kebab-case, `--custom` is kept), or null when the element is missing */
+  public async cssValue(name: string): Promise<string | null> {
+    return stringOrNull(
+      await this.callOnElement<unknown>(
+        null,
+        `return getComputedStyle(el).getPropertyValue(name);`,
+        ["name"],
+        [cssPropertyName(name)],
+      ),
+    );
+  }
+
   /** Whether the element exists and accepts typing (enabled, not readonly, a text field); does not wait */
   public async isEditable(): Promise<boolean> {
     const state = await this.probeState({ scroll: false, hitTest: false });
@@ -563,6 +599,14 @@ export default class Locator {
 
     await typeText(this.biDiConnector, this.contextId, keys);
   }
+}
+
+function booleanOrNull(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (value === null) return null;
+  throw new Error(
+    `Expected a boolean or null but received "${describeType(value)}"`,
+  );
 }
 
 function stringOrNull(value: unknown): string | null {

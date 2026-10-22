@@ -254,6 +254,11 @@ export default class Page {
     this.nav.setBaseURL(url);
   }
 
+  /** @internal The full URL `goto` would navigate to: a URL starting with "/", "./" or "../" resolves against the base URL, others stay as given. `method` names the caller in the error */
+  public resolveURL(url: string, method?: string): string {
+    return this.nav.resolveURL(url, method);
+  }
+
   /**
    * Navigates like `navigateTo`, but a URL starting with "/", "./" or "../" resolves against the base URL
    * (`setBaseURL`, else the environment's `baseURL`).
