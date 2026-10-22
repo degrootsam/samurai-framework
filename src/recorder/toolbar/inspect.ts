@@ -11,26 +11,38 @@ import { TOOLBAR_SANDBOX } from "./protocol.js";
 
 /** Most Count choices the Assert panel offers */
 const MAX_COUNTS = 3;
+/** The property Has CSS starts with */
+const CSS_PROPERTY = "color";
 
 /**
  * Run in the toolbar's sandbox on the picked element: its text (cut at 4 KB), value (as the Alt+click rule reads it), first
  * 20 attributes, its role without a name and its `tag.class` selector. `roleOf` only knows the roles the
- * candidates use, so the common list and table roles are added for Count.
+ * candidates use, so the common list and table roles are added for Count. Also whether it can be checked or
+ * disabled, its class attribute and the computed value of `CSS_PROPERTY`.
  */
-const INSPECT_SOURCE = String.raw`(el) => {
+const INSPECT_SOURCE = String.raw`(el, cssName) => {
   ${CANDIDATES_JS}
   const TEXT_CAP = 4096;
+  const FORM_CONTROLS = ["input", "button", "select", "textarea", "fieldset", "optgroup", "option"];
   const MORE_ROLES = { li: "listitem", ul: "list", ol: "list", tr: "row", td: "cell", th: "columnheader", option: "option", nav: "navigation", table: "table", article: "article", dialog: "dialog" };
   const tag = el.tagName.toLowerCase();
   const hasValue = typeof el.value === "string" && el.tagName !== "BUTTON" && el.tagName !== "LI";
   const secret = tag === "input" && (el.getAttribute("type") || "").toLowerCase() === "password";
   const classes = Array.from(el.classList).filter(Boolean);
+  const type = (el.getAttribute("type") || "").toLowerCase();
+  const role = (el.getAttribute("role") || "").trim().toLowerCase();
+  const className = el.getAttribute("class");
   return {
     text: norm(String(el.textContent == null ? "" : el.textContent).slice(0, TEXT_CAP * 2)).slice(0, TEXT_CAP),
     value: hasValue && !secret ? el.value : null,
     attributes: Array.from(el.attributes).slice(0, 20).map((a) => ({ name: a.name, value: a.value })),
     role: roleOf(el) || MORE_ROLES[tag] || null,
     css: classes.length ? CSS.escape(tag) + classes.map((c) => "." + CSS.escape(c)).join("") : null,
+    checkable: (tag === "input" && (type === "checkbox" || type === "radio")) ||
+      role === "checkbox" || role === "radio" || role === "switch" || el.hasAttribute("aria-checked"),
+    disableable: FORM_CONTROLS.includes(tag) || el.hasAttribute("aria-disabled"),
+    className: className && className.trim() ? className : null,
+    cssValue: getComputedStyle(el).getPropertyValue(cssName),
   };
 }`;
 
@@ -40,6 +52,10 @@ interface Found {
   attributes: { name: string; value: string }[];
   role: string | null;
   css: string | null;
+  checkable: boolean;
+  disableable: boolean;
+  className: string | null;
+  cssValue: string;
 }
 
 /** A locator call in short, as the Assert panel shows it: `heading "Sign in"`, `label "Email"`, `li.item` */
@@ -67,7 +83,8 @@ const sameCall = (a: LocatorCall, b: LocatorCall) =>
 
 /**
  * What the Assert panel needs for a picked element: its short label, text, value, attributes, the first
- * matcher (today's Alt+click rule) and up to three locators that match more than one element, with counts.
+ * matcher (today's Alt+click rule), up to three locators that match more than one element, with counts,
+ * and what decides the Checked, Enabled, Has class and Has CSS choices.
  */
 export async function inspectElement(
   page: Page,
@@ -81,7 +98,7 @@ export async function inspectElement(
     connector,
     context,
     INSPECT_SOURCE,
-    [target],
+    [target, CSS_PROPERTY],
     { sandbox: TOOLBAR_SANDBOX },
   );
   const value = found.value ?? undefined;
@@ -118,6 +135,10 @@ export async function inspectElement(
         ...("expected" in first && { expected: String(first.expected) }),
       },
       counts,
+      checkable: found.checkable,
+      disableable: found.disableable,
+      className: found.className,
+      css: { name: CSS_PROPERTY, value: found.cssValue },
     },
     counts: calls,
   };

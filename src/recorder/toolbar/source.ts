@@ -35,7 +35,7 @@ import { ATTACH_JS } from "./source/attach.js";
  *   `insert-item { kind, name }`, `insert-first`, `insert-new { kind }` (Insert list);
  *   `new-kind { kind }`, `new-save`, `new-cancel` (New variable or secret);
  *   `wait-add`, `screenshot-add`; `escape` (the Esc key); `dismiss { id }` (a warning's Dismiss button).
- *   Form inputs carry `data-field` (`expected`, `attribute`, `countIndex`, `filter`, `name`, `value`,
+ *   Form inputs carry `data-field` (`expected`, `attribute`, `cssName`, `countIndex`, `filter`, `name`, `value`,
  *   `waitKind`, `seconds`, `shotName`, `fullPage`) and update on `input`/`change`.
  * - `rebind(send)`: used by a second run in the same document (a new recording), which keeps the host and
  *   swaps in that recording's toolbar channel.

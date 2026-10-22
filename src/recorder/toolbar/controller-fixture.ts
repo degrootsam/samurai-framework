@@ -40,6 +40,10 @@ export const INFO: PickInfo & { ok: true } = {
   attributes: [{ name: "id", value: "email" }],
   first: { matcher: "toHaveValue", expected: "a@b.c" },
   counts: [{ label: "listitem", count: 3 }],
+  checkable: false,
+  disableable: true,
+  className: null,
+  css: { name: "color", value: "rgb(0, 0, 0)" },
 };
 
 export const lastOf = <T>(items: T[]): T | undefined => items[items.length - 1];

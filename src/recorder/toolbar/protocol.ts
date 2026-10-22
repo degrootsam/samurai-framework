@@ -54,6 +54,8 @@ export type ToolbarMessage = { type: "toolbar" } &
         matcher: MatcherChoice;
         expected?: string;
         attribute?: string;
+        /** The property Has CSS reads, as typed */
+        cssName?: string;
         countIndex?: number;
         not: boolean;
       }
@@ -89,6 +91,14 @@ export type PickInfo =
       attributes: { name: string; value: string }[];
       first: { matcher: MatcherChoice; expected?: string };
       counts: { label: string; count: number }[];
+      /** A checkbox or radio input, or role checkbox/radio/switch, or `aria-checked`: Checked is offered */
+      checkable: boolean;
+      /** A form control or button, or `aria-disabled`: Enabled is offered */
+      disableable: boolean;
+      /** The class attribute as written; null when there is none (Has class is not offered) */
+      className: string | null;
+      /** Has CSS's first property and its computed value */
+      css: { name: string; value: string };
     }
   | { ok: false; error: string };
 
