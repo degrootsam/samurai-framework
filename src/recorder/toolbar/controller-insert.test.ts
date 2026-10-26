@@ -339,10 +339,11 @@ describe("ToolbarController inputs", () => {
     assert.deepEqual(replies, [{ id: 51, result: { ok: true } }]);
   });
 
-  it("refuses a name that is taken or not a name, and an input that isn't declared", async () => {
+  it("refuses a name that is taken, not a name or reserved, and an input that isn't declared", async () => {
     const { controller, calls, observed, replies } = setup();
     await controller.handle(add(52, "input", "email", "x"));
     await controller.handle(add(53, "input", "my-name", "x"));
+    await controller.handle(add(56, "input", "status", "x"));
     await controller.handle(insert(54, "input", "nope"));
     assert.deepEqual(calls, []);
     assert.deepEqual(observed, []);
@@ -355,6 +356,7 @@ describe("ToolbarController inputs", () => {
           error: "name: use letters, digits and _",
           field: "name",
         },
+        { ok: false, error: `name: "status" is reserved`, field: "name" },
         { ok: false, error: `There is no input "nope"` },
       ],
     );
