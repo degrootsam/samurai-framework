@@ -4,12 +4,14 @@ import type {
   LocatorSpec,
   PageExpectation,
   Step,
+  TestInput,
 } from "../steps/model.js";
 import { expectationFor, secretNameFor } from "./expectation.js";
 
 /** What the recorder does to the step list: a new step at `index`, a step rewritten in place, or one taken out */
 export type RecorderEvent =
-  | { op: "insert"; index: number; step: Step }
+  /** `declare`: an input the step reads, declared with its default before the step goes in */
+  | { op: "insert"; index: number; step: Step; declare?: TestInput }
   | { op: "replace"; index: number; step: Step }
   | { op: "remove"; index: number };
 
@@ -50,7 +52,9 @@ export type Observation =
   | {
       type: "insert";
       locator: LocatorSpec;
-      value: { kind: "env" | "secret"; name: string };
+      value: { kind: "env" | "secret" | "input"; name: string };
+      /** A new input: its default */
+      declare?: string;
     }
   /** A file input got a click: the click recorded just before it opened the file picker */
   | { type: "picker" }
@@ -109,10 +113,15 @@ export class Normaliser {
     return this.next;
   }
 
-  private insert(step: Step): RecorderEvent {
+  private insert(step: Step, declare?: TestInput): RecorderEvent {
     this.lastStep = step;
     this.picker = undefined;
-    return { op: "insert", index: this.next++, step };
+    return {
+      op: "insert",
+      index: this.next++,
+      step,
+      ...(declare && { declare }),
+    };
   }
 
   /** The path (and query) of `url` when it is inside the base URL, else `url` */
@@ -180,7 +189,11 @@ export class Normaliser {
     const fromToolbar = this.toolbarStep(observation);
     if (fromToolbar) {
       this.lastFill = undefined;
-      return [this.insert(fromToolbar)];
+      const declare =
+        observation.type === "insert" && observation.declare !== undefined
+          ? { name: observation.value.name, default: observation.declare }
+          : undefined;
+      return [this.insert(fromToolbar, declare)];
     }
     switch (observation.type) {
       case "picker":

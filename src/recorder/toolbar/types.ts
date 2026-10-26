@@ -55,6 +55,8 @@ export interface ControllerOptions {
   /** Name → value; undefined when not set */
   secrets: Record<string, string | undefined>;
   secretsIgnored: boolean;
+  /** The test's declared inputs: name → default */
+  inputs?: Record<string, string>;
   /** Screenshot steps already in the test, for the default name */
   screenshots: number;
 }
@@ -82,6 +84,7 @@ export interface ActionContext {
   readonly options: ControllerOptions;
   readonly variables: Map<string, string>;
   readonly secrets: Map<string, string | undefined>;
+  readonly inputs: Map<string, string>;
   isPaused(): boolean;
   /** The picked element an `assert` or `save-output` with the same id refers to */
   pick(): PickState | undefined;

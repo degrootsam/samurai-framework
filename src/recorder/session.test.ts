@@ -68,8 +68,22 @@ test("a", async ({ page }) => {
       variables: { user: "sam" },
       secrets: { TOKEN: "t", PASSWORD: undefined },
       secretsIgnored: true,
+      inputs: {},
       screenshots: 2,
     });
+  });
+
+  it("lists the recording test's declared inputs with their defaults", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-toolbar-"));
+    const withInputs = `test("t", { inputs: { email: "a@b.c" } }, async ({ page, inputs }) => {\n  await page.getByLabel("Email").fill(inputs.email);\n});\n`;
+    const options = await toolbarOptions(
+      run,
+      withInputs,
+      dir,
+      { environments: { staging: {} } } as never,
+      0,
+    );
+    assert.deepEqual(options.inputs, { email: "a@b.c" });
   });
 
   it("can't add variables without environments, and sees an unignored env file", async () => {

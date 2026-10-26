@@ -23,6 +23,8 @@ export interface ToolbarState {
   canAddVariables: boolean;
   variables: { name: string; value: string }[];
   secrets: { name: string; set: boolean }[];
+  /** The recording test's declared inputs and their defaults */
+  inputs: { name: string; value: string }[];
   /** Whether `.env.<environment>` is git-ignored */
   secretsIgnored: boolean;
   /** Ask "Add a step that opens this page?" */
@@ -68,7 +70,7 @@ export type ToolbarMessage = { type: "toolbar" } &
         id: number;
         target: unknown;
         candidates: LocatorCall[];
-        kind: "env" | "secret";
+        kind: "env" | "secret" | "input";
         name: string;
       }
     | {
@@ -76,7 +78,7 @@ export type ToolbarMessage = { type: "toolbar" } &
         id: number;
         target: unknown;
         candidates: LocatorCall[];
-        kind: "env" | "secret";
+        kind: "env" | "secret" | "input";
         name: string;
         value: string;
       }

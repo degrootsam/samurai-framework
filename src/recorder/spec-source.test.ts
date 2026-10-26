@@ -107,3 +107,34 @@ describe("SpecWriter with outputs", () => {
     assert.deepEqual(parseSpec(text)[0]!.outputs, ["o"]);
   });
 });
+
+describe("SpecWriter with inputs", () => {
+  it("a recorded input writes the default into the options object and fills with inputs.<name>", () => {
+    const file = path.join(dir, "inputs.spec.ts");
+    writeFileSync(file, EXISTING);
+    const writer = new SpecWriter(EXISTING, file, 0);
+    const text = writer.write({
+      op: "insert",
+      index: 1,
+      declare: { name: "email", default: "a@b.c" },
+      step: {
+        kind: "fill",
+        locator: {
+          chain: [{ method: "getByLabel", text: "Email" }],
+          fallbacks: [],
+        },
+        value: { kind: "input", name: "email" },
+      },
+    });
+    assert.ok(
+      text.includes(
+        `test("a", { inputs: { email: "a@b.c" } }, async ({ page, inputs }) => {`,
+      ),
+      text,
+    );
+    assert.ok(text.includes(`.fill(inputs.email)`), text);
+    assert.deepEqual(parseSpec(text)[0]!.inputs, [
+      { name: "email", default: "a@b.c" },
+    ]);
+  });
+});

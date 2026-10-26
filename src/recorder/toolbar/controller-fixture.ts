@@ -21,6 +21,7 @@ const OPTIONS: ControllerOptions = {
   secrets: { ADMIN_PASSWORD: SECRET, API_TOKEN: undefined },
   secretsIgnored: true,
   screenshots: 0,
+  inputs: { email: "a@b.c" },
 };
 
 export const TARGET = new ElementHandle("el-1");
@@ -52,7 +53,11 @@ export const lastOf = <T>(items: T[]): T | undefined => items[items.length - 1];
 export type Message = ToolbarMessage & { target?: ElementHandle };
 export const msg = (message: Record<string, unknown>) =>
   ({ type: "toolbar", ...message }) as Message;
-export const insert = (id: number, kind: "env" | "secret", name: string) =>
+export const insert = (
+  id: number,
+  kind: "env" | "secret" | "input",
+  name: string,
+) =>
   msg({
     action: "insert",
     id,
@@ -63,7 +68,7 @@ export const insert = (id: number, kind: "env" | "secret", name: string) =>
   });
 export const add = (
   id: number,
-  kind: "env" | "secret",
+  kind: "env" | "secret" | "input",
   name: string,
   value: string,
 ) =>

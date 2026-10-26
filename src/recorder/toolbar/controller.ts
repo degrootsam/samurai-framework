@@ -7,6 +7,7 @@ import { addInsertableAction, insertAction } from "./actions/insert.js";
 import { withoutSecrets } from "./actions/pick.js";
 import { saveOutputAction } from "./actions/save-output.js";
 import { fail, PAUSED, UNIDENTIFIABLE } from "./actions/reply.js";
+import { insertablesOf } from "./insertables.js";
 import { LEFT, PageScope } from "./page-scope.js";
 import type {
   ActionReply,
@@ -45,6 +46,7 @@ export class ToolbarController {
   private screenshots: number;
   private readonly variables: Map<string, string>;
   private readonly secrets: Map<string, string | undefined>;
+  private readonly inputs: Map<string, string>;
   private pausedAt: string | undefined;
   /** The URL the resume question offers; set while it is asked */
   private question: string | undefined;
@@ -74,11 +76,13 @@ export class ToolbarController {
       ]),
     );
     this.secrets = new Map(Object.entries(options.secrets));
+    this.inputs = new Map(Object.entries(options.inputs ?? {}));
     this.actions = {
       deps,
       options,
       variables: this.variables,
       secrets: this.secrets,
+      inputs: this.inputs,
       isPaused: () => this.paused,
       pick: () => this.pick,
       setPick: (pick) => {
@@ -104,11 +108,7 @@ export class ToolbarController {
       steps: this.steps,
       environment: this.options.environment,
       canAddVariables: this.options.canAddVariables,
-      variables: [...this.variables].map(([name, value]) => ({ name, value })),
-      secrets: [...this.secrets].map(([name, value]) => ({
-        name,
-        set: value !== undefined,
-      })),
+      ...insertablesOf(this.actions),
       secretsIgnored: this.options.secretsIgnored,
       resumeQuestion: this.question !== undefined,
       nextScreenshot: `screenshot-${this.screenshots + 1}`,

@@ -30,6 +30,7 @@ describe("ToolbarController", () => {
         { name: "ADMIN_PASSWORD", set: true },
         { name: "API_TOKEN", set: false },
       ],
+      inputs: [{ name: "email", value: "a@b.c" }],
       secretsIgnored: true,
       resumeQuestion: false,
       nextScreenshot: "screenshot-1",
