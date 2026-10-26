@@ -47,9 +47,23 @@ export const RESERVED_OUTPUTS: readonly string[] = [
   "error",
 ];
 
-/** Whether `name` can name a test's input or output: an identifier that isn't in `RESERVED_OUTPUTS` */
+/** The shape of an input or output name */
+export const IO_NAME = /^[A-Za-z_]\w*$/;
+/** Keys an object literal or a lookup treats specially: as a name they would set or read the prototype */
+const OBJECT_KEYS: readonly string[] = [
+  "__proto__",
+  "constructor",
+  "prototype",
+];
+
+/**
+ * Whether `name` can name a test's input or output: an identifier that isn't in `RESERVED_OUTPUTS` and isn't one
+ * of an object's special keys
+ */
 export const isIoName = (name: string): boolean =>
-  /^[A-Za-z_]\w*$/.test(name) && !RESERVED_OUTPUTS.includes(name);
+  IO_NAME.test(name) &&
+  !RESERVED_OUTPUTS.includes(name) &&
+  !OBJECT_KEYS.includes(name);
 
 const TITLE_FIELDS: readonly Field[] = [
   { path: "title", type: "text", label: "Title" },

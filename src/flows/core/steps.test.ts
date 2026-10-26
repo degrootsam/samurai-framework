@@ -101,7 +101,7 @@ describe("stepNodeOf", () => {
 });
 
 describe("isIoName", () => {
-  test("takes an identifier that isn't a node's own result field", () => {
+  test("takes an identifier that isn't a node's own result field or an object's special key", () => {
     for (const name of ["orderId", "_x", "a1", "A_B"])
       assert.equal(isIoName(name), true, name);
     for (const name of [
@@ -113,6 +113,9 @@ describe("isIoName", () => {
       "status",
       "durationMs",
       "error",
+      "__proto__",
+      "constructor",
+      "prototype",
     ])
       assert.equal(isIoName(name), false, name);
   });
