@@ -4,22 +4,19 @@ import type { WorkItem } from "../../runner/worker-protocol.js";
 import type { SupportedBrowser } from "../../types/browser.js";
 import type { NodeTest } from "./events.js";
 
-/** The work items of a node: each test in each browser, the browsers one after the other */
+/** The work items of a node in one browser's run: each of its tests, in that browser */
 export function itemsOf(
   tests: NodeTest[],
-  browsers: readonly SupportedBrowser[],
+  browser: SupportedBrowser,
   outputDir?: string,
 ): WorkItem[] {
-  return browsers
-    .flatMap((browser) =>
-      tests.map((t) => ({
-        file: t.file,
-        testName: t.name,
-        browser,
-        ...(outputDir !== undefined && { outputDir }),
-      })),
-    )
-    .map((item, index) => ({ ...item, index }));
+  return tests.map((t, index) => ({
+    index,
+    file: t.file,
+    testName: t.name,
+    browser,
+    ...(outputDir !== undefined && { outputDir }),
+  }));
 }
 
 /** Runs the tests of a node on the pool and reports them as a run would */

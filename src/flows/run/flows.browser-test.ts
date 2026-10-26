@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import type { FlowEvent } from "./events.js";
 import { runFlowInProject } from "./project.js";
-import { browserConfig } from "../../testing/test-browser.js";
+import { browserConfig, testBrowser } from "../../testing/test-browser.js";
 
 const API = path.resolve("src/api.ts");
 
@@ -14,6 +20,7 @@ import { expect, test } from ${JSON.stringify(API)};
 test("shows the heading", async ({ page }) => {
   await page.navigateTo("data:text/html,<h1>Hi</h1>");
   await expect(page.getByCss("h1")).toHaveText("Hi");
+  await page.screenshot({ name: "heading" });
 });
 `;
 
@@ -74,9 +81,11 @@ test(
     );
 
     const events: FlowEvent[] = [];
-    const summary = await runFlowInProject({
+    const outputDir = path.join(dir, "out");
+    const result = await runFlowInProject({
       projectDir: dir,
       flowId: "smoke",
+      outputDir,
       config: {
         ...browserConfig(),
         srcDir: "./specs",
@@ -88,7 +97,13 @@ test(
       onEvent: (e) => events.push(e),
     });
 
-    assert.equal(summary.status, "passed", JSON.stringify(summary));
+    assert.equal(result.status, "passed", JSON.stringify(result));
+    const browser = testBrowser();
+    assert.deepEqual(
+      result.runs.map((r) => r.browser),
+      [browser],
+    );
+    const summary = result.runs[0]!.summary;
     assert.deepEqual(summary.vars, { greeting: "hi eu" });
     assert.equal(summary.nodes.heading!.status, "passed");
     assert.equal(summary.nodes.cond!.branch, "true");
@@ -97,7 +112,22 @@ test(
     assert.ok(
       events.some((e) => e.type === "test" && e.event.type === "test-end"),
     );
-    assert.equal(events[events.length - 1]!.type, "flow-end");
+    assert.equal(events[events.length - 2]!.type, "flow-end");
+    assert.equal(events[events.length - 1]!.type, "flow-done");
+    // The screenshot path is relative to outputDir, and starts with the node's folder
+    const shots = events.flatMap((e) =>
+      e.type === "test" &&
+      e.event.type === "test-end" &&
+      "screenshots" in e.event.result
+        ? (e.event.result.screenshots ?? [])
+        : [],
+    );
+    assert.equal(shots.length, 1);
+    assert.ok(
+      shots[0]!.path.startsWith(`${browser}/nodes/heading/`),
+      shots[0]!.path,
+    );
+    assert.ok(existsSync(path.join(outputDir, ...shots[0]!.path.split("/"))));
   },
 );
 

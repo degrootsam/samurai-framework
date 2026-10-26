@@ -217,9 +217,9 @@ async function run(
       ? undefined
       : new FlowReporter({ flow, write: io.out, color: io.color, steps });
     if (index > 0 && !options.json) io.out("\n");
-    let summary;
+    let result;
     try {
-      summary = await runFlowInProject({
+      result = await runFlowInProject({
         ...options.run,
         projectDir,
         flow,
@@ -235,10 +235,10 @@ async function run(
       if (e instanceof FlowCheckError) return refuse(e.problems, flow);
       throw e;
     }
-    const file = await writeFlowReport(projectDir, builder.finish(summary));
+    const file = await writeFlowReport(projectDir, builder.finish(result));
     if (!options.json)
       io.out(`Report: ${path.relative(projectDir, file) || file}\n`);
-    if (summary.status !== "passed") code = 1;
+    if (result.status !== "passed") code = 1;
   }
   return code;
 }

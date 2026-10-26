@@ -22,7 +22,12 @@ export interface RunFlowOptions {
   flow: FlowFile;
   /** The tests of each Test and Group node, by node id */
   nodeTests: Record<string, NodeTest[]>;
-  /** The browsers a Group node runs in (its group's); a node not listed uses the project's */
+  /** The browser of this walk: a flow runs once per browser, `runFlow` walks it once */
+  browser: SupportedBrowser;
+  /**
+   * The browsers each Test and Group node runs in. A listed node whose list lacks `browser` is skipped with the
+   * note `not run in <browser>`; a node not listed runs
+   */
   nodeBrowsers?: Record<string, SupportedBrowser[]>;
   environment: {
     name: string;
@@ -40,8 +45,8 @@ export interface RunFlowOptions {
     tests: NodeTest[];
     onEvent: (e: RunEvent) => void;
     signal: AbortSignal;
-    /** Set for a node that runs in browsers of its own */
-    browsers?: SupportedBrowser[];
+    /** The run's browser */
+    browser: SupportedBrowser;
   }) => Promise<"passed" | "failed" | "cancelled">;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   /**
@@ -57,12 +62,13 @@ export interface RunFlowOptions {
 }
 
 /**
- * Runs a flow: sets up what its nodes share (expression context, handler access to the tests), walks it from
- * Start (see `FlowWalker`) and reports how it ended. A flow whose shape can't run ends with an `error`; a flow
- * with a kind that has no handler throws before it starts, unless `unsupported` is `"skip"`.
+ * Runs a flow once, in `browser` (`runFlowInProject` runs it once per browser): sets up what its nodes share
+ * (expression context, handler access to the tests), walks it from Start (see `FlowWalker`) and reports how it
+ * ended. Every event carries `browser`. A flow whose shape can't run ends with an `error`; a flow with a kind that
+ * has no handler throws before it starts, unless `unsupported` is `"skip"`.
  */
 export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
-  const { flow, onEvent = () => {} } = options;
+  const { flow, browser, onEvent = () => {} } = options;
   const signal = options.signal ?? new AbortController().signal;
   const handlers = options.handlers ?? HANDLERS;
   const nodes = options.nodes ?? STEP_NODES;
@@ -88,18 +94,20 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     environment: options.environment,
     context,
     nodeTests: options.nodeTests,
+    browser,
     ...(options.nodeBrowsers && { nodeBrowsers: options.nodeBrowsers }),
     signal,
     sleep: options.sleep ?? defaultSleep,
-    runTests: (nodeId, tests, onTestEvent, browsers) =>
+    runTests: (nodeId, tests, onTestEvent) =>
       options.runTests({
         nodeId,
         tests,
         onEvent: onTestEvent,
         signal,
-        ...(browsers && { browsers }),
+        browser,
       }),
-    onTestEvent: (nodeId, event) => onEvent({ type: "test", nodeId, event }),
+    onTestEvent: (nodeId, event) =>
+      onEvent({ type: "test", browser, nodeId, event }),
     nodes,
     log: (nodeId, level, text) => logger[level](`[${nodeId}] ${text}`),
   });
@@ -110,10 +118,14 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     nodes,
     handlerRunFor,
     context,
-    onEvent,
+    onEvent: (event) => onEvent({ ...event, browser }),
   });
 
-  onEvent({ type: "flow-start", environment: options.environment.name });
+  onEvent({
+    type: "flow-start",
+    browser,
+    environment: options.environment.name,
+  });
   let error: string | undefined;
   const start = flow.nodes.find(
     (n) => definitionOf(nodes, n.kind)?.shape === "start",
@@ -140,6 +152,6 @@ export async function runFlow(options: RunFlowOptions): Promise<FlowSummary> {
     vars: context.vars,
     ...(error ? { error } : {}),
   };
-  onEvent({ type: "flow-end", summary });
+  onEvent({ type: "flow-end", browser, summary });
   return summary;
 }

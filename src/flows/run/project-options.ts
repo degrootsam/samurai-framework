@@ -3,6 +3,7 @@ import type { PoolOptions, WorkerPool } from "../../runner/worker-pool.js";
 import type { runTests } from "../../runner/run.js";
 import type { FlowFile, FlowProblem } from "../core/index.js";
 import type { FlowEvent } from "./events.js";
+import type { SupportedBrowser } from "../../types/browser.js";
 
 /** The flow has errors; nothing was run */
 export class FlowCheckError extends Error {
@@ -27,9 +28,15 @@ export interface RunFlowInProjectOptions extends ProjectOptions {
   unsupported?: "fail" | "skip";
   port?: number;
   /**
+   * Run the flow in these browsers only, in the flow's order (a browser no node uses is ignored, none left is an
+   * error). Unset runs it once in each browser its nodes use (see `flowBrowsers`); `[one]` runs it once
+   */
+  browsers?: SupportedBrowser[];
+  /**
    * The folder for the tests' named screenshots, instead of `<project>/result` (see `runTests`). Each node writes to
-   * `nodes/<node id>/` inside it, so a test that runs in two nodes keeps both sets; screenshot paths in a node's
-   * results are relative to that folder. Relative to the project folder
+   * `<browser>/nodes/<node id>/` inside it (`nodeFolder`), so a test that runs in two nodes or two browsers keeps
+   * every set; screenshot paths in a node's test events start with that folder: they are relative to `outputDir`,
+   * with `/` separators. Relative to the project folder
    */
   outputDir?: string;
   /**

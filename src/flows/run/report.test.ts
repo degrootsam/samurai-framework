@@ -26,14 +26,20 @@ const failed = {
 describe("flow report", () => {
   it("collects the tests that ended, by node, and builds the report", () => {
     const b = new FlowReportBuilder({ id: "checkout", name: "Checkout" });
-    b.handle({ type: "flow-start", environment: "staging" });
+    b.handle({
+      type: "flow-start",
+      environment: "staging",
+      browser: "firefox",
+    });
     b.handle({
       type: "test",
+      browser: "firefox",
       nodeId: "t",
       event: { type: "test-start", name: "x", file: "f", browser: "firefox" },
     });
     b.handle({
       type: "test",
+      browser: "firefox",
       nodeId: "t",
       event: {
         type: "test-end",
@@ -43,15 +49,25 @@ describe("flow report", () => {
         result: failed,
       },
     });
+    const firefox = {
+      status: "failed" as const,
+      nodes: { t: { status: "failed" as const } },
+      vars: { a: 1 },
+    };
+    const chrome = { status: "passed" as const, nodes: {}, vars: {} };
     const report = b.finish({
       status: "failed",
-      nodes: { t: { status: "failed" } },
-      vars: { a: 1 },
+      runs: [
+        { browser: "firefox", summary: firefox },
+        { browser: "chrome", summary: chrome },
+      ],
     });
     assert.equal(report.flow, "checkout");
     assert.equal(report.environment, "staging");
     assert.equal(report.status, "failed");
-    assert.deepEqual(report.vars, { a: 1 });
+    assert.equal(report.runs.length, 2);
+    assert.deepEqual(report.runs[0], { browser: "firefox", summary: firefox });
+    assert.deepEqual(report.runs[1], { browser: "chrome", summary: chrome });
     assert.equal(report.tests.length, 1);
     assert.equal(report.tests[0]!.nodeId, "t");
     assert.equal(
@@ -65,6 +81,7 @@ describe("flow report", () => {
     const b = new FlowReportBuilder({ id: "checkout", name: "Checkout" });
     b.handle({
       type: "test",
+      browser: "firefox",
       nodeId: "t",
       event: {
         type: "test-end",
@@ -83,7 +100,15 @@ describe("flow report", () => {
         },
       },
     });
-    const report = b.finish({ status: "passed", nodes: {}, vars: {} });
+    const report = b.finish({
+      status: "passed",
+      runs: [
+        {
+          browser: "firefox",
+          summary: { status: "passed", nodes: {}, vars: {} },
+        },
+      ],
+    });
     assert.deepEqual(
       report.tests.map((t) => [t.nodeId, t.status]),
       [["t", "skipped"]],
@@ -99,9 +124,10 @@ describe("flow report", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-flow-report-"));
     dirs.push(dir);
     const b = new FlowReportBuilder({ id: "checkout", name: "Checkout" });
-    b.handle({ type: "flow-start", environment: "dev" });
+    b.handle({ type: "flow-start", environment: "dev", browser: "firefox" });
     b.handle({
       type: "test",
+      browser: "firefox",
       nodeId: "t",
       event: {
         type: "test-end",
@@ -115,8 +141,16 @@ describe("flow report", () => {
       dir,
       b.finish({
         status: "failed",
-        nodes: { t: { status: "failed", error: "bad s3cret-token" } },
-        vars: { k: "s3cret-token" },
+        runs: [
+          {
+            browser: "firefox",
+            summary: {
+              status: "failed",
+              nodes: { t: { status: "failed", error: "bad s3cret-token" } },
+              vars: { k: "s3cret-token" },
+            },
+          },
+        ],
       }),
     );
     assert.equal(file, path.join(dir, "result/flows/checkout.json"));

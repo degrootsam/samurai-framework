@@ -53,6 +53,7 @@ const run = (
   runFlow({
     flow,
     nodeTests: {},
+    browser: "firefox",
     environment: { name: "dev", variables: { base: 2 } },
     runTests: async () => "passed",
     sleep: async () => {},

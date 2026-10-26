@@ -7,9 +7,14 @@ import {
   type FlowNodeModel,
 } from "../core/index.js";
 import { forkContext, mergeForks, type Fork } from "./branch-context.js";
-import type { FlowEvent, NodeResult } from "./events.js";
+import type { NodeResult } from "./events.js";
 import type { Handler, HandlerRun } from "./handlers/index.js";
 import { definitionOf, dynamicBranches, shapeError } from "./prepare-flow.js";
+
+/** A node's event as the walker sends it; `runFlow` adds the run's browser */
+type NodeEvent =
+  | { type: "node-start"; nodeId: string }
+  | { type: "node-end"; nodeId: string; result: NodeResult };
 
 /** What the walker needs of the run: the flow, who handles each kind, and where results and events go */
 export interface WalkerInput {
@@ -23,7 +28,7 @@ export interface WalkerInput {
     signal: AbortSignal,
   ) => HandlerRun;
   context: ExpressionContext;
-  onEvent: (event: FlowEvent) => void;
+  onEvent: (event: NodeEvent) => void;
 }
 
 /**
