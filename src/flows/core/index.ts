@@ -8,6 +8,7 @@ export * from "./graph.js";
 export * from "./expression/index.js";
 export * from "./nodes/index.js";
 export * from "./check.js";
+export * from "./wiring.js";
 export * from "./steps.js";
 
 /**

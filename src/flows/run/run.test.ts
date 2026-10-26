@@ -50,6 +50,7 @@ function harness(
       flow.nodes.filter((n) => n.kind === "test").map((n) => [n.id, [t(n.id)]]),
     ),
     environment: { name: "staging", variables: { region: "eu" } },
+    browser: "firefox",
     startedAt: "2026-10-07T10:00:00Z",
     signal: controller.signal,
     onEvent: (e) => events.push(e),
@@ -77,6 +78,68 @@ const ghost = stepNodeOf({
 });
 
 describe("runFlow", () => {
+  test("every event carries the run's browser, and runTests is told it", async () => {
+    const browsers: string[] = [];
+    const h = harness(
+      flowOf(
+        [
+          { id: "start", kind: "start" },
+          { id: "a", kind: "test" },
+          { id: "end", kind: "end" },
+        ],
+        chain("start", "a", "end"),
+      ),
+      {},
+      {
+        browser: "chrome",
+        runTests: async ({ browser, onEvent }) => {
+          browsers.push(browser);
+          onEvent({ type: "test-start", name: "a", file: "f", browser });
+          return "passed";
+        },
+      },
+    );
+    await runFlow(h.options);
+    assert.deepEqual(browsers, ["chrome"]);
+    assert.ok(h.events.length > 4);
+    for (const e of h.events)
+      assert.equal((e as { browser?: string }).browser, "chrome", e.type);
+  });
+
+  test("a node whose browsers lack the run's is skipped with a note, the others run", async () => {
+    const h = harness(
+      flowOf(
+        [
+          { id: "start", kind: "start" },
+          { id: "g", kind: "group", ref: { group: "chromeOnly" } },
+          { id: "a", kind: "test" },
+          { id: "e", kind: "group", ref: { group: "chromeOnly" } },
+          { id: "end", kind: "end" },
+        ],
+        chain("start", "g", "a", "e", "end"),
+      ),
+      {},
+      {
+        nodeBrowsers: {
+          g: ["chrome"],
+          a: ["firefox", "chrome"],
+          e: ["chrome"],
+        },
+      },
+    );
+    h.options.nodeTests.g = [t("g")];
+    const summary = await runFlow(h.options);
+    assert.deepEqual(h.ran, ["a"]);
+    assert.equal(summary.status, "passed");
+    assert.deepEqual(summary.nodes.g, {
+      status: "skipped",
+      note: "not run in firefox",
+      durationMs: summary.nodes.g!.durationMs,
+    });
+    // An empty group outside its browsers is skipped too, not "has no tests"
+    assert.equal(summary.nodes.e!.note, "not run in firefox");
+  });
+
   test("runs test nodes in order and passes", async () => {
     const h = harness(
       flowOf(
@@ -190,7 +253,12 @@ describe("runFlow", () => {
     assert.equal(summary.nodes.no!.status, "skipped");
     assert.deepEqual(
       h.events.find((e) => e.type === "node-end" && e.nodeId === "no"),
-      { type: "node-end", nodeId: "no", result: { status: "skipped" } },
+      {
+        type: "node-end",
+        browser: "firefox",
+        nodeId: "no",
+        result: { status: "skipped" },
+      },
     );
     assert.deepEqual(summary.nodes.set!.wrote, { n: 2 });
     assert.deepEqual(summary.vars, { n: 2 });

@@ -149,7 +149,11 @@ describe("samurai flow", () => {
     assert.equal(rep.status, "passed");
     assert.equal(rep.flow, "a-good");
     assert.equal(rep.environment, "dev");
-    assert.deepEqual(rep.vars, { order: 42 });
+    assert.deepEqual(
+      rep.runs.map((r: { browser: string }) => r.browser),
+      ["firefox"],
+    );
+    assert.deepEqual(rep.runs[0].summary.vars, { order: 42 });
     assert.deepEqual(rep.tests, []);
     assert.equal(typeof rep.durationMs, "number");
   });
@@ -189,8 +193,12 @@ export default {
       .split("\n")
       .map((l) => JSON.parse(l));
     assert.equal(events[0].type, "flow-start");
-    assert.equal(events[events.length - 1].type, "flow-end");
-    assert.equal(events[events.length - 1].summary.status, "passed");
+    assert.equal(events[0].browser, "firefox");
+    assert.equal(events[events.length - 2].type, "flow-end");
+    assert.equal(events[events.length - 2].summary.status, "passed");
+    assert.equal(events[events.length - 1].type, "flow-done");
+    assert.equal(events[events.length - 1].status, "passed");
+    assert.equal(events[events.length - 1].runs.length, 1);
   });
 
   it("a failing node exits 1 and still writes the report", async () => {
@@ -234,8 +242,8 @@ export default {
     assert.equal(await main(["flow", "run", "f-slow"], r.target), 1);
     const rep = report("f-slow");
     assert.equal(rep.status, "cancelled");
-    assert.equal(rep.nodes.set.status, "passed");
-    assert.equal(rep.nodes.w.status, "not-run");
+    assert.equal(rep.runs[0].summary.nodes.set.status, "passed");
+    assert.equal(rep.runs[0].summary.nodes.w.status, "not-run");
     assert.match(r.out(), /Cancelled/);
   });
 });

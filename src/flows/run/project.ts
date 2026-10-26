@@ -4,6 +4,7 @@ import { projectConfig } from "../../config/config.js";
 import {
   checkFlow,
   withKeys,
+  type FlowFacts,
   type FlowFile,
   type FlowProblem,
 } from "../core/index.js";
@@ -25,10 +26,11 @@ import TestRunner from "../../runner/test-runner.js";
 import { WorkerPool } from "../../runner/worker-pool.js";
 import { processWorkerFactory } from "../../runner/worker-process.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
-import type { FlowSummary, NodeTest } from "./events.js";
+import type { FlowRunResult, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
-import { nodeFolder } from "./node-folder.js";
-import { itemsOf, runOnPool } from "./node-pool.js";
+import { flowFacts } from "./project-facts.js";
+import { nodeRunner } from "./node-runner.js";
+import { flowBrowsers, runPerBrowser } from "./per-browser.js";
 import {
   FlowCheckError,
   type FlowRunOptions,
@@ -67,6 +69,10 @@ interface ProjectTest {
   name: string;
   /** The spec file relative to `srcDir`, with `/` separators */
   relative: string;
+  /** The inputs the test declares, with their defaults */
+  inputs?: Record<string, string>;
+  /** The outputs the test declares */
+  outputs?: string[];
 }
 
 /** What the project says about a flow: its environment, tests and groups, and what is wrong with the flow */
@@ -83,14 +89,17 @@ interface PreparedFlow {
   };
   tests: ProjectTest[];
   groups: ResolvedGroup[];
+  /** The tests' inputs and outputs and the groups' tests, for wiring */
+  facts: FlowFacts;
   problems: FlowProblem[];
 }
 
-/** The tests, and the browsers, of each Test and Group node of a flow; a Test node uses the project's browsers */
+/** The tests, and the browsers, of each Test and Group node of a flow: a Test node's are the project's, a Group node's its group's */
 export function nodeTestsOf(
   flow: FlowFile,
   tests: Pick<ProjectTest, "id" | "file" | "name">[],
   groups: Pick<ResolvedGroup, "name" | "testIds" | "browsers">[],
+  projectBrowsers: SupportedBrowser[],
 ): {
   nodeTests: Record<string, NodeTest[]>;
   nodeBrowsers: Record<string, SupportedBrowser[]>;
@@ -111,6 +120,7 @@ export function nodeTestsOf(
           : undefined;
     if (!ids) continue;
     if (group) nodeBrowsers[node.id] = group.browsers;
+    if (node.kind === "test") nodeBrowsers[node.id] = projectBrowsers;
     nodeTests[node.id] = ids.flatMap((id) => {
       const t = byId.get(id);
       return t ? [{ file: t.file, name: t.name }] : [];
@@ -161,6 +171,8 @@ async function prepare(
         file: t.file,
         name: t.name,
         relative: toPosix(path.relative(srcDir, t.file)),
+        ...(t.inputs && { inputs: t.inputs }),
+        ...(t.outputs && { outputs: t.outputs }),
       }));
       const groups = resolveGroups(
         config,
@@ -171,6 +183,7 @@ async function prepare(
       return { tests, groups };
     },
   );
+  const facts = flowFacts(tests, groups);
   const problems = checkFlow(flow, {
     tests: tests.map((t) => t.id),
     groups: groups.map((g) => g.name),
@@ -181,6 +194,7 @@ async function prepare(
     ]),
     unsupported,
     nodes: steps.nodes,
+    facts,
   });
   return {
     projectDir,
@@ -192,13 +206,14 @@ async function prepare(
     environment,
     tests,
     groups,
+    facts,
     problems,
   };
 }
 
 /**
  * Checks a flow against the project without running it: its tests, groups and environment
- * variables, and which kinds can run. Returns the flow (with keys) and every problem, warnings included.
+ * variables, which kinds can run, and where each Test and Group node's inputs come from. Returns the flow (with keys) and every problem, warnings included.
  */
 export async function checkFlowInProject(
   options: Pick<
@@ -218,7 +233,7 @@ export async function checkFlowInProject(
 
 async function walkFlowInProject(
   options: RunFlowInProjectOptions,
-): Promise<FlowSummary> {
+): Promise<FlowRunResult> {
   const {
     projectDir,
     flow,
@@ -229,12 +244,26 @@ async function walkFlowInProject(
     environment,
     tests,
     groups,
+    facts,
     problems,
   } = await prepare(options);
   const errors = problems.filter((p) => p.level === "error");
   if (errors.length) throw new FlowCheckError(errors);
 
-  const { nodeTests, nodeBrowsers } = nodeTestsOf(flow, tests, groups);
+  const projectBrowsers = browsersFor({ project: config.browsers });
+  const { nodeTests, nodeBrowsers } = nodeTestsOf(
+    flow,
+    tests,
+    groups,
+    projectBrowsers,
+  );
+  // Before anything starts: a list of browsers this flow doesn't use is refused
+  const browsers = flowBrowsers(
+    nodeBrowsers,
+    flow,
+    projectBrowsers,
+    options.browsers,
+  );
   const run = options.testRunner ?? runTests;
   // An injected runner (tests) stays in this process unless the workers are asked for
   const asked =
@@ -291,59 +320,39 @@ async function walkFlowInProject(
           },
         })
       : undefined;
-  try {
-    return await runFlow({
+  const walk = (browser: SupportedBrowser) =>
+    runFlow({
       flow,
+      browser,
       nodeTests,
       nodeBrowsers,
       environment,
+      facts,
       ...(options.signal && { signal: options.signal }),
       ...(options.onEvent && { onEvent: options.onEvent }),
       ...(options.sleep && { sleep: options.sleep }),
       unsupported,
       handlers: { ...HANDLERS, ...steps.handlers },
       nodes: steps.nodes,
-      runTests: async ({ nodeId, tests, onEvent, signal, browsers }) => {
-        // Each node gets a folder of its own: the same test in two nodes would overwrite its screenshots
-        const outputDir =
-          options.outputDir !== undefined
-            ? path.join(options.outputDir, ...nodeFolder(nodeId).split("/"))
-            : undefined;
-        if (pool)
-          return runOnPool(
-            pool,
-            itemsOf(
-              tests,
-              browsers ?? browsersFor({ project: config.browsers }),
-              outputDir,
-            ),
-            onEvent,
-            signal,
-          );
-        const summary = await run({
+      runTests: nodeRunner(
+        {
           projectDir,
           config,
-          ...(options.dataDir !== undefined && { dataDir: options.dataDir }),
-          // The environment the expressions see, whenever the project defines it
-          ...(hasEnvironment(config, name) ? { environment: name } : {}),
-          ...(options.headless !== undefined && { headless: options.headless }),
-          ...(options.timeout !== undefined && { timeout: options.timeout }),
-          ...(options.expectTimeout !== undefined && {
-            expectTimeout: options.expectTimeout,
-          }),
-          ...(options.port !== undefined && { port: options.port }),
-          ...(retries > 0 && { retries }),
-          ...(browsers && { browsers }),
-          files: [...new Set(tests.map((t) => t.file))],
-          testNames: tests.map((t) => t.name),
-          reportPath: false,
-          ...(outputDir !== undefined && { outputDir }),
-          signal,
-          onEvent,
-        });
-        if (signal.aborted) return "cancelled";
-        return summary.status === "success" ? "passed" : "failed";
-      },
+          options,
+          ...(hasEnvironment(config, name) && { environment: name }),
+          retries,
+          run,
+          ...(pool && { pool }),
+        },
+        browser,
+      ),
+    });
+  try {
+    return await runPerBrowser({
+      browsers,
+      walk,
+      ...(options.signal && { signal: options.signal }),
+      ...(options.onEvent && { onEvent: options.onEvent }),
     });
   } finally {
     await pool?.dispose();
@@ -352,13 +361,14 @@ async function walkFlowInProject(
 
 /**
  * Checks and runs a flow of a project: loads its config, lists its tests and groups, refuses to start
- * when `checkFlow` finds errors (`FlowCheckError`), then walks the flow; each Test and Group node runs
- * its tests through `runTests`, one after the other, or on one shared worker pool when `workers` is above 1.
- * One at a time per process.
+ * when `checkFlow` finds errors (`FlowCheckError`), then walks the flow once per browser (see `flowBrowsers`),
+ * one browser after the other, each run with its own variables and results. Each Test and Group node runs its
+ * tests through `runTests`, one after the other, or on one shared worker pool when `workers` is above 1.
+ * Resolves to every run's summary; the last event is `flow-done`. One at a time per process.
  */
 export async function runFlowInProject(
   options: RunFlowInProjectOptions,
-): Promise<FlowSummary> {
+): Promise<FlowRunResult> {
   // One log for the whole run, across the project sessions it opens one after the other
   const releaseLogs = keepLogFiles(
     path.resolve(options.projectDir ?? process.cwd()),

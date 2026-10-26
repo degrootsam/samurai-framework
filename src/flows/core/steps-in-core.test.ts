@@ -69,7 +69,7 @@ describe("kinds core wasn't built with", () => {
   });
 
   test("scopeAt learns written variables and outputs from the definitions", () => {
-    const scope = scopeAt(flow, "c", env, [setter, fetcher]);
+    const scope = scopeAt(flow, "c", env, { nodes: [setter, fetcher] });
     assert.deepEqual(scope.vars, ["order"]);
     assert.deepEqual(scope.outputs, { f1: ["code"] });
     assert.equal(problemOf("nodes.f1.code == 200", scope), undefined);

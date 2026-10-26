@@ -1,3 +1,4 @@
+import { ioProblems } from "./check-io.js";
 import { problemOf, scopeAt } from "./expression/index.js";
 import { KEY_PATTERN } from "./keys.js";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./nodes/index.js";
 import type { AnyNodeDefinition } from "./nodes/define.js";
 import type { FlowFile, FlowNodeModel } from "./schema.js";
+import type { FlowFacts } from "./wiring.js";
 
 export type { FlowProblem } from "./nodes/index.js";
 
@@ -39,6 +41,12 @@ export interface CheckOptions {
   titles?: (node: FlowNodeModel) => string | undefined;
   /** Definitions of kinds core doesn't have (steps). A node of a kind in neither is "Unknown step". */
   nodes?: readonly AnyNodeDefinition[];
+  /**
+   * The project's tests' inputs and outputs and its groups' tests. When given, every
+   * Test and Group node's inputs are checked (a source for each, override expressions,
+   * unused entries) and so are a Parallel's branches (two saving one output name).
+   */
+  facts?: FlowFacts;
 }
 
 /** What the node is called in a message: its title, else its key, else its kind's label */
@@ -200,7 +208,20 @@ export function checkFlow(
   problems.push(...emptyExpressions(flow, defOf));
   if (options.environment)
     problems.push(
-      ...expressionProblems(flow, options.environment, options.nodes),
+      ...expressionProblems(flow, options.environment, {
+        nodes: options.nodes,
+        facts: options.facts,
+      }),
+    );
+
+  if (options.facts)
+    problems.push(
+      ...ioProblems(flow, {
+        facts: options.facts,
+        environment: options.environment,
+        nodes: options.nodes,
+        titleOf: (n) => options.titles?.(n) ?? titleOf(n, defOf(n.kind)),
+      }),
     );
 
   const nodeCount = flow.nodes.filter((n) => {
@@ -248,12 +269,17 @@ function emptyExpressions(
   });
 }
 
-/** Every expression field that doesn't check out, as "Label: message" */
+/**
+ * Every expression field that doesn't check out, as "Label: message". `options.nodes`
+ * adds definitions core doesn't have (steps); `options.facts` lets expressions read
+ * a keyed Test node's declared outputs (`nodes.<key>.<output>`).
+ */
 export function expressionProblems(
   flow: FlowFile,
   environment: { name: string; variables: Record<string, unknown> },
-  nodes: readonly AnyNodeDefinition[] = [],
+  options: { nodes?: readonly AnyNodeDefinition[]; facts?: FlowFacts } = {},
 ): FlowProblem[] {
+  const { nodes = [], facts } = options;
   const defOf = definitions(nodes);
   return flow.nodes.flatMap((n) => {
     const def = defOf(n.kind);
@@ -265,7 +291,7 @@ export function expressionProblems(
         if (typeof text !== "string" || text.trim() === "") return [];
         const problem = problemOf(
           text,
-          scopeAt(flow, n.id, environment, nodes),
+          scopeAt(flow, n.id, environment, { nodes, facts }),
         );
         return problem
           ? [

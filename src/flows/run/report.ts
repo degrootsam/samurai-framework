@@ -3,7 +3,7 @@ import path from "node:path";
 import { maskDeep, maskText } from "../../config/mask.js";
 import type { RunEvent } from "../../runner/reporter.js";
 import type { TestResult } from "../../types/test.js";
-import type { FlowEvent, FlowSummary, NodeResult } from "./events.js";
+import type { FlowBrowserRun, FlowEvent, FlowRunResult } from "./events.js";
 
 /** One test a Test or Group node ran, as the runner reported it */
 export type FlowTestResult = { nodeId: string } & TestResult;
@@ -13,14 +13,14 @@ export interface FlowReport {
   flow: string;
   name: string;
   environment: string;
-  status: FlowSummary["status"];
+  /** Across the browsers: see `FlowRunResult` */
+  status: FlowRunResult["status"];
   startedAt: string;
   durationMs: number;
-  nodes: Record<string, NodeResult>;
-  vars: Record<string, unknown>;
+  /** Every test of every run; each names its browser */
   tests: FlowTestResult[];
-  /** The flow couldn't be walked at all */
-  error?: string;
+  /** One entry per browser the flow ran in, in order: its nodes, variables and error */
+  runs: FlowBrowserRun[];
 }
 
 /** Follows a run's events and builds its report once it ends (or `finish` is given what is known) */
@@ -42,18 +42,16 @@ export class FlowReportBuilder {
       this.tests.push({ nodeId, ...event.result } as FlowTestResult);
   }
 
-  finish(summary: FlowSummary, environment = this.environment): FlowReport {
+  finish(result: FlowRunResult, environment = this.environment): FlowReport {
     return {
       flow: this.flow.id,
       name: this.flow.name,
       environment,
-      status: summary.status,
+      status: result.status,
       startedAt: this.startedAt,
       durationMs: Date.now() - this.started,
-      nodes: summary.nodes,
-      vars: summary.vars,
       tests: this.tests,
-      ...(summary.error ? { error: summary.error } : {}),
+      runs: result.runs,
     };
   }
 }
