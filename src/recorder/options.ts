@@ -53,7 +53,7 @@ export interface RecorderOptions {
   initialGoto?: boolean;
   /** URLs inside it are written relative to it, as `page.goto` resolves them */
   baseURL?: string;
-  /** Shows the recorder toolbar in the page (pause, assert, insert, wait, screenshot, stop). Without it, no toolbar */
+  /** Shows the recorder toolbar in the page (pause, assert, page, insert, wait, screenshot, stop). Without it, no toolbar */
   toolbar?: ToolbarOptions;
   /** Records uploads (file inputs and drops) into the project's files folder. Without it, uploads aren't recorded */
   files?: FileRecording;

@@ -37,12 +37,22 @@ export const RECORDER_SIDE_JS = String.raw`  // ---- The recorder's side ----
         a.matcher = result.first.matcher;
         a.attribute = result.attributes[0] ? result.attributes[0].name : null;
         a.countIndex = 0;
+        a.cssName = result.css.name;
+        a.cssValue = result.css.value;
         a.expected = prefill(a, a.matcher);
+      }
+    } else if (ui.panel === "page" && ui.page && !ui.page.info) {
+      ui.page.info = result;
+      if (ok) {
+        ui.page.expected = result.urlPrefill;
+        ui.focus = "pageExpected";
       }
     } else if (ok) {
       closePanel();
     } else if (ui.panel === "assert" && ui.assert) {
       ui.assert.error = result.error;
+    } else if (ui.panel === "page" && ui.page) {
+      ui.page.error = result.error;
     } else if (ui.panel === "insert") {
       ui.insert.error = result.error;
     } else if (ui.panel === "new") {

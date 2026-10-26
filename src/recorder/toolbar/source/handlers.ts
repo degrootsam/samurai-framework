@@ -27,6 +27,7 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
       ui.picking = !wasOn;
       render();
     },
+    page: () => openTool("page"),
     insert: () => openTool("insert"),
     wait: () => openTool("wait"),
     screenshot: () => openTool("screenshot"),
@@ -47,12 +48,35 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
       const a = ui.panel === "assert" && ui.assert;
       if (!a || ui.busy || !a.info || !a.info.ok) return;
       const message = { action: "assert", id: a.id, target: a.target, candidates: a.candidates, matcher: a.matcher, not: a.not };
-      if (a.matcher !== "toBeVisible") message.expected = a.expected;
+      if (!VALUELESS.includes(a.matcher)) message.expected = a.expected;
       if (a.matcher === "toHaveAttribute") message.attribute = a.attribute;
+      if (a.matcher === "toHaveCSS") message.cssName = a.cssName;
       if (a.matcher === "toHaveCount") message.countIndex = a.countIndex;
       ui.busy = true;
       a.error = null;
       post(message);
+      render();
+    },
+    "page-matcher": (detail) => {
+      const p = ui.panel === "page" && ui.page;
+      if (!p || !p.info || !p.info.ok || !PAGE_MATCHERS.some(([matcher]) => matcher === detail.matcher)) return;
+      p.matcher = detail.matcher;
+      p.expected = detail.matcher === "toHaveTitle" ? p.info.title : p.info.urlPrefill;
+      p.error = null;
+      render();
+    },
+    "page-not": () => {
+      if (ui.panel !== "page" || !ui.page || !ui.page.info) return;
+      ui.page.not = !ui.page.not;
+      render();
+    },
+    "page-add": () => {
+      const p = ui.panel === "page" && ui.page;
+      if (!p || ui.busy || !p.info || !p.info.ok) return;
+      ui.busy = true;
+      ui.pending = p.id;
+      p.error = null;
+      post({ action: "assert-page", id: p.id, matcher: p.matcher, expected: p.expected, not: p.not });
       render();
     },
     "insert-item": (detail) => {

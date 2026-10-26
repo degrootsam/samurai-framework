@@ -1,4 +1,8 @@
-import type { Expectation, LocatorCall } from "../../steps/model.js";
+import type {
+  Expectation,
+  LocatorCall,
+  PageExpectation,
+} from "../../steps/model.js";
 
 /** The BiDi sandbox realm the toolbar script runs in */
 export const TOOLBAR_SANDBOX = "samurai-toolbar";
@@ -54,6 +58,8 @@ export type ToolbarMessage = { type: "toolbar" } &
         matcher: MatcherChoice;
         expected?: string;
         attribute?: string;
+        /** The property Has CSS reads, as typed */
+        cssName?: string;
         countIndex?: number;
         not: boolean;
       }
@@ -74,6 +80,15 @@ export type ToolbarMessage = { type: "toolbar" } &
         name: string;
         value: string;
       }
+    /** The Page panel opened: answered with a `PageInfo` */
+    | { action: "page-info"; id: number }
+    | {
+        action: "assert-page";
+        id: number;
+        matcher: PageExpectation["matcher"];
+        expected: string;
+        not: boolean;
+      }
     | { action: "wait"; kind: "idle" }
     | { action: "wait"; kind: "time"; ms: number }
     | { action: "screenshot"; name: string; fullPage: boolean }
@@ -89,9 +104,22 @@ export type PickInfo =
       attributes: { name: string; value: string }[];
       first: { matcher: MatcherChoice; expected?: string };
       counts: { label: string; count: number }[];
+      /** A checkbox or radio input, or role checkbox/radio/switch, or `aria-checked`: Checked is offered */
+      checkable: boolean;
+      /** A form control or button, or `aria-disabled`: Enabled is offered */
+      disableable: boolean;
+      /** The class attribute as written; null when there is none (Has class is not offered) */
+      className: string | null;
+      /** Has CSS's first property and its computed value */
+      css: { name: string; value: string };
     }
   | { ok: false; error: string };
 
-/** The answer to `insert`, `add-insertable` and `assert` */
+/** The answer to `page-info`: the recorded page's URL, the URL the Page panel prefills, and its title */
+export type PageInfo =
+  | { ok: true; url: string; urlPrefill: string; title: string }
+  | { ok: false; error: string };
+
+/** The answer to `insert`, `add-insertable`, `assert` and `assert-page` */
 export type ActionReply =
   { ok: true } | { ok: false; error: string; field?: "name" };

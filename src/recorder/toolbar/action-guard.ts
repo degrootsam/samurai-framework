@@ -2,14 +2,14 @@ import type { ActionReply } from "./protocol.js";
 import type { Message, Of } from "./types.js";
 
 /** The messages that expect a reply, and that a double click sends twice */
-type Replying = Of<"assert" | "insert" | "add-insertable">;
+type Replying = Of<"assert" | "assert-page" | "insert" | "add-insertable">;
 
 /**
  * Drops the repeat of an action that is running or was answered `{ ok: true }` (a double click: its first copy
  * answers), and lets a retry after `{ ok: false }` through.
  */
 export class ActionGuard {
-  /** Ids of `assert`, `insert` and `add-insertable` being processed */
+  /** Ids of `assert`, `assert-page`, `insert` and `add-insertable` being processed */
   private readonly inFlight = new Set<number>();
   /** Ids `accept` let through whose `run` hasn't started yet */
   private readonly claimed = new Set<number>();
@@ -20,6 +20,7 @@ export class ActionGuard {
   public accept(message: Message): boolean {
     if (
       message.action !== "assert" &&
+      message.action !== "assert-page" &&
       message.action !== "insert" &&
       message.action !== "add-insertable"
     )

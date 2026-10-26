@@ -1,8 +1,18 @@
-/** Views: the Assert, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
+/** Views: the Assert, Page, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
 export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) =>
     (matcher === "toHaveValue" && info.value === undefined) ||
     (matcher === "toHaveAttribute" && info.attributes.length === 0) ||
-    (matcher === "toHaveCount" && info.counts.length === 0);
+    (matcher === "toHaveCount" && info.counts.length === 0) ||
+    (matcher === "toBeChecked" && !info.checkable) ||
+    (matcher === "toBeEnabled" && !info.disableable) ||
+    (matcher === "toHaveClass" && !info.className);
+  // The computed value, as toHaveCSS reads it: camelCase names become kebab-case, --custom is kept
+  const cssValueOf = (el, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return "";
+    const property = trimmed.startsWith("--") ? trimmed : trimmed.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
+    try { return getComputedStyle(el).getPropertyValue(property); } catch (err) { return ""; }
+  };
   const prefill = (a, matcher) => {
     const info = a.info;
     if (matcher === "toHaveAttribute") {
@@ -13,6 +23,8 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       const found = info.counts[a.countIndex];
       return found ? String(found.count) : "";
     }
+    if (matcher === "toHaveClass") return info.className || "";
+    if (matcher === "toHaveCSS") return a.cssValue;
     if (matcher === info.first.matcher && info.first.expected !== undefined) return info.first.expected;
     if (matcher === "toHaveText" || matcher === "toContainText") return info.text;
     if (matcher === "toHaveValue") return info.value || "";
@@ -21,7 +33,12 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
   const assertValue = (a) => {
     const info = a.info;
     const expected = (type) => h("input", { type, class: "in", "data-field": "expected", value: a.expected, "data-enter": "assert-add", autocomplete: "off" });
-    if (a.matcher === "toHaveText" || a.matcher === "toContainText" || a.matcher === "toHaveValue") return h("div", { class: "val" }, expected("text"));
+    if (a.matcher === "toHaveText" || a.matcher === "toContainText" || a.matcher === "toHaveValue" || a.matcher === "toHaveClass") return h("div", { class: "val" }, expected("text"));
+    if (a.matcher === "toHaveCSS") {
+      return h("div", { class: "val" },
+        h("input", { type: "text", class: "in code", "data-field": "cssName", value: a.cssName, placeholder: "Property", "data-enter": "assert-add", autocomplete: "off", spellcheck: "false" }),
+        expected("text"));
+    }
     if (a.matcher === "toHaveAttribute") {
       return h("div", { class: "val" },
         h("select", { class: "in", "data-field": "attribute" }, info.attributes.map((at) => {
@@ -53,6 +70,24 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       h("div", { class: "row" },
         h("label", { class: "neg" }, h("input", { type: "checkbox", "data-action": "not", checked: a.not }), "Not"),
         h("button", { class: "add", "data-action": "assert-add", disabled: ui.busy }, "Add")),
+    ];
+  };
+
+  const pagePanel = () => {
+    const p = ui.page;
+    const head = h("div", { class: "h" }, "Page");
+    if (!p.info) return [head, h("div", { class: "msg" }, "…")];
+    if (!p.info.ok) return [head, h("div", { class: "err" }, p.info.error)];
+    return [
+      head,
+      h("div", { class: "opts" }, PAGE_MATCHERS.map(([matcher, label]) =>
+        h("button", { class: p.matcher === matcher ? "o sel" : "o", "data-action": "page-matcher", "data-matcher": matcher }, label))),
+      h("div", { class: "val" },
+        h("input", { type: "text", class: "in", "data-field": "pageExpected", value: p.expected, "data-enter": "page-add", autocomplete: "off", spellcheck: "false" })),
+      p.error && h("div", { class: "err" }, p.error),
+      h("div", { class: "row" },
+        h("label", { class: "neg" }, h("input", { type: "checkbox", "data-action": "page-not", checked: p.not }), "Not"),
+        h("button", { class: "add", "data-action": "page-add", disabled: ui.busy }, "Add")),
     ];
   };
 
@@ -146,5 +181,5 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     radio("fullPage", "true", ui.shot.fullPage, "Whole page"),
     h("div", { class: "foot" }, h("button", { class: "add", "data-action": "screenshot-add", disabled: ui.busy }, "Add")),
   ];
-  const PANELS = { assert: assertPanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
+  const PANELS = { assert: assertPanel, page: pagePanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
 `;

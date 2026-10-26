@@ -3,6 +3,7 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
   const closePanel = () => {
     ui.panel = null;
     ui.assert = null;
+    ui.page = null;
     ui.busy = false;
     ui.closeOnUpdate = false;
     ui.pending = 0;
@@ -28,6 +29,11 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
         ui.field = field;
         ui.insert = { field, filter: "", error: null };
         if (field) ui.focus = "filter";
+      } else if (tool === "page") {
+        const id = nextId++;
+        ui.page = { id, info: null, matcher: "toHaveURL", expected: "", not: false, error: null };
+        ui.pending = id;
+        post({ action: "page-info", id });
       } else if (tool === "wait") {
         ui.wait = { kind: "idle", seconds: "2" };
       } else if (tool === "screenshot") {
@@ -45,7 +51,8 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
     const candidates = candidatesOf(target);
     const r = target.getBoundingClientRect();
     ui.assert = {
-      id, target, candidates, info: null, matcher: "toBeVisible", expected: "", attribute: null, countIndex: 0, not: false, error: null,
+      id, target, candidates, info: null, matcher: "toBeVisible", expected: "", attribute: null, countIndex: 0,
+      cssName: "", cssValue: "", not: false, error: null,
       rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
     };
     ui.panel = "assert";

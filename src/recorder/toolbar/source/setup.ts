@@ -21,7 +21,12 @@ export const SETUP_JS = String.raw`  if (window !== window.top) return;
   const MATCHERS = [
     ["toBeVisible", "Visible"], ["toHaveText", "Has text"], ["toContainText", "Contains text"],
     ["toHaveValue", "Has value"], ["toHaveAttribute", "Has attribute"], ["toHaveCount", "Count"],
+    ["toBeHidden", "Hidden"], ["toBeEnabled", "Enabled"], ["toBeChecked", "Checked"],
+    ["toHaveClass", "Has class"], ["toHaveCSS", "Has CSS"],
   ];
+  const PAGE_MATCHERS = [["toHaveURL", "URL"], ["toHaveTitle", "Title"]];
+  // Matchers that take no expected value
+  const VALUELESS = ["toBeVisible", "toBeHidden", "toBeEnabled", "toBeChecked"];
 
   let channel = send;
   let state = Object.assign({}, DEFAULTS);
@@ -31,7 +36,7 @@ export const SETUP_JS = String.raw`  if (window !== window.top) return;
   // Local UI state; everything about steps lives in the recorder
   const ui = {
     panel: null, picking: false, busy: false, closeOnUpdate: false, pending: 0, focus: null,
-    field: null, assert: null, insert: null, form: null,
+    field: null, assert: null, page: null, insert: null, form: null,
     wait: { kind: "idle", seconds: "2" }, shot: { name: "", fullPage: false },
     drag: null, dropped: null, toastId: null,
   };

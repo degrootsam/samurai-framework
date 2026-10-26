@@ -2,6 +2,7 @@ import type {
   Expectation,
   FileEntry,
   LocatorSpec,
+  PageExpectation,
   Step,
 } from "../steps/model.js";
 import { expectationFor, secretNameFor } from "./expectation.js";
@@ -37,6 +38,8 @@ export type Observation =
       not: boolean;
       expectation: Expectation;
     }
+  /** The toolbar's Page panel: the page's URL or title */
+  | { type: "expectPage"; not: boolean; expectation: PageExpectation }
   | {
       type: "insert";
       locator: LocatorSpec;
@@ -127,6 +130,12 @@ export class Normaliser {
         return {
           kind: "expect",
           locator: observation.locator,
+          not: observation.not,
+          expectation: observation.expectation,
+        };
+      case "expectPage":
+        return {
+          kind: "expectPage",
           not: observation.not,
           expectation: observation.expectation,
         };

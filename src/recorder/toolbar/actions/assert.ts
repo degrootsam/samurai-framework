@@ -16,8 +16,22 @@ export async function assertAction(
   const expected = String(message.expected ?? "");
   switch (message.matcher) {
     case "toBeVisible":
-      expectation = { matcher: "toBeVisible" };
+    case "toBeHidden":
+    case "toBeEnabled":
+    case "toBeChecked":
+      expectation = { matcher: message.matcher };
       break;
+    case "toHaveClass":
+      expectation = { matcher: "toHaveClass", expected };
+      break;
+    case "toHaveCSS": {
+      const name = String(message.cssName ?? "").trim();
+      if (!name) return fail("Choose a CSS property");
+      // A typo'd property computes to "", which would make the step always pass
+      if (!expected.trim()) return fail("Fill in the value");
+      expectation = { matcher: "toHaveCSS", name, expected };
+      break;
+    }
     case "toHaveText":
     case "toContainText":
     case "toHaveValue":

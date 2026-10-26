@@ -10,9 +10,18 @@ export const FIELDS_JS = String.raw`  const press = (action, detail) => {
     if (!field) return;
     const value = t.value;
     if (field === "expected" && ui.assert) ui.assert.expected = value;
+    else if (field === "pageExpected" && ui.page) ui.page.expected = value;
     else if (field === "attribute" && ui.assert) {
       ui.assert.attribute = value;
       ui.assert.expected = prefill(ui.assert, "toHaveAttribute");
+      render();
+    } else if (field === "cssName" && ui.assert) {
+      if (ui.assert.cssName === value) return;
+      ui.assert.cssName = value;
+      // The computed CSS value skips the secret filter on purpose: a computed style can't carry an
+      // input's typed value, and it is already visible on the page
+      ui.assert.cssValue = cssValueOf(ui.assert.target, value);
+      ui.assert.expected = prefill(ui.assert, "toHaveCSS");
       render();
     } else if (field === "countIndex" && ui.assert) {
       ui.assert.countIndex = Number(value);

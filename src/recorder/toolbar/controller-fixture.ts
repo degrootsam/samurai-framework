@@ -40,6 +40,10 @@ export const INFO: PickInfo & { ok: true } = {
   attributes: [{ name: "id", value: "email" }],
   first: { matcher: "toHaveValue", expected: "a@b.c" },
   counts: [{ label: "listitem", count: 3 }],
+  checkable: false,
+  disableable: true,
+  className: null,
+  css: { name: "color", value: "rgb(0, 0, 0)" },
 };
 
 export const lastOf = <T>(items: T[]): T | undefined => items[items.length - 1];
@@ -84,13 +88,14 @@ export function setup(
   const observed: Observation[] = [];
   const statuses: { state: string; toolbar: boolean }[] = [];
   const calls: string[] = [];
-  const page = { url: "http://localhost/a" };
+  const page = { url: "http://localhost/a", title: "Home" };
   let controller: ToolbarController;
   const deps: ControllerDeps = {
     push: (state) => pushes.push(structuredClone(state)),
     reply: (id, result) =>
       replies.push({ id, result: structuredClone(result) }),
     currentUrl: async () => page.url,
+    pageInfo: async () => ({ url: page.url, title: page.title }),
     rank: async () => LOCATOR,
     inspect: async (): Promise<Inspection> => ({
       info: INFO,

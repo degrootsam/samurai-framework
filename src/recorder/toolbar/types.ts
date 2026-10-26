@@ -3,6 +3,7 @@ import type { LocatorCall, LocatorSpec } from "../../steps/model.js";
 import type { Observation } from "../normalise.js";
 import type {
   ActionReply,
+  PageInfo,
   PickInfo,
   ToolbarMessage,
   ToolbarState,
@@ -19,8 +20,12 @@ export interface Inspection {
 export interface ControllerDeps {
   /** Sends the state to every loaded top-level document's toolbar */
   push(state: ToolbarState): void;
-  reply(id: number, result: PickInfo | ActionReply): void;
+  reply(id: number, result: PickInfo | PageInfo | ActionReply): void;
   currentUrl(): Promise<string>;
+  /** The recorded page's URL and title */
+  pageInfo(): Promise<{ url: string; title: string }>;
+  /** The recording's base URL: the Page panel writes URLs inside it relative to it */
+  readonly baseURL?: string;
   rank(
     target: ElementHandle,
     candidates: LocatorCall[],
