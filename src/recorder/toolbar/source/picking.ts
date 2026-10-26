@@ -3,6 +3,7 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
   const closePanel = () => {
     ui.panel = null;
     ui.assert = null;
+    ui.output = null;
     ui.page = null;
     ui.busy = false;
     ui.closeOnUpdate = false;
@@ -11,7 +12,7 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
   };
   const stopPicking = () => {
     ui.picking = false;
-    if (ui.panel !== "assert") hideOutline();
+    if (ui.panel !== "assert" && ui.panel !== "output") hideOutline();
   };
   const usable = () => !paused() && !state.collapsed;
   const openTool = (tool) => {
@@ -43,6 +44,16 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
     }
     render();
   };
+  // The tool's picker: Assert or Save as output
+  const startPicking = (tool) => {
+    if (!usable()) return;
+    const wasOn = toolOn(tool);
+    stopPicking();
+    closePanel();
+    ui.picking = !wasOn;
+    ui.pickFor = tool;
+    render();
+  };
   const pick = (target) => {
     if (!ui.picking || !target || target.nodeType !== 1) return;
     ui.picking = false;
@@ -50,12 +61,16 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
     const id = nextId++;
     const candidates = candidatesOf(target);
     const r = target.getBoundingClientRect();
-    ui.assert = {
-      id, target, candidates, info: null, matcher: "toBeVisible", expected: "", attribute: null, countIndex: 0,
-      cssName: "", cssValue: "", not: false, error: null,
-      rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
-    };
-    ui.panel = "assert";
+    const rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    if (ui.pickFor === "output") {
+      ui.output = { id, target, candidates, info: null, name: "", pattern: "", nameError: null, error: null, rect };
+    } else {
+      ui.assert = {
+        id, target, candidates, info: null, matcher: "toBeVisible", expected: "", attribute: null, countIndex: 0,
+        cssName: "", cssValue: "", not: false, error: null, rect,
+      };
+    }
+    ui.panel = ui.pickFor === "output" ? "output" : "assert";
     ui.pending = id;
     showOutline(target);
     post({ action: "pick", id, target, candidates });

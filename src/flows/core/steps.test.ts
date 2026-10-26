@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { FlowNodeModel } from "./schema.js";
-import { fieldProblems, stepNodeOf, type StepInfo } from "./steps.js";
+import { fieldProblems, isIoName, stepNodeOf, type StepInfo } from "./steps.js";
 
 const node = (config: Record<string, unknown>): FlowNodeModel => ({
   id: "n",
@@ -97,5 +97,23 @@ describe("stepNodeOf", () => {
       problems.map((p) => p.message),
       ["Demo: Name is required.", "Demo: own"],
     );
+  });
+});
+
+describe("isIoName", () => {
+  test("takes an identifier that isn't a node's own result field", () => {
+    for (const name of ["orderId", "_x", "a1", "A_B"])
+      assert.equal(isIoName(name), true, name);
+    for (const name of [
+      "",
+      "1st",
+      "order id",
+      "a-b",
+      "$x",
+      "status",
+      "durationMs",
+      "error",
+    ])
+      assert.equal(isIoName(name), false, name);
   });
 });
