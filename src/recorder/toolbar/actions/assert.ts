@@ -27,6 +27,8 @@ export async function assertAction(
     case "toHaveCSS": {
       const name = String(message.cssName ?? "").trim();
       if (!name) return fail("Choose a CSS property");
+      // A typo'd property computes to "", which would make the step always pass
+      if (!expected.trim()) return fail("Fill in the value");
       expectation = { matcher: "toHaveCSS", name, expected };
       break;
     }
