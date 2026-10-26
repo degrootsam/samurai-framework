@@ -131,11 +131,8 @@ test(
       ),
       source(),
     );
-    assert.equal(
-      new URL("/app/checkout?step=2", base).href,
-      await page.url(),
-      "resolves back to the page's URL",
-    );
+    page.setBaseURL(base);
+    await expect(page).toHaveURL("/app/checkout?step=2", { timeout: 2000 });
     await waitFor(
       async () => (await expectedValue()) === null,
       "the panel to close",
@@ -190,3 +187,52 @@ test("an empty value is refused and leaves no step", OPTIONS, async () => {
   );
   assert.deepEqual(steps(), []);
 });
+
+test(
+  "a real inspection offers Enabled only for a form control and Has class only for an element with a class",
+  OPTIONS,
+  async () => {
+    await page.navigateTo(
+      `data:text/html,<button id="b" class="btn">Go</button><p id="p">text</p>`,
+      "complete",
+    );
+    const { steps } = await record(`${origin}/app`);
+    const available = () =>
+      inSandbox<Record<string, boolean | null>>(
+        `() => Object.fromEntries(["toBeEnabled", "toHaveClass"].map((m) => {
+          const button = ${HOOK}.root.querySelector('[data-matcher="' + m + '"]');
+          return [m, button ? !button.disabled : null];
+        }))`,
+      );
+    const pickById = async (id: string) => {
+      // Assert closes an open Assert panel; the second press starts picking
+      await press("assert");
+      if (!(await inSandbox(`() => ${HOOK}.picking()`))) await press("assert");
+      await inSandbox(
+        `(id) => { ${HOOK}.press("pick", { target: document.getElementById(id) }); }`,
+        id,
+      );
+    };
+
+    await pickById("b");
+    await waitFor(
+      async () => (await available()).toBeEnabled !== null,
+      "the panel for the button",
+    );
+    assert.deepEqual(await available(), {
+      toBeEnabled: true,
+      toHaveClass: true,
+    });
+
+    await pickById("p");
+    await waitFor(
+      async () => (await available()).toBeEnabled === false,
+      "the panel for the paragraph",
+    );
+    assert.deepEqual(await available(), {
+      toBeEnabled: false,
+      toHaveClass: false,
+    });
+    assert.deepEqual(steps(), []);
+  },
+);
