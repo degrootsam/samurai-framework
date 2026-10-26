@@ -7,8 +7,10 @@ import type {
   RegisteredTestCase,
   TestCaseBase,
   TestDetails,
+  TestOptions,
 } from "../types/test.js";
 import { SkipSignal } from "./skip.js";
+import { validateTestIO } from "./test-io.js";
 import {
   addHook,
   currentSuite,
@@ -25,12 +27,16 @@ const registered: RegisteredTestCase[] = [];
 /** `test(title, fn)`, `test.skip(title, fn)`, `test.skip(condition, reason)` and the other forms */
 export interface TestFunction {
   (title: string, fn: Body): void;
+  (title: string, options: TestOptions, fn: Body): void;
   /** Registers a test that is not run */
   skip: SkipFunction;
   /** Registers a test that is not run because it is known to be broken */
   fixme: SkipFunction;
   /** Runs only this test (and the other `only` ones) */
-  only(title: string, fn: Body): void;
+  only: {
+    (title: string, fn: Body): void;
+    (title: string, options: TestOptions, fn: Body): void;
+  };
 }
 
 /**
@@ -39,7 +45,7 @@ export interface TestFunction {
  */
 interface SkipFunction {
   (title: string, fn: Body): void;
-  (title: string, details: TestDetails, fn: Body): void;
+  (title: string, options: TestOptions, fn: Body): void;
   (condition: boolean, reason?: string): void;
 }
 
@@ -79,13 +85,21 @@ function openDescribe(
   }
 }
 
+/** What a test declares besides its title and body */
+interface TestExtras {
+  reason?: string;
+  inputs?: Record<string, string>;
+  outputs?: string[];
+}
+
 function add(
   file: string,
   title: string,
   fn: Body,
   modifier?: Modifier,
-  reason?: string,
+  extras: TestExtras = {},
 ): void {
+  const { reason, inputs, outputs } = extras;
   const suite = currentSuite(file);
   const titlePath = [...titlesOf(suite), title];
   const name = titlePath.join(" > ");
@@ -96,6 +110,8 @@ function add(
     file,
     suite,
     ...modifierOf({ modifier, ...(reason !== undefined && { reason }) }, suite),
+    ...(inputs && { inputs }),
+    ...(outputs && { outputs }),
   });
   logger.debug("Registered test %s", name);
 }
@@ -108,37 +124,62 @@ function titlesOf(suite: RegisteredTestCase["suite"]): string[] {
   return titles;
 }
 
-/** The body and `{ reason }` of `(title, fn)` and `(title, details, fn)` */
-function bodyAndReason<F>(
+/** The body and options of `(title, fn)` and `(title, options, fn)`; `describe` only reads `reason` from them */
+function bodyAndOptions<F>(
   call: string,
   title: string,
   second: unknown,
   third: unknown,
-): { fn: F; reason?: string } {
-  const [details, fn] =
+): {
+  fn: F;
+  reason?: string;
+  inputs?: Record<string, string>;
+  outputs?: string[];
+} {
+  const [options, fn] =
     typeof second === "function"
       ? [undefined, second]
-      : [second as TestDetails | undefined, third];
+      : [second as TestOptions | undefined, third];
   if (typeof fn !== "function")
     throw new TypeError(
       `${call}(${JSON.stringify(title)}) needs a function as its last argument`,
     );
-  const reason = details?.reason;
-  return { fn: fn as F, ...(reason !== undefined && { reason }) };
+  const reason = options?.reason;
+  return {
+    fn: fn as F,
+    ...(reason !== undefined && { reason }),
+    ...(options && call.startsWith("test") && validateTestIO(call, options)),
+  };
+}
+
+/** `test()` and `test.only()`: a reason only makes sense with skip and fixme */
+function registering(call: string, modifier?: Modifier): TestFunction["only"] {
+  return ((title: string, second: unknown, third?: unknown) => {
+    const { fn, reason, ...io } = bodyAndOptions<Body>(
+      call,
+      title,
+      second,
+      third,
+    );
+    if (reason !== undefined)
+      throw new Error(`${call}(): reason only applies to skip and fixme`);
+    // Frames: Error, callerFile, this function, the spec
+    add(callerFile(), title, fn, modifier, io);
+  }) as TestFunction["only"];
 }
 
 /** `test.skip` and `test.fixme`: a title and a body register a test with the modifier; a condition skips the running test */
 function skipping(annotation: "skip" | "fixme"): SkipFunction {
   return ((first: string | boolean, second?: unknown, third?: unknown) => {
     if (typeof first === "string") {
-      const { fn, reason } = bodyAndReason<Body>(
+      const { fn, ...extras } = bodyAndOptions<Body>(
         `test.${annotation}`,
         first,
         second,
         third,
       );
       // Frames: Error, callerFile, this function, the spec
-      add(callerFile(), first, fn, annotation, reason);
+      add(callerFile(), first, fn, annotation, extras);
       return;
     }
     if (first) throw new SkipSignal(annotation, second as string | undefined);
@@ -148,7 +189,7 @@ function skipping(annotation: "skip" | "fixme"): SkipFunction {
 /** `describe.skip` and `describe.fixme`, with or without `{ reason }` */
 function describeSkipping(annotation: "skip" | "fixme"): DescribeSkipFunction {
   return ((title: string, second: unknown, third?: unknown) => {
-    const { fn, reason } = bodyAndReason<() => void>(
+    const { fn, reason } = bodyAndOptions<() => void>(
       `describe.${annotation}`,
       title,
       second,
@@ -158,14 +199,11 @@ function describeSkipping(annotation: "skip" | "fixme"): DescribeSkipFunction {
   }) as DescribeSkipFunction;
 }
 
-export const test: TestFunction = Object.assign(
-  (title: string, fn: Body) => add(callerFile(), title, fn),
-  {
-    skip: skipping("skip"),
-    fixme: skipping("fixme"),
-    only: (title: string, fn: Body) => add(callerFile(), title, fn, "only"),
-  },
-);
+export const test: TestFunction = Object.assign(registering("test"), {
+  skip: skipping("skip"),
+  fixme: skipping("fixme"),
+  only: registering("test.only", "only"),
+});
 
 export const describe: DescribeFunction = Object.assign(
   (title: string, fn: () => void) => openDescribe(callerFile(), title, fn),
