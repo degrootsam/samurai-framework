@@ -24,8 +24,8 @@ export interface TestFixtures {
 /** The `outputs` fixture */
 export interface TestOutputs {
   /**
-   * Waits up to the expect timeout for the element and saves its trimmed text as output `name`. With
-   * `pattern`, waits until the text matches and saves the first capture group, else the whole match.
+   * Waits up to the expect timeout for the element to have text and saves its trimmed text as output `name`.
+   * With `pattern`, waits until the text matches and saves the first capture group, else the whole match.
    */
   save(name: string, locator: Locator, pattern?: RegExp): Promise<void>;
 }

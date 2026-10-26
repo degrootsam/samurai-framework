@@ -18,6 +18,8 @@ export type {
   AllHookFixtures,
   TestDetails,
   TestFixtures,
+  TestOptions,
+  TestOutputs,
 } from "./types/test.js";
 export {
   generatedFile,
