@@ -168,3 +168,42 @@ test(
     assert.deepEqual(steps(), []);
   },
 );
+
+test(
+  "Save as output reads the text as outputs.save does: line breaks inside it are kept",
+  OPTIONS,
+  async () => {
+    await page.navigateTo(
+      `data:text/html,<p data-testid="multi">  Order%0A    %2377  </p>`,
+      "complete",
+    );
+    const { steps } = await record();
+    await press("output");
+    await inSandbox(
+      `() => { ${HOOK}.press("pick", { target: document.querySelector('[data-testid="multi"]') }); }`,
+    );
+    await waitFor(
+      async () => (await panelText(".out-capture")) !== null,
+      "the panel",
+    );
+    const runtime = await page.getByTestId("multi").textContent();
+    assert.equal(runtime, "Order\n    #77");
+    assert.equal(await panelText(".out-capture"), runtime);
+
+    await typeInto("outputName", "orderId");
+    await typeInto("outputPattern", "Order #(\\d+)");
+    assert.equal(await panelText(".out-capture"), "No match");
+    await press("output-save");
+    await waitFor(
+      async () =>
+        (await panelText(".err")) ===
+        "pattern doesn't match the element's text",
+      "the pattern error",
+    );
+
+    await typeInto("outputPattern", "Order\\s+#(\\d+)");
+    assert.equal(await panelText(".out-capture"), "77");
+    await press("output-save");
+    await waitFor(() => steps().length === 1, "the saveOutput step");
+  },
+);

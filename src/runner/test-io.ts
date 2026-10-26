@@ -2,19 +2,13 @@ import { captured, textCheck } from "../assert/text-match.js";
 import { readEventually } from "../assert/locator-assertions.js";
 import { track } from "../assert/pending-assertions.js";
 import { isPassthroughKey } from "../config/variables.js";
-import { RESERVED_OUTPUTS } from "../flows/core/steps.js";
+import { isIoName } from "../flows/core/steps.js";
 import type Locator from "../locator/locator.js";
 import type { TestError, TestOptions, TestOutputs } from "../types/test.js";
 import type { OutputSink } from "../wait/output-sink.js";
 
-const NAME = /^[A-Za-z_]\w*$/;
-
 function checkName(call: string, kind: string, name: unknown): void {
-  if (
-    typeof name !== "string" ||
-    !NAME.test(name) ||
-    RESERVED_OUTPUTS.includes(name)
-  )
+  if (typeof name !== "string" || !isIoName(name))
     throw new Error(`${call}(): ${kind} ${quoted(name)} is not a valid name`);
 }
 

@@ -47,6 +47,10 @@ export const RESERVED_OUTPUTS: readonly string[] = [
   "error",
 ];
 
+/** Whether `name` can name a test's input or output: an identifier that isn't in `RESERVED_OUTPUTS` */
+export const isIoName = (name: string): boolean =>
+  /^[A-Za-z_]\w*$/.test(name) && !RESERVED_OUTPUTS.includes(name);
+
 const TITLE_FIELDS: readonly Field[] = [
   { path: "title", type: "text", label: "Title" },
   { path: "subtitle", type: "text", label: "Description" },

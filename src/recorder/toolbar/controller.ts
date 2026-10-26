@@ -385,7 +385,7 @@ export class ToolbarController {
             id: message.id,
             locator,
             counts: inspected.counts,
-            text: inspected.info.text,
+            text: inspected.info.outputText,
           };
         return inspected;
       });
