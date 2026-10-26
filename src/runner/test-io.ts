@@ -90,8 +90,8 @@ function resolveInputs(
 }
 
 /**
- * The `outputs` fixture of one attempt: `save` waits for the element's text, as `toHaveText` reads it, and keeps
- * it in `sink`. It keeps to its own attempt's sink, so a late value never lands in a later test.
+ * The `outputs` fixture of one attempt: `save` waits for the element's text (non-empty, or matching the pattern), as
+ * `toHaveText` reads it, and keeps it in `sink`. It keeps to its own attempt's sink, so a late value never lands in a later test.
  */
 export function createOutputsFixture(sink: OutputSink): TestOutputs {
   return {
@@ -116,7 +116,9 @@ async function saveText(
     locator,
     expected: pattern ?? "an element with text",
     read: () => locator.textContent(),
-    check: (actual) => actual !== null && (!matches || matches(actual)),
+    // Without a pattern, an element that has not rendered its value yet (no text) is waited for
+    check: (actual) =>
+      actual !== null && (matches ? matches(actual) : actual !== ""),
     call: `outputs.save(${JSON.stringify(name)})`,
   });
   sink.set(name, pattern ? captured(pattern, text!) : text!);

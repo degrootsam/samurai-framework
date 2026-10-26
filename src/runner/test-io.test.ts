@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { takePendingAssertions } from "../assert/pending-assertions.js";
+import { resolveRunSettings, setRunSettings } from "../config/run-settings.js";
 import type Locator from "../locator/locator.js";
 import {
   beginOutputs,
@@ -118,6 +119,29 @@ test("save stores the element's text in the open sink", async () => {
   const sink = beginOutputs(["o"]);
   await createOutputsFixture(sink).save("o", textLocator(null, "Hello"));
   assert.deepEqual(endOutputs(), { o: "Hello" });
+});
+
+test("save without a pattern waits for the element to have text", async () => {
+  const sink = beginOutputs(["o"]);
+  await createOutputsFixture(sink).save("o", textLocator("", "", "Hello"));
+  assert.deepEqual(endOutputs(), { o: "Hello" });
+});
+
+test("save without a pattern fails at the timeout when the element stays empty", async () => {
+  setRunSettings(resolveRunSettings({}, { expectTimeout: 100 }));
+  try {
+    const sink = beginOutputs(["o"]);
+    await assert.rejects(
+      createOutputsFixture(sink).save("o", textLocator("")),
+      {
+        name: "AssertionError",
+        message: /^outputs\.save\("o"\)\n/,
+      },
+    );
+    assert.deepEqual(endOutputs(), {});
+  } finally {
+    setRunSettings(undefined);
+  }
 });
 
 test("save with a pattern keeps the first group, else the whole match", async () => {
