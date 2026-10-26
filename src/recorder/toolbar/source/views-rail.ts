@@ -31,6 +31,7 @@ export const VIEWS_RAIL_JS = String.raw`  // ---- Views ----
         : h("button", { class: "b", "data-action": "pause" }, ico("❚❚"), "Pause"),
       tool("assert", "✓", "Assert"),
       ui.picking && h("div", { class: "note" }, "Click an element · Esc cancels"),
+      tool("page", "⌂", "Page"),
       tool("insert", "{x}", "Insert"),
       tool("wait", "⏱", "Wait"),
       tool("screenshot", "◉", "Screenshot"),

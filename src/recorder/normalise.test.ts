@@ -266,6 +266,23 @@ describe("toolbar observations", () => {
     ]);
   });
 
+  it("a page expectation becomes an expectPage step", () => {
+    const n = new Normaliser({ at: 0, baseURL: "https://app.test" });
+    const [event] = n.observe(
+      {
+        type: "expectPage",
+        not: true,
+        expectation: { matcher: "toHaveURL", expected: "/checkout" },
+      },
+      1,
+    );
+    assert.deepEqual(stepOf(event), {
+      kind: "expectPage",
+      not: true,
+      expectation: { matcher: "toHaveURL", expected: "/checkout" },
+    });
+  });
+
   it("a toolbar step closes the fill being typed: typing afterwards is a new fill (Review Focus 3)", () => {
     const n = new Normaliser({ at: 0 });
     n.observe({ type: "input", key: "k", locator: field, value: "a" }, 1);

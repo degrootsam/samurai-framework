@@ -10,6 +10,7 @@ export const FIELDS_JS = String.raw`  const press = (action, detail) => {
     if (!field) return;
     const value = t.value;
     if (field === "expected" && ui.assert) ui.assert.expected = value;
+    else if (field === "pageExpected" && ui.page) ui.page.expected = value;
     else if (field === "attribute" && ui.assert) {
       ui.assert.attribute = value;
       ui.assert.expected = prefill(ui.assert, "toHaveAttribute");

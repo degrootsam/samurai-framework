@@ -1,4 +1,4 @@
-/** Views: the Assert, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
+/** Views: the Assert, Page, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
 export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) =>
     (matcher === "toHaveValue" && info.value === undefined) ||
     (matcher === "toHaveAttribute" && info.attributes.length === 0) ||
@@ -70,6 +70,24 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       h("div", { class: "row" },
         h("label", { class: "neg" }, h("input", { type: "checkbox", "data-action": "not", checked: a.not }), "Not"),
         h("button", { class: "add", "data-action": "assert-add", disabled: ui.busy }, "Add")),
+    ];
+  };
+
+  const pagePanel = () => {
+    const p = ui.page;
+    const head = h("div", { class: "h" }, "Page");
+    if (!p.info) return [head, h("div", { class: "msg" }, "…")];
+    if (!p.info.ok) return [head, h("div", { class: "err" }, p.info.error)];
+    return [
+      head,
+      h("div", { class: "opts" }, PAGE_MATCHERS.map(([matcher, label]) =>
+        h("button", { class: p.matcher === matcher ? "o sel" : "o", "data-action": "page-matcher", "data-matcher": matcher }, label))),
+      h("div", { class: "val" },
+        h("input", { type: "text", class: "in", "data-field": "pageExpected", value: p.expected, "data-enter": "page-add", autocomplete: "off", spellcheck: "false" })),
+      p.error && h("div", { class: "err" }, p.error),
+      h("div", { class: "row" },
+        h("label", { class: "neg" }, h("input", { type: "checkbox", "data-action": "page-not", checked: p.not }), "Not"),
+        h("button", { class: "add", "data-action": "page-add", disabled: ui.busy }, "Add")),
     ];
   };
 
@@ -163,5 +181,5 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     radio("fullPage", "true", ui.shot.fullPage, "Whole page"),
     h("div", { class: "foot" }, h("button", { class: "add", "data-action": "screenshot-add", disabled: ui.busy }, "Add")),
   ];
-  const PANELS = { assert: assertPanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
+  const PANELS = { assert: assertPanel, page: pagePanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
 `;

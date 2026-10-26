@@ -2,11 +2,17 @@ import { cleanName } from "../../browser/evidence.js";
 import type { Step } from "../../steps/model.js";
 import { ActionGuard } from "./action-guard.js";
 import { assertAction } from "./actions/assert.js";
+import { assertPageAction, pageInfoOf } from "./actions/assert-page.js";
 import { addInsertableAction, insertAction } from "./actions/insert.js";
 import { withoutSecrets } from "./actions/pick.js";
 import { fail, PAUSED, UNIDENTIFIABLE } from "./actions/reply.js";
 import { LEFT, PageScope } from "./page-scope.js";
-import type { ActionReply, PickInfo, ToolbarState } from "./protocol.js";
+import type {
+  ActionReply,
+  PageInfo,
+  PickInfo,
+  ToolbarState,
+} from "./protocol.js";
 import type {
   ActionContext,
   ControllerDeps,
@@ -114,7 +120,7 @@ export class ToolbarController {
     if (!this.disposed) this.deps.push(this.state());
   }
 
-  private reply(id: number, result: PickInfo | ActionReply): void {
+  private reply(id: number, result: PickInfo | PageInfo | ActionReply): void {
     if (!this.disposed) this.deps.reply(id, result);
   }
 
@@ -174,6 +180,12 @@ export class ToolbarController {
       case "assert":
         return this.replying(message, () =>
           assertAction(this.actions, message),
+        );
+      case "page-info":
+        return this.pageInfo(message);
+      case "assert-page":
+        return this.replying(message, () =>
+          assertPageAction(this.actions, message),
         );
       case "insert":
         return this.replying(message, () =>
@@ -314,8 +326,8 @@ export class ToolbarController {
   }
 
   /**
-   * Whether to process `message`; call it as the message arrives, before queueing it. An `assert`, `insert` or
-   * `add-insertable` whose id is in flight or was already answered `{ ok: true }` is a double click and is
+   * Whether to process `message`; call it as the message arrives, before queueing it. An `assert`, `assert-page`,
+   * `insert` or `add-insertable` whose id is in flight or was already answered `{ ok: true }` is a double click and is
    * dropped (its first copy answers). A retry after `{ ok: false }` is accepted.
    */
   public accept(message: Message): boolean {
@@ -324,12 +336,28 @@ export class ToolbarController {
 
   /** Runs an action that expects a reply, unless it is a repeat (see `accept`) */
   private replying(
-    message: Of<"assert" | "insert" | "add-insertable">,
+    message: Of<"assert" | "assert-page" | "insert" | "add-insertable">,
     work: () => Promise<ActionReply>,
   ) {
     return this.guard.run(message, work, (id, result) =>
       this.reply(id, result),
     );
+  }
+
+  /** The Page panel opened: the recorded page's URL and title, unless that page was left meanwhile */
+  private async pageInfo(message: Of<"page-info">): Promise<void> {
+    const page = this.scope.current;
+    if (this.paused) return this.reply(message.id, fail(PAUSED));
+    let found: PageInfo | typeof LEFT;
+    try {
+      found = await this.scope.whileOn(() =>
+        pageInfoOf(this.deps, this.secrets),
+      );
+    } catch {
+      found = { ok: false, error: "Couldn't read the page" };
+    }
+    if (found === LEFT || page !== this.scope.current) return;
+    this.reply(message.id, found);
   }
 
   private async picked(message: Of<"pick">): Promise<void> {

@@ -249,6 +249,9 @@ export class Recorder {
         page: this.page,
         connector: this.connector,
         context: this.context,
+        ...(this.options.baseURL !== undefined && {
+          baseURL: this.options.baseURL,
+        }),
         mute: () => this.mute(),
         unmute: () => this.unmute(),
         observe: (observation) =>

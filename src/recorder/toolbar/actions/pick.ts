@@ -1,6 +1,17 @@
 import { expectationFor } from "../../expectation.js";
 import type { PickInfo } from "../protocol.js";
 
+/** Whether a text holds the value of one of the secrets */
+export function holdsSecret(
+  secrets: Map<string, string | undefined>,
+): (text: string | undefined) => boolean {
+  const values = [...secrets.values()].filter(
+    (value): value is string => value !== undefined && value !== "",
+  );
+  return (text) =>
+    text !== undefined && values.some((value) => text.includes(value));
+}
+
 /**
  * A field may hold an inserted secret: its value (and any text, attribute, class or CSS value holding a secret) is left out,
  * and the first matcher follows the Alt+click rule without a value, so neither the page nor the spec gets it.
@@ -9,11 +20,7 @@ export function withoutSecrets(
   info: PickInfo & { ok: true },
   secrets: Map<string, string | undefined>,
 ): PickInfo {
-  const values = [...secrets.values()].filter(
-    (value): value is string => value !== undefined && value !== "",
-  );
-  const secret = (text: string | undefined) =>
-    text !== undefined && values.some((value) => text.includes(value));
+  const secret = holdsSecret(secrets);
   if (
     !secret(info.value) &&
     !secret(info.text) &&

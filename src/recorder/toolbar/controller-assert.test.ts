@@ -249,3 +249,122 @@ describe("ToolbarController pick and assert", () => {
     noSecretLeaks();
   });
 });
+
+describe("ToolbarController page assertions", () => {
+  it("answers page-info with the URL, the URL relative to the base URL, and the title", async () => {
+    const { controller, replies, page } = setup(
+      {},
+      { baseURL: "http://localhost" },
+    );
+    page.url = "http://localhost/checkout?step=2";
+    page.title = "Checkout";
+    await controller.handle(msg({ action: "page-info", id: 50 }));
+    assert.deepEqual(replies, [
+      {
+        id: 50,
+        result: {
+          ok: true,
+          url: "http://localhost/checkout?step=2",
+          urlPrefill: "/checkout?step=2",
+          title: "Checkout",
+        },
+      },
+    ]);
+  });
+
+  it("prefills the full URL without a base URL", async () => {
+    const { controller, replies } = setup();
+    await controller.handle(msg({ action: "page-info", id: 51 }));
+    assert.deepEqual(lastOf(replies), {
+      id: 51,
+      result: {
+        ok: true,
+        url: "http://localhost/a",
+        urlPrefill: "http://localhost/a",
+        title: "Home",
+      },
+    });
+  });
+
+  it("turns assert-page into an expectPage observation", async () => {
+    const { controller, replies, observed } = setup();
+    await controller.handle(
+      msg({
+        action: "assert-page",
+        id: 52,
+        matcher: "toHaveURL",
+        expected: "/checkout",
+        not: false,
+      }),
+    );
+    await controller.handle(
+      msg({
+        action: "assert-page",
+        id: 53,
+        matcher: "toHaveTitle",
+        expected: "Checkout",
+        not: true,
+      }),
+    );
+    assert.deepEqual(observed, [
+      {
+        type: "expectPage",
+        not: false,
+        expectation: { matcher: "toHaveURL", expected: "/checkout" },
+      },
+      {
+        type: "expectPage",
+        not: true,
+        expectation: { matcher: "toHaveTitle", expected: "Checkout" },
+      },
+    ]);
+    assert.deepEqual(replies, [
+      { id: 52, result: { ok: true } },
+      { id: 53, result: { ok: true } },
+    ]);
+  });
+
+  it("refuses an empty expected value", async () => {
+    const { controller, replies, observed } = setup();
+    await controller.handle(
+      msg({
+        action: "assert-page",
+        id: 54,
+        matcher: "toHaveTitle",
+        expected: "  ",
+        not: false,
+      }),
+    );
+    assert.deepEqual(observed, []);
+    assert.deepEqual(replies, [
+      { id: 54, result: { ok: false, error: "Fill in the value" } },
+    ]);
+  });
+
+  it("a double click on Add writes one step", async () => {
+    const { controller, observed } = setup();
+    const add = msg({
+      action: "assert-page",
+      id: 55,
+      matcher: "toHaveTitle",
+      expected: "Home",
+      not: false,
+    });
+    assert.equal(controller.accept(add), true);
+    assert.equal(controller.accept(add), false);
+    await controller.handle(add);
+    assert.equal(observed.length, 1);
+  });
+
+  it("never sends back a URL or title that holds a secret", async () => {
+    const { controller, replies, page, noSecretLeaks } = setup();
+    page.url = `http://localhost/reset?token=${SECRET}`;
+    page.title = `Hello ${SECRET}`;
+    await controller.handle(msg({ action: "page-info", id: 56 }));
+    assert.deepEqual(lastOf(replies), {
+      id: 56,
+      result: { ok: true, url: "", urlPrefill: "", title: "" },
+    });
+    noSecretLeaks();
+  });
+});

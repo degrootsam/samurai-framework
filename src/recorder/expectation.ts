@@ -23,3 +23,19 @@ export function expectationFor(
     ? { matcher: "toHaveText", expected: text }
     : { matcher: "toContainText", expected: text.slice(0, TEXT_LIMIT).trim() };
 }
+
+/**
+ * The URL a `toHaveURL` step is written with: its path, query and hash when that resolves against `base` back to
+ * exactly `url` (as `toHaveURL` resolves it), else the full URL
+ */
+export function urlForAssertion(url: string, base: string | undefined): string {
+  if (base === undefined) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.origin !== new URL(base).origin) return url;
+    const candidate = parsed.pathname + parsed.search + parsed.hash;
+    return new URL(candidate, base).href === parsed.href ? candidate : url;
+  } catch {
+    return url;
+  }
+}
