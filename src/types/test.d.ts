@@ -27,6 +27,14 @@ export interface TestDetails {
   reason?: string;
 }
 
+/** The optional second argument of `test`, `test.only`, `test.skip` and `test.fixme` */
+export interface TestOptions extends TestDetails {
+  /** Named text values the test reads, each with the default it gets when nothing supplies one */
+  inputs?: Record<string, string>;
+  /** Names of the text values the test saves for later tests to use */
+  outputs?: string[];
+}
+
 /** Runs before or after each test of a suite, in the test's browser, with the test's fixtures */
 export type EachHook = (fixtures: TestFixtures) => Promise<void> | void;
 
@@ -64,6 +72,10 @@ export interface RegisteredTestCase extends TestCaseBase {
   modifier?: Modifier;
   /** The reason given with the `skip` or `fixme` that applies */
   reason?: string;
+  /** The inputs the test declared, with their defaults */
+  inputs?: Record<string, string>;
+  /** The names of the outputs the test declared */
+  outputs?: string[];
 }
 
 export interface TestCaseBase {

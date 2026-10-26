@@ -106,3 +106,32 @@ describe("listTests", () => {
     }
   });
 });
+
+describe("listTests inputs and outputs", () => {
+  let ioDir: string;
+  before(() => {
+    ioDir = mkdtempSync(path.join(tmpdir(), "samurai-list-io-"));
+    writeFileSync(path.join(ioDir, "package.json"), '{"type":"module"}');
+    mkdirSync(path.join(ioDir, "src"));
+    writeFileSync(
+      path.join(ioDir, "src/io.spec.ts"),
+      `import { test } from ${API};
+test("plain", async () => {});
+test("io", { inputs: { a: "1", b: "2" }, outputs: ["o"] }, async () => {});`,
+    );
+  });
+  after(() => rmSync(ioDir, { recursive: true, force: true }));
+
+  it("lists inputs in declaration order and outputs, absent for a plain test", async () => {
+    const tests = await listTests({
+      projectDir: ioDir,
+      config: { srcDir: "./src" },
+    });
+    assert.deepEqual(tests[1]!.inputs, [
+      { name: "a", default: "1" },
+      { name: "b", default: "2" },
+    ]);
+    assert.deepEqual(tests[1]!.outputs, ["o"]);
+    assert.ok(!("inputs" in tests[0]!) && !("outputs" in tests[0]!));
+  });
+});

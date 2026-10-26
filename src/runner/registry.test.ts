@@ -279,3 +279,63 @@ test("clearRegistry forgets the hooks of a file", () => {
   samuraiTest("fresh", noop);
   assert.equal(registeredTests()[0]?.suite.beforeEach, undefined);
 });
+
+test("inputs and outputs are registered with the test", () => {
+  samuraiTest("t", { inputs: { a: "1" }, outputs: ["o"] }, noop);
+  samuraiTest("plain", noop);
+  const [withIO, plain] = registeredTests();
+  assert.deepEqual(withIO?.inputs, { a: "1" });
+  assert.deepEqual(withIO?.outputs, ["o"]);
+  assert.ok(!("inputs" in plain!) && !("outputs" in plain!));
+  assert.equal(withIO?.function, noop);
+});
+
+test("test.only takes the options too", () => {
+  samuraiTest.only("t", { outputs: ["o"] }, noop);
+  const [registered] = registeredTests();
+  assert.equal(registered?.modifier, "only");
+  assert.deepEqual(registered?.outputs, ["o"]);
+});
+
+test("test.skip and test.fixme keep the reason next to inputs and outputs", () => {
+  samuraiTest.skip("s", { reason: "r", outputs: ["o"] }, noop);
+  samuraiTest.fixme("f", { reason: "broken", inputs: { a: "1" } }, noop);
+  const [skipped, fixme] = registeredTests();
+  assert.equal(skipped?.modifier, "skip");
+  assert.equal(skipped?.reason, "r");
+  assert.deepEqual(skipped?.outputs, ["o"]);
+  assert.equal(fixme?.modifier, "fixme");
+  assert.equal(fixme?.reason, "broken");
+  assert.deepEqual(fixme?.inputs, { a: "1" });
+});
+
+test("a reason on test() or test.only() throws", () => {
+  assert.throws(() => samuraiTest("t", { reason: "r" }, noop), {
+    message: "test(): reason only applies to skip and fixme",
+  });
+  assert.throws(() => samuraiTest.only("t", { reason: "r" }, noop), {
+    message: "test.only(): reason only applies to skip and fixme",
+  });
+  assert.equal(registeredTests().length, 0);
+});
+
+test("a bad name, a duplicate or a non-string default throws at registration", () => {
+  assert.throws(() => samuraiTest("t", { outputs: ["status"] }, noop), {
+    message: 'test(): output "status" is not a valid name',
+  });
+  assert.throws(() => samuraiTest("t", { outputs: ["o", "o"] }, noop), {
+    message: 'test(): output "o" is listed twice',
+  });
+  assert.throws(
+    () => samuraiTest.skip("t", { inputs: { a: 1 as never } }, noop),
+    { message: 'test.skip(): input "a" needs a string default' },
+  );
+  assert.equal(registeredTests().length, 0);
+});
+
+test("describe.skip keeps only the reason in its details", () => {
+  samuraiDescribe.skip("D", { reason: "r" }, () => {
+    samuraiTest("inside", noop);
+  });
+  assert.equal(registeredTests()[0]?.reason, "r");
+});
