@@ -45,5 +45,5 @@ export async function runNodeTests(
 export const problemAt = (node: FlowNodeModel, run: HandlerRun, text: string) =>
   checkExpression(
     parseExpression(text),
-    scopeAt(run.flow, node.id, run.environment, run.nodes),
+    scopeAt(run.flow, node.id, run.environment, { nodes: run.nodes }),
   )?.message;

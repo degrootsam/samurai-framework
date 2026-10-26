@@ -83,8 +83,8 @@ describe("node registry", () => {
     assert.equal(branchOf(node("condition"), "true")?.color, "success");
   });
 
-  test("labels, outputs and failure choice", () => {
-    assert.equal(nodeDef("test").outputs, true);
+  test("labels, no outputs flag on Test, and failure choice", () => {
+    assert.equal(nodeDef("test").outputs, undefined);
     assert.equal(nodeDef("condition").onFailure, true);
     assert.equal(nodeDef("parallel").onFailure, true);
   });

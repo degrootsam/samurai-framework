@@ -6,7 +6,6 @@ export const group = defineNode({
   label: "Group",
   shape: "step",
   fields: [{ path: "ref.group", type: "group", label: "Group" }],
-  outputs: true,
   validate: (node, ctx) =>
     ctx.groups && !(node.ref?.group && ctx.groups.has(node.ref.group))
       ? [
