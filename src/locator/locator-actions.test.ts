@@ -9,6 +9,7 @@ import {
   stubConnector,
   type StubResponse,
 } from "../testing/stub-connector.js";
+import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
 const BOX = { x: 10, y: 20, width: 100, height: 40 };
 
@@ -463,4 +464,43 @@ test("a page that is swapping documents matches nothing for now instead of faili
     ),
   );
   await assert.rejects(locator.count(), /something else/);
+});
+
+test("fill() with output saves the typed value once it is typed", async () => {
+  const sink = beginOutputs(["o"]);
+  try {
+    const { locator } = locatorWith("input", state(), { type: "undefined" });
+    await locator.fill("ab", { output: "o" });
+    assert.deepEqual(sink.values(), { o: "ab" });
+  } finally {
+    endOutputs();
+  }
+});
+
+test("fill() with output saves nothing when the field is never actionable", async () => {
+  const sink = beginOutputs(["o"]);
+  try {
+    const { locator } = locatorWith("input", state({ editable: false }));
+    await assert.rejects(locator.fill("ab", { output: "o", timeout: 100 }));
+    assert.deepEqual(sink.values(), {});
+  } finally {
+    endOutputs();
+  }
+});
+
+test("fill() with output outside a test, or for an undeclared name, throws before touching the page", async () => {
+  endOutputs();
+  const { locator, sent } = locatorWith("input", state());
+  await assert.rejects(locator.fill("x", { output: "o" }), {
+    message: "fill(): output can only be saved inside a test",
+  });
+  beginOutputs(["o"]);
+  try {
+    await assert.rejects(locator.fill("x", { output: "z" }), {
+      message: 'fill(): output "z" is not declared',
+    });
+  } finally {
+    endOutputs();
+  }
+  assert.equal(sent.length, 0);
 });

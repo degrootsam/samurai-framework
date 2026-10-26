@@ -86,6 +86,8 @@ The table reads top to bottom: a folder mostly uses the ones below it. It is tak
 | `project`, `browsers`         | `config`, `logger`                                                                            |
 | `steps`, `wait`, `flows/core` | nothing (`flows/core` is pure, no Node APIs; a test bundles it to prove that)                 |
 
+`wait/output-sink.ts` holds the outputs a running test saves (the current sink and `bindOutput`). It sits in `wait/` because `assert` and `locator` both save into it and neither may import `runner`.
+
 Rules that keep it modular:
 
 - `config/` does not import `runner/`. Config validation that the runner needs lives in `config/` (`config/browsers.ts`).

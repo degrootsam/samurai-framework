@@ -4,10 +4,12 @@ import { takePendingAssertions } from "../assert/pending-assertions.js";
 import type Locator from "../locator/locator.js";
 import {
   beginOutputs,
-  createInputsFixture,
-  createOutputsFixture,
   currentOutputSink,
   endOutputs,
+} from "../wait/output-sink.js";
+import {
+  createInputsFixture,
+  createOutputsFixture,
   ioOfAttempt,
   missingOutputs,
   validateTestIO,
@@ -113,32 +115,35 @@ test("reading an undeclared input throws", () => {
 });
 
 test("save stores the element's text in the open sink", async () => {
-  beginOutputs(["o"]);
-  await createOutputsFixture().save("o", textLocator(null, "Hello"));
+  const sink = beginOutputs(["o"]);
+  await createOutputsFixture(sink).save("o", textLocator(null, "Hello"));
   assert.deepEqual(endOutputs(), { o: "Hello" });
 });
 
 test("save with a pattern keeps the first group, else the whole match", async () => {
-  beginOutputs(["o", "p"]);
-  const { save } = createOutputsFixture();
+  const sink = beginOutputs(["o", "p"]);
+  const { save } = createOutputsFixture(sink);
   await save("o", textLocator("Order #12345 placed"), /Order #(\d+)/);
   await save("p", textLocator("Wait", "Order #77 placed"), /Order #\d+/);
   assert.deepEqual(endOutputs(), { o: "12345", p: "Order #77" });
 });
 
+test("save with a global or sticky pattern extracts the same value every time", async () => {
+  const sink = beginOutputs(["o", "p"]);
+  const { save } = createOutputsFixture(sink);
+  const global = /Order #(\d+)/g;
+  global.lastIndex = 5;
+  await save("o", textLocator("Order #12345 placed"), global);
+  await save("p", textLocator("Order #77 placed"), /Order #(\d+)/y);
+  assert.deepEqual(endOutputs(), { o: "12345", p: "77" });
+});
+
 test("save on an undeclared name throws", async () => {
-  beginOutputs(["o"]);
-  await assert.rejects(createOutputsFixture().save("x", textLocator("a")), {
+  const sink = beginOutputs(["o"]);
+  await assert.rejects(createOutputsFixture(sink).save("x", textLocator("a")), {
     message: 'outputs.save(): output "x" is not declared',
   });
   endOutputs();
-});
-
-test("save outside a test throws", async () => {
-  endOutputs();
-  await assert.rejects(createOutputsFixture().save("o", textLocator("a")), {
-    message: "outputs.save(): output can only be saved inside a test",
-  });
 });
 
 test("a sink set on an undeclared name throws; after endOutputs it ignores sets", () => {
@@ -157,8 +162,8 @@ test("a sink set on an undeclared name throws; after endOutputs it ignores sets"
 test("a save whose text arrives after its test ended does not land in the next test", async () => {
   let release: (text: string) => void = () => {};
   const late = new Promise<string>((resolve) => (release = resolve));
-  beginOutputs(["o"]);
-  const saving = createOutputsFixture().save("o", textLocator(late));
+  const first = beginOutputs(["o"]);
+  const saving = createOutputsFixture(first).save("o", textLocator(late));
   endOutputs();
   const next = beginOutputs(["o"]);
   release("late");
@@ -169,10 +174,12 @@ test("a save whose text arrives after its test ended does not land in the next t
 
 test("an un-awaited save is reported as outputs.save()", async () => {
   takePendingAssertions();
-  endOutputs();
-  void createOutputsFixture().save("o", textLocator("a"));
+  const sink = beginOutputs(["o"]);
+  // An undeclared name rejects, and a rejected assertion nobody awaits stays pending
+  void createOutputsFixture(sink).save("x", textLocator("a"));
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.deepEqual(takePendingAssertions(), ["outputs.save()"]);
+  endOutputs();
 });
 
 test("a declared output that was never saved is an assertion failure", () => {

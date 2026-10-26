@@ -26,7 +26,7 @@ function project(tests: string, config: object = {}) {
   mkdirSync(path.join(dir, "specs"));
   writeFileSync(
     path.join(dir, "specs", "io.spec.ts"),
-    `import { test } from ${JSON.stringify(API)};
+    `import { test, expect } from ${JSON.stringify(API)};
 const go = (page, html) => page.navigateTo("data:text/html," + encodeURIComponent(html));
 const ORDER = "<p id='o'></p><script>setTimeout(() => { document.getElementById('o').textContent = 'Order #12345 placed'; }, 300);</script>";
 ${tests}`,
@@ -121,6 +121,53 @@ test("plain", async () => {});
     assert.ok(!("inputs" in plain) && !("outputs" in plain));
   },
 );
+
+test("fill and the text checks save outputs", { timeout: 120000 }, async () => {
+  const dir = project(`
+const FORM = "<input id='i' value='old'><a id='l' href='/x/7'>Link</a>" + ORDER;
+test("all", { outputs: ["f", "t", "c", "v", "a", "g"] }, async ({ page }) => {
+  await go(page, FORM);
+  await page.locator("input[@id='i']").fill("typed", { output: "f" });
+  await expect(page.locator("p[@id='o']")).toHaveText(/Order #(\\d+)/g, { output: "t" });
+  await expect(page.locator("p[@id='o']")).toContainText("Order", { output: "c" });
+  await expect(page.locator("input[@id='i']")).toHaveValue("typed", { output: "v" });
+  await expect(page.locator("a[@id='l']")).toHaveAttribute("href", /x\\/(\\d+)/, { output: "a" });
+  await expect(page.locator("a[@id='l']")).toHaveText("Link", { output: "g" });
+});
+test("not saved", { outputs: ["f"] }, async ({ page }) => {
+  await go(page, FORM);
+  await expect(page.locator("a[@id='l']")).toHaveText("Nope", { output: "f" });
+});
+test("undeclared", async ({ page }) => {
+  await go(page, FORM);
+  await expect(page.locator("a[@id='l']")).toHaveText("Link", { output: "f" });
+});
+`);
+  const summary = await runTests({
+    projectDir: dir,
+    dataDir: path.join(dir, "data"),
+    headless: true,
+    port: 9287,
+    workers: 1,
+  });
+  const get = (name: string) => byName(summary.tests, name);
+  assert.equal(get("all").status, "success", get("all").message);
+  assert.deepEqual(get("all").outputs, {
+    f: "typed",
+    t: "12345",
+    c: "Order #12345 placed",
+    v: "typed",
+    a: "7",
+    g: "Link",
+  });
+  assert.equal(get("not saved").status, "failed");
+  assert.deepEqual(get("not saved").outputs, {});
+  assert.equal(get("undeclared").status, "failed");
+  assert.match(
+    get("undeclared").message ?? "",
+    /toHaveText: output "f" is not declared/,
+  );
+});
 
 test(
   "runTests inputs reach the tests on a pool of workers",
