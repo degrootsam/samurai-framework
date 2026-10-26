@@ -32,9 +32,9 @@ export class PageAssertions {
   private assertEventually(
     matcher: string,
     what: string,
-    expected: unknown,
+    expectedOf: () => string | RegExp,
     read: () => Promise<string>,
-    check: (actual: string) => boolean,
+    check: (actual: string, expected: string | RegExp) => boolean,
     options?: PageAssertionOptions,
   ): Promise<void> {
     const name = this.negated ? `not.${matcher}` : matcher;
@@ -42,6 +42,8 @@ export class PageAssertions {
     return track(
       name,
       (async () => {
+        // Resolved inside the tracked body: a throw (no base URL) rejects the tracked promise
+        const expected = expectedOf();
         const timeout = await resolveTimeout(options?.timeout);
         const safeRead = async (): Promise<string | null> => {
           try {
@@ -54,7 +56,8 @@ export class PageAssertions {
         try {
           await waitUntil(
             safeRead,
-            (actual) => actual !== null && check(actual) !== this.negated,
+            (actual) =>
+              actual !== null && check(actual, expected) !== this.negated,
             { timeout },
           );
         } catch (err) {
@@ -80,33 +83,27 @@ export class PageAssertions {
    * with "/", "./" or "../" resolves against the base URL like `page.goto`; any other string must equal the URL
    */
   toHaveURL(expected: string | RegExp, options?: PageAssertionOptions) {
-    let target: string | RegExp;
-    try {
-      target =
-        typeof expected === "string"
-          ? this.page.resolveURL(expected, "toHaveURL")
-          : expected;
-    } catch (err) {
-      return Promise.reject(err);
-    }
     return this.assertEventually(
       "toHaveURL",
       "URL",
-      target,
+      () =>
+        typeof expected === "string"
+          ? this.page.resolveURL(expected, "toHaveURL")
+          : expected,
       () => this.page.url(),
-      (url) => matchesText(url, target, "exact"),
+      (url, target) => matchesText(url, target, "exact"),
       options,
     );
   }
 
-  /** The trimmed page title equals `expected` (string) or matches it (RegExp) */
+  /** The trimmed page title equals `expected` (string, trimmed too) or matches it (RegExp) */
   toHaveTitle(expected: string | RegExp, options?: PageAssertionOptions) {
     return this.assertEventually(
       "toHaveTitle",
       "title",
-      expected,
+      () => (typeof expected === "string" ? expected.trim() : expected),
       async () => (await this.page.title()).trim(),
-      (title) => matchesText(title, expected, "exact"),
+      (title, target) => matchesText(title, target, "exact"),
       options,
     );
   }

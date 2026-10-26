@@ -131,3 +131,29 @@ test("an un-awaited page matcher is tracked as pending", async () => {
   assert.deepEqual(takePendingAssertions(), ["toHaveURL"]);
   await promise.catch(() => undefined);
 });
+
+test("toHaveTitle trims an expected string too", async () => {
+  const page = fakePage({ title: async () => " Home" });
+  await expect(page).toHaveTitle("Home ", { timeout: 500 });
+});
+
+test("a relative toHaveURL without a base URL rejects with the baseURL message", async () => {
+  const page = fakePage({
+    resolveURL: () => {
+      throw new Error("toHaveURL(): a relative URL needs a baseURL");
+    },
+  });
+  await assert.rejects(expect(page).toHaveURL("/x"), /needs a baseURL/);
+});
+
+test("an un-awaited no-base toHaveURL is listed as pending, not unhandled", async () => {
+  const page = fakePage({
+    resolveURL: () => {
+      throw new Error("toHaveURL(): a relative URL needs a baseURL");
+    },
+  });
+  takePendingAssertions();
+  const promise = expect(page).toHaveURL("/x");
+  assert.deepEqual(takePendingAssertions(), ["toHaveURL"]);
+  await promise.catch(() => undefined);
+});
