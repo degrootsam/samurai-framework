@@ -12,7 +12,7 @@ export const CAPABILITIES = {
   /** The recorder writing its recording to files in the project. */
   recorderFiles: true,
   /** The flows contract version; a test keeps it equal to `FLOWS_API`. */
-  flowsApi: 2,
+  flowsApi: 3,
   /** Steps that flows can run, including project steps made with `defineStep`. */
   flowSteps: true,
   /** Browsers the framework downloads and manages itself. */
@@ -31,14 +31,25 @@ export const CAPABILITIES = {
   recorderStartStatus: true,
   /** `outputDir` on `runTests` and `runFlowInProject`: a folder per run for the report and the screenshots. */
   outputDir: true,
-  /** `runFlowInProject`'s `outputDir` gives each node its own folder, `nodes/<node id>/`. */
-  flowNodeFolders: true,
-  /** `nodeFolder(nodeId)` from `./flows/run`: a flow node's folder under `outputDir`, so an app need not rebuild it. */
-  nodeFolder: true,
+  /**
+   * `runFlowInProject`'s `outputDir` gives each node its own folder. Version 2: one per browser run,
+   * `<browser>/nodes/<node id>/`, and screenshot paths in a node's results are relative to `outputDir`.
+   */
+  flowNodeFolders: 2,
+  /** `nodeFolder(nodeId, browser)` from `./flows/run`: a flow node's folder under `outputDir` (version 2 takes the browser). */
+  nodeFolder: 2,
   /** Assertion matchers version 2: `toBeHidden`, `toBeEnabled`, `toBeChecked`, `toHaveClass` and `toHaveCSS`, in the framework and the step codec. */
   assertionMatchers: 2,
   /** `expect(page).toHaveURL` and `toHaveTitle`, and the `expectPage` step in the step codec. */
   pageAssertions: true,
+  /**
+   * Test inputs and outputs: `test()` options `{ inputs, outputs }`, the `inputs` / `outputs` fixtures, `{ output }` on
+   * `fill` and the text checks, `inputs` / `outputs` on results and `listTests`, the codec's `saveOutput` step and
+   * `declare` edit, and the recorder toolbar's Save as output and Insert → input.
+   */
+  testInputsOutputs: true,
+  /** A flow runs once per browser: `browser` on every flow event, `flow-done`, `runFlowInProject` resolving to `FlowRunResult`. */
+  flowPerBrowser: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */
