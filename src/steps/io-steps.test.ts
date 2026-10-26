@@ -239,4 +239,48 @@ describe("applyEdit with inputs and outputs", () => {
       ),
     );
   });
+
+  it("refuses an output on a negated check or a matcher that can't save one, before writing", () => {
+    const source = spec("", "{ page }", 'await page.goto("/");');
+    const negated: Step = {
+      kind: "expect",
+      locator: conf,
+      not: true,
+      expectation: { matcher: "toHaveText", expected: "x" },
+      output: "a",
+    };
+    const classCheck: Step = {
+      kind: "expect",
+      locator: conf,
+      not: false,
+      expectation: { matcher: "toHaveClass", expected: "x" },
+      output: "a",
+    };
+    for (const op of ["insert", "replace"] as const) {
+      assert.throws(
+        () => applyEdit(source, { op, test: 0, index: 0, step: negated }),
+        { message: "applyEdit(): output can't be saved from a negated check" },
+      );
+      assert.throws(
+        () => applyEdit(source, { op, test: 0, index: 0, step: classCheck }),
+        { message: "applyEdit(): output can't be saved from toHaveClass" },
+      );
+    }
+  });
+
+  it("refuses an output name the runtime rejects", () => {
+    const source = spec("", "{ page }", 'await page.goto("/");');
+    for (const name of ["status", "1st", "has-dash"]) {
+      assert.throws(
+        () =>
+          applyEdit(source, {
+            op: "insert",
+            test: 0,
+            index: 0,
+            step: { kind: "saveOutput", name, locator: conf },
+          }),
+        { message: `applyEdit(): output "${name}" is not a valid name` },
+      );
+    }
+  });
 });
