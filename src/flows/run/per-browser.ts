@@ -35,7 +35,7 @@ export function flowBrowsers(
 /**
  * Walks the flow once per browser, one after the other, then sends `flow-done`. The runs are independent: a
  * failed one (an `onFailure: "stop"` included) ends that browser's run only. An abort stops them all: the runs
- * left are not started.
+ * left are not started. The result is cancelled only when a run was cut short or a browser was not started.
  */
 export async function runPerBrowser(input: {
   browsers: readonly SupportedBrowser[];
@@ -50,12 +50,15 @@ export async function runPerBrowser(input: {
     runs.push({ browser, summary });
     if (summary.status === "cancelled") break;
   }
-  const status: FlowRunResult["status"] =
-    input.signal?.aborted || runs.some((r) => r.summary.status === "cancelled")
-      ? "cancelled"
-      : runs.some((r) => r.summary.status === "failed")
-        ? "failed"
-        : "passed";
+  // An abort that came after every run finished cuts nothing short
+  const cutShort =
+    runs.length < input.browsers.length ||
+    runs.some((r) => r.summary.status === "cancelled");
+  const status: FlowRunResult["status"] = cutShort
+    ? "cancelled"
+    : runs.some((r) => r.summary.status === "failed")
+      ? "failed"
+      : "passed";
   const result: FlowRunResult = { status, runs };
   input.onEvent?.({ type: "flow-done", ...result });
   return result;
