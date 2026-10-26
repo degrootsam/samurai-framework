@@ -158,7 +158,10 @@ test("takePendingAssertions lists assertions that were not awaited", async () =>
   const { locator } = locatorWith("div", bool(false));
   const pending = expect(locator).not.toBeVisible({ timeout: 200 });
   const failing = expect(locator).toBeVisible({ timeout: 200 });
-  assert.deepEqual(takePendingAssertions(), ["not.toBeVisible", "toBeVisible"]);
+  assert.deepEqual(takePendingAssertions(), [
+    "expect(locator).not.toBeVisible()",
+    "expect(locator).toBeVisible()",
+  ]);
   assert.deepEqual(takePendingAssertions(), []);
   await pending;
   await assert.rejects(failing, AssertionError);
@@ -184,7 +187,7 @@ test("an un-awaited assertion that already failed is still reported", async () =
   expect(locator).toBeVisible({ timeout: 0 });
   // Let the single read finish and the assertion reject
   await settle();
-  assert.deepEqual(takePendingAssertions(), ["toBeVisible"]);
+  assert.deepEqual(takePendingAssertions(), ["expect(locator).toBeVisible()"]);
 });
 
 test("an un-awaited assertion that already passed is not reported", async () => {

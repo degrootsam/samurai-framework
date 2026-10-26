@@ -57,6 +57,7 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
               ...((perTest.outputDir ?? init.outputDir) !== undefined && {
                 outputDir: perTest.outputDir ?? init.outputDir,
               }),
+              ...(perTest.inputs !== undefined && { inputs: perTest.inputs }),
               port,
               signal,
             };

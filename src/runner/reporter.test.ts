@@ -417,3 +417,24 @@ test("a secret in an earlier attempt's error is masked", async () => {
   assert.ok(summary.tests[0].previousAttempts[0].message.includes(MASK));
   assert.ok(!JSON.stringify(summary).includes("s3cret-value"));
 });
+
+test("a result lists the test's inputs and outputs when there are any", async () => {
+  const a = testCase("a.spec.ts", "with io");
+  const b = testCase("b.spec.ts", "without");
+  const summary = await report((reporter) => {
+    reporter.onTestStart(a, "firefox");
+    reporter.onTestStart(b, "firefox");
+    reporter.onTestEnd(
+      a,
+      "firefox",
+      { message: "boom", type: "error" },
+      { inputs: { a: "1" }, outputs: {} },
+    );
+    reporter.onTestEnd(b, "firefox");
+  });
+  assert.deepEqual(summary.tests[0].inputs, { a: "1" });
+  assert.deepEqual(summary.tests[0].outputs, {});
+  assert.ok(
+    !("inputs" in summary.tests[1]) && !("outputs" in summary.tests[1]),
+  );
+});

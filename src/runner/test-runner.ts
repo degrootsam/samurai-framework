@@ -151,6 +151,7 @@ export default class TestRunner {
       selected,
       browsers,
       serialKeyOf(loaded.groups, config.groups, loaded.srcDir),
+      this.options.inputs,
     );
     // A pool larger than what can overlap would only hold idle workers: a group that runs one at a time needs one
     const lanes = concurrency(plan.items);

@@ -10,6 +10,62 @@ export interface LocatorAssertionOptions {
   timeout?: number;
 }
 
+/** What `readEventually` reads, what it waits for and how its failure is named */
+export interface EventualRead<V> {
+  /** The matcher, with `not.` in front when negated */
+  name: string;
+  locator: Locator;
+  expected: unknown;
+  read: () => Promise<V>;
+  /** True for the read that ends the wait */
+  check: (actual: V) => boolean;
+  /** Time (ms) to keep retrying. Defaults to the expect timeout */
+  timeout?: number | undefined;
+  /** A read of `null` (no element) never passes, and fails as "could not read" */
+  mustExist?: boolean;
+  /** The first line of a failure, instead of `expect(locator).<name>` */
+  call?: string;
+}
+
+/**
+ * Re-reads the element until `check` passes or the timeout expires, and resolves with the read that passed. A
+ * timeout fails as an `AssertionError` with the last read, or as "could not read" when no read completed.
+ */
+export async function readEventually<V>({
+  name,
+  locator,
+  expected,
+  read,
+  check,
+  timeout: perCall,
+  mustExist = false,
+  call,
+}: EventualRead<V>): Promise<V> {
+  const timeout = await resolveTimeout(perCall);
+  try {
+    return await waitUntil(
+      read,
+      (actual) => (mustExist && actual === null ? false : check(actual)),
+      { timeout },
+    );
+  } catch (err) {
+    if (!(err instanceof WaitTimeoutError)) throw err;
+    // Reads never resolve to undefined, so an undefined `last` means no read completed
+    if (err.last === undefined || (mustExist && err.last === null)) {
+      throw new Error(
+        `${call ?? `expect(locator).${name}`}: could not read ${locator.selector} within ${timeout}ms`,
+      );
+    }
+    throw new AssertionError({
+      matcher: name,
+      expected,
+      actual: err.last,
+      locator: locator.selector,
+      call,
+    });
+  }
+}
+
 export class LocatorAssertions {
   private readonly locator: Locator;
   private readonly negated: boolean;
@@ -39,34 +95,16 @@ export class LocatorAssertions {
     const name = this.negated ? `not.${matcher}` : matcher;
 
     return track(
-      name,
-      (async () => {
-        const timeout = await resolveTimeout(options?.timeout);
-        try {
-          await waitUntil(
-            read,
-            (actual) =>
-              mustExist && actual === null
-                ? false
-                : check(actual) !== this.negated,
-            { timeout },
-          );
-        } catch (err) {
-          if (!(err instanceof WaitTimeoutError)) throw err;
-          // Reads never resolve to undefined, so an undefined `last` means no read completed
-          if (err.last === undefined || (mustExist && err.last === null)) {
-            throw new Error(
-              `expect(locator).${name}: could not read ${this.locator.selector} within ${timeout}ms`,
-            );
-          }
-          throw new AssertionError({
-            matcher: name,
-            expected,
-            actual: err.last,
-            locator: this.locator.selector,
-          });
-        }
-      })(),
+      `expect(locator).${name}()`,
+      readEventually({
+        name,
+        locator: this.locator,
+        expected,
+        read,
+        check: (actual) => check(actual) !== this.negated,
+        timeout: options?.timeout,
+        mustExist,
+      }).then(() => {}),
     );
   }
 
