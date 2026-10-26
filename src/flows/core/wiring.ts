@@ -15,6 +15,35 @@ export interface FlowFacts {
   groups: Record<string, string[]>;
 }
 
+/**
+ * The facts for a project's tests and groups, as `listTests` and `listGroups` give them: a test's `id`, its
+ * `inputs` and `outputs` (absent when it declares none) and a group's `name` and `testIds`. The lists are copied.
+ */
+export function flowFactsFrom(
+  tests: readonly {
+    id: string;
+    inputs?: readonly { name: string; default: string }[];
+    outputs?: readonly string[];
+  }[],
+  groups: readonly { name: string; testIds: readonly string[] }[],
+): FlowFacts {
+  return {
+    tests: Object.fromEntries(
+      tests.map((t) => [
+        t.id,
+        {
+          inputs: (t.inputs ?? []).map(({ name, default: value }) => ({
+            name,
+            default: value,
+          })),
+          outputs: [...(t.outputs ?? [])],
+        },
+      ]),
+    ),
+    groups: Object.fromEntries(groups.map((g) => [g.name, [...g.testIds]])),
+  };
+}
+
 /** Where one input of a node gets its value. Computed, never stored */
 export type InputWiring =
   | { from: "node"; nodeId: string; output: string }

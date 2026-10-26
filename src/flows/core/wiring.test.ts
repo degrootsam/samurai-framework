@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { FlowFile, FlowNodeModel } from "./schema.js";
-import { alwaysBefore, wiringAt, type FlowFacts } from "./wiring.js";
+import {
+  alwaysBefore,
+  flowFactsFrom,
+  wiringAt,
+  type FlowFacts,
+} from "./wiring.js";
 
 const node = (
   id: string,
@@ -330,5 +335,36 @@ describe("wiringAt", () => {
         o: { from: "node", nodeId: "a", output: "o" },
       });
     }
+  });
+});
+
+describe("flowFactsFrom", () => {
+  test("builds the facts from a project's test and group lists", () => {
+    const inputs = [{ name: "o", default: "d" }];
+    const outputs = ["o"];
+    const testIds = ["a", "b"];
+    // Shaped like listTests / listGroups entries, with fields the facts don't use
+    const tests = [
+      { id: "a", outputs, name: "A", file: "a.spec.ts" },
+      { id: "b", inputs },
+      { id: "c" },
+    ];
+    const groups = [{ name: "gb", testIds, browsers: ["firefox"] }];
+    const built = flowFactsFrom(tests, groups);
+    assert.deepEqual(built, {
+      tests: {
+        a: { inputs: [], outputs: ["o"] },
+        b: { inputs: [{ name: "o", default: "d" }], outputs: [] },
+        c: { inputs: [], outputs: [] },
+      },
+      groups: { gb: ["a", "b"] },
+    });
+    // Copies: changing the lists given doesn't change the facts
+    inputs.push({ name: "x", default: "" });
+    outputs.push("x");
+    testIds.push("c");
+    assert.deepEqual(built.tests.b!.inputs, [{ name: "o", default: "d" }]);
+    assert.deepEqual(built.tests.a!.outputs, ["o"]);
+    assert.deepEqual(built.groups.gb, ["a", "b"]);
   });
 });
