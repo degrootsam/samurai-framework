@@ -4,6 +4,7 @@ import { projectConfig } from "../../config/config.js";
 import {
   checkFlow,
   withKeys,
+  type FlowFacts,
   type FlowFile,
   type FlowProblem,
 } from "../core/index.js";
@@ -27,6 +28,7 @@ import { processWorkerFactory } from "../../runner/worker-process.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { FlowRunResult, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
+import { flowFacts } from "./project-facts.js";
 import { nodeRunner } from "./node-runner.js";
 import { flowBrowsers, runPerBrowser } from "./per-browser.js";
 import {
@@ -67,6 +69,10 @@ interface ProjectTest {
   name: string;
   /** The spec file relative to `srcDir`, with `/` separators */
   relative: string;
+  /** The inputs the test declares, with their defaults */
+  inputs?: Record<string, string>;
+  /** The outputs the test declares */
+  outputs?: string[];
 }
 
 /** What the project says about a flow: its environment, tests and groups, and what is wrong with the flow */
@@ -83,6 +89,8 @@ interface PreparedFlow {
   };
   tests: ProjectTest[];
   groups: ResolvedGroup[];
+  /** The tests' inputs and outputs and the groups' tests, for wiring */
+  facts: FlowFacts;
   problems: FlowProblem[];
 }
 
@@ -163,6 +171,8 @@ async function prepare(
         file: t.file,
         name: t.name,
         relative: toPosix(path.relative(srcDir, t.file)),
+        ...(t.inputs && { inputs: t.inputs }),
+        ...(t.outputs && { outputs: t.outputs }),
       }));
       const groups = resolveGroups(
         config,
@@ -173,6 +183,7 @@ async function prepare(
       return { tests, groups };
     },
   );
+  const facts = flowFacts(tests, groups);
   const problems = checkFlow(flow, {
     tests: tests.map((t) => t.id),
     groups: groups.map((g) => g.name),
@@ -183,6 +194,7 @@ async function prepare(
     ]),
     unsupported,
     nodes: steps.nodes,
+    facts,
   });
   return {
     projectDir,
@@ -194,13 +206,14 @@ async function prepare(
     environment,
     tests,
     groups,
+    facts,
     problems,
   };
 }
 
 /**
  * Checks a flow against the project without running it: its tests, groups and environment
- * variables, and which kinds can run. Returns the flow (with keys) and every problem, warnings included.
+ * variables, which kinds can run, and where each Test and Group node's inputs come from. Returns the flow (with keys) and every problem, warnings included.
  */
 export async function checkFlowInProject(
   options: Pick<
@@ -231,6 +244,7 @@ async function walkFlowInProject(
     environment,
     tests,
     groups,
+    facts,
     problems,
   } = await prepare(options);
   const errors = problems.filter((p) => p.level === "error");
@@ -313,6 +327,7 @@ async function walkFlowInProject(
       nodeTests,
       nodeBrowsers,
       environment,
+      facts,
       ...(options.signal && { signal: options.signal }),
       ...(options.onEvent && { onEvent: options.onEvent }),
       ...(options.sleep && { sleep: options.sleep }),

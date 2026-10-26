@@ -33,7 +33,7 @@ export function nodeRunner(
 ): RunFlowOptions["runTests"] {
   const { projectDir, config, options, environment, retries, run, pool } =
     input;
-  return async ({ nodeId, tests, onEvent: onTestEvent, signal }) => {
+  return async ({ nodeId, tests, onEvent: onTestEvent, signal, inputs }) => {
     // Each node gets a folder of its own per browser: the same test in two nodes would overwrite its screenshots
     const folder = nodeFolder(nodeId, browser);
     const outputDir =
@@ -48,7 +48,7 @@ export function nodeRunner(
     if (pool)
       return runOnPool(
         pool,
-        itemsOf(tests, browser, outputDir),
+        itemsOf(tests, browser, outputDir, inputs),
         onEvent,
         signal,
       );
@@ -67,6 +67,7 @@ export function nodeRunner(
       browsers: [browser],
       files: [...new Set(tests.map((t) => t.file))],
       testNames: tests.map((t) => t.name),
+      ...(inputs && { inputs }),
       reportPath: false,
       ...(outputDir !== undefined && { outputDir }),
       signal,

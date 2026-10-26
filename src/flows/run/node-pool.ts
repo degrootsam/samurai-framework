@@ -4,11 +4,12 @@ import type { WorkItem } from "../../runner/worker-protocol.js";
 import type { SupportedBrowser } from "../../types/browser.js";
 import type { NodeTest } from "./events.js";
 
-/** The work items of a node in one browser's run: each of its tests, in that browser */
+/** The work items of a node in one browser's run: each of its tests, in that browser, with the node's inputs */
 export function itemsOf(
   tests: NodeTest[],
   browser: SupportedBrowser,
   outputDir?: string,
+  inputs?: Record<string, string>,
 ): WorkItem[] {
   return tests.map((t, index) => ({
     index,
@@ -16,6 +17,7 @@ export function itemsOf(
     testName: t.name,
     browser,
     ...(outputDir !== undefined && { outputDir }),
+    ...(inputs && { inputs }),
   }));
 }
 

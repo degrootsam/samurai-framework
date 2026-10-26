@@ -13,8 +13,10 @@ export interface NodeResult {
   branch?: string;
   /** What the node wrote to vars */
   wrote?: Record<string, unknown>;
-  /** A step's outputs, readable later as `nodes.<key>.<name>` */
+  /** A step's outputs, or the outputs a Test node's test saved; readable later as `nodes.<key>.<name>` */
   outputs?: Record<string, unknown>;
+  /** A Test or Group node: the input values it sent to its tests; absent when it sent none */
+  inputs?: Record<string, string>;
 }
 
 /** One test of a node: absolute file and full name */

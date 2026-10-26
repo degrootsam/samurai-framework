@@ -208,3 +208,72 @@ test("${name}", async ({ page }) => {
     );
   },
 );
+
+test(
+  "a flow passes a test's saved output to a later test's input",
+  { timeout: 120000 },
+  async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "samurai-flow-io-"));
+    writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    mkdirSync(path.join(dir, "specs"));
+    mkdirSync(path.join(dir, "flows"));
+    writeFileSync(
+      path.join(dir, "specs/order.spec.ts"),
+      `
+import { expect, test } from ${JSON.stringify(API)};
+const go = (page, html) =>
+  page.navigateTo("data:text/html," + encodeURIComponent(html));
+test("buy", { outputs: ["orderId"] }, async ({ page, outputs }) => {
+  await go(page, "<p id='o'>Order ORD-123 placed</p>");
+  await outputs.save("orderId", page.getByCss("#o"), /Order (\\S+)/);
+});
+test("find", { inputs: { orderId: "none" } }, async ({ page, inputs }) => {
+  await go(page, "<input id='q'>");
+  await page.getByCss("#q").fill(inputs.orderId);
+  await expect(page.getByCss("#q")).toHaveValue("ORD-123");
+});
+`,
+    );
+    writeFileSync(
+      path.join(dir, "flows/order.flow.json"),
+      JSON.stringify({
+        id: "order",
+        name: "Order",
+        nodes: [
+          node("start", "start"),
+          node("buy", "test", { ref: { testId: "order.spec.ts::buy" } }),
+          node("cond", "condition", {
+            config: { expr: 'nodes.buy.orderId == "ORD-123"' },
+          }),
+          node("find", "test", { ref: { testId: "order.spec.ts::find" } }),
+          node("never", "wait", { config: { ms: 10 } }),
+          node("end", "end"),
+        ],
+        edges: [
+          edge("start", "buy"),
+          edge("buy", "cond"),
+          edge("cond", "find", "true"),
+          edge("cond", "never", "false"),
+          edge("find", "end"),
+          edge("never", "end"),
+        ],
+      }),
+    );
+
+    const result = await runFlowInProject({
+      projectDir: dir,
+      flowId: "order",
+      config: { ...browserConfig(), srcDir: "./specs" },
+      dataDir: path.join(dir, "data"),
+      headless: true,
+      port: 9267,
+    });
+
+    assert.equal(result.status, "passed", JSON.stringify(result));
+    const summary = result.runs[0]!.summary;
+    assert.deepEqual(summary.nodes.buy!.outputs, { orderId: "ORD-123" });
+    assert.equal(summary.nodes.cond!.branch, "true");
+    assert.deepEqual(summary.nodes.find!.inputs, { orderId: "ORD-123" });
+    assert.equal(summary.nodes.find!.status, "passed");
+  },
+);
