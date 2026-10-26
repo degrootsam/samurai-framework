@@ -46,8 +46,9 @@ function readOutputs(node: ts.Expression): string[] | undefined {
 
 /**
  * The options object of a test or describe call: a describe takes only `reason`, a test also `inputs` and
- * `outputs`. Undefined when the object isn't a literal the codec can read, so the call is left unparsed. A
- * `reason` counts only for skip and fixme, and one that isn't a string literal is passed over, as before
+ * `outputs`. Undefined when the object isn't a literal the codec can read, so the call is left unparsed. An
+ * empty list is left out, as the runtime leaves it out. A `reason` counts only for skip and fixme, and one that
+ * isn't a string literal is passed over, as before
  */
 export function readTestOptions(
   node: ts.Expression,
@@ -65,11 +66,13 @@ export function readTestOptions(
       if (reason !== undefined && (modifier === "skip" || modifier === "fixme"))
         read.reason = reason;
     } else if (kind === "test" && key === "inputs") {
-      read.inputs = readInputs(value);
-      if (!read.inputs) return undefined;
+      const inputs = readInputs(value);
+      if (!inputs) return undefined;
+      if (inputs.length > 0) read.inputs = inputs;
     } else if (kind === "test" && key === "outputs") {
-      read.outputs = readOutputs(value);
-      if (!read.outputs) return undefined;
+      const outputs = readOutputs(value);
+      if (!outputs) return undefined;
+      if (outputs.length > 0) read.outputs = outputs;
     } else return undefined;
   }
   return read;
@@ -149,18 +152,18 @@ export function declareList(
   list: TestInput[] | string[],
 ): string {
   checkList(key, list);
-  const current = parsed[key];
-  // An empty list that is there still goes, so an object of only empty lists is removed
-  if (list.length === 0 ? current === undefined : sameList(current, list))
-    return source;
+  if (list.length > 0 && sameList(parsed[key], list)) return source;
   const text = `${key}: ${listToSource(key, list)}`;
   if (!parsed.options)
-    return splice(source, parsed.titleEnd, parsed.titleEnd, `, { ${text} }`);
+    return list.length === 0
+      ? source
+      : splice(source, parsed.titleEnd, parsed.titleEnd, `, { ${text} }`);
   const properties = optionsObject(source, parsed.options);
   const index = properties.findIndex((property) => property.key === key);
   const property = properties[index];
   if (list.length === 0) {
-    // Returned above for a missing key, so the property is there
+    // An empty list that is there still goes (the parse leaves it out), so an object of only empty lists is removed
+    if (!property) return source;
     const others = properties.filter((_, i) => i !== index);
     if (others.every((other) => other.emptyList))
       return splice(source, parsed.titleEnd, parsed.options.end, "");
