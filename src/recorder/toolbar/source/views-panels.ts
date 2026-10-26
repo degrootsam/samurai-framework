@@ -130,13 +130,14 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       filter,
       variables: state.canAddVariables ? state.variables.filter(hit) : [],
       secrets: state.secrets.filter(hit),
+      inputs: (state.inputs || []).filter(hit),
     };
   };
   const insertPanel = () => {
     const ins = ui.insert;
     if (!ins.field) return [h("div", { class: "h" }, "Insert"), h("div", { class: "msg" }, "Click into a field first")];
     const found = matches();
-    const none = found.filter && found.variables.length === 0 && found.secrets.length === 0;
+    const none = found.filter && found.variables.length === 0 && found.secrets.length === 0 && found.inputs.length === 0;
     const item = (kind, name, value) =>
       h("button", { class: "it", "data-action": "insert-item", "data-kind": kind, "data-name": name, disabled: ui.busy }, h("code", null, name), value);
     return [
@@ -152,13 +153,19 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       found.secrets.length
         ? found.secrets.map((s) => item("secret", s.name, s.set ? h("span", { class: "v" }, "••••••") : h("span", { class: "warn" }, "not set")))
         : h("div", { class: "empty" }, found.filter ? "No secret matches." : "No secrets yet."),
+      h("div", { class: "grp" }, "Inputs"),
+      found.inputs.length
+        ? found.inputs.map((i) => item("input", i.name, h("span", { class: "v", title: i.value }, i.value)))
+        : h("div", { class: "empty" }, found.filter ? "No input matches." : "No inputs yet."),
       ins.error && h("div", { class: "err" }, ins.error),
       h("button", { class: "act", "data-action": "insert-new", "data-kind": "env" }, "+ Add variable" + (none ? ' "' + variableName(ins.filter) + '"' : "")),
       h("button", { class: "act", "data-action": "insert-new", "data-kind": "secret" }, "+ Add secret" + (none ? ' "' + snake(ins.filter) + '"' : "")),
+      h("button", { class: "act", "data-action": "insert-new", "data-kind": "input" }, "+ Add input" + (none ? ' "' + camel(ins.filter) + '"' : "")),
     ];
   };
 
-  const newHint = (secret, env, name) => {
+  const newHint = (kind, secret, env, name) => {
+    if (kind === "input") return "Declared in the test's inputs, with this value as its default.";
     if (!secret) return ["Saved to ", h("code", null, "environments." + env + ".variables"), " in samurai.config.ts. Other environments don't get it — add it there before running against them."];
     if (!state.secretsIgnored) return h("span", { class: "warn" }, "Add .env." + env + " to .gitignore before committing.");
     return ["Saved as ", h("code", null, "SAMURAI_SECRET_" + (name.trim() || "<NAME>")), " in ", h("code", null, ".env." + env), " (git-ignored)."];
@@ -166,22 +173,23 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
   const newPanel = () => {
     const f = ui.form;
     const secret = f.kind === "secret";
-    const blocked = !secret && !state.canAddVariables;
+    const blocked = f.kind === "env" && !state.canAddVariables;
     const env = state.environment;
     return [
-      h("div", { class: "h stack" }, f.setValue ? "Set value" : secret ? "New secret" : "New variable", h("small", null, 'For "' + fieldLabel(ui.insert.field) + '"')),
+      h("div", { class: "h stack" }, f.setValue ? "Set value" : secret ? "New secret" : f.kind === "input" ? "New input" : "New variable", h("small", null, 'For "' + fieldLabel(ui.insert.field) + '"')),
       h("div", { class: "seg" },
-        h("button", { class: secret ? "" : "sel", "data-action": "new-kind", "data-kind": "env" }, "Variable"),
-        h("button", { class: secret ? "sel" : "", "data-action": "new-kind", "data-kind": "secret" }, "Secret")),
+        h("button", { class: f.kind === "env" ? "sel" : "", "data-action": "new-kind", "data-kind": "env" }, "Variable"),
+        h("button", { class: secret ? "sel" : "", "data-action": "new-kind", "data-kind": "secret" }, "Secret"),
+        h("button", { class: f.kind === "input" ? "sel" : "", "data-action": "new-kind", "data-kind": "input" }, "Input")),
       blocked
         ? h("div", { class: "msg" }, "This recording has no environment")
         : [
             h("div", { class: "lbl" }, "Name"),
             h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "name", value: f.name, "data-enter": "new-save", autocomplete: "off", spellcheck: "false" })),
             f.nameError && h("div", { class: "field-error" }, f.nameError),
-            h("div", { class: "lbl" }, "Value in " + env),
+            h("div", { class: "lbl" }, f.kind === "input" ? "Default value" : "Value in " + env),
             h("div", { class: "f" }, h("input", { type: secret ? "password" : "text", class: "in", "data-field": "value", value: f.value, "data-enter": "new-save", autocomplete: secret ? "new-password" : "off" })),
-            h("div", { class: "hint" }, newHint(secret, env, f.name)),
+            h("div", { class: "hint" }, newHint(f.kind, secret, env, f.name)),
             f.error && h("div", { class: "err" }, f.error),
           ],
       h("div", { class: "foot plain" },

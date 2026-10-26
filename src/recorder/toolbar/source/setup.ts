@@ -15,7 +15,7 @@ export const SETUP_JS = String.raw`  if (window !== window.top) return;
   const CSS = ${JSON.stringify(TOOLBAR_CSS)};
   const DEFAULTS = {
     status: "recording", collapsed: false, position: null, steps: 0, environment: "", canAddVariables: false,
-    variables: [], secrets: [], secretsIgnored: true, resumeQuestion: false, nextScreenshot: "screenshot-1",
+    variables: [], secrets: [], inputs: [], secretsIgnored: true, resumeQuestion: false, nextScreenshot: "screenshot-1",
     warnings: [],
   };
   const MATCHERS = [
