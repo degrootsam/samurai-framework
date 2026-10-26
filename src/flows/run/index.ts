@@ -2,6 +2,7 @@
 export * from "./events.js";
 export { HANDLERS } from "./handlers/index.js";
 export type { Handler, HandlerRun, Outcome } from "./handlers/index.js";
+export { nodeFolder } from "./node-folder.js";
 export { runFlow, type RunFlowOptions } from "./run.js";
 export {
   FLOW_SUFFIX,
