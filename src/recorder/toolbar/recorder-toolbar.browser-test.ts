@@ -17,7 +17,13 @@ import type { Step } from "../../steps/model.js";
 import type { BiDiConnector } from "../../transport/bidi-connection.js";
 import { applyRecorderEvent } from "../apply.js";
 import type { Recorder, RecorderEvent, ToolbarOptions } from "../recorder.js";
-import { TOOLBAR_KEY, TOOLBAR_SANDBOX, type ToolbarState } from "./protocol.js";
+import { TOOLBAR_SANDBOX } from "./protocol.js";
+import {
+  HOOK,
+  pause,
+  toolbarDriver,
+  waitFor,
+} from "./recorder-toolbar-fixture.js";
 import { testBrowser } from "../../testing/test-browser.js";
 
 let browser: Browser;
@@ -79,8 +85,6 @@ after(async () => {
 });
 
 const OPTIONS = { timeout: 60000 };
-const HOOK = `globalThis[Symbol.for("${TOOLBAR_KEY}")]`;
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const CONFIG = `import { defineConfig } from "@itmetsam/samurai-framework";
 
@@ -95,52 +99,11 @@ export default defineConfig({
 });
 `;
 
-async function waitFor<T>(
-  probe: () => T | undefined | Promise<T | undefined>,
-  what: string,
-  ms = 8000,
-): Promise<T> {
-  const end = Date.now() + ms;
-  for (;;) {
-    const value = await probe();
-    if (value !== undefined && value !== false) return value;
-    if (Date.now() > end) throw new Error(`Timed out waiting for ${what}`);
-    await pause(50);
-  }
-}
-
-const inSandbox = <T>(fn: string, ...args: unknown[]) =>
-  callFunction<T>(connector, page.contextId, fn, args as never[], {
-    sandbox: TOOLBAR_SANDBOX,
-  });
+const { inSandbox, press, pickElement, viewState, typeInto } = toolbarDriver(
+  () => ({ page, connector }),
+);
 const inPage = <T>(fn: string) =>
   callFunction<T>(connector, page.contextId, fn);
-const press = (action: string, detail?: object) =>
-  inSandbox(
-    `(action, detail) => { ${HOOK}.press(action, detail); }`,
-    action,
-    detail,
-  );
-/** Runs the picker's click on the first element matching `selector` */
-const pickElement = (selector: string) =>
-  inSandbox(
-    `(selector) => { ${HOOK}.press("pick", { target: document.querySelector(selector) }); }`,
-    selector,
-  );
-const viewState = () =>
-  inSandbox<ToolbarState | null>(`() => ${HOOK} ? ${HOOK}.state() : null`);
-/** Sets a toolbar form input as typing into it would */
-const typeInto = (field: string, value: string) =>
-  inSandbox(
-    `(field, value) => {
-      const el = ${HOOK}.root.querySelector('[data-field="' + field + '"]');
-      if (!el) throw new Error("no field " + field);
-      el.value = value;
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    }`,
-    field,
-    value,
-  );
 
 /** Navigates and waits until the new document's toolbar has the recorder's state */
 async function open(url: string) {

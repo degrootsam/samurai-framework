@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { expectationFor, secretNameFor } from "./expectation.js";
+import {
+  expectationFor,
+  secretNameFor,
+  urlForAssertion,
+} from "./expectation.js";
 
 describe("expectationFor", () => {
   it("prefers the value of a field, then the text, then plain visibility", () => {
@@ -34,5 +38,46 @@ describe("secretNameFor", () => {
     assert.equal(secretNameFor("login-pass"), "LOGIN_PASS");
     assert.equal(secretNameFor(undefined), "PASSWORD");
     assert.equal(secretNameFor("9x"), "PASSWORD");
+  });
+});
+
+describe("urlForAssertion", () => {
+  it("writes a URL on the base URL's origin as its path, query and hash", () => {
+    assert.equal(
+      urlForAssertion("https://x.com/checkout?a=1#b", "https://x.com"),
+      "/checkout?a=1#b",
+    );
+  });
+
+  it("keeps the base URL's path: the result resolves back to the URL exactly", () => {
+    assert.equal(
+      urlForAssertion("https://x.com/app/checkout", "https://x.com/app"),
+      "/app/checkout",
+    );
+  });
+
+  it("writes the root with a query as /?…", () => {
+    assert.equal(
+      urlForAssertion("https://x.com?a=1", "https://x.com"),
+      "/?a=1",
+    );
+  });
+
+  it("keeps the full URL on another origin, or without a base URL", () => {
+    assert.equal(
+      urlForAssertion("https://other.com/checkout", "https://x.com"),
+      "https://other.com/checkout",
+    );
+    assert.equal(
+      urlForAssertion("https://x.com/checkout", undefined),
+      "https://x.com/checkout",
+    );
+  });
+
+  it("keeps the full URL when the path would read as another host", () => {
+    assert.equal(
+      urlForAssertion("https://x.com//other.com/p", "https://x.com"),
+      "https://x.com//other.com/p",
+    );
   });
 });

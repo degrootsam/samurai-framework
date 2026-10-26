@@ -26,6 +26,8 @@ export interface BridgeHost {
   page: Page;
   connector: BiDiConnector;
   context: string;
+  /** The recording's base URL: the Page panel writes URLs inside it relative to it */
+  baseURL?: string;
   mute(): Promise<void>;
   unmute(): Promise<void>;
   /** A step the toolbar made (wait, screenshot, insert, assertion) */
@@ -103,7 +105,7 @@ export class ToolbarBridge {
   }
 
   private createController(toolbar: ToolbarOptions): ToolbarController {
-    const { page, connector, context } = this.host;
+    const { page, connector, context, baseURL } = this.host;
     const { projectDir, environment, onStatus, onStop, onSecretAdded } =
       toolbar;
     return new ToolbarController(
@@ -111,6 +113,11 @@ export class ToolbarBridge {
         push: (state) => this.call("update", [state]),
         reply: (id, result) => this.call("reply", [id, result]),
         currentUrl: () => page.url(),
+        pageInfo: async () => {
+          const [url, title] = await Promise.all([page.url(), page.title()]);
+          return { url, title };
+        },
+        ...(baseURL !== undefined && { baseURL }),
         rank: (target, candidates) => rankLocator(page, target, candidates),
         inspect: (target, locator, candidates) =>
           inspectElement(page, connector, context, target, locator, candidates),

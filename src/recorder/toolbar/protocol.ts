@@ -1,4 +1,8 @@
-import type { Expectation, LocatorCall } from "../../steps/model.js";
+import type {
+  Expectation,
+  LocatorCall,
+  PageExpectation,
+} from "../../steps/model.js";
 
 /** The BiDi sandbox realm the toolbar script runs in */
 export const TOOLBAR_SANDBOX = "samurai-toolbar";
@@ -76,6 +80,15 @@ export type ToolbarMessage = { type: "toolbar" } &
         name: string;
         value: string;
       }
+    /** The Page panel opened: answered with a `PageInfo` */
+    | { action: "page-info"; id: number }
+    | {
+        action: "assert-page";
+        id: number;
+        matcher: PageExpectation["matcher"];
+        expected: string;
+        not: boolean;
+      }
     | { action: "wait"; kind: "idle" }
     | { action: "wait"; kind: "time"; ms: number }
     | { action: "screenshot"; name: string; fullPage: boolean }
@@ -102,6 +115,11 @@ export type PickInfo =
     }
   | { ok: false; error: string };
 
-/** The answer to `insert`, `add-insertable` and `assert` */
+/** The answer to `page-info`: the recorded page's URL, the URL the Page panel prefills, and its title */
+export type PageInfo =
+  | { ok: true; url: string; urlPrefill: string; title: string }
+  | { ok: false; error: string };
+
+/** The answer to `insert`, `add-insertable`, `assert` and `assert-page` */
 export type ActionReply =
   { ok: true } | { ok: false; error: string; field?: "name" };
