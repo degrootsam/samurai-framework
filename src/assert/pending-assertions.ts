@@ -1,11 +1,11 @@
 /**
  * Locator assertions nobody has awaited yet that are still running or have failed,
- * mapped to their matcher name
+ * mapped to their label (the call as a message names it, e.g. `expect(locator).toBeVisible()`)
  */
 const pendingAssertions = new Map<Promise<void>, string>();
 
 /**
- * Returns the matcher names of locator assertions that were never awaited and are
+ * Returns the labels of locator assertions that were never awaited and are
  * still running or already failed, and stops tracking them. The runner calls this
  * after a test to detect a missing `await`.
  */
@@ -35,14 +35,12 @@ class TrackedAssertion extends Promise<void> {
   }
 }
 
-export function track(
-  matcher: string,
-  assertion: Promise<void>,
-): Promise<void> {
+/** Tracks `assertion` until someone awaits it; `label` names the call when it never is */
+export function track(label: string, assertion: Promise<void>): Promise<void> {
   const tracked = new TrackedAssertion((resolve, reject) => {
     assertion.then(resolve, reject);
   });
-  pendingAssertions.set(tracked, matcher);
+  pendingAssertions.set(tracked, label);
   // The native then does not count as awaiting: a pass stops tracking, a failure stays
   // tracked. Handling the rejection keeps an un-awaited failure from being unhandled.
   Promise.prototype.then.call(

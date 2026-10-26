@@ -21,12 +21,14 @@ export interface PlannedTest {
 
 /**
  * Lists the run: every selected test in the first browser, then every selected test in the next one. The
- * position in the list is the item's `index`. `serialKey` says which group makes a test run alone.
+ * position in the list is the item's `index`. `serialKey` says which group makes a test run alone. `inputs`, the
+ * run's input values, go with every item.
  */
 export function planItems(
   selected: RegisteredTestCase[],
   browsers: SupportedBrowser[],
   serialKey: (test: RegisteredTestCase) => string | undefined,
+  inputs?: Record<string, string>,
 ): { items: WorkItem[]; planned: PlannedTest[] } {
   const planned = browsers.flatMap((browser) =>
     selected.map((test) => ({ test, browser })),
@@ -42,6 +44,7 @@ export function planItems(
         testName: test.name,
         browser,
         ...(key !== undefined && { serialKey: key }),
+        ...(inputs !== undefined && { inputs }),
       },
     ];
   });

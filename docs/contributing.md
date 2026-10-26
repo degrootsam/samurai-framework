@@ -71,20 +71,22 @@ CI (`.github/workflows/ci.yml`) runs the typecheck, the unit tests (after a buil
 
 The table reads top to bottom: a folder mostly uses the ones below it. It is taken from the imports (`npx madge --json src`, with the exclusions in `.madgerc`), the real picture today is:
 
-| Folder                        | Imports from (values; `import type` is not counted)                                |
-| ----------------------------- | ---------------------------------------------------------------------------------- |
-| `cli`                         | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)    |
-| `runner`                      | `browser`, `browsers`, `assert`, `config`, `transport`, `logger`                   |
-| `recorder`                    | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`           |
-| `flows/run`, `flows/steps`    | `flows/core`, `runner`, `config` (and each other: handlers and steps)              |
-| `browser`                     | `network`, `locator`, `script`, `steps`, `browsers`, `transport`, `wait`, `config` |
-| `assert`                      | `locator`, `wait`, `config`                                                        |
-| `locator`                     | `script`, `browser` (screenshots, generated files), `transport`, `wait`, `config`  |
-| `network`, `script`           | `transport`, `wait`, `logger`                                                      |
-| `transport`                   | `wait`, `logger`                                                                   |
-| `config`, `logger`            | each other only                                                                    |
-| `project`, `browsers`         | `config`, `logger`                                                                 |
-| `steps`, `wait`, `flows/core` | nothing (`flows/core` is pure, no Node APIs; a test bundles it to prove that)      |
+| Folder                        | Imports from (values; `import type` is not counted)                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| `cli`                         | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)               |
+| `runner`                      | `browser`, `browsers`, `assert`, `config`, `transport`, `logger`, `flows/core` (one constant) |
+| `recorder`                    | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`                      |
+| `flows/run`, `flows/steps`    | `flows/core`, `runner`, `config` (and each other: handlers and steps)                         |
+| `browser`                     | `network`, `locator`, `script`, `steps`, `browsers`, `transport`, `wait`, `config`            |
+| `assert`                      | `locator`, `wait`, `config`                                                                   |
+| `locator`                     | `script`, `browser` (screenshots, generated files), `transport`, `wait`, `config`             |
+| `network`, `script`           | `transport`, `wait`, `logger`                                                                 |
+| `transport`                   | `wait`, `logger`                                                                              |
+| `config`, `logger`            | each other only                                                                               |
+| `project`, `browsers`         | `config`, `logger`                                                                            |
+| `steps`, `wait`, `flows/core` | nothing (`flows/core` is pure, no Node APIs; a test bundles it to prove that)                 |
+
+`wait/output-sink.ts` holds the outputs a running test saves (the current sink and `bindOutput`). It sits in `wait/` because `assert` and `locator` both save into it and neither may import `runner`.
 
 Rules that keep it modular:
 

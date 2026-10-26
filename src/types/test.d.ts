@@ -1,5 +1,6 @@
 import type { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
+import type Locator from "../locator/locator.js";
 import type { SupportedBrowser } from "./browser.js";
 
 /** What a test function receives */
@@ -14,6 +15,19 @@ export interface TestFixtures {
   env: Readonly<Record<string, string | number | boolean>>;
   /** Secrets by name (SAMURAI_SECRET_<NAME>); reading an unset name throws */
   secrets: Readonly<Record<string, string>>;
+  /** The inputs the test declared: the value the run supplies, else the default; reading another name throws */
+  inputs: Readonly<Record<string, string>>;
+  /** Saves the text values the test declared as outputs */
+  outputs: TestOutputs;
+}
+
+/** The `outputs` fixture */
+export interface TestOutputs {
+  /**
+   * Waits up to the expect timeout for the element and saves its trimmed text as output `name`. With
+   * `pattern`, waits until the text matches and saves the first capture group, else the whole match.
+   */
+  save(name: string, locator: Locator, pattern?: RegExp): Promise<void>;
 }
 
 export type TestCase = TestCaseBase;
@@ -25,6 +39,14 @@ export type Modifier = "skip" | "fixme" | "only";
 export interface TestDetails {
   /** Why the tests are not run; shown in the report and by `samurai list` */
   reason?: string;
+}
+
+/** The optional second argument of `test`, `test.only`, `test.skip` and `test.fixme` */
+export interface TestOptions extends TestDetails {
+  /** Named text values the test reads, each with the default it gets when nothing supplies one */
+  inputs?: Record<string, string>;
+  /** Names of the text values the test saves for later tests to use */
+  outputs?: string[];
 }
 
 /** Runs before or after each test of a suite, in the test's browser, with the test's fixtures */
@@ -64,6 +86,10 @@ export interface RegisteredTestCase extends TestCaseBase {
   modifier?: Modifier;
   /** The reason given with the `skip` or `fixme` that applies */
   reason?: string;
+  /** The inputs the test declared, with their defaults */
+  inputs?: Record<string, string>;
+  /** The names of the outputs the test declared */
+  outputs?: string[];
 }
 
 export interface TestCaseBase {
@@ -88,6 +114,10 @@ interface TestResultSuccess extends TestResultIdentity, TestRetries {
   logsDropped?: number;
   /** Named screenshots the test saved, relative to the result folder */
   screenshots?: { name: string; path: string }[];
+  /** The inputs the test declared, with the values this attempt read; absent when it declares none */
+  inputs?: Record<string, string>;
+  /** The outputs the test saved; absent when it declares none */
+  outputs?: Record<string, string>;
 }
 
 /** The error sits flat on the entry, as in the report: `message`, `type`, `stack`, and for assertions `expected` and `actual` */
@@ -98,6 +128,10 @@ interface TestResultFailed extends TestResultIdentity, TestError, TestRetries {
   logsDropped?: number;
   /** Named screenshots the test saved, relative to the result folder */
   screenshots?: { name: string; path: string }[];
+  /** The inputs the test declared, with the values this attempt read; absent when it declares none */
+  inputs?: Record<string, string>;
+  /** The outputs the test saved; absent when it declares none */
+  outputs?: Record<string, string>;
 }
 
 /** What a result says about the retries of its test; absent when it passed or failed on the first attempt */

@@ -22,10 +22,17 @@ import type { AllHooks } from "./all-hooks.js";
 import { runWithEachHooks } from "./hooks.js";
 import { isSkipSignal, staticSkip, type SkipSignal } from "./skip.js";
 import type { PreparedRun } from "./prepare-run.js";
-import type { TestSink } from "./reporter.js";
+import type { TestEndExtras, TestSink } from "./reporter.js";
 import { runOutput } from "./output.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
+import {
+  createInputsFixture,
+  createOutputsFixture,
+  ioOfAttempt,
+  missingOutputs,
+} from "./test-io.js";
+import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
 type Logs = { logs?: TestLogEntry[]; logsDropped?: number };
 
@@ -42,6 +49,8 @@ class TestOutcome {
   public browserClosed = false;
   /** The named screenshots of the test, listed in its report entry */
   public evidence: Evidence | undefined;
+  /** The test's inputs and outputs, as its report entry lists them when it ends */
+  public io: () => TestEndExtras = () => ({});
 
   constructor(
     private readonly reporter: TestSink,
@@ -69,6 +78,7 @@ class TestOutcome {
     this.reporter.onTestEnd(this.test, this.browser, error, {
       ...logs,
       screenshots: this.evidence?.screenshots,
+      ...this.io(),
     });
   }
 }
@@ -194,6 +204,8 @@ export async function runOneTest(
         workerIndex: resources.workerIndex ?? 0,
         env: createEnvFixture(settings.environment, settings.variables),
         secrets: createSecretsFixture(settings.environment, secrets),
+        inputs: createInputsFixture(test.inputs, options.inputs),
+        outputs: createOutputsFixture(sink),
       };
       await runWithEachHooks(
         test.suite,
@@ -208,12 +220,18 @@ export async function runOneTest(
         outcome.finish(
           {
             message: unawaited
-              .map((matcher) => `expect(locator).${matcher}() was not awaited`)
+              .map((label) => `${label} was not awaited`)
               .join("\n"),
             type: "assertion",
           },
           await judgeLogs(page, true),
         );
+        return;
+      }
+      // Checked only after a pass: a test that failed first reports its own failure
+      const missing = missingOutputs(test.outputs, sink);
+      if (missing) {
+        outcome.finish(missing, await judgeLogs(page, true));
         return;
       }
       const verdict = await judgeLogs(page, false);
@@ -233,7 +251,14 @@ export async function runOneTest(
     }
   };
 
-  await Promise.race([limit, gone, runBody()]);
+  // Open for this attempt only: whatever a capture still saves after the attempt ended is ignored
+  const sink = beginOutputs(test.outputs ?? []);
+  outcome.io = () => ioOfAttempt(test, options.inputs, sink);
+  try {
+    await Promise.race([limit, gone, runBody()]);
+  } finally {
+    endOutputs();
+  }
 
   clearTimeout(timeoutTimer);
   if (onRunAborted) options.signal?.removeEventListener("abort", onRunAborted);

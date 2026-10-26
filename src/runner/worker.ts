@@ -18,7 +18,7 @@ export interface WorkerSession {
     browser: SupportedBrowser,
     signal: AbortSignal,
     onEvent: (event: RunEvent) => void,
-    options?: { outputDir?: string },
+    options?: { outputDir?: string; inputs?: Record<string, string> },
   ): Promise<void>;
   /** Ends the project's session */
   close(): Promise<void>;
@@ -106,7 +106,10 @@ export function handleMessages(
             result: { ...event.result, worker: workerIndex },
           });
         },
-        item.outputDir !== undefined ? { outputDir: item.outputDir } : {},
+        {
+          ...(item.outputDir !== undefined && { outputDir: item.outputDir }),
+          ...(item.inputs !== undefined && { inputs: item.inputs }),
+        },
       );
     } finally {
       current = undefined;

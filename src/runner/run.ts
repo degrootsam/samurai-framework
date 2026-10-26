@@ -77,6 +77,10 @@ export interface FoundTest {
   modifier?: Modifier;
   /** The `{ reason }` given with the `skip` or `fixme` that applies */
   reason?: string;
+  /** The inputs the test declares, in declaration order, with their defaults; absent when it declares none */
+  inputs?: { name: string; default: string }[];
+  /** The names of the outputs the test declares; absent when it declares none */
+  outputs?: string[];
 }
 
 /**
@@ -89,7 +93,7 @@ export async function listTests(
   return inProject(options, async (runner) => {
     const { tests, srcDir } = await runner.list();
     return tests.map((test) => {
-      const { name, file, modifier, reason } = test;
+      const { name, file, modifier, reason, inputs, outputs } = test;
       const relativeFile = toPosix(path.relative(srcDir, file));
       return {
         id: testId(relativeFile, name),
@@ -98,6 +102,13 @@ export async function listTests(
         relativeFile,
         ...(modifier && { modifier }),
         ...(reason !== undefined && { reason }),
+        ...(inputs && {
+          inputs: Object.entries(inputs).map(([name, value]) => ({
+            name,
+            default: value,
+          })),
+        }),
+        ...(outputs && { outputs }),
       };
     });
   });
