@@ -176,6 +176,30 @@ describe("ToolbarController pick and assert", () => {
     }
   });
 
+  it('fails Has CSS with an empty value (a typo\'d property computes to "")', async () => {
+    for (const expected of [undefined, "", "  "]) {
+      const { controller, replies, observed } = setup();
+      await controller.handle(pick(25));
+      await controller.handle(
+        msg({
+          action: "assert",
+          id: 25,
+          target: TARGET,
+          candidates: CANDIDATES,
+          matcher: "toHaveCSS",
+          cssName: "colr",
+          expected,
+          not: false,
+        }),
+      );
+      assert.deepEqual(observed, []);
+      assert.deepEqual(lastOf(replies), {
+        id: 25,
+        result: { ok: false, error: "Fill in the value" },
+      });
+    }
+  });
+
   it("rejects an assert that doesn't match the pending pick", async () => {
     const { controller, replies, observed } = setup();
     await controller.handle(
