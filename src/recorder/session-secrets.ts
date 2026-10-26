@@ -36,6 +36,12 @@ export async function toolbarOptions(
     variables: run.settings.variables,
     secrets,
     secretsIgnored: await isGitIgnored(dir, `.env.${environment}`),
+    inputs: Object.fromEntries(
+      (tests[testIndex]?.inputs ?? []).map((input) => [
+        input.name,
+        input.default,
+      ]),
+    ),
     screenshots:
       tests[testIndex]?.steps.filter(({ step }) => step.kind === "screenshot")
         .length ?? 0,

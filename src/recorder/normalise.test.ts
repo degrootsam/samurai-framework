@@ -283,6 +283,84 @@ describe("toolbar observations", () => {
     });
   });
 
+  it("a saved output becomes a saveOutput step, with or without a pattern", () => {
+    const n = new Normaliser({ at: 0 });
+    const steps = [
+      ...n.observe(
+        {
+          type: "saveOutput",
+          locator: field,
+          name: "orderId",
+          pattern: { source: "Order #(\\d+)", flags: "" },
+        },
+        1,
+      ),
+      ...n.observe({ type: "saveOutput", locator: field, name: "ref" }, 2),
+    ].map(stepOf);
+    assert.deepEqual(steps, [
+      {
+        kind: "saveOutput",
+        name: "orderId",
+        locator: field,
+        pattern: { source: "Order #(\\d+)", flags: "" },
+      },
+      { kind: "saveOutput", name: "ref", locator: field },
+    ]);
+  });
+
+  it("an inserted new input declares its default, then fills with it", () => {
+    const n = new Normaliser({ at: 0 });
+    const [event] = n.observe(
+      {
+        type: "insert",
+        locator: field,
+        value: { kind: "input", name: "email" },
+        declare: "a@b.c",
+      },
+      1,
+    );
+    const source = applyRecorderEvent(
+      `test("t", async ({ page }) => {\n});\n`,
+      0,
+      event!,
+    );
+    assert.match(
+      source,
+      /test\("t", \{ inputs: \{ email: "a@b\.c" \} \}, async \(\{ page, inputs \}\) => \{/,
+    );
+    assert.match(source, /\.fill\(inputs\.email\)/);
+    const again = applyRecorderEvent(source, 0, {
+      ...event!,
+      index: 1,
+    });
+    assert.equal(
+      parseSpec(again)[0]!.inputs?.length,
+      1,
+      "a name already declared is not declared twice",
+    );
+  });
+
+  it("a saved output declares it and adds the outputs fixture in the spec", () => {
+    const n = new Normaliser({ at: 0 });
+    const [event] = n.observe(
+      { type: "saveOutput", locator: field, name: "o" },
+      1,
+    );
+    const source = applyRecorderEvent(
+      `test("t", async ({ page }) => {\n});\n`,
+      0,
+      event!,
+    );
+    assert.match(
+      source,
+      /test\("t", \{ outputs: \["o"\] \}, async \(\{ page, outputs \}\) => \{/,
+    );
+    assert.match(
+      source,
+      /await outputs\.save\("o", page\.getByLabel\("Email"\)\);/,
+    );
+  });
+
   it("a toolbar step closes the fill being typed: typing afterwards is a new fill (Review Focus 3)", () => {
     const n = new Normaliser({ at: 0 });
     n.observe({ type: "input", key: "k", locator: field, value: "a" }, 1);

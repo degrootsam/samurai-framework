@@ -15,7 +15,7 @@ export const SETUP_JS = String.raw`  if (window !== window.top) return;
   const CSS = ${JSON.stringify(TOOLBAR_CSS)};
   const DEFAULTS = {
     status: "recording", collapsed: false, position: null, steps: 0, environment: "", canAddVariables: false,
-    variables: [], secrets: [], secretsIgnored: true, resumeQuestion: false, nextScreenshot: "screenshot-1",
+    variables: [], secrets: [], inputs: [], secretsIgnored: true, resumeQuestion: false, nextScreenshot: "screenshot-1",
     warnings: [],
   };
   const MATCHERS = [
@@ -35,8 +35,8 @@ export const SETUP_JS = String.raw`  if (window !== window.top) return;
   let toastTimer = 0;
   // Local UI state; everything about steps lives in the recorder
   const ui = {
-    panel: null, picking: false, busy: false, closeOnUpdate: false, pending: 0, focus: null,
-    field: null, assert: null, page: null, insert: null, form: null,
+    panel: null, picking: false, pickFor: "assert", busy: false, closeOnUpdate: false, pending: 0, focus: null,
+    field: null, assert: null, output: null, page: null, insert: null, form: null,
     wait: { kind: "idle", seconds: "2" }, shot: { name: "", fullPage: false },
     drag: null, dropped: null, toastId: null,
   };

@@ -5,7 +5,9 @@ import { assertAction } from "./actions/assert.js";
 import { assertPageAction, pageInfoOf } from "./actions/assert-page.js";
 import { addInsertableAction, insertAction } from "./actions/insert.js";
 import { withoutSecrets } from "./actions/pick.js";
+import { saveOutputAction } from "./actions/save-output.js";
 import { fail, PAUSED, UNIDENTIFIABLE } from "./actions/reply.js";
+import { insertablesOf } from "./insertables.js";
 import { LEFT, PageScope } from "./page-scope.js";
 import type {
   ActionReply,
@@ -21,6 +23,7 @@ import type {
   Message,
   Of,
   PickState,
+  Replying,
 } from "./types.js";
 
 /** A wait for time is 0.1–60 s */
@@ -43,6 +46,7 @@ export class ToolbarController {
   private screenshots: number;
   private readonly variables: Map<string, string>;
   private readonly secrets: Map<string, string | undefined>;
+  private readonly inputs: Map<string, string>;
   private pausedAt: string | undefined;
   /** The URL the resume question offers; set while it is asked */
   private question: string | undefined;
@@ -72,11 +76,13 @@ export class ToolbarController {
       ]),
     );
     this.secrets = new Map(Object.entries(options.secrets));
+    this.inputs = new Map(Object.entries(options.inputs ?? {}));
     this.actions = {
       deps,
       options,
       variables: this.variables,
       secrets: this.secrets,
+      inputs: this.inputs,
       isPaused: () => this.paused,
       pick: () => this.pick,
       setPick: (pick) => {
@@ -102,11 +108,7 @@ export class ToolbarController {
       steps: this.steps,
       environment: this.options.environment,
       canAddVariables: this.options.canAddVariables,
-      variables: [...this.variables].map(([name, value]) => ({ name, value })),
-      secrets: [...this.secrets].map(([name, value]) => ({
-        name,
-        set: value !== undefined,
-      })),
+      ...insertablesOf(this.actions),
       secretsIgnored: this.options.secretsIgnored,
       resumeQuestion: this.question !== undefined,
       nextScreenshot: `screenshot-${this.screenshots + 1}`,
@@ -194,6 +196,10 @@ export class ToolbarController {
       case "add-insertable":
         return this.replying(message, () =>
           addInsertableAction(this.actions, message),
+        );
+      case "save-output":
+        return this.replying(message, () =>
+          saveOutputAction(this.actions, message),
         );
       case "wait":
         if (this.paused) return;
@@ -327,7 +333,7 @@ export class ToolbarController {
 
   /**
    * Whether to process `message`; call it as the message arrives, before queueing it. An `assert`, `assert-page`,
-   * `insert` or `add-insertable` whose id is in flight or was already answered `{ ok: true }` is a double click and is
+   * `insert`, `add-insertable` or `save-output` whose id is in flight or was already answered `{ ok: true }` is a double click and is
    * dropped (its first copy answers). A retry after `{ ok: false }` is accepted.
    */
   public accept(message: Message): boolean {
@@ -335,10 +341,7 @@ export class ToolbarController {
   }
 
   /** Runs an action that expects a reply, unless it is a repeat (see `accept`) */
-  private replying(
-    message: Of<"assert" | "assert-page" | "insert" | "add-insertable">,
-    work: () => Promise<ActionReply>,
-  ) {
+  private replying(message: Replying, work: () => Promise<ActionReply>) {
     return this.guard.run(message, work, (id, result) =>
       this.reply(id, result),
     );
@@ -378,7 +381,12 @@ export class ToolbarController {
           message.candidates,
         );
         if (page === this.scope.current)
-          this.pick = { id: message.id, locator, counts: inspected.counts };
+          this.pick = {
+            id: message.id,
+            locator,
+            counts: inspected.counts,
+            text: inspected.info.outputText,
+          };
         return inspected;
       });
     } catch {

@@ -15,7 +15,7 @@ const MAX_COUNTS = 3;
 const CSS_PROPERTY = "color";
 
 /**
- * Run in the toolbar's sandbox on the picked element: its text (cut at 4 KB), value (as the Alt+click rule reads it), first
+ * Run in the toolbar's sandbox on the picked element: its text (cut at 4 KB), its whole text as `outputs.save` reads it, value (as the Alt+click rule reads it), first
  * 20 attributes, its role without a name and its `tag.class` selector. `roleOf` only knows the roles the
  * candidates use, so the common list and table roles are added for Count. Also whether it can be checked or
  * disabled, its class attribute and the computed value of `CSS_PROPERTY`.
@@ -34,6 +34,7 @@ const INSPECT_SOURCE = String.raw`(el, cssName) => {
   const className = el.getAttribute("class");
   return {
     text: norm(String(el.textContent == null ? "" : el.textContent).slice(0, TEXT_CAP * 2)).slice(0, TEXT_CAP),
+    outputText: String(el.textContent == null ? "" : el.textContent).trim(),
     value: hasValue && !secret ? el.value : null,
     attributes: Array.from(el.attributes).slice(0, 20).map((a) => ({ name: a.name, value: a.value })),
     role: roleOf(el) || MORE_ROLES[tag] || null,
@@ -48,6 +49,7 @@ const INSPECT_SOURCE = String.raw`(el, cssName) => {
 
 interface Found {
   text: string;
+  outputText: string;
   value: string | null;
   attributes: { name: string; value: string }[];
   role: string | null;
@@ -128,6 +130,7 @@ export async function inspectElement(
       ok: true,
       label: describeCall(locator.chain[0]!),
       text: found.text,
+      outputText: found.outputText,
       ...(value !== undefined && { value }),
       attributes: found.attributes,
       first: {

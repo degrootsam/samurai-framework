@@ -24,6 +24,7 @@ export function withoutSecrets(
   if (
     !secret(info.value) &&
     !secret(info.text) &&
+    !secret(info.outputText) &&
     !secret(info.first.expected) &&
     !secret(info.className ?? undefined) &&
     !secret(info.css.value) &&
@@ -36,6 +37,7 @@ export function withoutSecrets(
   return {
     ...rest,
     text,
+    outputText: secret(info.outputText) ? "" : info.outputText,
     attributes: info.attributes.filter((a) => !secret(a.value)),
     className: secret(info.className ?? undefined) ? null : info.className,
     css: secret(info.css.value) ? { ...info.css, value: "" } : info.css,

@@ -1,7 +1,8 @@
 /** Views: the chip and the rail. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
 export const VIEWS_RAIL_JS = String.raw`  // ---- Views ----
   const toolOn = (tool) =>
-    tool === "assert" ? ui.picking || ui.panel === "assert" : tool === "insert" ? ui.panel === "insert" || ui.panel === "new" : ui.panel === tool;
+    tool === "assert" || tool === "output" ? (ui.picking && ui.pickFor === tool) || ui.panel === tool
+      : tool === "insert" ? ui.panel === "insert" || ui.panel === "new" : ui.panel === tool;
 
   const chipView = () =>
     h("div", { class: "chip" },
@@ -30,7 +31,9 @@ export const VIEWS_RAIL_JS = String.raw`  // ---- Views ----
         ? h("button", { class: "b on", "data-action": "resume" }, ico("▶"), "Resume")
         : h("button", { class: "b", "data-action": "pause" }, ico("❚❚"), "Pause"),
       tool("assert", "✓", "Assert"),
-      ui.picking && h("div", { class: "note" }, "Click an element · Esc cancels"),
+      ui.picking && ui.pickFor === "assert" && h("div", { class: "note" }, "Click an element · Esc cancels"),
+      tool("output", "⇥", "Output"),
+      ui.picking && ui.pickFor === "output" && h("div", { class: "note" }, "Click an element · Esc cancels"),
       tool("page", "⌂", "Page"),
       tool("insert", "{x}", "Insert"),
       tool("wait", "⏱", "Wait"),

@@ -23,6 +23,8 @@ export interface ToolbarState {
   canAddVariables: boolean;
   variables: { name: string; value: string }[];
   secrets: { name: string; set: boolean }[];
+  /** The recording test's declared inputs and their defaults */
+  inputs: { name: string; value: string }[];
   /** Whether `.env.<environment>` is git-ignored */
   secretsIgnored: boolean;
   /** Ask "Add a step that opens this page?" */
@@ -68,7 +70,7 @@ export type ToolbarMessage = { type: "toolbar" } &
         id: number;
         target: unknown;
         candidates: LocatorCall[];
-        kind: "env" | "secret";
+        kind: "env" | "secret" | "input";
         name: string;
       }
     | {
@@ -76,9 +78,18 @@ export type ToolbarMessage = { type: "toolbar" } &
         id: number;
         target: unknown;
         candidates: LocatorCall[];
-        kind: "env" | "secret";
+        kind: "env" | "secret" | "input";
         name: string;
         value: string;
+      }
+    /** Save as output for the element picked with the same id; `pattern` is a RegExp's source, no flags */
+    | {
+        action: "save-output";
+        id: number;
+        target: unknown;
+        candidates: LocatorCall[];
+        name: string;
+        pattern?: string;
       }
     /** The Page panel opened: answered with a `PageInfo` */
     | { action: "page-info"; id: number }
@@ -99,7 +110,10 @@ export type PickInfo =
   | {
       ok: true;
       label: string;
+      /** Whitespace collapsed and trimmed, cut at 4 KB: what the Assert panel shows and prefills */
       text: string;
+      /** The whole text as `outputs.save` reads it (`textContent`, trimmed): what Save as output captures from */
+      outputText: string;
       value?: string;
       attributes: { name: string; value: string }[];
       first: { matcher: MatcherChoice; expected?: string };
@@ -120,6 +134,6 @@ export type PageInfo =
   | { ok: true; url: string; urlPrefill: string; title: string }
   | { ok: false; error: string };
 
-/** The answer to `insert`, `add-insertable`, `assert` and `assert-page` */
+/** The answer to `insert`, `add-insertable`, `assert`, `assert-page` and `save-output` */
 export type ActionReply =
   { ok: true } | { ok: false; error: string; field?: "name" };

@@ -1,4 +1,4 @@
-/** Views: the Assert, Page, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
+/** Views: the Assert, Save as output, Page, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
 export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) =>
     (matcher === "toHaveValue" && info.value === undefined) ||
     (matcher === "toHaveAttribute" && info.attributes.length === 0) ||
@@ -73,6 +73,38 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     ];
   };
 
+  // What the output would hold, as outputs.save reads it: the pattern's first group, else its whole match, else the text
+  const captureOf = (text, pattern) => {
+    if (!pattern.trim()) return { value: text };
+    let re;
+    try { re = new RegExp(pattern.trim()); } catch (err) { return { error: "Not a valid pattern" }; }
+    const match = re.exec(text);
+    if (!match) return { error: "No match" };
+    return { value: match[1] !== undefined ? match[1] : match[0] };
+  };
+  const outputPanel = () => {
+    const o = ui.output;
+    const info = o.info;
+    const head = h("div", { class: "h" }, "Save as output", info && info.ok && h("code", { title: info.label }, info.label));
+    if (!info) return [head, h("div", { class: "msg" }, "…")];
+    if (!info.ok) return [head, h("div", { class: "err" }, info.error)];
+    const capture = captureOf(info.outputText, o.pattern);
+    return [
+      head,
+      h("div", { class: "lbl" }, "Text"),
+      h("div", { class: "msg out-text" }, info.text),
+      h("div", { class: "lbl" }, "Name"),
+      h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "outputName", value: o.name, "data-enter": "output-save", autocomplete: "off", spellcheck: "false" })),
+      o.nameError && h("div", { class: "field-error" }, o.nameError),
+      h("div", { class: "lbl" }, "Pattern (optional)"),
+      h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "outputPattern", value: o.pattern, placeholder: "Order #(\\d+)", "data-enter": "output-save", autocomplete: "off", spellcheck: "false" })),
+      h("div", { class: "lbl" }, "Saves"),
+      capture.error ? h("div", { class: "warn out-capture" }, capture.error) : h("code", { class: "out-capture" }, capture.value),
+      o.error && h("div", { class: "err" }, o.error),
+      h("div", { class: "foot" }, h("button", { class: "add", "data-action": "output-save", disabled: ui.busy || !o.name.trim() }, "Save")),
+    ];
+  };
+
   const pagePanel = () => {
     const p = ui.page;
     const head = h("div", { class: "h" }, "Page");
@@ -98,13 +130,14 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       filter,
       variables: state.canAddVariables ? state.variables.filter(hit) : [],
       secrets: state.secrets.filter(hit),
+      inputs: (state.inputs || []).filter(hit),
     };
   };
   const insertPanel = () => {
     const ins = ui.insert;
     if (!ins.field) return [h("div", { class: "h" }, "Insert"), h("div", { class: "msg" }, "Click into a field first")];
     const found = matches();
-    const none = found.filter && found.variables.length === 0 && found.secrets.length === 0;
+    const none = found.filter && found.variables.length === 0 && found.secrets.length === 0 && found.inputs.length === 0;
     const item = (kind, name, value) =>
       h("button", { class: "it", "data-action": "insert-item", "data-kind": kind, "data-name": name, disabled: ui.busy }, h("code", null, name), value);
     return [
@@ -120,13 +153,19 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       found.secrets.length
         ? found.secrets.map((s) => item("secret", s.name, s.set ? h("span", { class: "v" }, "••••••") : h("span", { class: "warn" }, "not set")))
         : h("div", { class: "empty" }, found.filter ? "No secret matches." : "No secrets yet."),
+      h("div", { class: "grp" }, "Inputs"),
+      found.inputs.length
+        ? found.inputs.map((i) => item("input", i.name, h("span", { class: "v", title: i.value }, i.value)))
+        : h("div", { class: "empty" }, found.filter ? "No input matches." : "No inputs yet."),
       ins.error && h("div", { class: "err" }, ins.error),
       h("button", { class: "act", "data-action": "insert-new", "data-kind": "env" }, "+ Add variable" + (none ? ' "' + variableName(ins.filter) + '"' : "")),
       h("button", { class: "act", "data-action": "insert-new", "data-kind": "secret" }, "+ Add secret" + (none ? ' "' + snake(ins.filter) + '"' : "")),
+      h("button", { class: "act", "data-action": "insert-new", "data-kind": "input" }, "+ Add input" + (none ? ' "' + camel(ins.filter) + '"' : "")),
     ];
   };
 
-  const newHint = (secret, env, name) => {
+  const newHint = (kind, secret, env, name) => {
+    if (kind === "input") return "Declared in the test's inputs, with this value as its default.";
     if (!secret) return ["Saved to ", h("code", null, "environments." + env + ".variables"), " in samurai.config.ts. Other environments don't get it — add it there before running against them."];
     if (!state.secretsIgnored) return h("span", { class: "warn" }, "Add .env." + env + " to .gitignore before committing.");
     return ["Saved as ", h("code", null, "SAMURAI_SECRET_" + (name.trim() || "<NAME>")), " in ", h("code", null, ".env." + env), " (git-ignored)."];
@@ -134,22 +173,23 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
   const newPanel = () => {
     const f = ui.form;
     const secret = f.kind === "secret";
-    const blocked = !secret && !state.canAddVariables;
+    const blocked = f.kind === "env" && !state.canAddVariables;
     const env = state.environment;
     return [
-      h("div", { class: "h stack" }, f.setValue ? "Set value" : secret ? "New secret" : "New variable", h("small", null, 'For "' + fieldLabel(ui.insert.field) + '"')),
+      h("div", { class: "h stack" }, f.setValue ? "Set value" : secret ? "New secret" : f.kind === "input" ? "New input" : "New variable", h("small", null, 'For "' + fieldLabel(ui.insert.field) + '"')),
       h("div", { class: "seg" },
-        h("button", { class: secret ? "" : "sel", "data-action": "new-kind", "data-kind": "env" }, "Variable"),
-        h("button", { class: secret ? "sel" : "", "data-action": "new-kind", "data-kind": "secret" }, "Secret")),
+        h("button", { class: f.kind === "env" ? "sel" : "", "data-action": "new-kind", "data-kind": "env" }, "Variable"),
+        h("button", { class: secret ? "sel" : "", "data-action": "new-kind", "data-kind": "secret" }, "Secret"),
+        h("button", { class: f.kind === "input" ? "sel" : "", "data-action": "new-kind", "data-kind": "input" }, "Input")),
       blocked
         ? h("div", { class: "msg" }, "This recording has no environment")
         : [
             h("div", { class: "lbl" }, "Name"),
             h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "name", value: f.name, "data-enter": "new-save", autocomplete: "off", spellcheck: "false" })),
             f.nameError && h("div", { class: "field-error" }, f.nameError),
-            h("div", { class: "lbl" }, "Value in " + env),
+            h("div", { class: "lbl" }, f.kind === "input" ? "Default value" : "Value in " + env),
             h("div", { class: "f" }, h("input", { type: secret ? "password" : "text", class: "in", "data-field": "value", value: f.value, "data-enter": "new-save", autocomplete: secret ? "new-password" : "off" })),
-            h("div", { class: "hint" }, newHint(secret, env, f.name)),
+            h("div", { class: "hint" }, newHint(f.kind, secret, env, f.name)),
             f.error && h("div", { class: "err" }, f.error),
           ],
       h("div", { class: "foot plain" },
@@ -181,5 +221,5 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     radio("fullPage", "true", ui.shot.fullPage, "Whole page"),
     h("div", { class: "foot" }, h("button", { class: "add", "data-action": "screenshot-add", disabled: ui.busy }, "Add")),
   ];
-  const PANELS = { assert: assertPanel, page: pagePanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
+  const PANELS = { assert: assertPanel, output: outputPanel, page: pagePanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
 `;

@@ -1,3 +1,4 @@
+import { isIoName } from "../../../flows/core/steps.js";
 import { ConfigEditError } from "../../../project/config-edit.js";
 import { SECRET_NAME } from "../../../project/secrets-file.js";
 import { ExistsError, VARIABLE_NAME } from "../../../project/variables.js";
@@ -21,19 +22,26 @@ export async function insertAction(
   if (ctx.isPaused()) return fail(PAUSED);
   const { kind, name } = message;
   const value =
-    kind === "secret" ? ctx.secrets.get(name) : ctx.variables.get(name);
+    kind === "secret"
+      ? ctx.secrets.get(name)
+      : kind === "input"
+        ? ctx.inputs.get(name)
+        : ctx.variables.get(name);
   if (value === undefined)
     return fail(
       kind === "secret"
         ? `Set a value for ${name} first`
-        : `There is no variable "${name}"`,
+        : kind === "input"
+          ? `There is no input "${name}"`
+          : `There is no variable "${name}"`,
     );
   const locator = await locate(ctx, message);
   if (!locator) return fail(UNIDENTIFIABLE);
   return typeIn(ctx, locator, kind, name, value);
 }
 
-/** Saves a new variable or secret to the project, then types it into the field and records the `insert` step */
+/**
+ * Saves a new variable or secret to the project, then types it into the field and records the `insert` step */
 export async function addInsertableAction(
   ctx: ActionContext,
   message: Of<"add-insertable">,
@@ -41,6 +49,7 @@ export async function addInsertableAction(
   if (ctx.isPaused()) return fail(PAUSED);
   const { kind, name } = message;
   const value = String(message.value ?? "");
+  if (kind === "input") return addInput(ctx, message, name, value);
   if (kind === "env" && !ctx.options.canAddVariables)
     return fail(NO_ENVIRONMENT);
   const known =
@@ -82,6 +91,28 @@ export async function addInsertableAction(
   return typeIn(ctx, locator, kind, name, value, true);
 }
 
+/**
+ * Types a new input's value and records the step with the declaration; the project is not written, the
+ * test's own `inputs` carries the default. The name counts as taken once the step is recorded.
+ */
+async function addInput(
+  ctx: ActionContext,
+  message: Of<"add-insertable">,
+  name: string,
+  value: string,
+): Promise<ActionReply> {
+  if (!isIoName(name)) return fail("name: use letters, digits and _", "name");
+  if (ctx.inputs.has(name)) return fail(`"${name}" already exists`, "name");
+  const locator = await locate(ctx, message);
+  if (!locator) return fail(UNIDENTIFIABLE);
+  const reply = await typeIn(ctx, locator, "input", name, value, false, true);
+  if (reply.ok) {
+    ctx.inputs.set(name, value);
+    ctx.push();
+  }
+  return reply;
+}
+
 /** Undefined when `work` succeeded, else the reply for its error */
 async function write(
   work: () => Promise<void>,
@@ -110,10 +141,11 @@ async function locate(
 async function typeIn(
   ctx: ActionContext,
   locator: LocatorSpec,
-  kind: "env" | "secret",
+  kind: "env" | "secret" | "input",
   name: string,
   value: string,
   saved = false,
+  declare = false,
 ): Promise<ActionReply> {
   try {
     await ctx.deps.type(locator, value);
@@ -125,7 +157,12 @@ async function typeIn(
     ctx.push();
     return fail(TYPE_FAILED);
   }
-  ctx.deps.observe({ type: "insert", locator, value: { kind, name } });
+  ctx.deps.observe({
+    type: "insert",
+    locator,
+    value: { kind, name },
+    ...(declare && { declare: value }),
+  });
   return { ok: true };
 }
 

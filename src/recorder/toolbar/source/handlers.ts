@@ -19,14 +19,8 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
     expand: () => post({ action: "collapse", collapsed: false }),
     "resume-yes": () => { if (state.resumeQuestion) post({ action: "resume-goto", add: true }); },
     "resume-no": () => { if (state.resumeQuestion) post({ action: "resume-goto", add: false }); },
-    assert: () => {
-      if (!usable()) return;
-      const wasOn = toolOn("assert");
-      stopPicking();
-      closePanel();
-      ui.picking = !wasOn;
-      render();
-    },
+    assert: () => startPicking("assert"),
+    output: () => startPicking("output"),
     page: () => openTool("page"),
     insert: () => openTool("insert"),
     wait: () => openTool("wait"),
@@ -54,6 +48,17 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
       if (a.matcher === "toHaveCount") message.countIndex = a.countIndex;
       ui.busy = true;
       a.error = null;
+      post(message);
+      render();
+    },
+    "output-save": () => {
+      const o = ui.panel === "output" && ui.output;
+      if (!o || ui.busy || !o.info || !o.info.ok) return;
+      ui.busy = true;
+      o.nameError = null;
+      o.error = null;
+      const message = { action: "save-output", id: o.id, target: o.target, candidates: o.candidates, name: o.name.trim() };
+      if (o.pattern.trim()) message.pattern = o.pattern.trim();
       post(message);
       render();
     },
@@ -85,6 +90,8 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
         const secret = state.secrets.find((s) => s.name === detail.name);
         if (!secret) return;
         if (!secret.set) return openForm("secret", secret.name, true);
+      } else if (detail.kind === "input") {
+        if (!(state.inputs || []).some((i) => i.name === detail.name)) return;
       } else if (!state.canAddVariables || !state.variables.some((v) => v.name === detail.name)) {
         return;
       }
@@ -93,20 +100,20 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
     "insert-first": () => {
       if (ui.panel !== "insert" || !ui.insert.field) return;
       const found = matches();
-      const first = found.variables[0] ? { kind: "env", name: found.variables[0].name } : found.secrets[0] && { kind: "secret", name: found.secrets[0].name };
+      const first = found.variables[0] ? { kind: "env", name: found.variables[0].name } : found.secrets[0] ? { kind: "secret", name: found.secrets[0].name } : found.inputs[0] && { kind: "input", name: found.inputs[0].name };
       if (first) handlers["insert-item"](first);
     },
     "insert-new": (detail) => {
       if (ui.panel !== "insert" || !ui.insert.field) return;
       const filter = ui.insert.filter.trim();
       const base = filter || fieldName(ui.insert.field);
-      const name = detail.kind === "secret" ? snake(base) : filter ? variableName(filter) : camel(base);
-      openForm(detail.kind === "secret" ? "secret" : "env", name, false);
+      const name = detail.kind === "secret" ? snake(base) : detail.kind === "input" ? camel(base) : filter ? variableName(filter) : camel(base);
+      openForm(detail.kind === "secret" ? "secret" : detail.kind === "input" ? "input" : "env", name, false);
     },
     "new-kind": (detail) => {
       const f = ui.panel === "new" && ui.form;
       if (!f || ui.busy || f.kind === detail.kind) return;
-      f.kind = detail.kind === "secret" ? "secret" : "env";
+      f.kind = detail.kind === "secret" ? "secret" : detail.kind === "input" ? "input" : "env";
       f.name = f.kind === "secret" ? snake(f.name) : camel(f.name);
       f.nameError = null;
       f.error = null;

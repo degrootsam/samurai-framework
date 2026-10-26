@@ -301,3 +301,69 @@ describe("ToolbarController insert and add", () => {
     ]);
   });
 });
+
+describe("ToolbarController inputs", () => {
+  it("lists the declared inputs in the state", async () => {
+    const { controller, last } = setup();
+    await controller.handle(insert(49, "env", "testUser"));
+    assert.deepEqual(last().inputs, [{ name: "email", value: "a@b.c" }]);
+  });
+
+  it("a new input types its value and declares it with that default, without writing the project", async () => {
+    const { controller, calls, observed, replies, last } = setup();
+    await controller.handle(add(50, "input", "phone", "0612345678"));
+    assert.deepEqual(calls, ["type 0612345678"]);
+    assert.deepEqual(observed, [
+      {
+        type: "insert",
+        locator: LOCATOR,
+        value: { kind: "input", name: "phone" },
+        declare: "0612345678",
+      },
+    ]);
+    assert.deepEqual(replies, [{ id: 50, result: { ok: true } }]);
+    assert.ok(last().inputs.some((i) => i.name === "phone"));
+  });
+
+  it("an existing input types its default and declares nothing", async () => {
+    const { controller, calls, observed, replies } = setup();
+    await controller.handle(insert(51, "input", "email"));
+    assert.deepEqual(calls, ["type a@b.c"]);
+    assert.deepEqual(observed, [
+      {
+        type: "insert",
+        locator: LOCATOR,
+        value: { kind: "input", name: "email" },
+      },
+    ]);
+    assert.deepEqual(replies, [{ id: 51, result: { ok: true } }]);
+  });
+
+  it("refuses a name that is taken or not a name, and an input that isn't declared", async () => {
+    const { controller, calls, observed, replies } = setup();
+    await controller.handle(add(52, "input", "email", "x"));
+    await controller.handle(add(53, "input", "my-name", "x"));
+    await controller.handle(insert(54, "input", "nope"));
+    assert.deepEqual(calls, []);
+    assert.deepEqual(observed, []);
+    assert.deepEqual(
+      replies.map((r) => r.result),
+      [
+        { ok: false, error: `"email" already exists`, field: "name" },
+        {
+          ok: false,
+          error: "name: use letters, digits and _",
+          field: "name",
+        },
+        { ok: false, error: `There is no input "nope"` },
+      ],
+    );
+  });
+
+  it("a field it couldn't type into declares nothing", async () => {
+    const { controller, observed, last } = setup({}, failingType);
+    await controller.handle(add(55, "input", "phone", "1"));
+    assert.deepEqual(observed, []);
+    assert.ok(!last().inputs.some((i) => i.name === "phone"));
+  });
+});
