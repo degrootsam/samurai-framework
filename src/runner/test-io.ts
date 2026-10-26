@@ -1,9 +1,11 @@
+import { captured, textCheck } from "../assert/text-match.js";
 import { readEventually } from "../assert/locator-assertions.js";
 import { track } from "../assert/pending-assertions.js";
 import { isPassthroughKey } from "../config/variables.js";
 import { RESERVED_OUTPUTS } from "../flows/core/steps.js";
 import type Locator from "../locator/locator.js";
 import type { TestError, TestOptions, TestOutputs } from "../types/test.js";
+import type { OutputSink } from "../wait/output-sink.js";
 
 const NAME = /^[A-Za-z_]\w*$/;
 
@@ -62,65 +64,6 @@ export function validateTestIO(
 }
 
 /**
- * Where one attempt of a test keeps the outputs it saves. Once closed it ignores what still arrives, so a
- * capture that outlives its test (it timed out, or nobody awaited it) never lands in the next one.
- */
-export interface OutputSink {
-  /** Whether the test declared `name` */
-  declares(name: string): boolean;
-  /** Keeps `value` under `name`; throws for a name the test did not declare, ignores it once closed */
-  set(name: string, value: string): void;
-  /** What was saved so far */
-  values(): Record<string, string>;
-}
-
-class Sink implements OutputSink {
-  private readonly saved: Record<string, string> = {};
-  public closed = false;
-
-  constructor(private readonly declared: readonly string[]) {}
-
-  declares(name: string): boolean {
-    return this.declared.includes(name);
-  }
-
-  set(name: string, value: string): void {
-    if (this.closed) return;
-    if (!this.declares(name))
-      throw new Error(`output ${JSON.stringify(name)} is not declared`);
-    this.saved[name] = value;
-  }
-
-  values(): Record<string, string> {
-    return { ...this.saved };
-  }
-}
-
-/** The sink of the attempt that is running; one at a time, like the pending assertions */
-let current: Sink | undefined;
-
-/** Opens the sink of an attempt that declared `declared`, closing any one still open */
-export function beginOutputs(declared: readonly string[]): OutputSink {
-  if (current) current.closed = true;
-  current = new Sink(declared);
-  return current;
-}
-
-/** The open sink, or none outside a test. A capture takes it when it starts and saves into that one */
-export function currentOutputSink(): OutputSink | undefined {
-  return current;
-}
-
-/** Closes the open sink and returns what it holds */
-export function endOutputs(): Record<string, string> {
-  const sink = current;
-  current = undefined;
-  if (!sink) return {};
-  sink.closed = true;
-  return sink.values();
-}
-
-/**
  * The `inputs` fixture: each declared input with the value the run supplies, else its default. Reading a
  * name the test did not declare throws.
  */
@@ -152,38 +95,37 @@ function resolveInputs(
   );
 }
 
-/** The `outputs` fixture: `save` waits for the element's text, as `toHaveText` reads it, and keeps it */
-export function createOutputsFixture(): TestOutputs {
+/**
+ * The `outputs` fixture of one attempt: `save` waits for the element's text, as `toHaveText` reads it, and keeps
+ * it in `sink`. It keeps to its own attempt's sink, so a late value never lands in a later test.
+ */
+export function createOutputsFixture(sink: OutputSink): TestOutputs {
   return {
     save: (name, locator, pattern) =>
-      track("outputs.save()", saveText(name, locator, pattern)),
+      track("outputs.save()", saveText(sink, name, locator, pattern)),
   };
 }
 
 async function saveText(
+  sink: OutputSink,
   name: string,
   locator: Locator,
   pattern?: RegExp,
 ): Promise<void> {
-  // Bound when the call starts: a value that arrives after this test ended goes to its own closed sink
-  const sink = current;
-  if (!sink)
-    throw new Error("outputs.save(): output can only be saved inside a test");
   if (!sink.declares(name))
     throw new Error(
       `outputs.save(): output ${JSON.stringify(name)} is not declared`,
     );
+  const matches = pattern ? textCheck(pattern, "exact") : undefined;
   const text = await readEventually({
     name: "toHaveText",
     locator,
     expected: pattern ?? "an element with text",
     read: () => locator.textContent(),
-    check: (actual) =>
-      actual !== null && (!pattern || actual.search(pattern) !== -1),
+    check: (actual) => actual !== null && (!matches || matches(actual)),
     call: `outputs.save(${JSON.stringify(name)})`,
   });
-  const match = pattern ? text!.match(pattern) : null;
-  sink.set(name, match ? (match[1] ?? match[0]) : text!);
+  sink.set(name, pattern ? captured(pattern, text!) : text!);
 }
 
 /** The failure of a passing attempt that did not save every output it declared */

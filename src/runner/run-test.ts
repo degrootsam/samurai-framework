@@ -27,13 +27,12 @@ import { runOutput } from "./output.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
 import {
-  beginOutputs,
   createInputsFixture,
   createOutputsFixture,
-  endOutputs,
   ioOfAttempt,
   missingOutputs,
 } from "./test-io.js";
+import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
 type Logs = { logs?: TestLogEntry[]; logsDropped?: number };
 
@@ -206,7 +205,7 @@ export async function runOneTest(
         env: createEnvFixture(settings.environment, settings.variables),
         secrets: createSecretsFixture(settings.environment, secrets),
         inputs: createInputsFixture(test.inputs, options.inputs),
-        outputs: createOutputsFixture(),
+        outputs: createOutputsFixture(sink),
       };
       await runWithEachHooks(
         test.suite,

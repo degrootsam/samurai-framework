@@ -3,11 +3,18 @@ import type Locator from "../locator/locator.js";
 import { waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
 import { AssertionError } from "./assertion-error.js";
 import { track } from "./pending-assertions.js";
-import { classCheck, matchesText, textCheck } from "./text-match.js";
+import { bindOutput } from "../wait/output-sink.js";
+import { captured, classCheck, matchesText, textCheck } from "./text-match.js";
 
 export interface LocatorAssertionOptions {
   /** Time (ms) to keep retrying. Defaults to config `expect.timeout`, then 5000 */
   timeout?: number;
+}
+
+/** The options of the checks that can keep the text they found */
+export interface TextAssertionOptions extends LocatorAssertionOptions {
+  /** Saves the text that passed (a RegExp's first group, else its match) as this output of the running test */
+  output?: string;
 }
 
 /** What `readEventually` reads, what it waits for and how its failure is named */
@@ -91,6 +98,7 @@ export class LocatorAssertions {
     check: (actual: V) => boolean,
     options?: LocatorAssertionOptions,
     mustExist = false,
+    save?: (actual: V) => void,
   ): Promise<void> {
     const name = this.negated ? `not.${matcher}` : matcher;
 
@@ -104,7 +112,37 @@ export class LocatorAssertions {
         check: (actual) => check(actual) !== this.negated,
         timeout: options?.timeout,
         mustExist,
-      }).then(() => {}),
+      }).then((actual) => save?.(actual)),
+    );
+  }
+
+  /**
+   * A text check that can keep what it read: with `options.output` the read that passed goes to that output, as
+   * `expected` captures it. The sink is taken now, when the call starts.
+   */
+  private assertText(
+    matcher: string,
+    expected: string | RegExp,
+    read: () => Promise<string | null>,
+    mode: "exact" | "contains",
+    options?: TextAssertionOptions,
+  ): Promise<void> {
+    let save: ((actual: string | null) => void) | undefined;
+    if (options?.output !== undefined) {
+      const call = `expect(locator).${this.negated ? "not." : ""}${matcher}`;
+      if (this.negated)
+        throw new Error(`${call}: output can't be saved from a negated check`);
+      const keep = bindOutput(call, options.output);
+      save = (actual) => keep(captured(expected, actual!));
+    }
+    return this.assertEventually(
+      matcher,
+      expected,
+      read,
+      textCheck(expected, mode),
+      options,
+      false,
+      save,
     );
   }
 
@@ -137,33 +175,33 @@ export class LocatorAssertions {
   }
 
   /** Trimmed text content equals `expected` (string) or matches it (RegExp) */
-  toHaveText(expected: string | RegExp, options?: LocatorAssertionOptions) {
-    return this.assertEventually(
+  toHaveText(expected: string | RegExp, options?: TextAssertionOptions) {
+    return this.assertText(
       "toHaveText",
       expected,
       () => this.locator.textContent(),
-      textCheck(expected, "exact"),
+      "exact",
       options,
     );
   }
 
   /** Text content contains `expected` (string) or matches it (RegExp) */
-  toContainText(expected: string | RegExp, options?: LocatorAssertionOptions) {
-    return this.assertEventually(
+  toContainText(expected: string | RegExp, options?: TextAssertionOptions) {
+    return this.assertText(
       "toContainText",
       expected,
       () => this.locator.textContent(),
-      textCheck(expected, "contains"),
+      "contains",
       options,
     );
   }
 
-  toHaveValue(expected: string | RegExp, options?: LocatorAssertionOptions) {
-    return this.assertEventually(
+  toHaveValue(expected: string | RegExp, options?: TextAssertionOptions) {
+    return this.assertText(
       "toHaveValue",
       expected,
       () => this.locator.inputValue(),
-      textCheck(expected, "exact"),
+      "exact",
       options,
     );
   }
@@ -171,13 +209,13 @@ export class LocatorAssertions {
   toHaveAttribute(
     name: string,
     expected: string | RegExp,
-    options?: LocatorAssertionOptions,
+    options?: TextAssertionOptions,
   ) {
-    return this.assertEventually(
+    return this.assertText(
       "toHaveAttribute",
       expected,
       () => this.locator.getAttribute(name),
-      textCheck(expected, "exact"),
+      "exact",
       options,
     );
   }

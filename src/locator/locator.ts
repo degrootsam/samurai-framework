@@ -32,6 +32,7 @@ import {
   type ProbeOptions,
   type WaitForState,
 } from "./element-state.js";
+import { bindOutput } from "../wait/output-sink.js";
 import type { HelperInstaller } from "./helper-realm.js";
 import { cssPropertyName, IS_CHECKED_BODY } from "./element-reads.js";
 import {
@@ -576,7 +577,15 @@ export default class Locator {
   }
 
   /** Waits until the field is editable and not covered, then replaces its value by typing `value`; an empty string clears it */
-  public async fill(value: string, options?: ActionOptions): Promise<void> {
+  public async fill(
+    value: string,
+    options?: ActionOptions & { output?: string },
+  ): Promise<void> {
+    // Taken when the call starts, so a fill that outlives its test saves into that test's closed sink
+    const save =
+      options?.output === undefined
+        ? undefined
+        : bindOutput("fill()", options.output);
     const state = await this.waitForActionable(
       "fill",
       FILL_CHECKS,
@@ -598,6 +607,7 @@ export default class Locator {
     );
 
     await typeText(this.biDiConnector, this.contextId, keys);
+    save?.(value);
   }
 }
 
