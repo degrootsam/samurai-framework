@@ -65,14 +65,7 @@ describe("ToolbarController save as output", () => {
   });
 
   it("refuses a name that breaks the name rules, on the name field", async () => {
-    for (const name of [
-      "",
-      "1st",
-      "order id",
-      "status",
-      "durationMs",
-      "error",
-    ]) {
+    for (const name of ["", "1st", "order id"]) {
       const { controller, replies, observed } = withText();
       await controller.handle(pick(42));
       await controller.handle(save(42, name));
@@ -90,6 +83,68 @@ describe("ToolbarController save as output", () => {
       );
       assert.deepEqual(observed, [], name);
     }
+  });
+
+  it("says a reserved name is reserved, on the name field", async () => {
+    for (const name of ["status", "durationMs", "error", "__proto__"]) {
+      const { controller, replies, observed } = withText();
+      await controller.handle(pick(42));
+      await controller.handle(save(42, name));
+      assert.deepEqual(
+        lastOf(replies),
+        {
+          id: 42,
+          result: {
+            ok: false,
+            error: `name: "${name}" is reserved`,
+            field: "name",
+          },
+        },
+        name,
+      );
+      assert.deepEqual(observed, [], name);
+    }
+  });
+
+  it("sends the pattern with a / escaped, so the spec it writes compiles", async () => {
+    const { controller, observed } = setup(
+      {},
+      {
+        inspect: async (): Promise<Inspection> => ({
+          info: { ...INFO, text: "orders/4521", outputText: "orders/4521" },
+          counts: [COUNT_CALL],
+        }),
+      },
+    );
+    await controller.handle(pick(50));
+    await controller.handle(save(50, "orderId", "orders/(\\d+)"));
+    assert.deepEqual(observed, [
+      {
+        type: "saveOutput",
+        locator: LOCATOR,
+        name: "orderId",
+        pattern: { source: "orders\\/(\\d+)", flags: "" },
+      },
+    ]);
+  });
+
+  it("refuses an element with no text when there is no pattern", async () => {
+    const { controller, replies, observed } = setup(
+      {},
+      {
+        inspect: async (): Promise<Inspection> => ({
+          info: { ...INFO, text: "", outputText: "" },
+          counts: [COUNT_CALL],
+        }),
+      },
+    );
+    await controller.handle(pick(51));
+    await controller.handle(save(51, "orderId"));
+    assert.deepEqual(lastOf(replies), {
+      id: 51,
+      result: { ok: false, error: "the element has no text" },
+    });
+    assert.deepEqual(observed, []);
   });
 
   it("refuses a pattern that is not valid", async () => {
@@ -176,7 +231,7 @@ describe("ToolbarController save as output", () => {
     assert.equal(observed.length, 1);
   });
 
-  it("never sends back a secret the output text holds, but still checks against it", async () => {
+  it("never sends back a secret the output text holds, and refuses to save it", async () => {
     const { controller, replies, observed, noSecretLeaks } = setup(
       {},
       {
@@ -191,9 +246,17 @@ describe("ToolbarController save as output", () => {
       (lastOf(replies)!.result as PickInfo & { ok: true }).outputText,
       "",
     );
-    await controller.handle(save(49, "token", "token (\\S+)"));
-    assert.deepEqual(lastOf(replies), { id: 49, result: { ok: true } });
-    assert.equal(observed.length, 1);
+    for (const pattern of ["token (\\S+)", ""]) {
+      await controller.handle(save(49, "token", pattern));
+      assert.deepEqual(lastOf(replies), {
+        id: 49,
+        result: {
+          ok: false,
+          error: "this element shows a secret; it can't be an output",
+        },
+      });
+    }
+    assert.deepEqual(observed, []);
     noSecretLeaks();
   });
 });

@@ -151,7 +151,7 @@ test(
     await press("output-save");
     await waitFor(
       async () =>
-        (await panelText(".field-error")) === "name: use letters, digits and _",
+        (await panelText(".field-error")) === 'name: "status" is reserved',
       "the name error",
     );
 
@@ -205,5 +205,38 @@ test(
     assert.equal(await panelText(".out-capture"), "77");
     await press("output-save");
     await waitFor(() => steps().length === 1, "the saveOutput step");
+  },
+);
+
+test(
+  "Save as output with a / in the pattern writes a spec that parses back to the same step",
+  OPTIONS,
+  async () => {
+    await page.navigateTo(
+      `data:text/html,<p data-testid="path">orders/4521</p>`,
+      "complete",
+    );
+    const { source, steps } = await record();
+    await press("output");
+    await inSandbox(
+      `() => { ${HOOK}.press("pick", { target: document.querySelector('[data-testid="path"]') }); }`,
+    );
+    await waitFor(
+      async () => (await panelText(".out-text")) === "orders/4521",
+      "the element's text in the panel",
+    );
+    await typeInto("outputName", "orderId");
+    await typeInto("outputPattern", "orders/(\\d+)");
+    assert.equal(await panelText(".out-capture"), "4521");
+    await press("output-save");
+    await waitFor(() => steps().length === 1, "the saveOutput step");
+
+    assert.match(source(), /, \/orders\\\/\(\\d\+\)\/\);/);
+    assert.deepEqual(steps()[0], {
+      kind: "saveOutput",
+      locator: (steps()[0] as { locator: unknown }).locator,
+      name: "orderId",
+      pattern: { source: "orders\\/(\\d+)", flags: "" },
+    });
   },
 );

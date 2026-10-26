@@ -78,7 +78,7 @@ export type Replying = Of<
   "assert" | "assert-page" | "insert" | "add-insertable" | "save-output"
 >;
 
-/** What the action handlers (assert, insert, add a variable or secret) use of the controller */
+/** What the action handlers (assert, insert, add a variable, secret or input, save as output) use of the controller */
 export interface ActionContext {
   readonly deps: ControllerDeps;
   readonly options: ControllerOptions;
