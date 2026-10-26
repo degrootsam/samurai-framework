@@ -62,12 +62,19 @@ export interface ControllerOptions {
 export type Message = ToolbarMessage & { target?: ElementHandle };
 export type Of<A extends Message["action"]> = Extract<Message, { action: A }>;
 
-/** The element picked for an Assert, and the locator behind each of its Count choices */
+/** The element picked for an Assert or Save as output, the locator behind each of its Count choices, and its text */
 export interface PickState {
   id: number;
   locator: LocatorSpec;
   counts: LocatorCall[];
+  /** As inspected when it was picked, secrets included: it never goes back to the page */
+  text: string;
 }
+
+/** The messages that expect a reply, and that a double click sends twice */
+export type Replying = Of<
+  "assert" | "assert-page" | "insert" | "add-insertable" | "save-output"
+>;
 
 /** What the action handlers (assert, insert, add a variable or secret) use of the controller */
 export interface ActionContext {
@@ -76,7 +83,7 @@ export interface ActionContext {
   readonly variables: Map<string, string>;
   readonly secrets: Map<string, string | undefined>;
   isPaused(): boolean;
-  /** The picked element an `assert` with the same id refers to */
+  /** The picked element an `assert` or `save-output` with the same id refers to */
   pick(): PickState | undefined;
   setPick(pick: PickState | undefined): void;
   showToast(text: string): void;

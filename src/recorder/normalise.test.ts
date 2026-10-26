@@ -283,6 +283,52 @@ describe("toolbar observations", () => {
     });
   });
 
+  it("a saved output becomes a saveOutput step, with or without a pattern", () => {
+    const n = new Normaliser({ at: 0 });
+    const steps = [
+      ...n.observe(
+        {
+          type: "saveOutput",
+          locator: field,
+          name: "orderId",
+          pattern: { source: "Order #(\\d+)", flags: "" },
+        },
+        1,
+      ),
+      ...n.observe({ type: "saveOutput", locator: field, name: "ref" }, 2),
+    ].map(stepOf);
+    assert.deepEqual(steps, [
+      {
+        kind: "saveOutput",
+        name: "orderId",
+        locator: field,
+        pattern: { source: "Order #(\\d+)", flags: "" },
+      },
+      { kind: "saveOutput", name: "ref", locator: field },
+    ]);
+  });
+
+  it("a saved output declares it and adds the outputs fixture in the spec", () => {
+    const n = new Normaliser({ at: 0 });
+    const [event] = n.observe(
+      { type: "saveOutput", locator: field, name: "o" },
+      1,
+    );
+    const source = applyRecorderEvent(
+      `test("t", async ({ page }) => {\n});\n`,
+      0,
+      event!,
+    );
+    assert.match(
+      source,
+      /test\("t", \{ outputs: \["o"\] \}, async \(\{ page, outputs \}\) => \{/,
+    );
+    assert.match(
+      source,
+      /await outputs\.save\("o", page\.getByLabel\("Email"\)\);/,
+    );
+  });
+
   it("a toolbar step closes the fill being typed: typing afterwards is a new fill (Review Focus 3)", () => {
     const n = new Normaliser({ at: 0 });
     n.observe({ type: "input", key: "k", locator: field, value: "a" }, 1);

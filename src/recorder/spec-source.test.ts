@@ -73,3 +73,37 @@ describe("SpecWriter", () => {
     assert.deepEqual(writer.events, [event]);
   });
 });
+
+describe("SpecWriter with outputs", () => {
+  it("a recorded saveOutput step writes the options object and the outputs fixture", () => {
+    const file = path.join(dir, "outputs.spec.ts");
+    writeFileSync(file, EXISTING);
+    const writer = new SpecWriter(EXISTING, file, 0);
+    const text = writer.write({
+      op: "insert",
+      index: 1,
+      step: {
+        kind: "saveOutput",
+        name: "o",
+        locator: {
+          chain: [{ method: "getByTestId", testId: "conf" }],
+          fallbacks: [],
+        },
+        pattern: { source: "Order #(\\d+)", flags: "" },
+      },
+    });
+    assert.ok(
+      text.includes(
+        `test("a", { outputs: ["o"] }, async ({ page, outputs }) => {`,
+      ),
+      text,
+    );
+    assert.ok(
+      text.includes(
+        `await outputs.save("o", page.getByTestId("conf"), /Order #(\\d+)/);`,
+      ),
+      text,
+    );
+    assert.deepEqual(parseSpec(text)[0]!.outputs, ["o"]);
+  });
+});

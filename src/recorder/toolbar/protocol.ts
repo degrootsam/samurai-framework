@@ -80,6 +80,15 @@ export type ToolbarMessage = { type: "toolbar" } &
         name: string;
         value: string;
       }
+    /** Save as output for the element picked with the same id; `pattern` is a RegExp's source, no flags */
+    | {
+        action: "save-output";
+        id: number;
+        target: unknown;
+        candidates: LocatorCall[];
+        name: string;
+        pattern?: string;
+      }
     /** The Page panel opened: answered with a `PageInfo` */
     | { action: "page-info"; id: number }
     | {
@@ -120,6 +129,6 @@ export type PageInfo =
   | { ok: true; url: string; urlPrefill: string; title: string }
   | { ok: false; error: string };
 
-/** The answer to `insert`, `add-insertable`, `assert` and `assert-page` */
+/** The answer to `insert`, `add-insertable`, `assert`, `assert-page` and `save-output` */
 export type ActionReply =
   { ok: true } | { ok: false; error: string; field?: "name" };

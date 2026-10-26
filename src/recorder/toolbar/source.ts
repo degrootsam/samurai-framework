@@ -25,22 +25,22 @@ import { ATTACH_JS } from "./source/attach.js";
  * `globalThis[Symbol.for("samurai.toolbar")]` in the sandbox holds the hook:
  * - `update(state)`: the recorder's state, after every change and every page load.
  * - `reply(id, result)`: the answer to `pick` (a `PickInfo`), to `page-info` (a `PageInfo`) or to `assert`,
- *   `assert-page`, `insert` and `add-insertable` (an `ActionReply`).
+ *   `assert-page`, `insert`, `add-insertable` and `save-output` (an `ActionReply`).
  * - `root`: the shadow root, for tests.
  * - `press(action, detail?)`: runs the handler a click on that control runs (for tests). Actions:
  *   `pause`, `resume`, `stop`, `collapse`, `expand`, `resume-yes`, `resume-no` (rail);
- *   `assert`, `page`, `insert`, `wait`, `screenshot` (open or close the tool);
+ *   `assert`, `output`, `page`, `insert`, `wait`, `screenshot` (open or close the tool);
  *   `pick { target }` (the element a picking click hit);
- *   `matcher { matcher }`, `not`, `assert-add` (Assert panel);
+ *   `matcher { matcher }`, `not`, `assert-add` (Assert panel); `output-save` (Save as output panel);
  *   `page-matcher { matcher }`, `page-not`, `page-add` (Page panel);
  *   `insert-item { kind, name }`, `insert-first`, `insert-new { kind }` (Insert list);
  *   `new-kind { kind }`, `new-save`, `new-cancel` (New variable or secret);
  *   `wait-add`, `screenshot-add`; `escape` (the Esc key); `dismiss { id }` (a warning's Dismiss button).
- *   Form inputs carry `data-field` (`expected`, `attribute`, `cssName`, `countIndex`, `pageExpected`, `filter`,
+ *   Form inputs carry `data-field` (`expected`, `attribute`, `cssName`, `countIndex`, `outputName`, `outputPattern`, `pageExpected`, `filter`,
  *   `name`, `value`, `waitKind`, `seconds`, `shotName`, `fullPage`) and update on `input`/`change`.
  * - `rebind(send)`: used by a second run in the same document (a new recording), which keeps the host and
  *   swaps in that recording's toolbar channel.
- * - `state()`, `picking()`: the last state from `update` and whether the Assert picker is on (for tests).
+ * - `state()`, `picking()`: the last state from `update` and whether the Assert or Save as output picker is on (for tests).
  * - `dispose()`: removes the host and every listener the toolbar put on the window and document (the
  *   recording ended while the document stays open).
  *
