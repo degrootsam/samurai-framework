@@ -18,8 +18,6 @@ interface IoCheck {
   nodes?: readonly AnyNodeDefinition[];
   /** A node's name in messages */
   titleOf: (node: FlowNodeModel) => string;
-  /** A node's kind label ("Test"), the prefix of expression problems */
-  labelOf: (node: FlowNodeModel) => string;
 }
 
 /**
@@ -57,7 +55,10 @@ function inputProblems(
   const groupSet = new Set<string>();
   for (const [name, source] of Object.entries(node.inputs ?? {})) {
     if (!declared.has(name))
-      at("warning", `input "${name}" is not used by this test`);
+      at(
+        "warning",
+        `input "${name}" is not used by this ${node.kind === "group" ? "node" : "test"}`,
+      );
     else if (!("expression" in source)) continue;
     else if (node.kind === "group") groupSet.add(name);
     else if (check.environment) {
@@ -68,10 +69,18 @@ function inputProblems(
           facts: check.facts,
         }),
       );
-      if (problem) at("error", `${check.labelOf(node)}: ${problem.message}`);
+      if (problem)
+        at(
+          "error",
+          `${check.titleOf(node)}: input "${name}": ${problem.message}`,
+        );
     }
   }
-  if (groupSet.size) at("error", "Group nodes can't set inputs");
+  if (groupSet.size)
+    at(
+      "error",
+      `Group nodes can't set inputs (${[...groupSet].map((x) => `"${x}"`).join(", ")})`,
+    );
   for (const [name, wiring] of Object.entries(
     wiringAt(flow, node.id, { facts: check.facts }),
   ))
@@ -83,7 +92,10 @@ function inputProblems(
   return problems;
 }
 
-/** `<parallel title>: branches both save "x"`, once per output name two branches save */
+/**
+ * `<parallel title>: branches both save "x"`, once per output name two branches
+ * save. A node two branches both reach before the meet counts for the first only.
+ */
 function branchClashes(
   flow: FlowFile,
   parallel: FlowNodeModel,
@@ -92,10 +104,15 @@ function branchClashes(
   const meet = meetOf(flow, parallel.id);
   const beyond = new Set(meet ? reachOrder(flow, meet) : []);
   const savedBy = new Map<string, number>();
+  const counted = new Set<string>();
   for (const e of flow.edges.filter((x) => x.source === parallel.id)) {
     const names = new Set(
       reachOrder(flow, e.target)
-        .filter((id) => !beyond.has(id))
+        .filter((id) => {
+          if (beyond.has(id) || counted.has(id)) return false;
+          counted.add(id);
+          return true;
+        })
         .flatMap((id) => {
           const n = flow.nodes.find((x) => x.id === id);
           return n ? declaredOutputs(n, check.facts) : [];
