@@ -23,14 +23,38 @@ export type InputWiring =
   | { from: "none" };
 
 /**
- * Whether node `d` always ran before node `n`: `d` dominates `n`, or `d` sits on a
- * Parallel branch that every path from the Parallel into the branch's end passes,
- * and the Parallel's meet dominates `n`. A Parallel runs all its branches; a
- * Condition runs one arm, so a node on one arm never always ran.
+ * Whether node `d` always ran before node `n`. Directly: `d` dominates `n`, or `d`
+ * sits on a Parallel branch that every path from the Parallel into the branch's end
+ * passes, and the Parallel's meet dominates `n`. Through nested Parallels: `d`
+ * always ran before some Parallel's meet, which always ran before `n`. A Parallel
+ * runs all its branches; a Condition runs one arm, so a node on one arm never
+ * always ran.
  */
-export function alwaysBefore(flow: FlowFile, d: string, n: string): boolean {
+export function alwaysBefore(
+  flow: FlowFile,
+  d: string,
+  n: string,
+  seen: Set<string> = new Set(),
+): boolean {
   if (d === n) return false;
-  if (dominates(flow, d, n)) return true;
+  if (directlyBefore(flow, d, n)) return true;
+  return parallelMeets(flow).some((meet) => {
+    if (meet === n || seen.has(meet)) return false;
+    seen.add(meet);
+    return directlyBefore(flow, d, meet) && alwaysBefore(flow, meet, n, seen);
+  });
+}
+
+/** The meet of every Parallel in the flow */
+const parallelMeets = (flow: FlowFile): string[] =>
+  flow.nodes
+    .filter((p) => p.kind === "parallel")
+    .map((p) => meetOf(flow, p.id))
+    .filter((m): m is string => !!m);
+
+/** `d` dominates `n`, or `d` is on a Parallel branch every path into its meet passes, and the meet dominates `n` */
+function directlyBefore(flow: FlowFile, d: string, n: string): boolean {
+  if (dominates(flow, d, n)) return d !== n;
   return flow.nodes.some((p) => {
     if (p.kind !== "parallel") return false;
     const meet = meetOf(flow, p.id);

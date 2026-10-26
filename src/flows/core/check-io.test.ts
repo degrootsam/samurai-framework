@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { checkFlow } from "./check.js";
+import { stepNodeOf } from "./steps.js";
 import type { FlowFile, FlowNodeModel } from "./schema.js";
 import type { FlowFacts } from "./wiring.js";
 
@@ -85,7 +86,7 @@ describe("checkFlow: inputs and outputs", () => {
       {
         level: "error",
         nodeId: "b",
-        message: 'Test: No node with key "nope"',
+        message: 'b: input "o": No node with key "nope"',
       },
     ]);
   });
@@ -101,7 +102,7 @@ describe("checkFlow: inputs and outputs", () => {
     );
     assert.deepEqual(
       io(late, { environment: env }).map((p) => p.message),
-      ["Test: a runs after this node, so it has no result yet"],
+      ['b: input "o": a runs after this node, so it has no result yet'],
     );
   });
   test("an entry for an input the test doesn't declare is a warning", () => {
@@ -126,7 +127,11 @@ describe("checkFlow: inputs and outputs", () => {
       }),
     );
     assert.deepEqual(io(flow), [
-      { level: "error", nodeId: "g", message: "Group nodes can't set inputs" },
+      {
+        level: "error",
+        nodeId: "g",
+        message: 'Group nodes can\'t set inputs ("o")',
+      },
     ]);
   });
   test("a Group node's inputs need a source too", () => {
@@ -166,5 +171,102 @@ describe("checkFlow: inputs and outputs", () => {
         message: 'Both: branches both save "o"',
       },
     ]);
+  });
+  test("on a Group node an unused entry is not used by this node", () => {
+    const flow = line(
+      node("a"),
+      node("g", "group", {
+        ref: { group: "gb" },
+        inputs: { zz: { useDefault: true } },
+      }),
+    );
+    assert.deepEqual(
+      io(flow).map((p) => p.message),
+      ['input "zz" is not used by this node'],
+    );
+  });
+  test("a branch merging into another before the meet is counted once", () => {
+    // par → (y → x, z → x, w) → b; only x saves o
+    const flow: FlowFile = {
+      id: "f",
+      name: "f",
+      nodes: [
+        node("start", "start"),
+        node("par", "parallel"),
+        node("y", "test", { ref: { testId: "none" } }),
+        node("z", "test", { ref: { testId: "none" } }),
+        node("x", "test", { ref: { testId: "a" } }),
+        node("w", "test", { ref: { testId: "none" } }),
+        node("b"),
+        node("end", "end"),
+      ],
+      edges: [
+        edge("start", "par"),
+        edge("par", "y", "branch-0"),
+        edge("par", "z", "branch-1"),
+        edge("par", "w", "branch-2"),
+        edge("y", "x"),
+        edge("z", "x"),
+        edge("x", "b"),
+        edge("w", "b"),
+        edge("b", "end"),
+      ],
+    };
+    assert.deepEqual(io(flow), []);
+    const clash: FlowFile = {
+      ...flow,
+      nodes: flow.nodes.map((n) =>
+        n.id === "w" ? node("w", "test", { ref: { testId: "q" } }) : n,
+      ),
+    };
+    assert.deepEqual(
+      io(clash).map((p) => p.message),
+      ['par: branches both save "o"'],
+    );
+  });
+});
+
+describe("checkFlow: expressions read a test's outputs with facts", () => {
+  const setVariable = stepNodeOf({
+    kind: "set-variable",
+    label: "Set variable",
+    icon: "braces",
+    section: "control",
+    fields: [
+      { path: "config.name", type: "text", label: "Name", default: "" },
+      { path: "config.value", type: "expression", label: "Value", default: "" },
+    ],
+    writesVar: "config.name",
+  });
+  const api = stepNodeOf({
+    kind: "api",
+    label: "HTTP request",
+    icon: "globe",
+    section: "integrations",
+    fields: [
+      { path: "config.url", type: "expression", label: "URL", default: "" },
+    ],
+  });
+  const readers = [
+    node("c", "condition", { config: { expr: 'nodes.a.o == "1"' } }),
+    node("s", "set-variable", { config: { name: "v", value: "nodes.a.o" } }),
+    node("h", "api", { config: { url: "nodes.a.o" } }),
+  ];
+  const options = { environment: env, nodes: [setVariable, api] };
+  // a Condition in a line has one branch; only the expression problems matter here
+  const exprIo = (f: FlowFile) =>
+    io(f, options).filter((p) => !/needs both/.test(p.message));
+  test("after the Test node: no problem", () => {
+    assert.deepEqual(exprIo(line(node("a"), ...readers)), []);
+  });
+  test("before the Test node: it runs after this node", () => {
+    assert.deepEqual(
+      exprIo(line(...readers, node("a"))).map((p) => p.message),
+      [
+        "Condition: a runs after this node, so it has no result yet",
+        "Set variable: a runs after this node, so it has no result yet",
+        "HTTP request: a runs after this node, so it has no result yet",
+      ],
+    );
   });
 });
