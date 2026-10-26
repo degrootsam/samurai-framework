@@ -1,6 +1,13 @@
 /** Where a Test or Group node's input comes from, when not wired by name. A Group node accepts only `{ useDefault: true }` */
 export type InputSource = { expression: string } | { useDefault: true };
 
+/** Whether `value` is an `InputSource`: `{ expression: string }` or `{ useDefault: true }` */
+export function isInputSource(value: unknown): value is InputSource {
+  if (typeof value !== "object" || value === null) return false;
+  const source = value as Record<string, unknown>;
+  return typeof source.expression === "string" || source.useDefault === true;
+}
+
 export interface FlowNodeModel {
   id: string;
   /** Short name expressions use: nodes.<key>. Lowercase letters, digits and _, unique in the flow */
@@ -87,16 +94,26 @@ export function readFlowFile(raw: unknown): FlowFile {
   }
   return {
     ...flow,
-    nodes: (flow.nodes as unknown[]).map(withoutOutputs),
+    nodes: (flow.nodes as unknown[]).map(readNode),
     version: FLOW_VERSION,
   } as unknown as FlowFile;
 }
 
-/** Drops a node's hand-typed `outputs` (removed; tests declare their outputs now) */
-function withoutOutputs(node: unknown): unknown {
-  if (typeof node !== "object" || node === null || !("outputs" in node))
-    return node;
+/**
+ * A node as the file holds it, without its hand-typed `outputs` (removed; tests declare their outputs now) and
+ * without `inputs` entries that aren't an `InputSource`
+ */
+function readNode(node: unknown): unknown {
+  if (typeof node !== "object" || node === null) return node;
   const rest: Record<string, unknown> = { ...node };
   delete rest.outputs;
+  if ("inputs" in rest) {
+    const inputs = rest.inputs;
+    delete rest.inputs;
+    if (typeof inputs === "object" && inputs !== null && !Array.isArray(inputs))
+      rest.inputs = Object.fromEntries(
+        Object.entries(inputs).filter(([, source]) => isInputSource(source)),
+      );
+  }
   return rest;
 }
