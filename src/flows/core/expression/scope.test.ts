@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { FlowFile } from "../schema.js";
 import { stepNodeOf } from "../steps.js";
+import { problemOf } from "./check.js";
 import { scopeAt } from "./scope.js";
 
 const setVariableNode = stepNodeOf({
@@ -83,7 +84,7 @@ const env = { name: "staging", variables: { region: "eu" } };
 
 describe("scopeAt", () => {
   test("after the branches meet: every earlier node, only variables set on every path", () => {
-    const s = scopeAt(flow, "join", env, stepNodes);
+    const s = scopeAt(flow, "join", env, { nodes: stepNodes });
     assert.deepEqual(s.before.sort(), [
       "cond",
       "seta",
@@ -97,9 +98,48 @@ describe("scopeAt", () => {
     assert.deepEqual(s.env, { name: "staging", variables: ["region"] });
   });
   test("inside a branch: the other branch is neither before nor after", () => {
-    const s = scopeAt(flow, "t1", env, stepNodes);
+    const s = scopeAt(flow, "t1", env, { nodes: stepNodes });
     assert.ok(!s.before.includes("t2"));
     assert.ok(!s.after.includes("t2"));
     assert.deepEqual(s.vars.sort(), ["a", "b"]);
+  });
+});
+
+describe("scopeAt: a Test node's declared outputs", () => {
+  const facts = {
+    tests: { "a.spec.ts::A": { inputs: [], outputs: ["o"] } },
+    groups: {},
+  };
+  const io: FlowFile = {
+    id: "io",
+    name: "io",
+    nodes: [
+      node("start", "start"),
+      { ...node("early"), ref: { testId: "x" } },
+      { ...node("a"), ref: { testId: "a.spec.ts::A" } },
+      node("late"),
+      node("end", "end"),
+    ],
+    edges: [
+      edge("start", "early"),
+      edge("early", "a"),
+      edge("a", "late"),
+      edge("late", "end"),
+    ],
+  };
+  test("nodes.a.o is accepted after A and rejected before it", () => {
+    const after = scopeAt(io, "late", env, { facts });
+    assert.deepEqual(after.outputs?.a, ["o"]);
+    assert.equal(problemOf("nodes.a.o", after), undefined);
+    assert.equal(
+      problemOf("nodes.a.o", scopeAt(io, "early", env, { facts }))?.message,
+      "a runs after this node, so it has no result yet",
+    );
+  });
+  test("without facts a Test node has only the usual fields", () => {
+    assert.equal(
+      problemOf("nodes.a.o", scopeAt(io, "late", env))?.message,
+      "nodes.a.o doesn't exist. Use status, durationMs or error",
+    );
   });
 });

@@ -6,7 +6,6 @@ export const test = defineNode({
   label: "Test",
   shape: "step",
   fields: [],
-  outputs: true,
   validate: (node, ctx) =>
     ctx.tests && !(node.ref?.testId && ctx.tests.has(node.ref.testId))
       ? [

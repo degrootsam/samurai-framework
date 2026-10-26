@@ -27,7 +27,7 @@ const took = (ms: number) =>
 
 const SKIPPED_BY_SHAPE = new Set(["start", "end"]);
 
-/** Prints a flow run for a person: one line per node as it ends, then a count. Start and End are not listed. */
+/** Prints a flow run for a person, per browser: a header, one line per node as it ends, then a count. Start and End are not listed. */
 export class FlowReporter {
   private readonly write: (text: string) => void;
   private readonly paint: (code: number, text: string) => string;
@@ -73,7 +73,9 @@ export class FlowReporter {
   handle(event: FlowEvent): void {
     if (event.type === "flow-start") {
       this.started = Date.now();
-      this.write(`Flow "${this.flow.name}" against ${event.environment}\n`);
+      this.write(
+        `Flow "${this.flow.name}" against ${event.environment} in ${event.browser}\n`,
+      );
     } else if (event.type === "node-end") {
       const node = this.nodes.get(event.nodeId);
       if (this.listed(node)) this.line(node, event.result);

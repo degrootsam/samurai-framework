@@ -6,10 +6,20 @@ import {
   type FlowFile,
   type FlowNodeModel,
 } from "../core/index.js";
-import { forkContext, mergeForks, type Fork } from "./branch-context.js";
-import type { FlowEvent, NodeResult } from "./events.js";
+import {
+  forkContext,
+  mergeForks,
+  type Fork,
+  type OutputsById,
+} from "./branch-context.js";
+import type { NodeResult } from "./events.js";
 import type { Handler, HandlerRun } from "./handlers/index.js";
 import { definitionOf, dynamicBranches, shapeError } from "./prepare-flow.js";
+
+/** A node's event as the walker sends it; `runFlow` adds the run's browser */
+type NodeEvent =
+  | { type: "node-start"; nodeId: string }
+  | { type: "node-end"; nodeId: string; result: NodeResult };
 
 /** What the walker needs of the run: the flow, who handles each kind, and where results and events go */
 export interface WalkerInput {
@@ -17,13 +27,18 @@ export interface WalkerInput {
   signal: AbortSignal;
   handlers: Readonly<Record<string, Handler>>;
   nodes: readonly AnyNodeDefinition[];
-  /** What the handlers get for a context and a signal; the walker also writes each result into `context.nodes` */
+  /**
+   * What the handlers get for a context, the outputs by node id and a signal; the walker also writes each result
+   * into `context.nodes` and its outputs into `outputsById`
+   */
   handlerRunFor: (
     context: ExpressionContext,
+    outputsById: OutputsById,
     signal: AbortSignal,
   ) => HandlerRun;
   context: ExpressionContext;
-  onEvent: (event: FlowEvent) => void;
+  outputsById: OutputsById;
+  onEvent: (event: NodeEvent) => void;
 }
 
 /**
@@ -52,12 +67,21 @@ export class FlowWalker {
     this.byId = new Map(input.flow.nodes.map((n) => [n.id, n]));
     this.results = shared.results;
     this.visited = shared.visited;
-    this.handlerRun = input.handlerRunFor(input.context, input.signal);
+    this.handlerRun = input.handlerRunFor(
+      input.context,
+      input.outputsById,
+      input.signal,
+    );
   }
 
-  /** The variables and node outputs this walk reads and writes */
+  /** The variables and node outputs (by key) this walk reads and writes */
   public get context(): ExpressionContext {
     return this.input.context;
+  }
+
+  /** The node outputs by node id this walk reads and writes */
+  public get outputsById(): OutputsById {
+    return this.input.outputsById;
   }
 
   private definition(kind: string) {
@@ -66,6 +90,7 @@ export class FlowWalker {
 
   private record(node: FlowNodeModel, result: NodeResult) {
     this.results[node.id] = result;
+    if (result.outputs) this.input.outputsById[node.id] = result.outputs;
     if (node.key)
       this.input.context.nodes[node.key] = {
         ...result.outputs,
@@ -178,6 +203,7 @@ export class FlowWalker {
     }
     const { clash } = mergeForks(
       this.input.context,
+      this.input.outputsById,
       walks.map((w) => w.fork),
     );
     // The node fails when anything in its branches failed
@@ -210,10 +236,15 @@ export class FlowWalker {
       this.stopped = "failed";
   }
 
-  /** A walker for one branch: the same flow, results and visited nodes, but its own variables and its own signal */
+  /** A walker for one branch: the same flow, results and visited nodes, but its own variables, node outputs and signal */
   public forBranch(fork: Fork, signal: AbortSignal): FlowWalker {
     return new FlowWalker(
-      { ...this.input, context: fork.context, signal },
+      {
+        ...this.input,
+        context: fork.context,
+        outputsById: fork.outputsById,
+        signal,
+      },
       { results: this.results, visited: this.visited },
     );
   }
@@ -276,7 +307,7 @@ class BranchWalk {
     meet: string,
     cancel: AbortController,
   ) {
-    this.fork = forkContext(parent.context);
+    this.fork = forkContext(parent.context, parent.outputsById);
     this.walker = parent.forBranch(this.fork, cancel.signal);
     this.done = this.walker.walk(from, meet).then(
       () => {

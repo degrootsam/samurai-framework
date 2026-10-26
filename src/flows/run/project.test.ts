@@ -16,7 +16,7 @@ import type { PoolOptions, RunHooks } from "../../runner/worker-pool.js";
 import type { WorkItem } from "../../runner/worker-protocol.js";
 import type { TestResult } from "../../types/test.js";
 import { defineStep } from "../steps/index.js";
-import type { FlowEvent } from "./events.js";
+import type { FlowEvent, FlowRunResult } from "./events.js";
 import {
   FlowCheckError,
   chooseEnvironment,
@@ -101,6 +101,13 @@ const chain = (nodes: N[], extra?: Partial<FlowFile>) =>
     extra,
   );
 
+/** The summary of one browser's run */
+const inRun = (result: FlowRunResult, browser = "firefox") => {
+  const run = result.runs.find((r) => r.browser === browser);
+  assert.ok(run, `no ${browser} run`);
+  return run.summary;
+};
+
 type Call = Parameters<typeof runTests>[0];
 function harness(over: Partial<RunFlowInProjectOptions> = {}) {
   const calls: NonNullable<Call>[] = [];
@@ -152,7 +159,10 @@ describe("runFlowInProject", () => {
         { id: "t", kind: "test", ref: { testId: "login.spec.ts::works" } },
       ]),
     });
-    assert.equal(h.calls[0]!.outputDir, path.join(outputDir, "nodes", "t"));
+    assert.equal(
+      h.calls[0]!.outputDir,
+      path.join(outputDir, "firefox", "nodes", "t"),
+    );
   });
 
   it("without outputDir, node runs keep the default folder", async () => {
@@ -178,7 +188,7 @@ describe("runFlowInProject", () => {
 
   it("a Group node runs in its group's browsers, a Test node in the project's", async () => {
     const h = harness();
-    await runFlowInProject({
+    const result = await runFlowInProject({
       ...h.options,
       flow: chain([
         { id: "g", kind: "group", ref: { group: "cross" } },
@@ -189,9 +199,15 @@ describe("runFlowInProject", () => {
         },
       ]),
     });
-    assert.equal(h.calls.length, 2);
-    assert.deepEqual(h.calls[0]!.browsers, ["firefox", "chrome"]);
-    assert.equal(h.calls[1]!.browsers, undefined);
+    assert.deepEqual(
+      h.calls.map((c) => c.browsers),
+      [["firefox"], ["firefox"], ["chrome"]],
+    );
+    assert.deepEqual(inRun(result, "chrome").nodes.t, {
+      status: "skipped",
+      note: "not run in chrome",
+      durationMs: inRun(result, "chrome").nodes.t!.durationMs,
+    });
   });
 
   it("a group with no tests passes with a note and runs nothing", async () => {
@@ -201,7 +217,7 @@ describe("runFlowInProject", () => {
       flow: chain([{ id: "g", kind: "group", ref: { group: "empty" } }]),
     });
     assert.equal(h.calls.length, 0);
-    assert.equal(summary.nodes.g!.note, "This group has no tests.");
+    assert.equal(inRun(summary).nodes.g!.note, "This group has no tests.");
     assert.equal(summary.status, "passed");
   });
 
@@ -254,7 +270,7 @@ describe("runFlowInProject", () => {
       { id: "t", kind: "test", ref: { testId: "login.spec.ts::works" } },
     ]);
     const failed = await runFlowInProject({ ...failing.options, flow });
-    assert.equal(failed.nodes.t!.error, "A test failed.");
+    assert.equal(inRun(failed).nodes.t!.error, "A test failed.");
     assert.equal(failed.status, "failed");
 
     const controller = new AbortController();
@@ -282,7 +298,7 @@ describe("runFlowInProject", () => {
       }).options,
       flow,
     });
-    assert.equal(skipped.nodes.t!.status, "passed");
+    assert.equal(inRun(skipped).nodes.t!.status, "passed");
 
     const failing = await runFlowInProject({
       ...harness({
@@ -296,7 +312,7 @@ describe("runFlowInProject", () => {
       }).options,
       flow,
     });
-    assert.equal(failing.nodes.t!.status, "failed");
+    assert.equal(inRun(failing).nodes.t!.status, "failed");
   });
 
   it("expressions see the environment's variables", async () => {
@@ -311,7 +327,7 @@ describe("runFlowInProject", () => {
         },
       ]),
     });
-    assert.deepEqual(summary.vars, { r: "eu" });
+    assert.deepEqual(inRun(summary).vars, { r: "eu" });
   });
 
   describe("with workers", () => {
@@ -400,8 +416,8 @@ describe("runFlowInProject", () => {
       assert.deepEqual(
         pool.state.runs.map((items) => items[0]!.outputDir),
         [
-          path.join("runs/1", "nodes", login.id),
-          path.join("runs/1", "nodes", "g"),
+          path.join("runs/1", "firefox", "nodes", login.id),
+          path.join("runs/1", "firefox", "nodes", "g"),
         ],
       );
       assert.deepEqual([...options.init.files].sort(), [
@@ -411,7 +427,7 @@ describe("runFlowInProject", () => {
       assert.equal(pool.state.disposed, 1);
     });
 
-    it("builds one item per test and browser, the group's browsers one after the other", async () => {
+    it("builds one item per test, in the run's browser: a node outside it is not run", async () => {
       const pool = fakePool();
       await runFlowInProject({
         ...harness().options,
@@ -422,8 +438,7 @@ describe("runFlowInProject", () => {
           { id: "g", kind: "group", ref: { group: "cross" } },
         ]),
       });
-      const [first, second] = pool.state.runs;
-      assert.deepEqual(first, [
+      assert.deepEqual(pool.state.runs[0], [
         {
           index: 0,
           file: real("src/login.spec.ts"),
@@ -432,10 +447,13 @@ describe("runFlowInProject", () => {
         },
       ]);
       assert.deepEqual(
-        second!.map((i) => [i.index, i.testName, i.browser]),
+        pool.state.runs.map((items) =>
+          items.map((i) => [i.index, i.testName, i.browser]),
+        ),
         [
-          [0, "Cart > adds", "firefox"],
-          [1, "Cart > adds", "chrome"],
+          [[0, "works", "firefox"]],
+          [[0, "Cart > adds", "firefox"]],
+          [[0, "Cart > adds", "chrome"]],
         ],
       );
     });
@@ -517,7 +535,7 @@ describe("runFlowInProject", () => {
         createPool: fakePool("failed").createPool,
         flow,
       });
-      assert.equal(failed.nodes.t!.error, "A test failed.");
+      assert.equal(inRun(failed).nodes.t!.error, "A test failed.");
 
       const controller = new AbortController();
       const pool = fakePool();
@@ -552,19 +570,24 @@ describe("runFlowInProject", () => {
         });
 
       const allSkipped = await run("skipped");
-      assert.equal(allSkipped.nodes.g!.status, "passed");
+      assert.equal(inRun(allSkipped).nodes.g!.status, "passed");
       assert.equal(allSkipped.status, "passed");
 
       const mixed = await run((item) =>
         item.browser === "firefox" ? "skipped" : "success",
       );
-      assert.equal(mixed.nodes.g!.status, "passed");
+      assert.equal(inRun(mixed).nodes.g!.status, "passed");
 
       const withFailure = await run((item) =>
         item.browser === "firefox" ? "skipped" : "failed",
       );
-      assert.equal(withFailure.nodes.g!.status, "failed");
-      assert.equal(withFailure.nodes.g!.error, "A test failed.");
+      assert.equal(inRun(withFailure).nodes.g!.status, "passed");
+      assert.equal(inRun(withFailure, "chrome").nodes.g!.status, "failed");
+      assert.equal(
+        inRun(withFailure, "chrome").nodes.g!.error,
+        "A test failed.",
+      );
+      assert.equal(withFailure.status, "failed");
     });
 
     it("the skipped test-end reaches the node's events unchanged", async () => {
@@ -595,7 +618,7 @@ describe("runFlowInProject", () => {
         }),
         flow: chain([login]),
       });
-      assert.equal(summary.nodes.t!.error, "The worker failed to start");
+      assert.equal(inRun(summary).nodes.t!.error, "The worker failed to start");
       assert.equal(disposed, 1);
     });
 
@@ -668,7 +691,7 @@ describe("runFlowInProject", () => {
           { envDefault: "staging" },
         ),
       });
-      assert.deepEqual(summary.vars, { r: "eu" });
+      assert.deepEqual(inRun(summary).vars, { r: "eu" });
       assert.equal(
         (h.events[0] as { environment: string }).environment,
         "staging",
@@ -752,6 +775,195 @@ describe("runFlowInProject", () => {
   });
 });
 
+describe("runFlowInProject once per browser", () => {
+  const both: SamuraiTestConfig = {
+    ...config,
+    browsers: ["firefox", "chrome"],
+    groups: [
+      ...config.groups!,
+      { name: "chromeOnly", src: "./src/checkout", browsers: ["chrome"] },
+    ],
+  };
+  const works = {
+    id: "t",
+    kind: "test",
+    ref: { testId: "login.spec.ts::works" },
+  };
+
+  it("walks the flow once per browser, Firefox first, every event carrying its browser, then flow-done", async () => {
+    const h = harness({ config: both });
+    const result = await runFlowInProject({
+      ...h.options,
+      flow: chain([works]),
+    });
+    assert.equal(result.status, "passed");
+    assert.deepEqual(
+      result.runs.map((r) => [r.browser, r.summary.status]),
+      [
+        ["firefox", "passed"],
+        ["chrome", "passed"],
+      ],
+    );
+    assert.deepEqual(
+      h.calls.map((c) => c.browsers),
+      [["firefox"], ["chrome"]],
+    );
+    const last = h.events[h.events.length - 1]!;
+    assert.deepEqual(last, { type: "flow-done", ...result });
+    const runEvents = h.events.slice(0, -1);
+    assert.deepEqual(
+      runEvents
+        .filter((e) => e.type === "flow-start" || e.type === "flow-end")
+        .map((e) => [e.type, (e as { browser: string }).browser]),
+      [
+        ["flow-start", "firefox"],
+        ["flow-end", "firefox"],
+        ["flow-start", "chrome"],
+        ["flow-end", "chrome"],
+      ],
+    );
+    for (const e of runEvents)
+      assert.ok((e as { browser?: string }).browser, `${e.type} has a browser`);
+  });
+
+  it("a Group node limited to Chrome is skipped in the Firefox run", async () => {
+    const h = harness({ config: both });
+    const result = await runFlowInProject({
+      ...h.options,
+      flow: chain([{ id: "g", kind: "group", ref: { group: "chromeOnly" } }]),
+    });
+    // Only Chrome uses it: the flow runs once
+    assert.deepEqual(
+      result.runs.map((r) => r.browser),
+      ["chrome"],
+    );
+    const mixed = await runFlowInProject({
+      ...h.options,
+      flow: chain([
+        works,
+        { id: "g", kind: "group", ref: { group: "chromeOnly" } },
+      ]),
+    });
+    assert.deepEqual(inRun(mixed, "firefox").nodes.g, {
+      status: "skipped",
+      note: "not run in firefox",
+      durationMs: inRun(mixed, "firefox").nodes.g!.durationMs,
+    });
+    assert.equal(inRun(mixed, "chrome").nodes.g!.status, "passed");
+    assert.equal(mixed.status, "passed");
+  });
+
+  it('browsers: ["chrome"] runs once, in Chrome', async () => {
+    const h = harness({ config: both });
+    const result = await runFlowInProject({
+      ...h.options,
+      browsers: ["chrome"],
+      flow: chain([works]),
+    });
+    assert.deepEqual(
+      result.runs.map((r) => r.browser),
+      ["chrome"],
+    );
+    assert.deepEqual(
+      h.calls.map((c) => c.browsers),
+      [["chrome"]],
+    );
+  });
+
+  it("a failure that stops the flow in Firefox still runs Chrome", async () => {
+    const h = harness({
+      config: both,
+      testRunner: (async (o: Call) => {
+        h.calls.push(o!);
+        return { status: o!.browsers![0] === "firefox" ? "failed" : "success" };
+      }) as unknown as typeof runTests,
+    });
+    const result = await runFlowInProject({
+      ...h.options,
+      flow: chain([works]),
+    });
+    assert.equal(inRun(result, "firefox").status, "failed");
+    assert.equal(inRun(result, "chrome").status, "passed");
+    assert.equal(result.status, "failed");
+  });
+
+  it("an abort during Firefox cancels both runs", async () => {
+    const controller = new AbortController();
+    const h = harness({
+      config: both,
+      signal: controller.signal,
+      testRunner: (async (o: Call) => {
+        h.calls.push(o!);
+        controller.abort();
+        return { status: "failed" };
+      }) as unknown as typeof runTests,
+    });
+    const result = await runFlowInProject({
+      ...h.options,
+      flow: chain([works]),
+    });
+    assert.equal(result.status, "cancelled");
+    assert.deepEqual(
+      h.calls.map((c) => c.browsers),
+      [["firefox"]],
+      "Chrome never ran",
+    );
+    assert.deepEqual(
+      result.runs.map((r) => [r.browser, r.summary.status]),
+      [["firefox", "cancelled"]],
+    );
+  });
+
+  it("each browser's nodes write to <outputDir>/<browser>/nodes/<id>, and screenshot paths are relative to outputDir", async () => {
+    const outputDir = path.resolve("/runs/2");
+    const h = harness({
+      config: both,
+      testRunner: (async (o: Call) => {
+        h.calls.push(o!);
+        const browser = o!.browsers![0]!;
+        const result = {
+          name: "works",
+          file: "f",
+          browser,
+          startTime: 0,
+          status: "success",
+          duration: 1,
+          screenshots: [
+            { name: "home", path: `screenshots/${browser}/a/home.png` },
+          ],
+        } as TestResult;
+        o!.onEvent?.({
+          type: "test-end",
+          name: "works",
+          file: "f",
+          browser,
+          result,
+        });
+        return { status: "success" };
+      }) as unknown as typeof runTests,
+    });
+    await runFlowInProject({ ...h.options, outputDir, flow: chain([works]) });
+    assert.deepEqual(
+      h.calls.map((c) => c.outputDir),
+      [
+        path.join(outputDir, "firefox", "nodes", "t"),
+        path.join(outputDir, "chrome", "nodes", "t"),
+      ],
+    );
+    const paths = h.events.flatMap((e) =>
+      e.type === "test" && e.event.type === "test-end"
+        ? (
+            e.event.result as { screenshots: { path: string }[] }
+          ).screenshots.map((s) => s.path)
+        : [],
+    );
+    assert.deepEqual(paths, [
+      "firefox/nodes/t/screenshots/firefox/a/home.png",
+      "chrome/nodes/t/screenshots/chrome/a/home.png",
+    ]);
+  });
+});
+
 describe("project steps", () => {
   const echo = defineStep({
     kind: "echo",
@@ -781,8 +993,8 @@ describe("project steps", () => {
       ]),
     });
     assert.equal(summary.status, "passed");
-    assert.deepEqual(summary.nodes.e!.outputs, { value: "hi us" });
-    assert.deepEqual(summary.vars, { said: "hi us" });
+    assert.deepEqual(inRun(summary).nodes.e!.outputs, { value: "hi us" });
+    assert.deepEqual(inRun(summary).vars, { said: "hi us" });
   });
 
   it("without the step in the config, its kind is a check error", async () => {
@@ -829,7 +1041,7 @@ describe("nodeTestsOf", () => {
   } as unknown as Parameters<typeof nodeTestsOf>[0];
 
   it("lists the tests of each Test and Group node, leaving out tests that no longer exist", () => {
-    const { nodeTests } = nodeTestsOf(flow, tests, groups);
+    const { nodeTests } = nodeTestsOf(flow, tests, groups, ["chrome"]);
     assert.deepEqual(nodeTests, {
       t: [{ file: "/p/a.spec.ts", name: "two" }],
       g: [{ file: "/p/a.spec.ts", name: "one" }],
@@ -837,8 +1049,11 @@ describe("nodeTestsOf", () => {
     });
   });
 
-  it("gives a Group node its group's browsers and every other node none", () => {
-    const { nodeBrowsers } = nodeTestsOf(flow, tests, groups);
-    assert.deepEqual(nodeBrowsers, { g: ["firefox", "chrome"] });
+  it("gives a Group node its group's browsers, a Test node the project's, and every other node none", () => {
+    const { nodeBrowsers } = nodeTestsOf(flow, tests, groups, ["chrome"]);
+    assert.deepEqual(nodeBrowsers, {
+      t: ["chrome"],
+      g: ["firefox", "chrome"],
+    });
   });
 });

@@ -30,6 +30,7 @@ const run = (flow: FlowFile, signal?: AbortSignal) =>
   runFlow({
     flow,
     nodeTests: {},
+    browser: "firefox",
     environment: { name: "dev", variables: {} },
     runTests: async () => "passed",
     ...(signal && { signal }),
