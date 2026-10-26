@@ -13,6 +13,9 @@ const node = (id: string, kind: string, title?: string) => ({
   onFailure: "stop" as const,
   position: { x: 0, y: 0 },
 });
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
 const flow: FlowFile = {
   id: "checkout",
   name: "Checkout",
@@ -31,55 +34,57 @@ const flow: FlowFile = {
 function render(color: boolean) {
   let text = "";
   const reporter = new FlowReporter({ flow, write: (t) => (text += t), color });
-  const events: FlowEvent[] = [
-    { type: "flow-start", environment: "staging" },
-    { type: "node-end", nodeId: "start", result: { status: "passed" } },
-    {
-      type: "node-end",
-      nodeId: "login",
-      result: { status: "passed", durationMs: 1200 },
-    },
-    {
-      type: "node-end",
-      nodeId: "set",
-      result: { status: "passed", durationMs: 0, wrote: { order: 1 } },
-    },
-    {
-      type: "node-end",
-      nodeId: "cond",
-      result: { status: "passed", durationMs: 3, branch: "true" },
-    },
-    {
-      type: "node-end",
-      nodeId: "pay",
-      result: {
-        status: "failed",
-        durationMs: 4800,
-        error: "expect failed\nsecond",
+  const events: FlowEvent[] = (
+    [
+      { type: "flow-start", environment: "staging" },
+      { type: "node-end", nodeId: "start", result: { status: "passed" } },
+      {
+        type: "node-end",
+        nodeId: "login",
+        result: { status: "passed", durationMs: 1200 },
       },
-    },
-    {
-      type: "node-end",
-      nodeId: "verify",
-      result: { status: "skipped", note: "Not supported yet" },
-    },
-    {
-      type: "flow-end",
-      summary: {
-        status: "failed",
-        vars: {},
-        nodes: {
-          start: { status: "passed" },
-          login: { status: "passed" },
-          set: { status: "passed" },
-          cond: { status: "passed" },
-          pay: { status: "failed" },
-          verify: { status: "skipped" },
-          end: { status: "not-run" },
+      {
+        type: "node-end",
+        nodeId: "set",
+        result: { status: "passed", durationMs: 0, wrote: { order: 1 } },
+      },
+      {
+        type: "node-end",
+        nodeId: "cond",
+        result: { status: "passed", durationMs: 3, branch: "true" },
+      },
+      {
+        type: "node-end",
+        nodeId: "pay",
+        result: {
+          status: "failed",
+          durationMs: 4800,
+          error: "expect failed\nsecond",
         },
       },
-    },
-  ];
+      {
+        type: "node-end",
+        nodeId: "verify",
+        result: { status: "skipped", note: "Not supported yet" },
+      },
+      {
+        type: "flow-end",
+        summary: {
+          status: "failed",
+          vars: {},
+          nodes: {
+            start: { status: "passed" },
+            login: { status: "passed" },
+            set: { status: "passed" },
+            cond: { status: "passed" },
+            pay: { status: "failed" },
+            verify: { status: "skipped" },
+            end: { status: "not-run" },
+          },
+        },
+      },
+    ] as DistributiveOmit<FlowEvent, "browser">[]
+  ).map((e) => ({ ...e, browser: "firefox" }) as FlowEvent);
   for (const e of events) reporter.handle(e);
   return text;
 }
@@ -87,7 +92,7 @@ function render(color: boolean) {
 describe("FlowReporter", () => {
   it("prints the header, a line per node, errors indented, and the counts", () => {
     const text = render(false);
-    assert.match(text, /^Flow "Checkout" against staging\n/);
+    assert.match(text, /^Flow "Checkout" against staging in firefox\n/);
     assert.match(text, /✔ Login \(1\.2s\)/);
     assert.match(text, /✔ Set variable vars\.order \(0ms\)/);
     assert.match(text, /◇ Condition → true/);
@@ -108,6 +113,7 @@ describe("FlowReporter", () => {
     });
     r.handle({
       type: "flow-end",
+      browser: "firefox",
       summary: {
         status: "cancelled",
         vars: {},
@@ -139,6 +145,7 @@ describe("project steps", () => {
     });
     reporter.handle({
       type: "node-end",
+      browser: "firefox",
       nodeId: "s",
       result: { status: "passed", durationMs: 1 },
     });

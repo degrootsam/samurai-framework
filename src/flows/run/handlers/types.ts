@@ -14,14 +14,16 @@ export interface HandlerRun {
   environment: { name: string; variables: Record<string, unknown> };
   context: ExpressionContext;
   nodeTests: Record<string, NodeTest[]>;
-  /** The browsers of the nodes that have their own (a Group node's group); the others use the project's */
+  /** The browser this run is in: a flow runs once per browser */
+  browser: SupportedBrowser;
+  /** The browsers each node runs in; a node not listed runs in every one */
   nodeBrowsers?: Record<string, SupportedBrowser[]>;
   signal: AbortSignal;
+  /** Runs a node's tests in `browser` */
   runTests: (
     nodeId: string,
     tests: NodeTest[],
     onEvent: (e: RunEvent) => void,
-    browsers?: SupportedBrowser[],
   ) => Promise<"passed" | "failed" | "cancelled">;
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   onTestEvent: (nodeId: string, e: RunEvent) => void;
