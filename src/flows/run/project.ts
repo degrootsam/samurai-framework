@@ -1,5 +1,4 @@
 import path from "node:path";
-import { cleanName } from "../../browser/evidence.js";
 import { DEFAULT_SRC_DIR } from "../../config/defaults.js";
 import { projectConfig } from "../../config/config.js";
 import {
@@ -28,6 +27,7 @@ import { processWorkerFactory } from "../../runner/worker-process.js";
 import type { SamuraiTestConfig } from "../../types/config.js";
 import type { FlowSummary, NodeTest } from "./events.js";
 import { readFlow } from "./files.js";
+import { nodeFolder } from "./node-folder.js";
 import { itemsOf, runOnPool } from "./node-pool.js";
 import {
   FlowCheckError,
@@ -307,7 +307,7 @@ async function walkFlowInProject(
         // Each node gets a folder of its own: the same test in two nodes would overwrite its screenshots
         const outputDir =
           options.outputDir !== undefined
-            ? path.join(options.outputDir, "nodes", cleanName(nodeId))
+            ? path.join(options.outputDir, ...nodeFolder(nodeId).split("/"))
             : undefined;
         if (pool)
           return runOnPool(

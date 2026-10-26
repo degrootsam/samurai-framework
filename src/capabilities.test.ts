@@ -21,6 +21,7 @@ describe("capabilities", () => {
       recorderStartStatus: true,
       outputDir: true,
       flowNodeFolders: true,
+      nodeFolder: true,
       assertionMatchers: 2,
       pageAssertions: true,
     });
