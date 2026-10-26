@@ -64,7 +64,7 @@ describe("built-in steps", () => {
     assert.ok(catalog.every((s) => !("run" in s) && !("validate" in s)));
     assert.ok(STEPS.every((s) => !CLOSED_KINDS.includes(s.kind)));
     assert.deepEqual(stepCatalog(), catalog);
-    assert.equal(FLOWS_API, 2);
+    assert.equal(FLOWS_API, 3);
   });
 
   test("Wait waits; Set variable writes; HTTP request outputs status and body", async () => {

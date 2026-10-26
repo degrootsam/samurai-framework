@@ -16,4 +16,4 @@ export * from "./steps.js";
  * Increments whenever the app and the framework must agree on something new
  * (a node kind, a field, an event), so the app can tell when the framework is too old.
  */
-export const FLOWS_API = 2;
+export const FLOWS_API = 3;

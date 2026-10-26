@@ -20,10 +20,12 @@ describe("capabilities", () => {
       writtenConfig: true,
       recorderStartStatus: true,
       outputDir: true,
-      flowNodeFolders: true,
-      nodeFolder: true,
+      flowNodeFolders: 2,
+      nodeFolder: 2,
       assertionMatchers: 2,
       pageAssertions: true,
+      testInputsOutputs: true,
+      flowPerBrowser: true,
     });
   });
 
