@@ -18,6 +18,8 @@ export const FIELDS_JS = String.raw`  const press = (action, detail) => {
     } else if (field === "cssName" && ui.assert) {
       if (ui.assert.cssName === value) return;
       ui.assert.cssName = value;
+      // The computed CSS value skips the secret filter on purpose: a computed style can't carry an
+      // input's typed value, and it is already visible on the page
       ui.assert.cssValue = cssValueOf(ui.assert.target, value);
       ui.assert.expected = prefill(ui.assert, "toHaveCSS");
       render();
