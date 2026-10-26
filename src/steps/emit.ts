@@ -81,8 +81,19 @@ export function valueToSource(value: TextValue): string {
     : `${object}[${str(value.name)}]`;
 }
 
-const regexToSource = ({ source, flags }: { source: string; flags: string }) =>
-  `/${source}/${flags}`;
+/**
+ * A regex literal for a pattern. The source goes through `RegExp`, which escapes a `/` and a line break and leaves
+ * text that is already escaped alone, so a pattern typed by hand still makes a literal that compiles.
+ */
+function regexToSource({ source, flags }: { source: string; flags: string }) {
+  let escaped = source;
+  try {
+    escaped = new RegExp(source, flags).source;
+  } catch {
+    // Not a valid pattern: written unchanged
+  }
+  return `/${escaped}/${flags}`;
+}
 
 function matcherToSource(expected: TextMatcher): string {
   return typeof expected === "string"
