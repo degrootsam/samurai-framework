@@ -3,15 +3,20 @@ import type { AnyNodeDefinition } from "../nodes/define.js";
 import { NODES } from "../nodes/index.js";
 import { getPath } from "../nodes/path.js";
 import type { FlowFile } from "../schema.js";
+import { declaredOutputs, type FlowFacts } from "../wiring.js";
 import type { ExpressionScope } from "./check.js";
 
-/** What an expression at `nodeId` may use; `nodes` adds definitions core doesn't have (steps) */
+/**
+ * What an expression at `nodeId` may use. `options.nodes` adds definitions core
+ * doesn't have (steps); `options.facts` adds each keyed Test node's declared outputs.
+ */
 export function scopeAt(
   flow: FlowFile,
   nodeId: string,
   environment: { name: string; variables: Record<string, unknown> },
-  nodes: readonly AnyNodeDefinition[] = [],
+  options: { nodes?: readonly AnyNodeDefinition[]; facts?: FlowFacts } = {},
 ): ExpressionScope {
+  const { nodes = [], facts } = options;
   const defOf = (kind: string) =>
     nodes.find((d) => d.kind === kind) ?? NODES.find((d) => d.kind === kind);
   const keyOf = (id: string) => flow.nodes.find((n) => n.id === id)?.key;
@@ -29,8 +34,11 @@ export function scopeAt(
     .filter((name): name is string => typeof name === "string" && name !== "");
   const outputs = Object.fromEntries(
     flow.nodes.flatMap((n) => {
-      const results = defOf(n.kind)?.results;
-      return n.key && results?.length ? [[n.key, results]] : [];
+      const results = [
+        ...(defOf(n.kind)?.results ?? []),
+        ...declaredOutputs(n, facts),
+      ];
+      return n.key && results.length ? [[n.key, results]] : [];
     }),
   );
   return {

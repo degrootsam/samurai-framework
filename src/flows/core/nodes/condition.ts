@@ -17,6 +17,5 @@ export const condition = defineNode({
       default: "",
     },
   ],
-  outputs: true,
   onFailure: true,
 });
