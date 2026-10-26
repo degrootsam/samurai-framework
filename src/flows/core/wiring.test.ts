@@ -209,4 +209,66 @@ describe("wiringAt", () => {
       {},
     );
   });
+  test("a producer inside a nested Parallel feeds a node after the outer meet", () => {
+    // start → P → (branch-0: Q → (a | y) → m1; branch-1: z) → b
+    const flow = flowOf(
+      [
+        node("start", "start"),
+        node("P", "parallel"),
+        node("Q", "parallel"),
+        node("a"),
+        node("y", "wait"),
+        node("m1", "wait"),
+        node("z", "wait"),
+        node("b"),
+        node("end", "end"),
+      ],
+      [
+        edge("start", "P"),
+        edge("P", "Q", "branch-0"),
+        edge("P", "z", "branch-1"),
+        edge("Q", "a", "branch-0"),
+        edge("Q", "y", "branch-1"),
+        edge("a", "m1"),
+        edge("y", "m1"),
+        edge("m1", "b"),
+        edge("z", "b"),
+        edge("b", "end"),
+      ],
+    );
+    assert.equal(alwaysBefore(flow, "a", "b"), true);
+    assert.deepEqual(wiringAt(flow, "b", { facts }), {
+      o: { from: "node", nodeId: "a", output: "o" },
+    });
+  });
+  test("a producer on one arm of a Condition inside a Parallel branch is none", () => {
+    // start → P → (branch-0: C → (true: a | false: y) → m1; branch-1: z) → b
+    const flow = flowOf(
+      [
+        node("start", "start"),
+        node("P", "parallel"),
+        node("C", "condition"),
+        node("a"),
+        node("y", "wait"),
+        node("m1", "wait"),
+        node("z", "wait"),
+        node("b"),
+        node("end", "end"),
+      ],
+      [
+        edge("start", "P"),
+        edge("P", "C", "branch-0"),
+        edge("P", "z", "branch-1"),
+        edge("C", "a", "true"),
+        edge("C", "y", "false"),
+        edge("a", "m1"),
+        edge("y", "m1"),
+        edge("m1", "b"),
+        edge("z", "b"),
+        edge("b", "end"),
+      ],
+    );
+    assert.equal(alwaysBefore(flow, "a", "b"), false);
+    assert.deepEqual(wiringAt(flow, "b", { facts }), { o: { from: "none" } });
+  });
 });
