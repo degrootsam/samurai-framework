@@ -46,3 +46,18 @@ describe("readFlowFile", () => {
     });
   });
 });
+
+describe("readFlowFile: dropped fields", () => {
+  test("an old file's node outputs are read without them", () => {
+    const node = {
+      id: "t",
+      kind: "test",
+      onFailure: "stop",
+      position: { x: 0, y: 0 },
+      outputs: [{ name: "orderId" }],
+    };
+    const flow = readFlowFile({ ...base, nodes: [node] });
+    assert.equal("outputs" in flow.nodes[0]!, false);
+    assert.equal(flow.nodes[0]!.id, "t");
+  });
+});

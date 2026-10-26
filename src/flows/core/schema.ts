@@ -1,7 +1,5 @@
-export interface FlowNodeOutput {
-  /** Name of the shared-context variable the node writes */
-  name: string;
-}
+/** Where a Test or Group node's input comes from, when not wired by name. A Group node accepts only `{ useDefault: true }` */
+export type InputSource = { expression: string } | { useDefault: true };
 
 export interface FlowNodeModel {
   id: string;
@@ -13,7 +11,8 @@ export interface FlowNodeModel {
   subtitle?: string;
   /** test: the project test id (file::name). group: the group name */
   ref?: { testId?: string; group?: string };
-  outputs?: FlowNodeOutput[];
+  /** test and group: per input name, an override or "use the default"; the rest is wired by name (see wiringAt) */
+  inputs?: Record<string, InputSource>;
   /** What to do when the node fails; "stop" ends the run there */
   onFailure: "stop" | "continue";
   /** Continue in the previous node's browser session (kept in the file; the framework opens a fresh browser per test today) */
@@ -86,5 +85,18 @@ export function readFlowFile(raw: unknown): FlowFile {
     const step = MIGRATIONS.find((m) => m.from === at);
     if (step) flow = step.migrate(flow);
   }
-  return { ...flow, version: FLOW_VERSION } as unknown as FlowFile;
+  return {
+    ...flow,
+    nodes: (flow.nodes as unknown[]).map(withoutOutputs),
+    version: FLOW_VERSION,
+  } as unknown as FlowFile;
+}
+
+/** Drops a node's hand-typed `outputs` (removed; tests declare their outputs now) */
+function withoutOutputs(node: unknown): unknown {
+  if (typeof node !== "object" || node === null || !("outputs" in node))
+    return node;
+  const rest: Record<string, unknown> = { ...node };
+  delete rest.outputs;
+  return rest;
 }
