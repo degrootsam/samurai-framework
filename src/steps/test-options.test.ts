@@ -229,4 +229,62 @@ describe("applyEdit declare", () => {
     assert.deepEqual(test!.inputs, [{ name: "a", default: "1" }]);
     assert.deepEqual(test!.outputs, ["b"]);
   });
+
+  it("removes an options object left with only empty lists, and keeps a reason", () => {
+    assert.equal(
+      declare(one('{ inputs: {}, outputs: ["x"] }, '), {
+        inputs: [],
+        outputs: [],
+      }),
+      one(""),
+    );
+    assert.equal(declare(one("{ inputs: {} }, "), { inputs: [] }), one(""));
+    assert.equal(
+      declare(
+        `test.skip("t", { reason: "r", outputs: [] }, async () => {});\n`,
+        {
+          outputs: [],
+        },
+      ),
+      `test.skip("t", { reason: "r" }, async () => {});\n`,
+    );
+  });
+
+  it("refuses names the runtime rejects, before writing", () => {
+    const cases: [Parameters<typeof declare>[1], string][] = [
+      [
+        { outputs: ["ok", "error"] },
+        'applyEdit(): output "error" is not a valid name',
+      ],
+      [{ outputs: ["a b"] }, 'applyEdit(): output "a b" is not a valid name'],
+      [{ outputs: ["x", "x"] }, 'applyEdit(): output "x" is listed twice'],
+      [
+        { inputs: [{ name: "2x", default: "" }] },
+        'applyEdit(): input "2x" is not a valid name',
+      ],
+      [
+        {
+          inputs: [
+            { name: "a", default: "1" },
+            { name: "a", default: "2" },
+          ],
+        },
+        'applyEdit(): input "a" is listed twice',
+      ],
+      [
+        { inputs: [{ name: "a", default: 1 as unknown as string }] },
+        'applyEdit(): input "a" needs a string default',
+      ],
+    ];
+    for (const [lists, message] of cases)
+      assert.throws(() => declare(one(""), lists), { message });
+    // A name may be both an input and an output
+    assert.equal(
+      declare(one(""), {
+        inputs: [{ name: "a", default: "" }],
+        outputs: ["a"],
+      }),
+      one('{ inputs: { a: "" }, outputs: ["a"] }, '),
+    );
+  });
 });

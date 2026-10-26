@@ -2,6 +2,7 @@ import ts from "typescript";
 import { stepToSource } from "./emit.js";
 import type { ParsedTest, Step, TestInput } from "./model.js";
 import { parseSpec } from "./parse.js";
+import { OUTPUT_MATCHERS } from "./parse/expectation.js";
 import { declareList } from "./test-options.js";
 import { indentOf, lineEnd, lineStart, splice } from "./text.js";
 
@@ -112,6 +113,17 @@ function checkInputs(parsed: ParsedTest, step: Step) {
     throw new Error(`applyEdit(): input "${name}" is not declared`);
 }
 
+/** Refuses an output the runtime can't save: from a negated check, or from a matcher that doesn't take one */
+function checkOutput(step: Step) {
+  if (step.kind !== "expect" || step.output === undefined) return;
+  if (step.not)
+    throw new Error("applyEdit(): output can't be saved from a negated check");
+  if (!OUTPUT_MATCHERS.includes(step.expectation.matcher))
+    throw new Error(
+      `applyEdit(): output can't be saved from ${step.expectation.matcher}`,
+    );
+}
+
 /** Adds the output a step saves to the test's `outputs`, when it isn't there yet */
 function withOutput(source: string, parsed: ParsedTest, step: Step): string {
   const name = outputOf(step);
@@ -131,6 +143,7 @@ function withStep(
   place: (source: string, code: string) => string,
 ): string {
   checkInputs(parsed, step);
+  checkOutput(step);
   const next = withOutput(
     withFixtures(place(source, stepToSource(step)), parsed, step),
     parsed,

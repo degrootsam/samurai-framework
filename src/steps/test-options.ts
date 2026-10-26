@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { RESERVED_OUTPUTS } from "../flows/core/steps.js";
 import type { Modifier } from "../types/test.js";
 import { IDENTIFIER } from "./emit.js";
 import type { ParsedTest, TestInput } from "./model.js";
@@ -88,6 +89,26 @@ function listToSource(key: ListKey, list: TestInput[] | string[]): string {
 const sameList = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);
 
+const NAME = /^[A-Za-z_]\w*$/;
+
+/** Throws for a list the runtime's `test()` would reject: a name that isn't valid, a name twice, a default that isn't text */
+function checkList(key: ListKey, list: TestInput[] | string[]): void {
+  const kind = key === "inputs" ? "input" : "output";
+  const seen = new Set<string>();
+  for (const entry of list) {
+    const name = typeof entry === "string" ? entry : entry.name;
+    if (!NAME.test(name) || RESERVED_OUTPUTS.includes(name))
+      throw new Error(
+        `applyEdit(): ${kind} ${JSON.stringify(name)} is not a valid name`,
+      );
+    if (seen.has(name))
+      throw new Error(`applyEdit(): ${kind} "${name}" is listed twice`);
+    seen.add(name);
+    if (typeof entry !== "string" && typeof entry.default !== "string")
+      throw new Error(`applyEdit(): input "${name}" needs a string default`);
+  }
+}
+
 /** The options object at `range`, parsed on its own, with offsets mapped back into the source */
 function optionsObject(source: string, range: { start: number; end: number }) {
   const file = ts.createSourceFile(
@@ -120,7 +141,8 @@ function optionsObject(source: string, range: { start: number; end: number }) {
 /**
  * Sets one list of the test's options object: replaces it, adds it (making the object when there is none) or,
  * for an empty list, removes it, and the whole object when nothing but empty lists would be left. The rest of
- * the object, its layout and a `reason`, stays as it is; an unchanged list leaves the source as it is
+ * the object, its layout and a `reason`, stays as it is; an unchanged list leaves the source as it is. Throws for
+ * names the runtime rejects, before writing
  */
 export function declareList(
   source: string,
@@ -128,7 +150,11 @@ export function declareList(
   key: ListKey,
   list: TestInput[] | string[],
 ): string {
-  if (sameList(parsed[key] ?? [], list)) return source;
+  checkList(key, list);
+  const current = parsed[key];
+  // An empty list that is there still goes, so an object of only empty lists is removed
+  if (list.length === 0 ? current === undefined : sameList(current, list))
+    return source;
   const text = `${key}: ${listToSource(key, list)}`;
   if (!parsed.options)
     return splice(source, parsed.titleEnd, parsed.titleEnd, `, { ${text} }`);
@@ -136,7 +162,7 @@ export function declareList(
   const index = properties.findIndex((property) => property.key === key);
   const property = properties[index];
   if (list.length === 0) {
-    // `sameList` returned for a missing key, so the property is there
+    // Returned above for a missing key, so the property is there
     const others = properties.filter((_, i) => i !== index);
     if (others.every((other) => other.emptyList))
       return splice(source, parsed.titleEnd, parsed.options.end, "");
