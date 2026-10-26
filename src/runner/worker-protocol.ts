@@ -14,6 +14,8 @@ export interface WorkItem {
   serialKey?: string;
   /** Where this test's screenshots go, instead of the run's `outputDir` (a flow gives each node its own) */
   outputDir?: string;
+  /** The values the run supplies for the inputs tests declare (`runTests({ inputs })`) */
+  inputs?: Record<string, string>;
 }
 
 /** What a worker needs to start: the project and the settings that are the same for every test */

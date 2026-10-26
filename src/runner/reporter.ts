@@ -89,6 +89,10 @@ export interface TestEndExtras extends TestRetries {
   logs?: TestLogEntry[];
   logsDropped?: number;
   screenshots?: { name: string; path: string }[];
+  /** The test's inputs, when it declares any */
+  inputs?: Record<string, string>;
+  /** The test's saved outputs, when it declares any */
+  outputs?: Record<string, string>;
 }
 
 export default class TestReporter implements TestSink {
@@ -278,6 +282,8 @@ export default class TestReporter implements TestSink {
       ...(extras?.logs && { logs: extras.logs }),
       ...(extras?.logsDropped && { logsDropped: extras.logsDropped }),
       ...(extras?.screenshots?.length && { screenshots: extras.screenshots }),
+      ...(extras?.inputs && { inputs: extras.inputs }),
+      ...(extras?.outputs && { outputs: extras.outputs }),
       ...(extras?.retry && { retry: extras.retry }),
       ...(extras?.flaky && { flaky: true }),
       ...(extras?.previousAttempts?.length && {

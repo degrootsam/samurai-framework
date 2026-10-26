@@ -25,6 +25,11 @@ export interface RunnerOptions {
    * @default the config's `retries`, else 0
    */
   retries?: number | string;
+  /**
+   * Values for the inputs the tests declare, by name: every test of the run reads the names it declares from
+   * here, and its own default for a name missing here
+   */
+  inputs?: Record<string, string>;
   /** Run the browser without a window. @default false */
   headless?: boolean;
   /** Remote debugging port of the browser. @default DEFAULT_PORT (9223) */

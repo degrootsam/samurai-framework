@@ -36,6 +36,8 @@ export interface AssertionErrorDetails {
   actual: unknown;
   /** Description of the asserted locator, only for locator assertions */
   locator?: string | undefined;
+  /** The first line of the message, instead of `expect(<subject>).<matcher>` (for `outputs.save`) */
+  call?: string | undefined;
 }
 
 export class AssertionError extends Error {
@@ -44,9 +46,15 @@ export class AssertionError extends Error {
   public readonly actual: unknown;
   public readonly locator: string | undefined;
 
-  constructor({ matcher, expected, actual, locator }: AssertionErrorDetails) {
+  constructor({
+    matcher,
+    expected,
+    actual,
+    locator,
+    call,
+  }: AssertionErrorDetails) {
     const subject = locator === undefined ? "value" : "locator";
-    const lines = [`expect(${subject}).${matcher}`];
+    const lines = [call ?? `expect(${subject}).${matcher}`];
     if (locator !== undefined) {
       lines.push(`  locator: ${locator}`);
     }
