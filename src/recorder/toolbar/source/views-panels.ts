@@ -88,7 +88,7 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     const head = h("div", { class: "h" }, "Save as output", info && info.ok && h("code", { title: info.label }, info.label));
     if (!info) return [head, h("div", { class: "msg" }, "…")];
     if (!info.ok) return [head, h("div", { class: "err" }, info.error)];
-    const capture = captureOf(info.text, o.pattern);
+    const capture = captureOf(info.outputText, o.pattern);
     return [
       head,
       h("div", { class: "lbl" }, "Text"),

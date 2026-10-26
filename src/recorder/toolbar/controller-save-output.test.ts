@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Inspection } from "./types.js";
+import type { PickInfo } from "./protocol.js";
 import {
   CANDIDATES,
+  SECRET,
   COUNT_CALL,
   INFO,
   LOCATOR,
@@ -21,7 +23,7 @@ const withText = () =>
     {},
     {
       inspect: async (): Promise<Inspection> => ({
-        info: { ...INFO, text: TEXT },
+        info: { ...INFO, text: TEXT, outputText: TEXT },
         counts: [COUNT_CALL],
       }),
     },
@@ -143,5 +145,55 @@ describe("ToolbarController save as output", () => {
     assert.equal(controller.accept(again), false);
     assert.equal(observed.length, 1);
     assert.equal(replies.filter((r) => r.id === 47).length, 2); // the pick and one save
+  });
+
+  it("checks the pattern against the text as outputs.save reads it, not the whitespace-collapsed display text", async () => {
+    const { controller, replies, observed } = setup(
+      {},
+      {
+        inspect: async (): Promise<Inspection> => ({
+          info: {
+            ...INFO,
+            text: "Order #4521",
+            outputText: "Order\n    #4521",
+          },
+          counts: [COUNT_CALL],
+        }),
+      },
+    );
+    await controller.handle(pick(48));
+    assert.equal(
+      (lastOf(replies)!.result as PickInfo & { ok: true }).outputText,
+      "Order\n    #4521",
+    );
+    await controller.handle(save(48, "orderId", "Order #(\\d+)"));
+    assert.deepEqual(lastOf(replies), {
+      id: 48,
+      result: { ok: false, error: "pattern doesn't match the element's text" },
+    });
+    await controller.handle(save(48, "orderId", "Order\\s+#(\\d+)"));
+    assert.deepEqual(lastOf(replies), { id: 48, result: { ok: true } });
+    assert.equal(observed.length, 1);
+  });
+
+  it("never sends back a secret the output text holds, but still checks against it", async () => {
+    const { controller, replies, observed, noSecretLeaks } = setup(
+      {},
+      {
+        inspect: async (): Promise<Inspection> => ({
+          info: { ...INFO, text: "", outputText: `token ${SECRET}` },
+          counts: [COUNT_CALL],
+        }),
+      },
+    );
+    await controller.handle(pick(49));
+    assert.equal(
+      (lastOf(replies)!.result as PickInfo & { ok: true }).outputText,
+      "",
+    );
+    await controller.handle(save(49, "token", "token (\\S+)"));
+    assert.deepEqual(lastOf(replies), { id: 49, result: { ok: true } });
+    assert.equal(observed.length, 1);
+    noSecretLeaks();
   });
 });

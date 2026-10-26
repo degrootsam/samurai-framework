@@ -67,7 +67,7 @@ export interface PickState {
   id: number;
   locator: LocatorSpec;
   counts: LocatorCall[];
-  /** As inspected when it was picked, secrets included: it never goes back to the page */
+  /** Its text as `outputs.save` reads it, when it was picked, secrets included: it never goes back to the page */
   text: string;
 }
 

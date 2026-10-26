@@ -108,7 +108,10 @@ export type PickInfo =
   | {
       ok: true;
       label: string;
+      /** Whitespace collapsed and trimmed, cut at 4 KB: what the Assert panel shows and prefills */
       text: string;
+      /** The whole text as `outputs.save` reads it (`textContent`, trimmed): what Save as output captures from */
+      outputText: string;
       value?: string;
       attributes: { name: string; value: string }[];
       first: { matcher: MatcherChoice; expected?: string };

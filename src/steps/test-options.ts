@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { RESERVED_OUTPUTS } from "../flows/core/steps.js";
+import { isIoName } from "../flows/core/steps.js";
 import type { Modifier } from "../types/test.js";
 import { IDENTIFIER } from "./emit.js";
 import type { ParsedTest, TestInput } from "./model.js";
@@ -89,15 +89,13 @@ function listToSource(key: ListKey, list: TestInput[] | string[]): string {
 const sameList = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);
 
-const NAME = /^[A-Za-z_]\w*$/;
-
 /** Throws for a list the runtime's `test()` would reject: a name that isn't valid, a name twice, a default that isn't text */
 function checkList(key: ListKey, list: TestInput[] | string[]): void {
   const kind = key === "inputs" ? "input" : "output";
   const seen = new Set<string>();
   for (const entry of list) {
     const name = typeof entry === "string" ? entry : entry.name;
-    if (!NAME.test(name) || RESERVED_OUTPUTS.includes(name))
+    if (!isIoName(name))
       throw new Error(
         `applyEdit(): ${kind} ${JSON.stringify(name)} is not a valid name`,
       );

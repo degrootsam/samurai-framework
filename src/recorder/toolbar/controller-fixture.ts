@@ -36,6 +36,7 @@ export const INFO: PickInfo & { ok: true } = {
   ok: true,
   label: `textbox "Email"`,
   text: "",
+  outputText: "",
   value: "a@b.c",
   attributes: [{ name: "id", value: "email" }],
   first: { matcher: "toHaveValue", expected: "a@b.c" },
