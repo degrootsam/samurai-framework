@@ -114,4 +114,31 @@ describe("runPerBrowser", () => {
     assert.equal(cancelled.status, "cancelled");
     assert.equal(cancelled.runs.length, 1);
   });
+
+  it("is cancelled only when a run was cut short or a browser was not started", async () => {
+    const late = new AbortController();
+    const finished = await runPerBrowser({
+      browsers: ["firefox", "chrome"],
+      signal: late.signal,
+      walk: async (browser) => {
+        if (browser === "chrome") late.abort(); // after the last run's work was done
+        return summary(browser === "firefox" ? "failed" : "passed");
+      },
+    });
+    assert.equal(finished.status, "failed", "every run finished");
+
+    const between = new AbortController();
+    const walked: string[] = [];
+    const skipped = await runPerBrowser({
+      browsers: ["firefox", "chrome"],
+      signal: between.signal,
+      walk: async (browser) => {
+        walked.push(browser);
+        between.abort();
+        return summary("passed");
+      },
+    });
+    assert.deepEqual(walked, ["firefox"]);
+    assert.equal(skipped.status, "cancelled", "chrome was not started");
+  });
 });

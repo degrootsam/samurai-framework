@@ -130,9 +130,22 @@ describe("checkFlow: inputs and outputs", () => {
       {
         level: "error",
         nodeId: "g",
-        message: 'Group nodes can\'t set inputs ("o")',
+        message: 'g: Group nodes can\'t set inputs ("o")',
       },
     ]);
+  });
+  test("a malformed input entry in a flow built in memory is ignored, not a crash", () => {
+    const flow = line(
+      node("b", "test", {
+        inputs: { o: "oops" } as unknown as FlowNodeModel["inputs"],
+      }),
+    );
+    assert.deepEqual(
+      io(flow).map((p) => p.message),
+      [
+        'b: input "o" has no source. Save it as an output in an earlier test, set an expression, or use the default',
+      ],
+    );
   });
   test("a Group node's inputs need a source too", () => {
     const flow = line(node("g", "group", { ref: { group: "gb" } }));

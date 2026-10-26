@@ -36,9 +36,12 @@ describe("the test() options object", () => {
       { name: "a", default: "1" },
       { name: "b_2", default: "" },
     ]);
-    assert.deepEqual(test!.outputs, []);
     const [plain] = parseSpec(one(""));
     assert.ok(!("inputs" in plain!) && !("outputs" in plain!));
+    // An empty list is left out too, as the project's test list leaves it out
+    assert.ok(!("outputs" in test!));
+    const [empty] = parseSpec(one("{ inputs: {}, outputs: [] }, "));
+    assert.ok(!("inputs" in empty!) && !("outputs" in empty!));
   });
 
   it("merges reason with inputs and outputs for skip and fixme", () => {
@@ -228,6 +231,31 @@ describe("applyEdit declare", () => {
     const [test] = parseSpec(next);
     assert.deepEqual(test!.inputs, [{ name: "a", default: "1" }]);
     assert.deepEqual(test!.outputs, ["b"]);
+  });
+
+  it("fills a list the options object holds empty", () => {
+    assert.equal(
+      declare(one("{ inputs: {}, outputs: [] }, "), {
+        inputs: [{ name: "a", default: "1" }],
+        outputs: ["x"],
+      }),
+      one('{ inputs: { a: "1" }, outputs: ["x"] }, '),
+    );
+    const next = applyEdit(one("{ outputs: [] }, "), {
+      op: "insert",
+      test: 0,
+      index: 1,
+      step: {
+        kind: "saveOutput",
+        name: "x",
+        locator: {
+          chain: [{ method: "getByTestId", testId: "conf" }],
+          fallbacks: [],
+        },
+      },
+    });
+    assert.deepEqual(parseSpec(next)[0]!.outputs, ["x"]);
+    assert.match(next, /test\("t", \{ outputs: \["x"\] \}, /);
   });
 
   it("removes an options object left with only empty lists, and keeps a reason", () => {

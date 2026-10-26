@@ -1,4 +1,3 @@
-import { isIoName } from "../../../flows/core/steps.js";
 import { ConfigEditError } from "../../../project/config-edit.js";
 import { SECRET_NAME } from "../../../project/secrets-file.js";
 import { ExistsError, VARIABLE_NAME } from "../../../project/variables.js";
@@ -8,13 +7,14 @@ import type { ActionReply } from "../protocol.js";
 import type { ActionContext, Of } from "../types.js";
 import {
   fail,
+  nameProblem,
   NO_ENVIRONMENT,
   PAUSED,
   TYPE_FAILED,
   UNIDENTIFIABLE,
 } from "./reply.js";
 
-/** Types a variable or secret the tester already has into the field they picked, and records one `insert` step */
+/** Types a variable, secret or input the tester already has into the field they picked, and records one `insert` step */
 export async function insertAction(
   ctx: ActionContext,
   message: Of<"insert">,
@@ -41,7 +41,9 @@ export async function insertAction(
 }
 
 /**
- * Saves a new variable or secret to the project, then types it into the field and records the `insert` step */
+ * Adds a new variable, secret or input, then types it into the field and records the `insert` step. A variable or
+ * secret is saved to the project first; an input is declared by the step itself.
+ */
 export async function addInsertableAction(
   ctx: ActionContext,
   message: Of<"add-insertable">,
@@ -101,7 +103,8 @@ async function addInput(
   name: string,
   value: string,
 ): Promise<ActionReply> {
-  if (!isIoName(name)) return fail("name: use letters, digits and _", "name");
+  const problem = nameProblem(name);
+  if (problem) return fail(problem, "name");
   if (ctx.inputs.has(name)) return fail(`"${name}" already exists`, "name");
   const locator = await locate(ctx, message);
   if (!locator) return fail(UNIDENTIFIABLE);

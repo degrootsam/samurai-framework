@@ -1,5 +1,5 @@
 import { dominates, meetOf, reachOrder } from "./graph.js";
-import type { FlowFile, FlowNodeModel } from "./schema.js";
+import { isInputSource, type FlowFile, type FlowNodeModel } from "./schema.js";
 
 /**
  * What a flow needs to know about the project's tests and groups to wire inputs:
@@ -13,6 +13,35 @@ export interface FlowFacts {
     { inputs: { name: string; default: string }[]; outputs: string[] }
   >;
   groups: Record<string, string[]>;
+}
+
+/**
+ * The facts for a project's tests and groups, as `listTests` and `listGroups` give them: a test's `id`, its
+ * `inputs` and `outputs` (absent when it declares none) and a group's `name` and `testIds`. The lists are copied.
+ */
+export function flowFactsFrom(
+  tests: readonly {
+    id: string;
+    inputs?: readonly { name: string; default: string }[];
+    outputs?: readonly string[];
+  }[],
+  groups: readonly { name: string; testIds: readonly string[] }[],
+): FlowFacts {
+  return {
+    tests: Object.fromEntries(
+      tests.map((t) => [
+        t.id,
+        {
+          inputs: (t.inputs ?? []).map(({ name, default: value }) => ({
+            name,
+            default: value,
+          })),
+          outputs: [...(t.outputs ?? [])],
+        },
+      ]),
+    ),
+    groups: Object.fromEntries(groups.map((g) => [g.name, [...g.testIds]])),
+  };
 }
 
 /** Where one input of a node gets its value. Computed, never stored */
@@ -139,10 +168,12 @@ export function wiringAt(
   const wiring: Record<string, InputWiring> = {};
   let producers: FlowNodeModel[] | undefined;
   for (const [name, value] of declaredInputs(node, options.facts)) {
-    const source = node.inputs?.[name];
+    // A flow built in memory may hold anything here: only an InputSource is read
+    const entry: unknown = node.inputs?.[name];
+    const source = isInputSource(entry) ? entry : undefined;
     if (source && "expression" in source && node.kind === "test")
       wiring[name] = { from: "expression", expression: source.expression };
-    else if (source && "useDefault" in source && source.useDefault)
+    else if (source && "useDefault" in source)
       wiring[name] = { from: "default", value };
     else {
       producers ??= flow.nodes.filter(

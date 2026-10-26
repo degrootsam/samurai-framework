@@ -60,4 +60,34 @@ describe("readFlowFile: dropped fields", () => {
     assert.equal("outputs" in flow.nodes[0]!, false);
     assert.equal(flow.nodes[0]!.id, "t");
   });
+  test("a node's input entries that aren't an expression or use-the-default are dropped", () => {
+    const node = (inputs: unknown) => ({
+      id: "t",
+      kind: "test",
+      onFailure: "stop",
+      position: { x: 0, y: 0 },
+      inputs,
+    });
+    const flow = readFlowFile({
+      ...base,
+      nodes: [
+        node({
+          a: "oops",
+          b: { expression: 1 },
+          c: { useDefault: false },
+          d: null,
+          e: { expression: "nodes.a.o" },
+          f: { useDefault: true },
+        }),
+        node("oops"),
+        node(["x"]),
+      ],
+    });
+    assert.deepEqual(flow.nodes[0]!.inputs, {
+      e: { expression: "nodes.a.o" },
+      f: { useDefault: true },
+    });
+    assert.equal("inputs" in flow.nodes[1]!, false);
+    assert.equal("inputs" in flow.nodes[2]!, false);
+  });
 });
