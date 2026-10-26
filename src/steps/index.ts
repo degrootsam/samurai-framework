@@ -15,6 +15,7 @@ export type {
   GeneratedFileSpec,
   LocatorCall,
   LocatorSpec,
+  PageExpectation,
   ParsedStep,
   ParsedTest,
   Step,

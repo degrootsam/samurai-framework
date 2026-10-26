@@ -90,6 +90,80 @@ const SAMPLES: Step[] = [
     expectation: { matcher: "toHaveCount", expected: 3 },
   },
   {
+    kind: "expect",
+    locator: {
+      chain: [{ method: "getByRole", role: "button", name: "Save" }],
+      fallbacks: [],
+    },
+    not: false,
+    expectation: { matcher: "toBeHidden" },
+  },
+  {
+    kind: "expect",
+    locator: {
+      chain: [{ method: "getByRole", role: "button", name: "Save" }],
+      fallbacks: [],
+    },
+    not: true,
+    expectation: { matcher: "toBeEnabled" },
+  },
+  {
+    kind: "expect",
+    locator: {
+      chain: [{ method: "getByRole", role: "button", name: "Save" }],
+      fallbacks: [],
+    },
+    not: false,
+    expectation: { matcher: "toBeChecked" },
+  },
+  {
+    kind: "expect",
+    locator: {
+      chain: [{ method: "getByRole", role: "button", name: "Save" }],
+      fallbacks: [],
+    },
+    not: false,
+    expectation: { matcher: "toHaveClass", expected: "a b" },
+  },
+  {
+    kind: "expect",
+    locator: {
+      chain: [{ method: "getByRole", role: "button", name: "Save" }],
+      fallbacks: [],
+    },
+    not: false,
+    expectation: {
+      matcher: "toHaveClass",
+      expected: { regex: { source: "active", flags: "" } },
+    },
+  },
+  {
+    kind: "expect",
+    locator: {
+      chain: [{ method: "getByRole", role: "button", name: "Save" }],
+      fallbacks: [],
+    },
+    not: false,
+    expectation: {
+      matcher: "toHaveCSS",
+      name: "color",
+      expected: "rgb(255, 0, 0)",
+    },
+  },
+  {
+    kind: "expectPage",
+    not: false,
+    expectation: { matcher: "toHaveURL", expected: "/checkout" },
+  },
+  {
+    kind: "expectPage",
+    not: true,
+    expectation: {
+      matcher: "toHaveTitle",
+      expected: { regex: { source: "Error", flags: "" } },
+    },
+  },
+  {
     kind: "press",
     locator: {
       chain: [{ method: "getByLabel", text: "New todo" }],
@@ -200,10 +274,14 @@ describe("step codec", () => {
       "await page.getByCss('x').fill(`a${b}`);",
       "await expect(page.getByCss('x')).toHaveCount(n);",
       "await page.getByCss('x').click({ force: true });",
+      'await expect(page.getByCss("x")).toBeHidden({ timeout: 1 });',
+      'await expect(page.getByCss("x")).toHaveCSS("color");',
+      "await expect(page).toHaveURL(url);",
+      'await expect(other).toHaveURL("/");',
       "await page.getByCss('a').withFallbacks(page.getByCss('b')).getByCss('c').click();",
     );
     const steps = stepsOf(source);
-    assert.equal(steps.length, 8);
+    assert.equal(steps.length, 12);
     assert.ok(steps.every((step) => step.kind === "custom"));
     assert.equal(
       (steps[0] as { code: string }).code,
