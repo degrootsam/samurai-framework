@@ -2,7 +2,7 @@ import { problemOf, scopeAt } from "./expression/index.js";
 import { meetOf, reachOrder } from "./graph.js";
 import type { AnyNodeDefinition } from "./nodes/define.js";
 import type { FlowProblem } from "./nodes/index.js";
-import type { FlowFile, FlowNodeModel } from "./schema.js";
+import { isInputSource, type FlowFile, type FlowNodeModel } from "./schema.js";
 import {
   declaredInputs,
   declaredOutputs,
@@ -59,7 +59,7 @@ function inputProblems(
         "warning",
         `input "${name}" is not used by this ${node.kind === "group" ? "node" : "test"}`,
       );
-    else if (!("expression" in source)) continue;
+    else if (!isInputSource(source) || !("expression" in source)) continue;
     else if (node.kind === "group") groupSet.add(name);
     else if (check.environment) {
       const problem = problemOf(
@@ -79,7 +79,7 @@ function inputProblems(
   if (groupSet.size)
     at(
       "error",
-      `Group nodes can't set inputs (${[...groupSet].map((x) => `"${x}"`).join(", ")})`,
+      `${check.titleOf(node)}: Group nodes can't set inputs (${[...groupSet].map((x) => `"${x}"`).join(", ")})`,
     );
   for (const [name, wiring] of Object.entries(
     wiringAt(flow, node.id, { facts: check.facts }),

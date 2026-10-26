@@ -126,6 +126,22 @@ describe("wiringAt", () => {
       o: { from: "node", nodeId: "a", output: "o" },
     });
   });
+  test("a malformed input entry is wired by name, not read", () => {
+    for (const bad of ["oops", null, { expression: 1 }])
+      assert.deepEqual(
+        wiringAt(
+          line(
+            node("a"),
+            node("b", "test", {
+              inputs: { o: bad } as unknown as FlowNodeModel["inputs"],
+            }),
+          ),
+          "b",
+          { facts },
+        ),
+        { o: { from: "node", nodeId: "a", output: "o" } },
+      );
+  });
   test("A → A2 → B: the later producer wins", () => {
     const flow = line(node("a"), node("a2"), node("b"));
     assert.deepEqual(wiringAt(flow, "b", { facts }), {
