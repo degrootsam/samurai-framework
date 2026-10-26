@@ -96,6 +96,50 @@ describe("steps that read inputs and save outputs", () => {
     }
   });
 
+  it("escapes a / in a pattern, so the spec compiles and parses back to the step", () => {
+    const save = (source: string): Step => ({
+      kind: "saveOutput",
+      name: "orderId",
+      locator: conf,
+      pattern: { source, flags: "" },
+    });
+    const check = (source: string): Step => ({
+      kind: "expect",
+      locator: conf,
+      not: false,
+      expectation: {
+        matcher: "toHaveText",
+        expected: { regex: { source, flags: "" } },
+      },
+    });
+    for (const [raw, code] of [
+      [
+        save("orders/(\\d+)"),
+        'await outputs.save("orderId", page.getByTestId("conf"), /orders\\/(\\d+)/);',
+      ],
+      [
+        check("orders/(\\d+)"),
+        'await expect(page.getByTestId("conf")).toHaveText(/orders\\/(\\d+)/);',
+      ],
+    ] as const) {
+      assert.equal(stepToSource(raw), code);
+      const escaped =
+        raw.kind === "saveOutput"
+          ? save("orders\\/(\\d+)")
+          : check("orders\\/(\\d+)");
+      assert.deepEqual(stepsIn(spec("", "{ page }", code)), [escaped], code);
+      // Already escaped text is left alone
+      assert.equal(stepToSource(escaped), code);
+    }
+    const next = applyEdit(spec("", "{ page }"), {
+      op: "insert",
+      test: 0,
+      index: 0,
+      step: save("orders/(\\d+)"),
+    });
+    assert.deepEqual(stepsIn(next), [save("orders\\/(\\d+)")]);
+  });
+
   it('reads inputs["name"] as an input', () => {
     assert.deepEqual(
       stepsIn(
