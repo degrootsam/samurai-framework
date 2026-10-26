@@ -1,4 +1,4 @@
-/** Views: the Assert, Page, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
+/** Views: the Assert, Save as output, Page, Insert, New, Wait and Screenshot panels. A slice of the toolbar function: it shares one closure with its neighbours, see `../source.ts`. */
 export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) =>
     (matcher === "toHaveValue" && info.value === undefined) ||
     (matcher === "toHaveAttribute" && info.attributes.length === 0) ||
@@ -70,6 +70,38 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       h("div", { class: "row" },
         h("label", { class: "neg" }, h("input", { type: "checkbox", "data-action": "not", checked: a.not }), "Not"),
         h("button", { class: "add", "data-action": "assert-add", disabled: ui.busy }, "Add")),
+    ];
+  };
+
+  // What the output would hold, as outputs.save reads it: the pattern's first group, else its whole match, else the text
+  const captureOf = (text, pattern) => {
+    if (!pattern.trim()) return { value: text };
+    let re;
+    try { re = new RegExp(pattern.trim()); } catch (err) { return { error: "Not a valid pattern" }; }
+    const match = re.exec(text);
+    if (!match) return { error: "No match" };
+    return { value: match[1] !== undefined ? match[1] : match[0] };
+  };
+  const outputPanel = () => {
+    const o = ui.output;
+    const info = o.info;
+    const head = h("div", { class: "h" }, "Save as output", info && info.ok && h("code", { title: info.label }, info.label));
+    if (!info) return [head, h("div", { class: "msg" }, "…")];
+    if (!info.ok) return [head, h("div", { class: "err" }, info.error)];
+    const capture = captureOf(info.text, o.pattern);
+    return [
+      head,
+      h("div", { class: "lbl" }, "Text"),
+      h("div", { class: "msg out-text" }, info.text),
+      h("div", { class: "lbl" }, "Name"),
+      h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "outputName", value: o.name, "data-enter": "output-save", autocomplete: "off", spellcheck: "false" })),
+      o.nameError && h("div", { class: "field-error" }, o.nameError),
+      h("div", { class: "lbl" }, "Pattern (optional)"),
+      h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "outputPattern", value: o.pattern, placeholder: "Order #(\\d+)", "data-enter": "output-save", autocomplete: "off", spellcheck: "false" })),
+      h("div", { class: "lbl" }, "Saves"),
+      capture.error ? h("div", { class: "warn out-capture" }, capture.error) : h("code", { class: "out-capture" }, capture.value),
+      o.error && h("div", { class: "err" }, o.error),
+      h("div", { class: "foot" }, h("button", { class: "add", "data-action": "output-save", disabled: ui.busy || !o.name.trim() }, "Save")),
     ];
   };
 
@@ -181,5 +213,5 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     radio("fullPage", "true", ui.shot.fullPage, "Whole page"),
     h("div", { class: "foot" }, h("button", { class: "add", "data-action": "screenshot-add", disabled: ui.busy }, "Add")),
   ];
-  const PANELS = { assert: assertPanel, page: pagePanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
+  const PANELS = { assert: assertPanel, output: outputPanel, page: pagePanel, insert: insertPanel, new: newPanel, wait: waitPanel, screenshot: screenshotPanel };
 `;

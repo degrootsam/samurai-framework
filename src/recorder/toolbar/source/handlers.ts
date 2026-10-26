@@ -19,14 +19,8 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
     expand: () => post({ action: "collapse", collapsed: false }),
     "resume-yes": () => { if (state.resumeQuestion) post({ action: "resume-goto", add: true }); },
     "resume-no": () => { if (state.resumeQuestion) post({ action: "resume-goto", add: false }); },
-    assert: () => {
-      if (!usable()) return;
-      const wasOn = toolOn("assert");
-      stopPicking();
-      closePanel();
-      ui.picking = !wasOn;
-      render();
-    },
+    assert: () => startPicking("assert"),
+    output: () => startPicking("output"),
     page: () => openTool("page"),
     insert: () => openTool("insert"),
     wait: () => openTool("wait"),
@@ -54,6 +48,17 @@ export const HANDLERS_JS = String.raw`  // Every action is what a click on its c
       if (a.matcher === "toHaveCount") message.countIndex = a.countIndex;
       ui.busy = true;
       a.error = null;
+      post(message);
+      render();
+    },
+    "output-save": () => {
+      const o = ui.panel === "output" && ui.output;
+      if (!o || ui.busy || !o.info || !o.info.ok) return;
+      ui.busy = true;
+      o.nameError = null;
+      o.error = null;
+      const message = { action: "save-output", id: o.id, target: o.target, candidates: o.candidates, name: o.name.trim() };
+      if (o.pattern.trim()) message.pattern = o.pattern.trim();
       post(message);
       render();
     },

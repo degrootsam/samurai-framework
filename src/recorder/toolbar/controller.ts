@@ -5,6 +5,7 @@ import { assertAction } from "./actions/assert.js";
 import { assertPageAction, pageInfoOf } from "./actions/assert-page.js";
 import { addInsertableAction, insertAction } from "./actions/insert.js";
 import { withoutSecrets } from "./actions/pick.js";
+import { saveOutputAction } from "./actions/save-output.js";
 import { fail, PAUSED, UNIDENTIFIABLE } from "./actions/reply.js";
 import { LEFT, PageScope } from "./page-scope.js";
 import type {
@@ -21,6 +22,7 @@ import type {
   Message,
   Of,
   PickState,
+  Replying,
 } from "./types.js";
 
 /** A wait for time is 0.1–60 s */
@@ -195,6 +197,10 @@ export class ToolbarController {
         return this.replying(message, () =>
           addInsertableAction(this.actions, message),
         );
+      case "save-output":
+        return this.replying(message, () =>
+          saveOutputAction(this.actions, message),
+        );
       case "wait":
         if (this.paused) return;
         if (message.kind === "time") {
@@ -327,7 +333,7 @@ export class ToolbarController {
 
   /**
    * Whether to process `message`; call it as the message arrives, before queueing it. An `assert`, `assert-page`,
-   * `insert` or `add-insertable` whose id is in flight or was already answered `{ ok: true }` is a double click and is
+   * `insert`, `add-insertable` or `save-output` whose id is in flight or was already answered `{ ok: true }` is a double click and is
    * dropped (its first copy answers). A retry after `{ ok: false }` is accepted.
    */
   public accept(message: Message): boolean {
@@ -335,10 +341,7 @@ export class ToolbarController {
   }
 
   /** Runs an action that expects a reply, unless it is a repeat (see `accept`) */
-  private replying(
-    message: Of<"assert" | "assert-page" | "insert" | "add-insertable">,
-    work: () => Promise<ActionReply>,
-  ) {
+  private replying(message: Replying, work: () => Promise<ActionReply>) {
     return this.guard.run(message, work, (id, result) =>
       this.reply(id, result),
     );
@@ -378,7 +381,12 @@ export class ToolbarController {
           message.candidates,
         );
         if (page === this.scope.current)
-          this.pick = { id: message.id, locator, counts: inspected.counts };
+          this.pick = {
+            id: message.id,
+            locator,
+            counts: inspected.counts,
+            text: inspected.info.text,
+          };
         return inspected;
       });
     } catch {

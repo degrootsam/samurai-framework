@@ -38,6 +38,13 @@ export type Observation =
       not: boolean;
       expectation: Expectation;
     }
+  /** The toolbar's Save as output: the element's text, or what `pattern` captures of it */
+  | {
+      type: "saveOutput";
+      locator: LocatorSpec;
+      name: string;
+      pattern?: { source: string; flags: string };
+    }
   /** The toolbar's Page panel: the page's URL or title */
   | { type: "expectPage"; not: boolean; expectation: PageExpectation }
   | {
@@ -132,6 +139,13 @@ export class Normaliser {
           locator: observation.locator,
           not: observation.not,
           expectation: observation.expectation,
+        };
+      case "saveOutput":
+        return {
+          kind: "saveOutput",
+          name: observation.name,
+          locator: observation.locator,
+          ...(observation.pattern && { pattern: observation.pattern }),
         };
       case "expectPage":
         return {

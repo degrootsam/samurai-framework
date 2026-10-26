@@ -62,6 +62,7 @@ export const EVENTS_PAGE_JS = String.raw`  // ---- Events on the page (window ca
   }, true);
   listen(window, "resize", () => render());
   listen(window, "scroll", () => {
-    if (ui.panel === "assert" && ui.assert && !outline.hidden) showOutline(ui.assert.target);
+    const picked = ui.panel === "assert" ? ui.assert : ui.panel === "output" ? ui.output : null;
+    if (picked && !outline.hidden) showOutline(picked.target);
   }, true);
 `;

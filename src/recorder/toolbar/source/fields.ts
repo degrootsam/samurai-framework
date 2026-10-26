@@ -11,6 +11,14 @@ export const FIELDS_JS = String.raw`  const press = (action, detail) => {
     const value = t.value;
     if (field === "expected" && ui.assert) ui.assert.expected = value;
     else if (field === "pageExpected" && ui.page) ui.page.expected = value;
+    else if ((field === "outputName" || field === "outputPattern") && ui.output) {
+      const key = field === "outputName" ? "name" : "pattern";
+      if (ui.output[key] === value) return;
+      ui.output[key] = value;
+      if (key === "name") ui.output.nameError = null;
+      else ui.output.error = null;
+      render();
+    }
     else if (field === "attribute" && ui.assert) {
       ui.assert.attribute = value;
       ui.assert.expected = prefill(ui.assert, "toHaveAttribute");
