@@ -30,18 +30,27 @@ export type InputWiring =
  * runs all its branches; a Condition runs one arm, so a node on one arm never
  * always ran.
  */
-export function alwaysBefore(
+export function alwaysBefore(flow: FlowFile, d: string, n: string): boolean {
+  return before(flow, parallelMeets(flow), d, n, new Set());
+}
+
+/** alwaysBefore over `meets`; `path` holds the meets on the current chain, so a looping flow still ends */
+function before(
   flow: FlowFile,
+  meets: string[],
   d: string,
   n: string,
-  seen: Set<string> = new Set(),
+  path: Set<string>,
 ): boolean {
   if (d === n) return false;
   if (directlyBefore(flow, d, n)) return true;
-  return parallelMeets(flow).some((meet) => {
-    if (meet === n || seen.has(meet)) return false;
-    seen.add(meet);
-    return directlyBefore(flow, d, meet) && alwaysBefore(flow, meet, n, seen);
+  return meets.some((meet) => {
+    if (meet === n || path.has(meet) || !directlyBefore(flow, d, meet))
+      return false;
+    path.add(meet);
+    const ran = before(flow, meets, meet, n, path);
+    path.delete(meet);
+    return ran;
   });
 }
 

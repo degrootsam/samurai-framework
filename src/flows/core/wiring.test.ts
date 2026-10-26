@@ -271,4 +271,48 @@ describe("wiringAt", () => {
     assert.equal(alwaysBefore(flow, "a", "b"), false);
     assert.deepEqual(wiringAt(flow, "b", { facts }), { o: { from: "none" } });
   });
+  test("three levels of Parallels, in either node order: wired to the innermost producer", () => {
+    // start → R → (P → (Q → (a | y) → m1 | z) → m2 | w) → mR → b
+    const nodes = [
+      node("start", "start"),
+      node("R", "parallel"),
+      node("P", "parallel"),
+      node("Q", "parallel"),
+      node("a"),
+      node("y", "wait"),
+      node("m1", "wait"),
+      node("z", "wait"),
+      node("m2", "wait"),
+      node("w", "wait"),
+      node("mR", "wait"),
+      node("b"),
+      node("end", "end"),
+    ];
+    const edges = [
+      edge("start", "R"),
+      edge("R", "P", "branch-0"),
+      edge("R", "w", "branch-1"),
+      edge("P", "Q", "branch-0"),
+      edge("P", "z", "branch-1"),
+      edge("Q", "a", "branch-0"),
+      edge("Q", "y", "branch-1"),
+      edge("a", "m1"),
+      edge("y", "m1"),
+      edge("m1", "m2"),
+      edge("z", "m2"),
+      edge("m2", "mR"),
+      edge("w", "mR"),
+      edge("mR", "b"),
+      edge("b", "end"),
+    ];
+    for (const flow of [
+      flowOf(nodes, edges),
+      flowOf([...nodes].reverse(), edges),
+    ]) {
+      assert.equal(alwaysBefore(flow, "a", "b"), true);
+      assert.deepEqual(wiringAt(flow, "b", { facts }), {
+        o: { from: "node", nodeId: "a", output: "o" },
+      });
+    }
+  });
 });
