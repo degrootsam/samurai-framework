@@ -9,7 +9,7 @@ import { stringOf } from "./literals.js";
 
 const TEXT_MATCHERS = ["toHaveText", "toContainText", "toHaveValue"] as const;
 
-/** `env.NAME`, `env["NAME"]`, `secrets.NAME`, `secrets["NAME"]` or a string literal */
+/** `env.NAME`, `secrets.NAME`, `inputs.NAME` (or `env["NAME"]` and so on) or a string literal */
 export function readValue(
   node: ts.Expression | undefined,
 ): TextValue | undefined {
@@ -28,7 +28,17 @@ export function readValue(
   if (name === undefined || !ts.isIdentifier(object)) return undefined;
   if (object.text === "env") return { kind: "env", name };
   if (object.text === "secrets") return { kind: "secret", name };
+  if (object.text === "inputs") return { kind: "input", name };
   return undefined;
+}
+
+/** `/source/flags` */
+export function readRegex(
+  node: ts.Expression | undefined,
+): { source: string; flags: string } | undefined {
+  if (!node || !ts.isRegularExpressionLiteral(node)) return undefined;
+  const end = node.text.lastIndexOf("/");
+  return { source: node.text.slice(1, end), flags: node.text.slice(end + 1) };
 }
 
 function readTextMatcher(
@@ -37,17 +47,15 @@ function readTextMatcher(
   if (!node) return undefined;
   const literal = stringOf(node);
   if (literal !== undefined) return literal;
-  if (ts.isRegularExpressionLiteral(node)) {
-    const end = node.text.lastIndexOf("/");
-    return {
-      regex: {
-        source: node.text.slice(1, end),
-        flags: node.text.slice(end + 1),
-      },
-    };
-  }
-  return undefined;
+  const regex = readRegex(node);
+  return regex && { regex };
 }
+
+/** The matchers that take `{ output }` as their last argument */
+export const OUTPUT_MATCHERS: readonly string[] = [
+  ...TEXT_MATCHERS,
+  "toHaveAttribute",
+];
 
 export function readExpectation(
   matcher: string,

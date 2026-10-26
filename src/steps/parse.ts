@@ -1,8 +1,9 @@
 import ts from "typescript";
 import type { Modifier } from "../types/test.js";
 import type { ParsedStep, ParsedTest, UnparsedTest } from "./model.js";
-import { readObject, stringOf } from "./parse/literals.js";
+import { stringOf } from "./parse/literals.js";
 import { readStep } from "./parse/step.js";
+import { readTestOptions, type TestOptionsRead } from "./test-options.js";
 
 function parseStatement(
   source: string,
@@ -82,26 +83,30 @@ interface Mark {
 }
 
 /**
- * The callback of `test(title, fn)` and `describe(title, fn)`, and for a skip or fixme also of
- * `(title, { reason }, fn)` with the reason when it is a literal
+ * The callback of `test(title, fn)` and `describe(title, fn)`, and of `(title, options, fn)` with what the
+ * options say and where they sit. Undefined when the options object isn't one the codec can read
  */
-function callbackOf(
+function argumentsOf(
   node: ts.CallExpression,
+  kind: "test" | "describe",
   modifier: Modifier | undefined,
-): { callback: ts.Expression | undefined; reason?: string } {
+):
+  | {
+      callback: ts.Expression | undefined;
+      options?: TestOptionsRead;
+      range?: { start: number; end: number };
+    }
+  | undefined {
   const [, second, third] = node.arguments;
-  if (
-    (modifier === "skip" || modifier === "fixme") &&
-    second &&
-    ts.isObjectLiteralExpression(second)
-  ) {
-    const reason = readObject(second, ["reason"])?.reason;
-    return {
+  if (node.arguments.length < 3) return { callback: second };
+  const options = readTestOptions(second!, kind, modifier);
+  return (
+    options && {
       callback: third,
-      ...(typeof reason === "string" && { reason }),
-    };
-  }
-  return { callback: second };
+      options,
+      range: { start: second!.getStart(), end: second!.end },
+    }
+  );
 }
 
 /** What the runner applies to a test (see `modifierOf` in the runner): the innermost `skip` or `fixme` with its reason, else `only` */
@@ -189,12 +194,18 @@ export function parseSpecFile(source: string): {
     ) {
       const kind = callee.name;
       const title = stringOf(node.arguments[0]);
-      const { callback, reason } = callbackOf(node, callee.modifier);
-      const body = callbackBody(callback);
       if (title === undefined) {
         unparsed.push(unreadable(node, kind, "dynamic-title"));
         return;
       }
+      const args = argumentsOf(node, kind, callee.modifier);
+      if (!args) {
+        unparsed.push(unreadable(node, kind, "dynamic-options"));
+        return;
+      }
+      const { callback, options = {}, range } = args;
+      const { reason, inputs, outputs } = options;
+      const body = callbackBody(callback);
       if (!body) {
         unparsed.push(unreadable(node, kind, "not-inline"));
         return;
@@ -220,6 +231,10 @@ export function parseSpecFile(source: string): {
             sourceFile,
           ),
           ...effectiveMark(mark, describes),
+          ...(inputs && { inputs }),
+          ...(outputs && { outputs }),
+          ...(range && { options: range }),
+          titleEnd: node.arguments[0]!.end,
         });
         return;
       }
