@@ -128,8 +128,13 @@ test("a closed page fails with the page's error, not a timeout", async () => {
 test("an un-awaited page matcher is tracked as pending", async () => {
   takePendingAssertions();
   const promise = expect(fakePage()).toHaveURL("x", { timeout: 0 });
-  assert.deepEqual(takePendingAssertions(), ["expect(locator).toHaveURL()"]);
+  const negated = expect(fakePage()).not.toHaveTitle("x", { timeout: 0 });
+  assert.deepEqual(takePendingAssertions(), [
+    "expect(page).toHaveURL()",
+    "expect(page).not.toHaveTitle()",
+  ]);
   await promise.catch(() => undefined);
+  await negated.catch(() => undefined);
 });
 
 test("toHaveTitle trims an expected string too", async () => {
@@ -154,6 +159,6 @@ test("an un-awaited no-base toHaveURL is listed as pending, not unhandled", asyn
   });
   takePendingAssertions();
   const promise = expect(page).toHaveURL("/x");
-  assert.deepEqual(takePendingAssertions(), ["expect(locator).toHaveURL()"]);
+  assert.deepEqual(takePendingAssertions(), ["expect(page).toHaveURL()"]);
   await promise.catch(() => undefined);
 });

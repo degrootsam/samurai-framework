@@ -40,7 +40,7 @@ export class PageAssertions {
     const name = this.negated ? `not.${matcher}` : matcher;
 
     return track(
-      `expect(locator).${name}()`,
+      `expect(page).${name}()`,
       (async () => {
         // Resolved inside the tracked body: a throw (no base URL) rejects the tracked promise
         const expected = expectedOf();
