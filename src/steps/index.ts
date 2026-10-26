@@ -20,6 +20,7 @@ export type {
   ParsedTest,
   Step,
   TextMatcher,
+  TestInput,
   TextValue,
   UnparsedTest,
 } from "./model.js";

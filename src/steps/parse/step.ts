@@ -2,12 +2,75 @@ import ts from "typescript";
 import type { Step } from "../model.js";
 import { readLocator } from "./call.js";
 import {
+  OUTPUT_MATCHERS,
   readExpectation,
   readPageExpectation,
+  readRegex,
   readValue,
 } from "./expectation.js";
 import { readFiles } from "./file-entry.js";
 import { readObject, stringOf } from "./literals.js";
+
+/**
+ * The name in a trailing `{ output: "name" }`: undefined without one, null when the argument is there but
+ * isn't exactly that
+ */
+function outputOf(node: ts.Expression | undefined): string | undefined | null {
+  if (!node) return undefined;
+  const output = readObject(node, ["output"])?.output;
+  return typeof output === "string" ? output : null;
+}
+
+/** `outputs.save("name", locator)` or `outputs.save("name", locator, /pattern/)` */
+function readSaveOutput(args: readonly ts.Expression[]): Step | undefined {
+  const name = stringOf(args[0]);
+  const locator = args[1] && readLocator(args[1]);
+  const pattern = readRegex(args[2]);
+  if (
+    name === undefined ||
+    !locator ||
+    args.length > 3 ||
+    (args.length === 3 && !pattern)
+  )
+    return undefined;
+  return {
+    kind: "saveOutput",
+    name,
+    locator,
+    ...(pattern && { pattern }),
+  };
+}
+
+/** `expect(locator)…matcher(…)`, with a trailing `{ output }` only on the matchers that take one and never with `not` */
+function readLocatorExpect(
+  subject: ts.Expression,
+  negated: boolean,
+  matcher: string,
+  args: readonly ts.Expression[],
+): Step | undefined {
+  const locator = readLocator(subject);
+  if (!locator) return undefined;
+  const last = args[args.length - 1];
+  const takesOutput =
+    OUTPUT_MATCHERS.includes(matcher) &&
+    !!last &&
+    ts.isObjectLiteralExpression(last);
+  const output = takesOutput ? outputOf(last) : undefined;
+  if (output === null || (output !== undefined && negated)) return undefined;
+  const expectation = readExpectation(
+    matcher,
+    takesOutput ? args.slice(0, -1) : args,
+  );
+  return expectation
+    ? {
+        kind: "expect",
+        locator,
+        not: negated,
+        expectation,
+        ...(output !== undefined && { output }),
+      }
+    : undefined;
+}
 
 /** The step a statement stands for, or undefined when it is outside the recorder's set */
 export function readStep(statement: ts.Statement): Step | undefined {
@@ -76,12 +139,11 @@ export function readStep(statement: ts.Statement): Step | undefined {
         ? { kind: "expectPage", not: negated, expectation }
         : undefined;
     }
-    const locator = readLocator(arg);
-    const expectation = readExpectation(name.text, args);
-    return locator && expectation
-      ? { kind: "expect", locator, not: negated, expectation }
-      : undefined;
+    return readLocatorExpect(arg, negated, name.text, args);
   }
+
+  if (ts.isIdentifier(target) && target.text === "outputs")
+    return name.text === "save" ? readSaveOutput(args) : undefined;
 
   const locator = readLocator(target);
   if (!locator) return undefined;
@@ -91,9 +153,17 @@ export function readStep(statement: ts.Statement): Step | undefined {
     const key = stringOf(args[0]);
     return key === undefined ? undefined : { kind: "press", locator, key };
   }
-  if (name.text === "fill" && args.length === 1) {
+  if (name.text === "fill" && (args.length === 1 || args.length === 2)) {
     const value = readValue(args[0]);
-    return value ? { kind: "fill", locator, value } : undefined;
+    const output = outputOf(args[1]);
+    return value && output !== null
+      ? {
+          kind: "fill",
+          locator,
+          value,
+          ...(output !== undefined && { output }),
+        }
+      : undefined;
   }
   if (
     (name.text === "setInputFiles" || name.text === "dropFiles") &&

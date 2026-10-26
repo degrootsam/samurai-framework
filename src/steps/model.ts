@@ -29,7 +29,9 @@ export interface LocatorSpec {
 export type TextValue =
   | { kind: "literal"; value: string }
   | { kind: "env"; name: string }
-  | { kind: "secret"; name: string };
+  | { kind: "secret"; name: string }
+  /** One of the test's declared `inputs`, `inputs.name` */
+  | { kind: "input"; name: string };
 
 /** What an assertion expects of text: a string or a regular expression */
 export type TextMatcher = string | { regex: { source: string; flags: string } };
@@ -69,12 +71,25 @@ export type FileEntry = { path: string } | { generate: GeneratedFileSpec };
 export type Step =
   | { kind: "goto"; url: string }
   | { kind: "click"; locator: LocatorSpec }
-  | { kind: "fill"; locator: LocatorSpec; value: TextValue }
+  /** `output` saves the typed value as that output, `{ output: "name" }` */
+  | { kind: "fill"; locator: LocatorSpec; value: TextValue; output?: string }
   | {
       kind: "expect";
       locator: LocatorSpec;
       not: boolean;
       expectation: Expectation;
+      /**
+       * Saves what passed as that output. Read only with `toHaveText`, `toContainText`, `toHaveValue` and
+       * `toHaveAttribute`, never with `not`: any other shape is `custom`
+       */
+      output?: string;
+    }
+  /** Saves an element's text as an output, `outputs.save(name, locator, /pattern/)`: the first group, else the whole match */
+  | {
+      kind: "saveOutput";
+      name: string;
+      locator: LocatorSpec;
+      pattern?: { source: string; flags: string };
     }
   /** An assertion on the page, `expect(page).toHaveURL(…)` */
   | { kind: "expectPage"; not: boolean; expectation: PageExpectation }
@@ -129,6 +144,20 @@ export interface ParsedTest {
   modifier?: Modifier;
   /** The `{ reason }` written with the `skip` or `fixme` that applies, when it is a string literal */
   reason?: string;
+  /** The `inputs` of the test's options object, in source order; undefined without the key */
+  inputs?: TestInput[];
+  /** The `outputs` of the test's options object; undefined without the key */
+  outputs?: string[];
+  /** The range of the test's options object (`test(title, { … }, fn)`), when it has one */
+  options?: { start: number; end: number };
+  /** Offset just after the title argument, where an options object goes */
+  titleEnd: number;
+}
+
+/** A declared input and the value it gets when nothing supplies one */
+export interface TestInput {
+  name: string;
+  default: string;
 }
 
 /** A `test` or `describe` call the codec can't read: its title isn't a plain string, or its function isn't written inline */
@@ -137,5 +166,6 @@ export interface UnparsedTest {
   /** The statement's range, as for `ParsedTest` */
   start: number;
   end: number;
-  reason: "dynamic-title" | "not-inline";
+  /** `dynamic-options`: the options object isn't a literal the codec can read (`{ inputs: defaults }`, a variable) */
+  reason: "dynamic-title" | "not-inline" | "dynamic-options";
 }

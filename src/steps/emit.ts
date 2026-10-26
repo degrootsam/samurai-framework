@@ -28,7 +28,8 @@ export function filesToSource(files: readonly FileEntry[]): string {
     ? fileEntryToSource(files[0]!)
     : `[${files.map(fileEntryToSource).join(", ")}]`;
 }
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+/** A name that can follow a `.` or stand as an object key unquoted */
+export const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 function textOptions(call: {
   match?: "full" | "partial";
@@ -69,21 +70,35 @@ export function locatorToSource({ chain, fallbacks }: LocatorSpec): string {
 
 export function valueToSource(value: TextValue): string {
   if (value.kind === "literal") return str(value.value);
-  const object = value.kind === "env" ? "env" : "secrets";
+  const object =
+    value.kind === "env"
+      ? "env"
+      : value.kind === "secret"
+        ? "secrets"
+        : "inputs";
   return IDENTIFIER.test(value.name)
     ? `${object}.${value.name}`
     : `${object}[${str(value.name)}]`;
 }
 
+const regexToSource = ({ source, flags }: { source: string; flags: string }) =>
+  `/${source}/${flags}`;
+
 function matcherToSource(expected: TextMatcher): string {
   return typeof expected === "string"
     ? str(expected)
-    : `/${expected.regex.source}/${expected.regex.flags}`;
+    : regexToSource(expected.regex);
 }
+
+/** The `{ output }` option a fill or a check ends with, as its last argument */
+const outputOption = (output: string | undefined) =>
+  output === undefined ? "" : `, { output: ${str(output)} }`;
 
 function expectationToSource(
   expectation: Expectation | PageExpectation,
+  output?: string,
 ): string {
+  const tail = outputOption(output);
   switch (expectation.matcher) {
     case "toBeVisible":
     case "toBeHidden":
@@ -91,13 +106,13 @@ function expectationToSource(
     case "toBeChecked":
       return `${expectation.matcher}()`;
     case "toHaveAttribute":
-      return `toHaveAttribute(${str(expectation.name)}, ${matcherToSource(expectation.expected)})`;
+      return `toHaveAttribute(${str(expectation.name)}, ${matcherToSource(expectation.expected)}${tail})`;
     case "toHaveCSS":
       return `toHaveCSS(${str(expectation.name)}, ${matcherToSource(expectation.expected)})`;
     case "toHaveCount":
       return `toHaveCount(${expectation.expected})`;
     default:
-      return `${expectation.matcher}(${matcherToSource(expectation.expected)})`;
+      return `${expectation.matcher}(${matcherToSource(expectation.expected)}${tail})`;
   }
 }
 
@@ -109,11 +124,11 @@ export function stepToSource(step: Step): string {
     case "click":
       return `await ${locatorToSource(step.locator)}.click();`;
     case "fill":
-      return `await ${locatorToSource(step.locator)}.fill(${valueToSource(step.value)});`;
+      return `await ${locatorToSource(step.locator)}.fill(${valueToSource(step.value)}${outputOption(step.output)});`;
     case "press":
       return `await ${locatorToSource(step.locator)}.press(${str(step.key)});`;
     case "expect":
-      return `await expect(${locatorToSource(step.locator)})${step.not ? ".not" : ""}.${expectationToSource(step.expectation)};`;
+      return `await expect(${locatorToSource(step.locator)})${step.not ? ".not" : ""}.${expectationToSource(step.expectation, step.output)};`;
     case "expectPage":
       return `await expect(page)${step.not ? ".not" : ""}.${expectationToSource(step.expectation)};`;
     case "waitForNetworkIdle":
@@ -125,6 +140,8 @@ export function stepToSource(step: Step): string {
     case "setInputFiles":
     case "dropFiles":
       return `await ${locatorToSource(step.locator)}.${step.kind}(${filesToSource(step.files)});`;
+    case "saveOutput":
+      return `await outputs.save(${str(step.name)}, ${locatorToSource(step.locator)}${step.pattern ? `, ${regexToSource(step.pattern)}` : ""});`;
     case "custom":
       return step.code;
   }
