@@ -241,41 +241,99 @@ test(
   },
 );
 
+const SECRET_PAGE = `data:text/html,<p data-testid="conf">Thank you! Order %2396002 is confirmed for samurai@example.com.</p>`;
+const MAY_HOLD =
+  "This element shows a secret. The saved output may contain it; use a pattern that captures only the non-secret part.";
+
+/** Records with the email as a secret and picks the confirmation that shows it */
+async function pickSecretConfirmation() {
+  await page.navigateTo(SECRET_PAGE, "complete");
+  const recording = await record({ EMAIL: "samurai@example.com" });
+  await press("output");
+  await inSandbox(
+    `() => { ${HOOK}.press("pick", { target: document.querySelector('[data-testid="conf"]') }); }`,
+  );
+  await waitFor(
+    async () => (await panelText(".out-secret")) === MAY_HOLD,
+    "the secret warning",
+  );
+  return recording;
+}
+
+/** Whether the toolbar's DOM holds the secret anywhere */
+const toolbarHoldsSecret = () =>
+  inSandbox<boolean>(
+    `() => ${HOOK}.root.innerHTML.includes("samurai@example.com")`,
+  );
+
 test(
-  "Save as output on an element that shows a secret says so instead of No match, and records nothing",
+  "Save as output on an element that shows a secret warns, previews the captured part and saves",
   OPTIONS,
   async () => {
-    await page.navigateTo(
-      `data:text/html,<p data-testid="conf">Thank you! Order %2396002 is confirmed for samurai@example.com.</p>`,
-      "complete",
+    const { source, steps } = await pickSecretConfirmation();
+    assert.equal(
+      await panelText(".out-text"),
+      "Thank you! Order #96002 is confirmed for ••••.",
     );
-    const { steps } = await record({ EMAIL: "samurai@example.com" });
-    await press("output");
-    await inSandbox(
-      `() => { ${HOOK}.press("pick", { target: document.querySelector('[data-testid="conf"]') }); }`,
-    );
-    const SECRET_SHOWN = "This element shows a secret; it can't be an output";
     await waitFor(
-      async () => (await panelText(".out-secret")) === SECRET_SHOWN,
-      "the secret notice",
+      async () =>
+        (await panelText(".out-capture")) ===
+        "Thank you! Order #96002 is confirmed for ••••.",
+      "the masked whole text as the preview",
     );
-    assert.equal(
-      await panelText(".out-capture"),
-      null,
-      "no preview to mislead",
+
+    await typeInto("outputName", "orderId");
+    await typeInto("outputPattern", "Order #(\\d+)");
+    await waitFor(
+      async () => (await panelText(".out-capture")) === "96002",
+      "the recorder's preview",
     );
-    assert.equal(
-      await panelText('[data-field="outputPattern"]'),
-      null,
-      "no pattern to type",
+    assert.equal(await panelText(".out-leak"), null);
+    assert.equal(await panelText(".out-secret"), MAY_HOLD);
+
+    await typeInto("outputPattern", "Invoice (\\d+)");
+    await waitFor(
+      async () => (await panelText(".out-capture")) === "No match",
+      "No match for a pattern that doesn't match",
     );
-    assert.equal(
-      await inSandbox<boolean>(
-        `() => ${HOOK}.root.querySelector(".panel").textContent.includes("samurai@example.com")`,
-      ),
-      false,
+    await typeInto("outputPattern", "Order #(\\d+)");
+    await waitFor(
+      async () => (await panelText(".out-capture")) === "96002",
+      "the preview again",
     );
+    assert.equal(await toolbarHoldsSecret(), false);
+
     await press("output-save");
-    assert.deepEqual(steps(), []);
+    await waitFor(() => steps().length === 1, "the saveOutput step");
+    assert.match(
+      source(),
+      /await outputs\.save\("orderId", page\..+, \/Order #\(\\d\+\)\/\);/,
+    );
+  },
+);
+
+test(
+  "Save as output with a pattern that captures the secret previews it masked, warns harder and still saves",
+  OPTIONS,
+  async () => {
+    const { steps } = await pickSecretConfirmation();
+    await typeInto("outputName", "email");
+    await typeInto("outputPattern", "for (\\S+)\\.$");
+    await waitFor(
+      async () => (await panelText(".out-capture")) === "••••",
+      "the masked preview",
+    );
+    assert.equal(
+      await panelText(".out-leak"),
+      "The output will contain a secret: reports mask it, but whatever reads the output gets the real value.",
+    );
+    assert.equal(await toolbarHoldsSecret(), false);
+
+    await press("output-save");
+    await waitFor(() => steps().length === 1, "the saveOutput step");
+    assert.deepEqual((steps()[0] as { pattern?: unknown }).pattern, {
+      source: "for (\\S+)\\.$",
+      flags: "",
+    });
   },
 );

@@ -1,3 +1,4 @@
+import { MASK } from "../../../config/mask.js";
 import { expectationFor } from "../../expectation.js";
 import type { PickInfo } from "../protocol.js";
 
@@ -12,8 +13,20 @@ export function holdsSecret(
     text !== undefined && values.some((value) => text.includes(value));
 }
 
+/** A text with every secret value it holds replaced by the mask, longest value first (as `holdsSecret` finds them) */
+export function maskSecrets(
+  secrets: Map<string, string | undefined>,
+): (text: string) => string {
+  const values = [...secrets.values()]
+    .filter((value): value is string => value !== undefined && value !== "")
+    .sort((a, b) => b.length - a.length);
+  return (text) =>
+    values.reduce((masked, value) => masked.split(value).join(MASK), text);
+}
+
 /**
  * A field may hold an inserted secret: its value (and any text, attribute, class or CSS value holding a secret) is left out,
+ * the output text has the secret masked (Save as output previews on the recorder's side then, see `outputPreview`),
  * and the first matcher follows the Alt+click rule without a value, so neither the page nor the spec gets it.
  */
 export function withoutSecrets(
@@ -37,7 +50,7 @@ export function withoutSecrets(
   return {
     ...rest,
     text,
-    outputText: secret(info.outputText) ? "" : info.outputText,
+    outputText: maskSecrets(secrets)(info.outputText),
     ...(secret(info.outputText) && { showsSecret: true as const }),
     attributes: info.attributes.filter((a) => !secret(a.value)),
     className: secret(info.className ?? undefined) ? null : info.className,

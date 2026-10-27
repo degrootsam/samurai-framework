@@ -27,6 +27,13 @@ export const RECORDER_SIDE_JS = String.raw`  // ---- The recorder's side ----
     render();
   };
   const reply = (id, result) => {
+    // A Save as output preview, for the pattern still typed (a late one is dropped); it doesn't end a pending action
+    if (result && result.preview) {
+      const o = ui.panel === "output" && ui.output;
+      if (!o || o.id !== id || o.pattern.trim() !== result.pattern) return;
+      o.preview = result;
+      return render();
+    }
     if (!ui.pending || id !== ui.pending || !result) return;
     ui.busy = false;
     const ok = result.ok === true;
@@ -44,6 +51,7 @@ export const RECORDER_SIDE_JS = String.raw`  // ---- The recorder's side ----
     } else if (ui.panel === "output" && ui.output && !ui.output.info) {
       ui.output.info = result;
       if (ok) ui.focus = "outputName";
+      if (ok && result.showsSecret) askPreview(ui.output);
     } else if (ui.panel === "page" && ui.page && !ui.page.info) {
       ui.page.info = result;
       if (ok) {

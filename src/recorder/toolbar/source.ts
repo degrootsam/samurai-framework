@@ -25,7 +25,8 @@ import { ATTACH_JS } from "./source/attach.js";
  * `globalThis[Symbol.for("samurai.toolbar")]` in the sandbox holds the hook:
  * - `update(state)`: the recorder's state, after every change and every page load.
  * - `reply(id, result)`: the answer to `pick` (a `PickInfo`), to `page-info` (a `PageInfo`) or to `assert`,
- *   `assert-page`, `insert`, `add-insertable` and `save-output` (an `ActionReply`).
+ *   `assert-page`, `insert`, `add-insertable` and `save-output` (an `ActionReply`), or to `output-preview` (an
+ *   `OutputPreview`, which carries `preview: true` and doesn't end a pending action).
  * - `root`: the shadow root, for tests.
  * - `press(action, detail?)`: runs the handler a click on that control runs (for tests). Actions:
  *   `pause`, `resume`, `stop`, `collapse`, `expand`, `resume-yes`, `resume-no` (rail);

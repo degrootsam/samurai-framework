@@ -16,7 +16,10 @@ export const FIELDS_JS = String.raw`  const press = (action, detail) => {
       if (ui.output[key] === value) return;
       ui.output[key] = value;
       if (key === "name") ui.output.nameError = null;
-      else ui.output.error = null;
+      else {
+        ui.output.error = null;
+        if (ui.output.info && ui.output.info.ok && ui.output.info.showsSecret) askPreview(ui.output);
+      }
       render();
     }
     else if (field === "attribute" && ui.assert) {
