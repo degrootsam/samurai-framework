@@ -63,7 +63,7 @@ export const PICKING_JS = String.raw`  // ---- Panels and picking ----
     const r = target.getBoundingClientRect();
     const rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
     if (ui.pickFor === "output") {
-      ui.output = { id, target, candidates, info: null, name: "", pattern: "", nameError: null, error: null, rect };
+      ui.output = { id, target, candidates, info: null, name: "", pattern: "", preview: null, nameError: null, error: null, rect };
     } else {
       ui.assert = {
         id, target, candidates, info: null, matcher: "toBeVisible", expected: "", attribute: null, countIndex: 0,
