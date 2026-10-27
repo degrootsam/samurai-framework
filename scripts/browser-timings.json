@@ -1,150 +1,150 @@
 {
   "src/assert/assertions.browser-test.ts": {
-    "firefox": 5.2,
-    "chrome": 5.1
+    "firefox": 4.9,
+    "chrome": 3.5
   },
   "src/browser/browser-context.browser-test.ts": {
-    "firefox": 6.6,
-    "chrome": 4.1
+    "firefox": 7.4,
+    "chrome": 6.8
   },
   "src/browser/dialog.browser-test.ts": {
-    "firefox": 4.8,
-    "chrome": 2.6
+    "firefox": 4.6,
+    "chrome": 1.6
   },
   "src/browser/emulation.browser-test.ts": {
-    "firefox": 4.5,
-    "chrome": 4.7
+    "firefox": 6.3,
+    "chrome": 6.1
   },
   "src/browser/goto.browser-test.ts": {
-    "firefox": 4.1,
-    "chrome": 2.2
+    "firefox": 2.4,
+    "chrome": 1
   },
   "src/browser/navigation.browser-test.ts": {
     "firefox": 9.4,
-    "chrome": 7.9
+    "chrome": 8.2
   },
   "src/browser/page-api.browser-test.ts": {
-    "firefox": 15.2,
-    "chrome": 3.3
+    "firefox": 15,
+    "chrome": 3.2
   },
   "src/browser/page-logs.browser-test.ts": {
-    "firefox": 3.4,
+    "firefox": 3.6,
     "chrome": 2.3
   },
   "src/browser/transfers.browser-test.ts": {
-    "firefox": 5.6,
-    "chrome": 4.9
+    "firefox": 5,
+    "chrome": 4.8
   },
   "src/flows/run/flows.browser-test.ts": {
-    "firefox": 12.3,
-    "chrome": 7.3
+    "firefox": 13,
+    "chrome": 6.6
   },
   "src/locator/drop-files.browser-test.ts": {
-    "firefox": 2.6,
-    "chrome": 1.6
+    "firefox": 2.5,
+    "chrome": 1.7
   },
   "src/locator/locate-nodes.browser-test.ts": {
-    "firefox": 4.3,
+    "firefox": 4.4,
     "chrome": 3.4
   },
   "src/locator/locator.browser-test.ts": {
-    "firefox": 6.5,
+    "firefox": 5.9,
     "chrome": 5
   },
   "src/locator/set-files.browser-test.ts": {
-    "firefox": 3.2,
-    "chrome": 2.4
+    "firefox": 3.3,
+    "chrome": 2.5
   },
   "src/network/network-data.browser-test.ts": {
-    "firefox": 3.7,
-    "chrome": 2.2
-  },
-  "src/network/network-tracker.browser-test.ts": {
-    "firefox": 5.8,
-    "chrome": 4.8
-  },
-  "src/network/router.browser-test.ts": {
-    "firefox": 4.2,
+    "firefox": 3.5,
     "chrome": 2.3
   },
+  "src/network/network-tracker.browser-test.ts": {
+    "firefox": 6,
+    "chrome": 4.9
+  },
+  "src/network/router.browser-test.ts": {
+    "firefox": 3.8,
+    "chrome": 2.5
+  },
   "src/recorder/files-capture.browser-test.ts": {
-    "firefox": 4.7,
-    "chrome": 15.6
+    "firefox": 4.1,
+    "chrome": 13.9
   },
   "src/recorder/files.browser-test.ts": {
-    "firefox": 9.1,
-    "chrome": 8.2
+    "firefox": 9.9,
+    "chrome": 9
   },
   "src/recorder/recorder.browser-test.ts": {
-    "firefox": 14.1,
+    "firefox": 14,
     "chrome": 12.5
   },
   "src/recorder/session.browser-test.ts": {
-    "firefox": 38.6,
-    "chrome": 27.4
+    "firefox": 33.6,
+    "chrome": 24.6
   },
   "src/recorder/toolbar/insert-input.browser-test.ts": {
-    "firefox": 5.6,
-    "chrome": 4.1
+    "firefox": 5.3,
+    "chrome": 3.8
   },
   "src/recorder/toolbar/page-panel.browser-test.ts": {
-    "firefox": 4.2,
-    "chrome": 3.4
+    "firefox": 4.8,
+    "chrome": 2.9
   },
   "src/recorder/toolbar/recorder-toolbar.browser-test.ts": {
-    "firefox": 17.9,
-    "chrome": 18.1
+    "firefox": 17.2,
+    "chrome": 17.4
   },
   "src/recorder/toolbar/save-output.browser-test.ts": {
-    "firefox": 3.9,
-    "chrome": 3.2
+    "firefox": 3.6,
+    "chrome": 3.9
   },
   "src/recorder/toolbar/toolbar.browser-test.ts": {
-    "firefox": 6,
-    "chrome": 6.4
+    "firefox": 5.9,
+    "chrome": 6.3
   },
   "src/runner/hooks.browser-test.ts": {
-    "firefox": 22.9,
-    "chrome": 13.1
+    "firefox": 32.8,
+    "chrome": 25.5
   },
   "src/runner/modifiers.browser-test.ts": {
-    "firefox": 19.1,
-    "chrome": 8.5
+    "firefox": 20,
+    "chrome": 9.2
   },
   "src/runner/multi-browser.browser-test.ts": {
-    "firefox": 9.6,
-    "chrome": 9.6
+    "firefox": 9.7,
+    "chrome": 11.3
   },
   "src/runner/retries.browser-test.ts": {
-    "firefox": 39.4,
-    "chrome": 28.1
+    "firefox": 44.1,
+    "chrome": 35.8
   },
   "src/runner/run.browser-test.ts": {
-    "firefox": 12.1,
-    "chrome": 5.3
+    "firefox": 73.5,
+    "chrome": 65.5
   },
   "src/runner/screenshots.browser-test.ts": {
-    "firefox": 4.4,
-    "chrome": 2.4
+    "firefox": 4.2,
+    "chrome": 1.9
   },
   "src/runner/test-io.browser-test.ts": {
-    "firefox": 52.3,
-    "chrome": 41.8
+    "firefox": 37.7,
+    "chrome": 21.8
   },
   "src/runner/workers.browser-test.ts": {
-    "firefox": 91.2,
-    "chrome": 79.2
+    "firefox": 32.3,
+    "chrome": 24.2
   },
   "src/script/call-function.browser-test.ts": {
     "firefox": 2.3,
-    "chrome": 1.2
+    "chrome": 0.9
   },
   "src/script/preload.browser-test.ts": {
-    "firefox": 3,
-    "chrome": 1.6
+    "firefox": 3.3,
+    "chrome": 1.4
   },
   "src/transport/foundation.browser-test.ts": {
     "firefox": 2.3,
-    "chrome": 0.9
+    "chrome": 1.3
   }
 }
