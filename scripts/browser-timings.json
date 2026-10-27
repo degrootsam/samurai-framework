@@ -120,8 +120,8 @@
     "chrome": 35.8
   },
   "src/runner/run.browser-test.ts": {
-    "firefox": 73.5,
-    "chrome": 65.5
+    "firefox": 14.9,
+    "chrome": 10.3
   },
   "src/runner/screenshots.browser-test.ts": {
     "firefox": 4.2,
