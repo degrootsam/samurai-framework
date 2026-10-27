@@ -88,6 +88,8 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     const head = h("div", { class: "h" }, "Save as output", info && info.ok && h("code", { title: info.label }, info.label));
     if (!info) return [head, h("div", { class: "msg" }, "…")];
     if (!info.ok) return [head, h("div", { class: "err" }, info.error)];
+    // Its text is blank here (the secret stays out of the page) and saving is refused: a preview would only say No match
+    if (info.showsSecret) return [head, h("div", { class: "warn out-secret" }, "This element shows a secret; it can't be an output")];
     const capture = captureOf(info.outputText, o.pattern);
     return [
       head,
