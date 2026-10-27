@@ -38,6 +38,7 @@ export function withoutSecrets(
     ...rest,
     text,
     outputText: secret(info.outputText) ? "" : info.outputText,
+    ...(secret(info.outputText) && { showsSecret: true as const }),
     attributes: info.attributes.filter((a) => !secret(a.value)),
     className: secret(info.className ?? undefined) ? null : info.className,
     css: secret(info.css.value) ? { ...info.css, value: "" } : info.css,

@@ -114,6 +114,8 @@ export type PickInfo =
       text: string;
       /** The whole text as `outputs.save` reads it (`textContent`, trimmed): what Save as output captures from */
       outputText: string;
+      /** `outputText` held a secret and is blank: Save as output says so instead of previewing a pattern */
+      showsSecret?: true;
       value?: string;
       attributes: { name: string; value: string }[];
       first: { matcher: MatcherChoice; expected?: string };
