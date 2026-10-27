@@ -242,10 +242,9 @@ describe("ToolbarController save as output", () => {
       },
     );
     await controller.handle(pick(49));
-    assert.equal(
-      (lastOf(replies)!.result as PickInfo & { ok: true }).outputText,
-      "",
-    );
+    const info = lastOf(replies)!.result as PickInfo & { ok: true };
+    assert.equal(info.outputText, "");
+    assert.equal(info.showsSecret, true, "the panel says why there is no text");
     for (const pattern of ["token (\\S+)", ""]) {
       await controller.handle(save(49, "token", pattern));
       assert.deepEqual(lastOf(replies), {
