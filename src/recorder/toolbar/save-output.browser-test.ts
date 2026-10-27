@@ -50,8 +50,8 @@ const { inSandbox, press, viewState, typeInto } = toolbarDriver(() => ({
   connector,
 }));
 
-/** Records with a toolbar; `source()` is the spec the steps make */
-async function record() {
+/** Records with a toolbar and these secrets; `source()` is the spec the steps make */
+async function record(secrets: Record<string, string> = {}) {
   const events: RecorderEvent[] = [];
   recorder = await page.record({
     onEvent: (event) => events.push(event),
@@ -60,7 +60,7 @@ async function record() {
       environment: "dev",
       canAddVariables: true,
       variables: {},
-      secrets: {},
+      secrets,
       secretsIgnored: true,
       screenshots: 0,
       projectDir,
@@ -238,5 +238,44 @@ test(
       name: "orderId",
       pattern: { source: "orders\\/(\\d+)", flags: "" },
     });
+  },
+);
+
+test(
+  "Save as output on an element that shows a secret says so instead of No match, and records nothing",
+  OPTIONS,
+  async () => {
+    await page.navigateTo(
+      `data:text/html,<p data-testid="conf">Thank you! Order %2396002 is confirmed for samurai@example.com.</p>`,
+      "complete",
+    );
+    const { steps } = await record({ EMAIL: "samurai@example.com" });
+    await press("output");
+    await inSandbox(
+      `() => { ${HOOK}.press("pick", { target: document.querySelector('[data-testid="conf"]') }); }`,
+    );
+    const SECRET_SHOWN = "This element shows a secret; it can't be an output";
+    await waitFor(
+      async () => (await panelText(".out-secret")) === SECRET_SHOWN,
+      "the secret notice",
+    );
+    assert.equal(
+      await panelText(".out-capture"),
+      null,
+      "no preview to mislead",
+    );
+    assert.equal(
+      await panelText('[data-field="outputPattern"]'),
+      null,
+      "no pattern to type",
+    );
+    assert.equal(
+      await inSandbox<boolean>(
+        `() => ${HOOK}.root.querySelector(".panel").textContent.includes("samurai@example.com")`,
+      ),
+      false,
+    );
+    await press("output-save");
+    assert.deepEqual(steps(), []);
   },
 );
