@@ -91,6 +91,8 @@ export type ToolbarMessage = { type: "toolbar" } &
         name: string;
         pattern?: string;
       }
+    /** The pattern of Save as output for an element that shows a secret, as typed: answered with an `OutputPreview` */
+    | { action: "output-preview"; id: number; pattern: string }
     /** The Page panel opened: answered with a `PageInfo` */
     | { action: "page-info"; id: number }
     | {
@@ -114,7 +116,7 @@ export type PickInfo =
       text: string;
       /** The whole text as `outputs.save` reads it (`textContent`, trimmed): what Save as output captures from */
       outputText: string;
-      /** `outputText` held a secret and is blank: Save as output says so instead of previewing a pattern */
+      /** `outputText` held a secret, which is masked in it: Save as output asks the recorder for its preview */
       showsSecret?: true;
       value?: string;
       attributes: { name: string; value: string }[];
@@ -135,6 +137,14 @@ export type PickInfo =
 export type PageInfo =
   | { ok: true; url: string; urlPrefill: string; title: string }
   | { ok: false; error: string };
+
+/**
+ * The answer to `output-preview`: what `outputs.save` would keep from the element's real text with `pattern`,
+ * every secret masked; `secret` when the value held one. `pattern` is the one asked about, so a late answer is dropped.
+ */
+export type OutputPreview = { preview: true; pattern: string } & (
+  { ok: true; value: string; secret: boolean } | { ok: false; error: string }
+);
 
 /** The answer to `insert`, `add-insertable`, `assert`, `assert-page` and `save-output` */
 export type ActionReply =

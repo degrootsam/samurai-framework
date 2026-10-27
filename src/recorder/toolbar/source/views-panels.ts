@@ -82,19 +82,28 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
     if (!match) return { error: "No match" };
     return { value: match[1] !== undefined ? match[1] : match[0] };
   };
+  // An element that shows a secret reaches the page with it masked: the recorder works out its preview from the real text
+  const askPreview = (o) => {
+    o.preview = null;
+    post({ action: "output-preview", id: o.id, pattern: o.pattern.trim() });
+  };
+  const outputCapture = (o) => {
+    if (!o.info.showsSecret) return captureOf(o.info.outputText, o.pattern);
+    if (!o.preview) return { value: "…" };
+    return o.preview.ok ? { value: o.preview.value, secret: o.preview.secret } : { error: o.preview.error };
+  };
   const outputPanel = () => {
     const o = ui.output;
     const info = o.info;
     const head = h("div", { class: "h" }, "Save as output", info && info.ok && h("code", { title: info.label }, info.label));
     if (!info) return [head, h("div", { class: "msg" }, "…")];
     if (!info.ok) return [head, h("div", { class: "err" }, info.error)];
-    // Its text is blank here (the secret stays out of the page) and saving is refused: a preview would only say No match
-    if (info.showsSecret) return [head, h("div", { class: "warn out-secret" }, "This element shows a secret; it can't be an output")];
-    const capture = captureOf(info.outputText, o.pattern);
+    const capture = outputCapture(o);
     return [
       head,
+      info.showsSecret && h("div", { class: "warn out-secret" }, "This element shows a secret. The saved output may contain it; use a pattern that captures only the non-secret part."),
       h("div", { class: "lbl" }, "Text"),
-      h("div", { class: "msg out-text" }, info.text),
+      h("div", { class: "msg out-text" }, info.showsSecret ? info.outputText : info.text),
       h("div", { class: "lbl" }, "Name"),
       h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "outputName", value: o.name, "data-enter": "output-save", autocomplete: "off", spellcheck: "false" })),
       o.nameError && h("div", { class: "field-error" }, o.nameError),
@@ -102,6 +111,7 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
       h("div", { class: "f" }, h("input", { type: "text", class: "in code", "data-field": "outputPattern", value: o.pattern, placeholder: "Order #(\\d+)", "data-enter": "output-save", autocomplete: "off", spellcheck: "false" })),
       h("div", { class: "lbl" }, "Saves"),
       capture.error ? h("div", { class: "warn out-capture" }, capture.error) : h("code", { class: "out-capture" }, capture.value),
+      capture.secret && h("div", { class: "err out-leak" }, "The output will contain a secret: reports mask it, but whatever reads the output gets the real value."),
       o.error && h("div", { class: "err" }, o.error),
       h("div", { class: "foot" }, h("button", { class: "add", "data-action": "output-save", disabled: ui.busy || !o.name.trim() }, "Save")),
     ];

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Inspection } from "./types.js";
+import { MASK } from "../../config/mask.js";
 import type { PickInfo } from "./protocol.js";
 import {
   CANDIDATES,
@@ -231,31 +232,107 @@ describe("ToolbarController save as output", () => {
     assert.equal(observed.length, 1);
   });
 
-  it("never sends back a secret the output text holds, and refuses to save it", async () => {
+  it("masks a secret the output text holds, previews on the recorder's side and still saves", async () => {
     const { controller, replies, observed, noSecretLeaks } = setup(
       {},
       {
         inspect: async (): Promise<Inspection> => ({
-          info: { ...INFO, text: "", outputText: `token ${SECRET}` },
+          info: {
+            ...INFO,
+            text: "",
+            outputText: `Order #96002 for ${SECRET}.`,
+          },
           counts: [COUNT_CALL],
         }),
       },
     );
     await controller.handle(pick(49));
     const info = lastOf(replies)!.result as PickInfo & { ok: true };
-    assert.equal(info.outputText, "");
-    assert.equal(info.showsSecret, true, "the panel says why there is no text");
-    for (const pattern of ["token (\\S+)", ""]) {
-      await controller.handle(save(49, "token", pattern));
-      assert.deepEqual(lastOf(replies), {
-        id: 49,
-        result: {
-          ok: false,
-          error: "this element shows a secret; it can't be an output",
-        },
-      });
-    }
-    assert.deepEqual(observed, []);
+    assert.equal(info.outputText, `Order #96002 for ${MASK}.`);
+    assert.equal(info.showsSecret, true);
+
+    const preview = async (pattern: string) => {
+      await controller.handle(
+        msg({ action: "output-preview", id: 49, pattern }),
+      );
+      return lastOf(replies)!;
+    };
+    assert.deepEqual(await preview("Order #(\\d+)"), {
+      id: 49,
+      result: {
+        preview: true,
+        pattern: "Order #(\\d+)",
+        ok: true,
+        value: "96002",
+        secret: false,
+      },
+    });
+    assert.deepEqual((await preview("for (.+)\\.")).result, {
+      preview: true,
+      pattern: "for (.+)\\.",
+      ok: true,
+      value: MASK,
+      secret: true,
+    });
+    assert.deepEqual((await preview("")).result, {
+      preview: true,
+      pattern: "",
+      ok: true,
+      value: `Order #96002 for ${MASK}.`,
+      secret: true,
+    });
+    assert.deepEqual((await preview("Invoice (\\d+)")).result, {
+      preview: true,
+      pattern: "Invoice (\\d+)",
+      ok: false,
+      error: "No match",
+    });
+    assert.deepEqual((await preview("(")).result, {
+      preview: true,
+      pattern: "(",
+      ok: false,
+      error: "Not a valid pattern",
+    });
     noSecretLeaks();
+
+    await controller.handle(save(49, "orderId", "Order #(\\d+)"));
+    assert.deepEqual(lastOf(replies), { id: 49, result: { ok: true } });
+    assert.deepEqual(observed, [
+      {
+        type: "saveOutput",
+        locator: LOCATOR,
+        name: "orderId",
+        pattern: { source: "Order #(\\d+)", flags: "" },
+      },
+    ]);
+  });
+
+  it("previews only for the element picked with the same id", async () => {
+    const { controller, replies } = withText();
+    await controller.handle(
+      msg({ action: "output-preview", id: 7, pattern: "" }),
+    );
+    assert.deepEqual(lastOf(replies), {
+      id: 7,
+      result: {
+        preview: true,
+        pattern: "",
+        ok: false,
+        error: "Pick the element again",
+      },
+    });
+  });
+
+  it("previews as outputs.save keeps: the first group, else the whole match", async () => {
+    const { controller, replies } = withText();
+    await controller.handle(pick(50));
+    await controller.handle(
+      msg({ action: "output-preview", id: 50, pattern: "#\\d+" }),
+    );
+    assert.equal((lastOf(replies)!.result as { value: string }).value, "#4521");
+    await controller.handle(
+      msg({ action: "output-preview", id: 50, pattern: "(x)?#(\\d+)" }),
+    );
+    assert.equal((lastOf(replies)!.result as { value: string }).value, "#4521");
   });
 });

@@ -5,12 +5,13 @@ import { assertAction } from "./actions/assert.js";
 import { assertPageAction, pageInfoOf } from "./actions/assert-page.js";
 import { addInsertableAction, insertAction } from "./actions/insert.js";
 import { withoutSecrets } from "./actions/pick.js";
-import { saveOutputAction } from "./actions/save-output.js";
+import { outputPreview, saveOutputAction } from "./actions/save-output.js";
 import { fail, PAUSED, UNIDENTIFIABLE } from "./actions/reply.js";
 import { insertablesOf } from "./insertables.js";
 import { LEFT, PageScope } from "./page-scope.js";
 import type {
   ActionReply,
+  OutputPreview,
   PageInfo,
   PickInfo,
   ToolbarState,
@@ -122,7 +123,10 @@ export class ToolbarController {
     if (!this.disposed) this.deps.push(this.state());
   }
 
-  private reply(id: number, result: PickInfo | PageInfo | ActionReply): void {
+  private reply(
+    id: number,
+    result: PickInfo | PageInfo | ActionReply | OutputPreview,
+  ): void {
     if (!this.disposed) this.deps.reply(id, result);
   }
 
@@ -201,6 +205,8 @@ export class ToolbarController {
         return this.replying(message, () =>
           saveOutputAction(this.actions, message),
         );
+      case "output-preview":
+        return this.reply(message.id, outputPreview(this.actions, message));
       case "wait":
         if (this.paused) return;
         if (message.kind === "time") {
