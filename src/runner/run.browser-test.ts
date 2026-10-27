@@ -171,6 +171,18 @@ test(
   },
 );
 
+/** How many timers the process has armed (`node:test` keeps one per test for its own timeout) */
+const timers = () =>
+  process.getActiveResourcesInfo().filter((r) => r === "Timeout").length;
+
+/** Waits up to `ms` for the timers armed during a run to be gone; returns how many are left */
+async function timersLeft(baseline: number, ms = 5000): Promise<number> {
+  const until = Date.now() + ms;
+  while (timers() > baseline && Date.now() < until)
+    await new Promise((resolve) => setTimeout(resolve, 100).unref());
+  return timers() - baseline;
+}
+
 const CLOSED_SPEC = `
 import { expect, test } from API;
 test("closed while waiting on the page", async ({ page, browser }) => {
@@ -181,7 +193,8 @@ test("closed while waiting on the page", async ({ page, browser }) => {
 test("closed while the test only waits", async ({ page, browser }) => {
   await page.navigateTo("data:text/html,<h1>Hi</h1>");
   (browser as unknown as { browserProc: { kill(signal: string): void } }).browserProc.kill("SIGKILL");
-  await new Promise((resolve) => setTimeout(resolve, 60000));
+  // Unref'd: the runner ends this test when the browser goes away, but cannot clear a timer the body armed
+  await new Promise((resolve) => setTimeout(resolve, 60000).unref());
 });
 `;
 
@@ -190,6 +203,7 @@ test(
   OPTIONS,
   async () => {
     const dir = project(CLOSED_SPEC);
+    const baseline = timers();
     const started = Date.now();
     const summary = await runTests({
       projectDir: dir,
@@ -216,5 +230,7 @@ test(
       2,
       "the next test still ran, with a browser of its own",
     );
+    // A timer left armed (the runner's test timeout, say) keeps this process alive until it fires
+    assert.equal(await timersLeft(baseline), 0, "a timer outlived the run");
   },
 );
