@@ -62,10 +62,14 @@ before(async () => {
 });
 
 after(async () => {
-  await page.dispose();
-  await browser?.close();
-  sockets.forEach((socket) => socket.destroy());
-  await new Promise((resolve) => server.close(resolve));
+  // A launch that failed leaves no page: the server still has to close, or it keeps this process up
+  try {
+    await page?.dispose();
+    await browser?.close();
+  } finally {
+    sockets.forEach((socket) => socket.destroy());
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 const OPTIONS = { timeout: 40000 };

@@ -169,12 +169,16 @@ test(
 test("slow", async ({ page }) => {
   await open(page);
   attempt("slow");
-  // Outlasts the abort at 3 s; an aborted body's wait keeps this process up until it ends, so keep it short
-  await page.waitForTimeout(10000);
+  globalThis.abortRun();
+  // Still running when the abort lands; a promise that never settles keeps nothing alive, unlike a timer
+  await new Promise(() => {});
 });
 `);
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), 3000);
+    // The run is in this process (one worker): the body aborts it once it has started, however long the
+    // browser took to start (a timer could fire while it still started, and the test never ran)
+    (globalThis as { abortRun?: () => void }).abortRun = () =>
+      controller.abort();
     const { summary } = await run(dir, 9314, {
       retries: 2,
       signal: controller.signal,
