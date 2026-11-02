@@ -60,6 +60,17 @@ describe("ChromeProcess", () => {
     assert.equal(driver.killed, 1);
   });
 
+  it("a second kill while the session is being deleted waits for the delete too", async () => {
+    const { driver, deleted, proc } = setup();
+    proc.session = "http://127.0.0.1:1/session/abc";
+    proc.kill();
+    proc.kill();
+    assert.equal(driver.killed, 0, "chromedriver still quits Chrome first");
+    await tick(10);
+    assert.deepEqual(deleted, ["http://127.0.0.1:1/session/abc"]);
+    assert.equal(driver.killed, 1);
+  });
+
   it("kill without a session ends the chromedriver at once", () => {
     const { driver, deleted, proc } = setup();
     proc.kill();

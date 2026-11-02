@@ -179,6 +179,8 @@ function driverPort(driver: ReturnType<typeof spawn>): Promise<number> {
 export class ChromeProcess extends EventEmitter implements BrowserProcess {
   public session: string | undefined;
   private done = false;
+  /** The session is being deleted: chromedriver is killed once that is over, not before */
+  private quitting = false;
 
   constructor(
     private driver: Pick<
@@ -212,7 +214,9 @@ export class ChromeProcess extends EventEmitter implements BrowserProcess {
     // Deleting the session makes chromedriver quit Chrome; killing chromedriver alone could leave it running
     const session = this.session;
     this.session = undefined;
+    if (this.quitting) return true;
     if (session) {
+      this.quitting = true;
       this.deleteSession(session)
         .catch(() => undefined)
         .finally(() => this.driver.kill(signal));

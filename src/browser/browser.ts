@@ -129,18 +129,24 @@ export class Browser {
             signal,
           });
     // The launchers stop listening for the abort once the session is open. Until this returns, nobody else
-    // holds the browser to close it, so an abort still has to stop it here
-    const onAbort = () => abandonLaunch(proc, connector);
-    signal?.addEventListener("abort", onAbort, { once: true });
+    // holds the browser to close it, so an abort still has to stop it here. Once: a second stop would cut
+    // Chrome's short (chromedriver killed while it still quits Chrome)
+    let abandoned = false;
+    const abandon = () => {
+      if (abandoned) return;
+      abandoned = true;
+      abandonLaunch(proc, connector);
+    };
+    signal?.addEventListener("abort", abandon, { once: true });
     try {
       const launched = await Browser.attach(proc, connector, browserName);
       signal?.throwIfAborted();
       return launched;
     } catch (err) {
-      abandonLaunch(proc, connector);
+      abandon();
       throw signal?.aborted ? signal.reason : err;
     } finally {
-      signal?.removeEventListener("abort", onAbort);
+      signal?.removeEventListener("abort", abandon);
     }
   }
 
