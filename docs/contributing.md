@@ -1,5 +1,9 @@
 # Contributing
 
+The framework is developed in `packages/framework` of the SAMURAI monorepo (private); [github.com/degrootsam/samurai-framework](https://github.com/degrootsam/samurai-framework) is a read-only mirror of that folder. How to report issues and propose changes there is in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+The layout, the conventions and the test scripts below apply in either checkout. The parts marked **for the maintainer** (CI, Nx, Trunk, commit checks, releases) describe the monorepo and only work there.
+
 ## Layout
 
 ```txt
@@ -61,7 +65,7 @@ bun run build && bun run test-cli # the `samurai` command, through bin/ and dist
 bun run typecheck                 # typecheck, including unused locals
 ```
 
-CI is the monorepo's `.github/workflows/ci.yml`, on every pull request and push to `main`, on Node 24 (the root `.nvmrc`) and Bun 1.3.0 (`.github/actions/setup`). When the framework is affected (Nx decides from the changed files), its `checks` job runs `typecheck`, `test` and `test-cli` (both after a build: the bundle test of `flows/core` and the CLI tests need `dist/`), `knip`, `madge` and `build`, and so do the projects that depend on the framework (the app's tests run against the changed framework). The browser tests then run in a matrix, Firefox and Chrome (`SAMURAI_TEST_BROWSER`) times five shards (`SAMURAI_TEST_SHARD`, files split by `scripts/browser-timings.json`); each job installs both browsers with `samurai browsers install all` and caches the downloads keyed on `src/browsers/pins.ts` (Chrome's chromedriver is part of that cache). A test that is true of one browser only is written with `onlyOn` / `skipOn` from `src/testing/test-browser.ts`, which show it as skipped with the reason. Run the same checks locally from the repo root with `bunx nx run-many -t typecheck test test-cli knip madge build -p framework`, or `bun run affected` for everything your branch touches.
+**For the maintainer, in the monorepo:** CI is the monorepo's `.github/workflows/ci.yml`, on every pull request and push to `main`, on Node 24 (the root `.nvmrc`) and Bun 1.3.0 (`.github/actions/setup`). When the framework is affected (Nx decides from the changed files), its `checks` job runs `typecheck`, `test` and `test-cli` (both after a build: the bundle test of `flows/core` and the CLI tests need `dist/`), `knip`, `madge` and `build`, and so do the projects that depend on the framework (the app's tests run against the changed framework). The browser tests then run in a matrix, Firefox and Chrome (`SAMURAI_TEST_BROWSER`) times five shards (`SAMURAI_TEST_SHARD`, files split by `scripts/browser-timings.json`); each job installs both browsers with `samurai browsers install all` and caches the downloads keyed on `src/browsers/pins.ts` (Chrome's chromedriver is part of that cache). A test that is true of one browser only is written with `onlyOn` / `skipOn` from `src/testing/test-browser.ts`, which show it as skipped with the reason. Run the same checks locally from the repo root with `bunx nx run-many -t typecheck test test-cli knip madge build -p framework`, or `bun run affected` for everything your branch touches.
 
 - Unit tests use `src/testing/stub-connector.ts`, a fake BiDi connection that records what was sent and answers with canned replies.
 - Browser tests launch a real headless browser, Firefox by default and Chrome with `SAMURAI_TEST_BROWSER=chrome`, and are run with `--test-concurrency=1` and a 60 s limit per test. They end in `.browser-test.ts`. Install the browsers first: `bun run dev browsers install all`. A few tests (several browsers in one run) need both and skip themselves when one is missing.
@@ -116,7 +120,7 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 - **Test temp folders.** Tests make their temp projects with `os.tmpdir()`. The test scripts (`bun run test`, `bun run test-browser`, `bun run test-cli`) preload `scripts/test-tmp.mjs`, which gives every test process a private temp folder and removes it when the process ends (and the folders of runs that were killed, at the start of the next one), so a test need not clean up after itself. Run the tests through the scripts: `tsx --test` on its own leaves its folders behind, and on a machine whose `/tmp` is memory (a browser profile is up to 100 MB) they add up.
 - **Browser test shards.** CI splits the browser test files over five jobs per browser by their duration in `scripts/browser-timings.json` (`scripts/browser-shards.mjs`; a file not listed counts as a median one). Refresh the timings when files are added or change speed a lot: the comment at the top of `browser-shards.mjs` says how.
 - **Small modules.** A file does one job. Past about 400 lines, or a function past about 60, look for the seam.
-- **Commits** use conventional prefixes (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`), optionally scoped (`fix(framework):`); the root `commitlint.config.mjs` checks them, locally in Trunk's commit-msg hook and in CI on every PR. Trunk runs from the repository root (one `.trunk/trunk.yaml` for the workspace, `trunk check` / `trunk fmt` anywhere in it). Its pre-commit hook formats staged files; commit what it formats.
+- **Commits** (for the maintainer, in the monorepo) use conventional prefixes (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`), optionally scoped (`fix(framework):`); the root `commitlint.config.mjs` checks them, locally in Trunk's commit-msg hook and in CI on every PR. Trunk runs from the repository root (one `.trunk/trunk.yaml` for the workspace, `trunk check` / `trunk fmt` anywhere in it). Its pre-commit hook formats staged files; commit what it formats.
 - A command Firefox lacks is documented in its guide and surfaced as `UnsupportedOperationError`, never as a hang.
 
 ## Adding a feature
@@ -129,7 +133,9 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 
 ## Publishing
 
-`npm publish` (and `npm pack`) run the `prepack` script first, which rebuilds `dist/` from the sources in the working tree. A tarball can't carry a `dist/` from an older checkout (0.15.0 shipped without retries that way). Publish from an up-to-date `main` with a clean working tree; a version on npm can't be replaced, only followed by a new one.
+For the maintainer, in the monorepo. `bunx nx release --skip-publish` (run locally from an up-to-date `main`) picks the version from the conventional commits, updates `package.json` and `CHANGELOG.md`, commits, and pushes the commit and the tag `framework@x.y.z`. The monorepo's `publish.yml` then stages that tag on npm, where it waits for approval, and `mirror-framework.yml` tags the matching commit in the mirror as `vx.y.z`. The mirror's `main` follows the monorepo's `main` on every push.
+
+`npm pack` (and so a publish) runs the `prepack` script first, which rebuilds `dist/` from the sources in the working tree. A tarball can't carry a `dist/` from an older checkout (0.15.0 shipped without retries that way). A version on npm can't be replaced, only followed by a new one.
 
 ## The command line stays separable
 

@@ -2,7 +2,9 @@
 
 A browser test framework written in TypeScript. It drives a real browser over the [WebDriver BiDi](https://www.w3.org/TR/webdriver-bidi/) protocol, with no Playwright or Puppeteer underneath. Firefox speaks BiDi itself; Chrome is driven through its own `chromedriver`, which the framework starts for you.
 
-[![CI](https://github.com/degrootsam/samurai-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/degrootsam/samurai-framework/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@itmetsam/samurai-framework)](https://www.npmjs.com/package/@itmetsam/samurai-framework)
+
+> This repository is a read-only mirror of `packages/framework` in the SAMURAI monorepo. Issues are welcome; pull requests aren't merged here. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```ts
 import { expect, test } from "../api.js";
@@ -55,6 +57,8 @@ git clone https://github.com/degrootsam/samurai-framework.git
 cd samurai-framework
 bun install
 ```
+
+The clone is the mirror described in [CONTRIBUTING.md](CONTRIBUTING.md). It has no lockfile of its own (the monorepo keeps one for all its packages), so `bun install` resolves the ranges in `package.json`.
 
 ### 3. Write a test
 
@@ -138,7 +142,8 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 | [Running tests and reports](https://github.com/degrootsam/samurai-framework/wiki/Running-tests-and-reports) | What a run does, `report.json`, page logs, timeouts                                                   |
 | [Steps and the recorder](https://github.com/degrootsam/samurai-framework/wiki/Steps-and-the-recorder)       | The step codec, the recording engine and the recorder toolbar                                         |
 | [Embedding the framework](https://github.com/degrootsam/samurai-framework/wiki/Embedding-the-framework)     | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
-| [Contributing](docs/contributing.md)                                                                        | Project layout, running the framework's own tests, conventions                                        |
+| [Contributing](CONTRIBUTING.md)                                                                             | Issues and pull requests on this mirror                                                               |
+| [Developer guide](docs/contributing.md)                                                                     | Project layout, running the framework's own tests, conventions                                        |
 | [Roadmap](https://github.com/degrootsam/samurai-framework/wiki/Roadmap)                                     | What is built and what is still open                                                                  |
 
 The [documentation index](https://github.com/degrootsam/samurai-framework/wiki/Home) lists every guide by topic.
