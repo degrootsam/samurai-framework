@@ -66,14 +66,24 @@ if (/\.browser-test\.ts$/.test(process.argv[1] ?? "")) {
   const { after } = await import("node:test");
   after(() => {
     setTimeout(() => {
-      const alive = process._getActiveHandles().map((handle) => {
-        const name = handle?.constructor?.name ?? typeof handle;
-        if (name === "ChildProcess")
-          return `${name} pid ${handle.pid}: ${handle.spawnfile}`;
-        if (name === "Socket" && handle.remotePort)
-          return `${name} to ${handle.remoteAddress}:${handle.remotePort}`;
-        return name;
-      });
+      // The process's own stdio and IPC channel are always there and keep nothing alive: they are left out
+      const own = new Set([process.stdin, process.stdout, process.stderr]);
+      const alive = process
+        ._getActiveHandles()
+        .filter((handle) => !own.has(handle) && handle !== process.channel)
+        .filter(
+          (handle) => !(handle?._handle?.fd >= 0 && handle._handle.fd <= 2),
+        )
+        .map((handle) => {
+          const name = handle?.constructor?.name ?? typeof handle;
+          if (name === "ChildProcess")
+            return `${name} pid ${handle.pid}: ${handle.spawnfile}`;
+          if (name === "Socket" && handle.remotePort)
+            return `${name} to ${handle.remoteAddress}:${handle.remotePort}`;
+          if (name === "Server" && handle.address?.())
+            return `${name} on ${JSON.stringify(handle.address())}`;
+          return name;
+        });
       // Timers are not handles: they only show up among the resources
       const timers = process
         .getActiveResourcesInfo()
