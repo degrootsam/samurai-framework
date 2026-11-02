@@ -54,11 +54,11 @@ The public classes stay thin facades; the work sits in small modules next to the
 ## Running the framework's tests
 
 ```sh
-bun run test            # unit tests, no browser (src/**/*.test.ts)
-bun run test:browser        # browser tests against Firefox (src/**/*.browser-test.ts)
-bun run test:browser:chrome # the same tests against Chrome (SAMURAI_TEST_BROWSER=chrome)
-bun run build && bun run test:cli   # the `samurai` command, through bin/ and dist/ (src/**/*.cli-test.ts)
-bunx tsc --noEmit       # typecheck
+bun run test                      # unit tests, no browser (src/**/*.test.ts)
+bun run test-browser              # browser tests against Firefox (src/**/*.browser-test.ts)
+bun run test-browser-chrome       # the same tests against Chrome (SAMURAI_TEST_BROWSER=chrome)
+bun run build && bun run test-cli # the `samurai` command, through bin/ and dist/ (src/**/*.cli-test.ts)
+bun run typecheck                 # typecheck, including unused locals
 ```
 
 CI (`.github/workflows/ci.yml`) runs the typecheck, the unit tests (after a build, so the bundle test of `flows/core` runs), browser tests and Trunk's code-quality checks on every pull request and push to `main`, on Node 26 and Bun 1.3.0 (`.github/actions/setup`). The browser tests run in a matrix, once on Firefox and once on Chrome (`SAMURAI_TEST_BROWSER`); each job installs its browser with `samurai browsers install <browser>` and caches the downloads keyed on `src/browsers/pins.ts` (Chrome's chromedriver is part of that cache). A test that is true of one browser only is written with `onlyOn` / `skipOn` from `src/testing/test-browser.ts`, which show it as skipped with the reason. The CLI tests are not part of CI; run them before changing `src/cli` or `bin/`.
@@ -113,7 +113,7 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 - **Code that runs in the page is a string** (or a plain arrow function with no inner named functions), because the transpiler can inject helpers that don't exist there.
 - **Secrets never reach logs or reports unmasked.** Anything that writes text goes through the masking in `src/config/mask.ts`.
 - **Error messages** from a public method read "name(): what is wrong": the bare method name with parentheses (no `page.` or `locator.` prefix), then lower-case text, no trailing full stop (`setViewport(): width must be a positive integer, got 0`). Messages that describe a state instead of a call stay as they are (`page closed`, `Failed to locate element ...`), and error classes with their own format (`NavigationError`, `DownloadError`, the timeout errors) keep it.
-- **Test temp folders.** Tests make their temp projects with `os.tmpdir()`. The test scripts (`npm test`, `npm run test:browser`, `npm run test:cli`) preload `scripts/test-tmp.mjs`, which gives every test process a private temp folder and removes it when the process ends (and the folders of runs that were killed, at the start of the next one), so a test need not clean up after itself. Run the tests through the scripts: `tsx --test` on its own leaves its folders behind, and on a machine whose `/tmp` is memory (a browser profile is up to 100 MB) they add up.
+- **Test temp folders.** Tests make their temp projects with `os.tmpdir()`. The test scripts (`bun run test`, `bun run test-browser`, `bun run test-cli`) preload `scripts/test-tmp.mjs`, which gives every test process a private temp folder and removes it when the process ends (and the folders of runs that were killed, at the start of the next one), so a test need not clean up after itself. Run the tests through the scripts: `tsx --test` on its own leaves its folders behind, and on a machine whose `/tmp` is memory (a browser profile is up to 100 MB) they add up.
 - **Browser test shards.** CI splits the browser test files over five jobs per browser by their duration in `scripts/browser-timings.json` (`scripts/browser-shards.mjs`; a file not listed counts as a median one). Refresh the timings when files are added or change speed a lot: the comment at the top of `browser-shards.mjs` says how.
 - **Small modules.** A file does one job. Past about 400 lines, or a function past about 60, look for the seam.
 - **Commits** use conventional prefixes (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`). A Trunk pre-commit hook formats staged files; commit what it formats.

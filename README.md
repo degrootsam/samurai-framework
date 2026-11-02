@@ -149,6 +149,6 @@ The [documentation index](https://github.com/degrootsam/samurai-framework/wiki/H
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `bun run dev`          | `samurai` from the sources (`tsx src/index.ts`)                                                                     |
 | `bun run test`         | Unit tests of the framework (no browser needed)                                                                     |
-| `bun run test:browser` | Browser tests of the framework (Firefox; `SAMURAI_TEST_BROWSER=chrome` or `bun run test:browser:chrome` for Chrome) |
-| `bun run test:cli`     | Tests of the `samurai` command (build first)                                                                        |
+| `bun run test-browser` | Browser tests of the framework (Firefox; `SAMURAI_TEST_BROWSER=chrome` or `bun run test-browser-chrome` for Chrome) |
+| `bun run test-cli`     | Tests of the `samurai` command (build first)                                                                        |
 | `bun run build`        | Typechecks and compiles to `dist/`                                                                                  |
