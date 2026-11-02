@@ -166,7 +166,8 @@ test(
 afterEach(() => log("afterEach"));
 test("hangs", async ({ page }) => { await open(page); log("body"); await page.waitForTimeout(20000); });
 `,
-      { timeout: 2000 },
+      // Long enough for a slow runner to start the browser: the body must log before the time is up
+      { timeout: 6000 },
     );
     const summary = await run(dir, 9305);
     assert.equal(summary.tests[0]?.status, "failed");

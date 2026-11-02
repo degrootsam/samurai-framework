@@ -128,11 +128,19 @@ export class Browser {
             commandTimeout,
             signal,
           });
+    // The launchers stop listening for the abort once the session is open. Until this returns, nobody else
+    // holds the browser to close it, so an abort still has to stop it here
+    const onAbort = () => abandonLaunch(proc, connector);
+    signal?.addEventListener("abort", onAbort, { once: true });
     try {
-      return await Browser.attach(proc, connector, browserName);
+      const launched = await Browser.attach(proc, connector, browserName);
+      signal?.throwIfAborted();
+      return launched;
     } catch (err) {
       abandonLaunch(proc, connector);
-      throw err;
+      throw signal?.aborted ? signal.reason : err;
+    } finally {
+      signal?.removeEventListener("abort", onAbort);
     }
   }
 
