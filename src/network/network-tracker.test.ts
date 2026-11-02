@@ -26,9 +26,13 @@ const TREE = [
 const stops: Array<() => void> = [];
 afterEach(() => stops.splice(0).forEach((stop) => stop()));
 
-async function setup(options?: { ignore?: (r: NetworkRequest) => boolean }) {
+async function setup(
+  options?: { ignore?: (r: NetworkRequest) => boolean },
+  browserName: "firefox" | "chrome" = "firefox",
+) {
   const ws = new FakeWebSocket();
   const connector = makeConnector(ws);
+  connector.browserName = browserName;
   stops.push(
     autoReply(ws, { "browsingContext.getTree": () => ({ contexts: TREE }) }),
   );
@@ -237,6 +241,88 @@ describe("NetworkTracker in-flight bookkeeping", () => {
     start(ws, "1", "top", { isBlocked: true });
     await tick(5);
     assert.equal(tracker.inflight, 1);
+  });
+});
+
+describe("NetworkTracker and Chrome's redirects", () => {
+  const LOCATION = [
+    { name: "Location", value: { type: "string", value: "/new" } },
+  ];
+  const chrome = () => setup(undefined, "chrome");
+  const redirect = (ws: FakeWebSocket) => {
+    start(ws, "1", "top", { url: "https://example.test/old" });
+    done(ws, "1", "top", { status: 302, headers: LOCATION });
+  };
+
+  it("keeps a redirect in flight until the next hop is announced", async () => {
+    const { ws, tracker } = await chrome();
+    redirect(ws);
+    assert.equal(tracker.inflight, 1, "Chrome has started the next hop");
+    start(ws, "1", "top", { redirectCount: 1 });
+    assert.equal(tracker.inflight, 1);
+    done(ws, "1", "top", { redirectCount: 1 });
+    assert.equal(tracker.inflight, 0);
+  });
+
+  it("announces a hop whose beforeRequestSent never came with its response, linked", async () => {
+    const { ws, tracker } = await chrome();
+    const seen: string[] = [];
+    const requests: NetworkRequest[] = [];
+    tracker.on("request", (r) => {
+      requests.push(r);
+      seen.push(`request ${r.url}`);
+    });
+    tracker.on("response", (r) => seen.push(`response ${r.status}`));
+    redirect(ws);
+    // chromium-bidi leaves out the next hop's beforeRequestSent when its extra info arrives first
+    done(ws, "1", "top", { redirectCount: 1 });
+    assert.deepEqual(seen, [
+      "request https://example.test/old",
+      "response 302",
+      "request https://example.test/1",
+      "response 200",
+    ]);
+    assert.equal(requests[1]!.redirectedFrom, requests[0]);
+    assert.equal(tracker.inflight, 0);
+  });
+
+  it("ends the chain when the unannounced next hop fails (a fetch with redirect manual)", async () => {
+    const { ws, tracker } = await chrome();
+    const failed: string[] = [];
+    tracker.on("requestfailed", (r) => failed.push(r.url));
+    redirect(ws);
+    fail(ws, "1", "top", { redirectCount: 1 });
+    assert.deepEqual(failed, ["https://example.test/1"]);
+    assert.equal(tracker.inflight, 0);
+  });
+
+  it("ends a 3xx without a location at once, it goes nowhere", async () => {
+    const { ws, tracker } = await chrome();
+    start(ws, "1");
+    done(ws, "1", "top", { status: 304 });
+    assert.equal(tracker.inflight, 0);
+  });
+
+  it("drops a waiting redirect without failing it when the document goes", async () => {
+    const { ws, tracker } = await chrome();
+    const failed: string[] = [];
+    tracker.on("requestfailed", (r) => failed.push(r.url));
+    redirect(ws);
+    ws.emitEvent("browsingContext.navigationCommitted", {
+      context: "top",
+      navigation: "nav-2",
+      timestamp: 0,
+      url: "https://example.test/next",
+    });
+    assert.equal(tracker.inflight, 0);
+    assert.deepEqual(failed, [], "its response arrived");
+  });
+
+  it("on Firefox a redirect response ends the hop: the next one is announced on its own", async () => {
+    const { ws, tracker } = await setup();
+    start(ws, "1");
+    done(ws, "1", "top", { status: 302, headers: LOCATION });
+    assert.equal(tracker.inflight, 0);
   });
 });
 

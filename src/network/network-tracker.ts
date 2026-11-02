@@ -4,10 +4,12 @@ import logger from "../logger/index.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
 import type {
+  BaseParameters,
   BeforeRequestSentParameters,
   FetchErrorParameters,
   RequestData,
   ResponseCompletedParameters,
+  ResponseData,
 } from "../types/bidi-modules/network.js";
 import { headersFromBidi, toRequest } from "./bidi-wire.js";
 import { NetworkIdleTimeoutError } from "./network-wait.js";
@@ -36,22 +38,34 @@ export interface TrackerOptions {
   ignore?: (request: NetworkRequest) => boolean;
 }
 
+/** One hop of a request. `answered`: its (redirect) response is in, and it stays live until the next hop shows */
+interface Hop {
+  request: NetworkRequest;
+  context: string;
+  live: boolean;
+  answered: boolean;
+}
+
 /**
  * Follows the network activity of one page (its frames included): which requests are in flight,
  * and `request` / `response` / `requestfailed` events. In-flight is keyed by `request id:redirect count`,
  * so a redirect chain is one live request at a time.
+ *
+ * Chrome (chromium-bidi) reports a redirect response only once the browser has started the next hop, and it can
+ * leave out that hop's `beforeRequestSent`: when the hop's `requestWillBeSentExtraInfo` reaches it before the
+ * redirect's `requestWillBeSent`, it files the extra info under the previous hop and never announces the new one.
+ * So on Chrome a redirect keeps the chain in flight until the next hop shows itself, and a hop that first shows up
+ * with its response or error is announced then.
  */
 export class NetworkTracker {
   private events = new EventEmitter();
   private subscription: Subscription | undefined;
   /**
    * Every hop that is in flight or may still be the source of a redirect, by hop key. A redirect response ends a
-   * hop's flight (`live` false) but keeps it, for the next hop's `redirectedFrom`.
+   * hop's flight (`live` false; on Chrome `answered`, live until the next hop shows) but keeps it, for the next
+   * hop's `redirectedFrom`.
    */
-  private hops = new Map<
-    string,
-    { request: NetworkRequest; context: string; live: boolean }
-  >();
+  private hops = new Map<string, Hop>();
   /** Rejects a pending `waitForIdle`; each wait adds its own */
   private waiters = new Set<(reason: unknown) => void>();
   private disposed = false;
@@ -62,6 +76,11 @@ export class NetworkTracker {
     private ignore: (request: NetworkRequest) => boolean,
     private connector: BiDiConnector,
   ) {}
+
+  /** Whether a redirect response means the next hop has already started (Chrome), see the class comment */
+  private get redirectsStartNextHop(): boolean {
+    return this.connector.browserName === "chrome";
+  }
 
   public static async start(
     connector: BiDiConnector,
@@ -211,34 +230,63 @@ export class NetworkTracker {
 
   private onBeforeRequestSent = (params: BeforeRequestSentParameters) => {
     if (!this.owns(params.context)) return;
+    this.startHop(params);
+  };
+
+  /** Tracks a new hop and emits its `request`; the hop it was redirected from is done with */
+  private startHop(params: BaseParameters): Hop | undefined {
     const key = NetworkTracker.key(params.request, params.redirectCount);
     const { redirectCount } = params;
     const previousKey = `${params.request.request}:${redirectCount - 1}`;
-    const redirectedFrom =
-      redirectCount > 0 ? (this.hops.get(previousKey)?.request ?? null) : null;
+    const previous = redirectCount > 0 ? this.hops.get(previousKey) : undefined;
     this.hops.delete(previousKey);
 
     const request = toRequest(
       params.request,
       params.navigation,
       params.isBlocked,
-      redirectedFrom,
+      previous?.request ?? null,
     );
-    if (this.ignore(request)) return;
-    this.hops.set(key, { request, context: params.context!, live: true });
+    if (this.ignore(request)) {
+      if (previous?.live) this.events.emit("change");
+      return undefined;
+    }
+    const hop = {
+      request,
+      context: params.context!,
+      live: true,
+      answered: false,
+    };
+    this.hops.set(key, hop);
     this.emit("request", request);
     this.events.emit("change");
-  };
+    return hop;
+  }
+
+  /**
+   * The hop a response or error is for. A hop Chrome never announced (see the class comment) is started here,
+   * when the hop it was redirected from is known.
+   */
+  private hopOf(params: BaseParameters): Hop | undefined {
+    const hop = this.hops.get(
+      NetworkTracker.key(params.request, params.redirectCount),
+    );
+    if (hop || params.redirectCount === 0) return hop;
+    const previousKey = `${params.request.request}:${params.redirectCount - 1}`;
+    return this.hops.has(previousKey) ? this.startHop(params) : undefined;
+  }
 
   private onResponseCompleted = (params: ResponseCompletedParameters) => {
     if (!this.owns(params.context)) return;
     const key = NetworkTracker.key(params.request, params.redirectCount);
-    const hop = this.hops.get(key);
-    if (!hop?.live) return;
+    const hop = this.hopOf(params);
+    if (!hop?.live || hop.answered) return;
     const { request } = hop;
     const { response } = params;
     // A redirect response keeps its request around: the next hop links back to it
     if (response.status < 300 || response.status >= 400) this.hops.delete(key);
+    else if (this.redirectsStartNextHop && hasLocation(response))
+      hop.answered = true;
     else hop.live = false;
     this.emit("response", {
       url: response.url,
@@ -254,13 +302,15 @@ export class NetworkTracker {
   private onFetchError = (params: FetchErrorParameters) => {
     if (!this.owns(params.context)) return;
     const key = NetworkTracker.key(params.request, params.redirectCount);
-    const hop = this.hops.get(key);
+    const hop = this.hopOf(params);
     if (!hop?.live) return;
     this.hops.delete(key);
-    this.emit(
-      "requestfailed",
-      Object.assign(hop.request, { errorText: params.errorText }),
-    );
+    // A hop that has its response already did not fail
+    if (!hop.answered)
+      this.emit(
+        "requestfailed",
+        Object.assign(hop.request, { errorText: params.errorText }),
+      );
     this.events.emit("change");
   };
 
@@ -274,14 +324,15 @@ export class NetworkTracker {
   }) => {
     if (!this.owns(params.context)) return;
     let changed = false;
-    for (const [key, { request, context, live }] of [...this.hops]) {
+    for (const [key, { request, context, live, answered }] of [...this.hops]) {
       if (!live || request.navigation === params.navigation) continue;
       if (!this.tree.isWithin(context, params.context)) continue;
       this.hops.delete(key);
-      this.emit(
-        "requestfailed",
-        Object.assign(request, { errorText: ABORTED_BY_NAVIGATION }),
-      );
+      if (!answered)
+        this.emit(
+          "requestfailed",
+          Object.assign(request, { errorText: ABORTED_BY_NAVIGATION }),
+        );
       changed = true;
     }
     if (changed) this.events.emit("change");
@@ -297,4 +348,11 @@ export class NetworkTracker {
       }
     }
   }
+}
+
+/** Whether a 3xx response says where to go next: only then does the browser follow it */
+function hasLocation(response: ResponseData): boolean {
+  return response.headers.some(
+    (header) => header.name.toLowerCase() === "location",
+  );
 }
