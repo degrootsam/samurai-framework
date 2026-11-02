@@ -57,11 +57,15 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-types.mjs",
+    "build-watch": "node scripts/copy-types.mjs && tsc -w --preserveWatchOutput -p tsconfig.build.json",
     "prepack": "npm run build",
+    "typecheck": "tsc --noEmit --noUnusedLocals",
     "test": "SAMURAI_LOG_LEVEL=${SAMURAI_LOG_LEVEL:-warn} tsx --import ./scripts/test-tmp.mjs --test --test-timeout=10000 \"src/**/*.test.ts\"",
-    "test:browser": "SAMURAI_LOG_LEVEL=${SAMURAI_LOG_LEVEL:-warn} tsx --import ./scripts/test-tmp.mjs --test --test-concurrency=1 --test-timeout=60000 $(node scripts/browser-shards.mjs)",
-    "test:browser:chrome": "SAMURAI_TEST_BROWSER=chrome npm run test:browser",
-    "test:cli": "tsx --import ./scripts/test-tmp.mjs --test --test-concurrency=1 \"src/**/*.cli-test.ts\""
+    "test-browser": "SAMURAI_LOG_LEVEL=${SAMURAI_LOG_LEVEL:-warn} tsx --import ./scripts/test-tmp.mjs --test --test-concurrency=1 --test-timeout=60000 $(node scripts/browser-shards.mjs)",
+    "test-browser-chrome": "SAMURAI_TEST_BROWSER=chrome bun run test-browser",
+    "test-cli": "tsx --import ./scripts/test-tmp.mjs --test --test-concurrency=1 \"src/**/*.cli-test.ts\"",
+    "knip": "knip --no-config-hints",
+    "madge": "madge --circular src"
   },
   "keywords": [
     "testing",
@@ -77,6 +81,8 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "esbuild": "^0.28.2",
+    "knip": "^6.42.1",
+    "madge": "^8.0.0",
     "tsx": "^4.23.15"
   },
   "dependencies": {
@@ -113,5 +119,39 @@
   },
   "engines": {
     "node": ">=24"
+  },
+  "nx": {
+    "name": "framework",
+    "targets": {
+      "test": {
+        "dependsOn": [
+          "build"
+        ]
+      },
+      "test-cli": {
+        "dependsOn": [
+          "build"
+        ],
+        "cache": true,
+        "parallelism": false
+      },
+      "test-browser": {
+        "cache": true,
+        "parallelism": false,
+        "inputs": [
+          "default",
+          {
+            "env": "SAMURAI_TEST_BROWSER"
+          },
+          {
+            "env": "SAMURAI_TEST_SHARD"
+          }
+        ]
+      },
+      "build-watch": {
+        "continuous": true,
+        "cache": false
+      }
+    }
   }
 }

@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 
 const SCRIPT = path.resolve("scripts/browser-shards.mjs");
 
-/** The files `npm run test:browser` would run with this env */
+/** The files `bun run test-browser` would run with this env */
 function filesOf(env: Record<string, string>) {
   const result = spawnSync(process.execPath, [SCRIPT], {
     env: { ...process.env, SAMURAI_TEST_SHARD: "", ...env },

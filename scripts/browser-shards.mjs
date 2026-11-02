@@ -1,4 +1,4 @@
-// Prints the arguments `npm run test:browser` hands to the test runner after its own options: the browser test
+// Prints the arguments `bun run test-browser` hands to the test runner after its own options: the browser test
 // files, all of them or those of one shard (`SAMURAI_TEST_SHARD=n/total`).
 //
 // Node's own `--test-shard` deals the files out by position, so the slow ones (the runner tests start whole
@@ -13,7 +13,7 @@
 // shard on main as the `browser-timings-<browser>-<shard>` artifacts, so
 //   gh run download <run id> -p 'browser-timings-*' -D <folder>
 //   node scripts/browser-shards.mjs --update <folder>
-// (or a local `SAMURAI_TEST_TIMINGS=result/timings.json npm run test:browser` and `--update result`), then commit
+// (or a local `SAMURAI_TEST_TIMINGS=result/timings.json bun run test-browser` and `--update result`), then commit
 // `scripts/browser-timings.json`.
 import {
   globSync,
