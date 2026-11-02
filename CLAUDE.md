@@ -30,9 +30,27 @@ Follow these steps, in order, for any change of size. Skip one only when the cha
 5. **Interfaces first, then parallel work.** Do the task that defines the shared interface first and commit it. Then give disjoint areas to parallel helpers (sub-agents). Each gets: the plan task, the exact signatures it must honour, the files it owns, the files it must not touch, "edit files only, no git commands that change state, run prettier only on files you edited", "tests first", and the exact reply format.
 6. **Verify yourself, never trust a helper's report alone.** Run, in this order: `typecheck`, `test`, `build`, `test-cli`, `knip`, `madge` (the size and import rules above), then both browser suites. Check the line count of every file you grew (`wc -l`). Investigate a red test alone before calling it flaky: most cascades come from one hung test, a shared profile or another helper's unfinished edit.
 7. **Commit per task, with explicit paths.** More than one session may share this working tree: look at `git status` and `git reflog` first, stage named paths (not `git add -A` at the root), and leave changes you did not make alone (mention them). Conventional prefix (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`), optional scope (`fix(framework):`), `!` for a breaking change; the root `commitlint.config.mjs` checks the message (commit-msg hook and CI). The Trunk pre-commit hook (root `.trunk/trunk.yaml`) formats staged files: commit what it formats.
-8. **Docs and version belong to the change.** A user-facing change updates the matching wiki page, the Roadmap page and, for anything breaking, an "Upgrading to X" note; bump `package.json` (minor for a feature or a changed default, patch for a fix) only if the owner's flow does, because another session may bump it too. From phase 6 of the monorepo migration there is no manual bump: `nx release` picks the version from the conventional commit messages, so get the prefix (and `!`) right.
+8. **Docs and version belong to the change.** A user-facing change updates the matching wiki page, the Roadmap page and, for anything breaking, an "Upgrading to X" note; never bump `package.json` by hand: `nx release` picks the version from the conventional commit messages (see Releasing), so get the prefix (and `!`) right.
 9. **Push and open the PR against the right base.** Body: Summary (what and why), Breaking change (when there is one, with the escape hatch), Test plan as checkboxes with real counts. Pushing a branch and opening a PR is part of "commit and open a PR". Anything outward-facing beyond that (the public wiki, a release, a publish) needs an explicit yes.
 10. **Check CI, then report.** `gh pr checks <n>` on every open PR. The final report says: what changed, check results with numbers, what is untested or open (honestly), the merge order when PRs are stacked, and what the owner has to do elsewhere (for example in the Electron app, `apps/desktop` in this repository).
+
+## Releasing
+
+Releasing is the owner's call: only on an explicit yes. From an up-to-date `main`, at the repository root:
+
+```bash
+bunx nx release --skip-publish --dry-run   # review versions, CHANGELOG.md entries, tags, commit message
+bunx nx release --skip-publish             # bump, CHANGELOG.md, commit, tag framework@x.y.z, push, GitHub release
+git push --follow-tags                     # only if nx release's own push failed
+npm view @itmetsam/samurai-framework dist-tags
+```
+
+- Versions come from the conventional commits since the last `framework@*` tag. Before 1.0: `fix` and `feat` bump the patch, `!` or `BREAKING CHANGE` the minor. Add `--projects=framework` to release only this package.
+- `nx release` pushes the release commit and tags itself (it has to, to create the GitHub release; it needs `gh auth login` or `GITHUB_TOKEN`). The pushed tag runs `.github/workflows/publish.yml`, which publishes to npm. Afterwards check `npm view @itmetsam/samurai-framework dist-tags` and the GitHub release.
+- Previews: `bunx nx release prerelease --preid next --projects=framework --skip-publish` tags `x.y.z-next.n`, which goes out on the `next` dist-tag. Never put a preview on `latest`: the app's "update framework" installs `@latest`. (`nx release version` alone refuses this repo's `release.git` config, so use the full command.)
+- First release after the monorepo import only: pass the bump (`bunx nx release patch --projects=framework --skip-publish`). The history since the baseline tag includes the app's pre-import commits, which Nx counts as breaking.
+- `bun.lock` keeps the old workspace version (bun 1.3 doesn't rewrite it). That's harmless; `bun install --frozen-lockfile` still passes.
+- To rehearse the publish: Actions, Publish, Run workflow, with a tag and dry-run ticked. It packs the branch and uploads nothing.
 
 ## Size and modularity
 
