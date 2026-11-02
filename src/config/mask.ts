@@ -1,5 +1,5 @@
 import { inspect } from "node:util";
-import { format } from "winston";
+import { format, type Logform } from "winston";
 
 export const MASK = "••••";
 /** Values shorter than this only match as a whole token, so "1" does not hide every digit */
@@ -91,8 +91,11 @@ function walk(value: unknown, path: WeakSet<object>): unknown {
   }
 }
 
-/** Winston format that masks every string field of a log entry (message and metadata) */
-export const maskFormat = format((info) => {
+/**
+ * Winston format that masks every string field of a log entry (message and metadata). Typed through winston's
+ * re-export: logform is winston's dependency, not ours, so an inferred type can't be named under an isolated install
+ */
+export const maskFormat: Logform.FormatWrap = format((info) => {
   if (patterns.length === 0) return info;
   for (const key of Object.keys(info))
     info[key] = walk(info[key], new WeakSet());
