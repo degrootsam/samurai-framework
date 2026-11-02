@@ -169,7 +169,8 @@ test(
 test("slow", async ({ page }) => {
   await open(page);
   attempt("slow");
-  await page.waitForTimeout(30000);
+  // Outlasts the abort at 3 s; an aborted body's wait keeps this process up until it ends, so keep it short
+  await page.waitForTimeout(10000);
 });
 `);
     const controller = new AbortController();
