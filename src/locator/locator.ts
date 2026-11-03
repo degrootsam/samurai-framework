@@ -39,7 +39,12 @@ import {
   strictViolation,
   type StrictSource,
 } from "./strict-mode.js";
-import { cssPropertyName, IS_CHECKED_BODY } from "./element-reads.js";
+import {
+  booleanOrNull,
+  cssPropertyName,
+  IS_CHECKED_BODY,
+  stringOrNull,
+} from "./element-reads.js";
 import {
   clickRect,
   DEFAULT_PAUSE_MS,
@@ -783,20 +788,4 @@ export default class Locator {
     await typeText(this.biDiConnector, this.contextId, keys);
     save?.(value);
   }
-}
-
-function booleanOrNull(value: unknown): boolean | null {
-  if (typeof value === "boolean") return value;
-  if (value === null) return null;
-  throw new Error(
-    `Expected a boolean or null but received "${describeType(value)}"`,
-  );
-}
-
-function stringOrNull(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (value === null) return null;
-  throw new Error(
-    `Expected a string or null but received "${describeType(value)}"`,
-  );
 }

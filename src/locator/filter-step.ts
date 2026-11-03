@@ -56,7 +56,7 @@ export function filterSelector<L>(
  * `textContent` passes both tests. A string test is a substring match with whitespace collapsed and case
  * ignored (Playwright's `hasText`); a RegExp is tested on the text as it is, without its `g` and `y` flags.
  */
-export const TEXT_FILTER = `(elements, hasText, hasNotText) => {
+const TEXT_FILTER = `(elements, hasText, hasNotText) => {
   const collapse = (text) => String(text).replace(/\\s+/g, " ").trim().toLowerCase();
   const found = (el, wanted) => {
     const text = el.textContent ?? "";
