@@ -36,7 +36,7 @@ function textMatches(
 }
 
 /** Whether `texts` (one per element) satisfy `expected`: all in order for "exact", in order but not necessarily adjacent for "contains" */
-export function arrayTextMatches(
+function arrayTextMatches(
   texts: string[],
   expected: Array<string | RegExp>,
   mode: "exact" | "contains",

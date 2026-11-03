@@ -8,7 +8,6 @@ import { matchesText, normalizedCheck } from "./text-match.js";
 
 export { readEventually } from "./locator-assertion-base.js";
 export type {
-  EventualRead,
   LocatorAssertionOptions,
   TextAssertionOptions,
 } from "./locator-assertion-base.js";
