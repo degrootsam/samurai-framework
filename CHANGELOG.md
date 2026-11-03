@@ -1,3 +1,24 @@
+## 0.21.3 (2026-11-03)
+
+### 🚀 Features
+
+- **framework:** add isDisabled and isHidden
+- **framework:** add selectOption
+- **framework:** add check, uncheck and setChecked
+- **framework:** add toHaveAccessibleName and toHaveAccessibleDescription
+- **framework:** add name, state and hidden options to getByRole
+- **framework:** add exact and RegExp matching to getByText and getByLabel
+- **framework:** page.locator takes the filter options
+- **framework:** opt-in strict selectors
+- **framework:** locator and() and or()
+- **framework:** locator filter and locator(selector, options)
+- **framework:** locator nth, first and last
+- **framework:** locator() accepts css and Playwright-style xpath strings
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.21.2 (2026-11-03)
 
 ### 🩹 Fixes
