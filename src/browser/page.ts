@@ -77,6 +77,7 @@ import type { PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import { callFunction, type PageFunction } from "../script/call-function.js";
+import { readContent } from "./page-content.js";
 import { evaluateInPage } from "./page-evaluate.js";
 import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js";
 
@@ -101,6 +102,7 @@ export default class Page {
   private browserContext: BrowserContext | undefined;
   private transfers: PageTransfers;
   private evidence: Evidence | undefined;
+  private knownViewport: { width: number; height: number } | null = null;
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
   constructor(
@@ -353,6 +355,39 @@ export default class Page {
     );
   }
 
+  /**
+   * Waits until the URL matches `url` (a string equals it, or with `*` / `**` is a glob; a RegExp is tested on it;
+   * a function gets it as a `URL`), then until the page reached `waitUntil` (default "load"). Also sees `pushState`.
+   * @example
+   *  await page.getByRole("button", { name: "Sign in" }).click();
+   *  await page.waitForURL("**\/dashboard");
+   */
+  public waitForURL(
+    url: UrlPattern | ((url: URL) => boolean),
+    options?: { timeout?: number; waitUntil?: LoadState },
+  ): Promise<void> {
+    return this.nav.waitForURL(url, options);
+  }
+
+  /** The markup of the document now, doctype included */
+  public async content(): Promise<string> {
+    this.assertOpen();
+    return readContent(this.biDiConnector, this.id);
+  }
+
+  /**
+   * Replaces the document with `html` and waits for `waitUntil` (default "load"). Scripts and styles in it run and apply;
+   * the page keeps its URL and origin (it is not a `data:` page).
+   * @example
+   *  await page.setContent("<button>Go</button><script>document.title = 'x'</script>");
+   */
+  public async setContent(
+    html: string,
+    options?: { timeout?: number; waitUntil?: LoadState },
+  ): Promise<void> {
+    return this.nav.setContent(html, options);
+  }
+
   /** The title of the document now */
   public async title(): Promise<string> {
     this.assertOpen();
@@ -391,6 +426,23 @@ export default class Page {
   public async setViewport(viewport: Viewport | null): Promise<void> {
     this.assertOpen();
     await applyViewport(this.biDiConnector, this.id, viewport);
+    this.knownViewport = viewport && {
+      width: viewport.width,
+      height: viewport.height,
+    };
+  }
+
+  /** Playwright's name for `setViewport` */
+  public setViewportSize(size: Viewport): Promise<void> {
+    return this.setViewport(size);
+  }
+
+  /**
+   * The size this page was last given (`setViewport`, `setViewportSize`, or the default from config `use.viewport` when the
+   * browser opened it), read at once; null before one is known, after `setViewport(null)` and when config turns the viewport off.
+   */
+  public viewportSize(): { width: number; height: number } | null {
+    return this.knownViewport && { ...this.knownViewport };
   }
 
   /** Gives the page the size from config `use.viewport` (1280x720 by default); the browser does this when it opens a page */

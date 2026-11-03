@@ -23,9 +23,18 @@ export class NavigationError extends Error {
 
 /** The page did not reach the awaited load state in time */
 export class LoadStateTimeoutError extends WaitTimeoutError<undefined> {
-  constructor(state: string, timeout: number) {
+  constructor(state: string, timeout: number, operation = "waitForLoadState") {
     super(timeout, undefined);
     this.name = "LoadStateTimeoutError";
-    this.message = `waitForLoadState("${state}") did not finish within ${timeout}ms`;
+    this.message = `${operation}("${state}") did not finish within ${timeout}ms`;
+  }
+}
+
+/** The page's URL did not match in time */
+export class UrlTimeoutError extends WaitTimeoutError<string> {
+  constructor(expected: string, timeout: number, lastUrl: string | undefined) {
+    super(timeout, lastUrl);
+    this.name = "UrlTimeoutError";
+    this.message = `waitForURL(): the URL did not match ${expected} within ${timeout}ms (last URL: ${lastUrl ?? "unknown"})`;
   }
 }

@@ -1,10 +1,17 @@
+import logger from "../logger/index.js";
 import { peekRunSettings } from "../config/run-settings.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import { UnsupportedOperationError } from "../transport/unsupported.js";
-import { WaitTimeoutError } from "../wait/wait-until.js";
+import { matchUrl, type UrlPattern } from "../network/url-match.js";
+import { waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
 import type { DocumentWatcher } from "./document-watcher.js";
-import { LoadStateTimeoutError, NavigationError } from "./navigation-error.js";
+import {
+  LoadStateTimeoutError,
+  NavigationError,
+  UrlTimeoutError,
+} from "./navigation-error.js";
+import { writeContent } from "./page-content.js";
 import type { PageConfig, ReadinessState } from "./page-settings.js";
 
 export type LoadState = "load" | "domcontentloaded" | "networkidle";
@@ -172,6 +179,76 @@ export class PageNavigation {
         throw new LoadStateTimeoutError(state, timeout);
       throw err;
     }
+    if (state === "networkidle")
+      await this.deps.waitForNetworkIdle({ timeout });
+  }
+
+  /**
+   * Waits until the page's URL matches `url` (a string equals it, or with `*` / `**` is a glob; a RegExp is tested on it;
+   * a function gets it as a `URL`), then waits for `waitUntil` (default "load"). A string starting with "/", "./" or
+   * "../" resolves against the base URL, as in `goto`. `timeout` applies to the URL, then again to the load state.
+   */
+  public async waitForURL(
+    url: UrlPattern | ((url: URL) => boolean),
+    options: { timeout?: number; waitUntil?: LoadState } = {},
+  ): Promise<void> {
+    this.deps.assertOpen();
+    const timeout = await this.deps.config.navigationTimeout(options.timeout);
+    const pattern =
+      typeof url === "string" ? this.resolveURL(url, "waitForURL") : url;
+    const matches =
+      typeof pattern === "function"
+        ? (current: string) => pattern(new URL(current))
+        : (current: string) => matchUrl(pattern, current);
+    // A read that fails while the page navigates counts as no URL yet
+    const read = () =>
+      this.deps.url().catch((err) => {
+        this.deps.assertOpen();
+        logger.debug("waitForURL could not read the URL", { err });
+        return undefined;
+      });
+    try {
+      await waitUntil(
+        read,
+        (current) => current !== undefined && matches(current),
+        { timeout },
+      );
+    } catch (err) {
+      if (!(err instanceof WaitTimeoutError)) throw err;
+      const wanted =
+        typeof pattern === "function"
+          ? "the predicate"
+          : typeof pattern === "string"
+            ? `"${pattern}"`
+            : String(pattern);
+      throw new UrlTimeoutError(
+        wanted,
+        timeout,
+        err.last as string | undefined,
+      );
+    }
+    await this.waitForLoadState(options.waitUntil, { timeout });
+  }
+
+  /**
+   * Replaces the document with `html` (see `writeContent`) and waits for `waitUntil` (default "load"); "networkidle" is
+   * "load" plus a quiet network. The page keeps its URL.
+   */
+  public async setContent(
+    html: string,
+    options: { timeout?: number; waitUntil?: LoadState } = {},
+  ): Promise<void> {
+    this.deps.assertOpen();
+    const timeout = await this.deps.config.navigationTimeout(options.timeout);
+    const state = options.waitUntil ?? "load";
+    const reached = await writeContent(
+      this.connector,
+      this.contextId,
+      html,
+      state === "domcontentloaded" ? "domcontentloaded" : "load",
+      timeout,
+    );
+    if (!reached) throw new LoadStateTimeoutError(state, timeout, "setContent");
     if (state === "networkidle")
       await this.deps.waitForNetworkIdle({ timeout });
   }
