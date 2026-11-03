@@ -55,6 +55,7 @@ import {
   type StrictSource,
 } from "./strict-mode.js";
 import {
+  attributeSelector,
   cssSelector,
   describeChain,
   describeSelector,
@@ -64,6 +65,7 @@ import {
   testIdSelector,
   textSelector,
   type Selector,
+  type ExactOption,
   type TextOptions,
 } from "./selector.js";
 import { filterSelector, type FilterOptions } from "./filter-step.js";
@@ -206,9 +208,24 @@ export default class Locator {
     return this.matched;
   }
 
-  /** Elements matching the label text (`<label>`, `aria-labelledby`, `aria-label`), inside this locator's matches */
-  public getByLabel(text: string, options?: TextOptions): Locator {
+  /** Elements matching the label text (`<label>`, `aria-labelledby`, `aria-label`), inside this locator's matches. See `TextOptions` for `exact` and RegExp */
+  public getByLabel(text: string | RegExp, options?: TextOptions): Locator {
     return this.child(labelSelector(text, options));
+  }
+
+  /** Elements whose `placeholder` matches, inside this locator's matches. See `TextOptions` for `exact` and RegExp */
+  public getByPlaceholder(text: string | RegExp, options?: ExactOption) {
+    return this.child(attributeSelector("placeholder", text, options));
+  }
+
+  /** Elements whose `alt` text matches (images, areas, image inputs), inside this locator's matches. See `TextOptions` */
+  public getByAltText(text: string | RegExp, options?: ExactOption) {
+    return this.child(attributeSelector("alt", text, options));
+  }
+
+  /** Elements whose `title` attribute matches, inside this locator's matches. See `TextOptions` */
+  public getByTitle(text: string | RegExp, options?: ExactOption) {
+    return this.child(attributeSelector("title", text, options));
   }
 
   /** Elements whose `data-testid` attribute equals `testId`, inside this locator's matches */
@@ -231,8 +248,8 @@ export default class Locator {
     return this.child(cssSelector(css));
   }
 
-  /** Elements whose text matches, inside this locator's matches. Exact match unless `match: "partial"` */
-  public getByText(text: string, options?: TextOptions): Locator {
+  /** Elements whose text matches, inside this locator's matches. Exact match unless `match: "partial"` or `exact: false`; a RegExp is tested as written */
+  public getByText(text: string | RegExp, options?: TextOptions): Locator {
     return this.child(textSelector(text, options));
   }
 

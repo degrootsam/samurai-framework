@@ -8,6 +8,8 @@ export type Selector =
   | { kind: "role"; role: string; name?: string }
   /** Form controls named by a `<label>`, `aria-labelledby` or `aria-label` whose text matches */
   | ({ kind: "label" } & TextMatch)
+  /** Elements whose `placeholder`, `alt` or `title` attribute matches */
+  | ({ kind: "attribute"; attribute: TextAttribute } & TextMatch)
   /** Elements whose `data-testid` attribute equals `value` */
   | { kind: "testid"; value: string }
   /** Picks the n-th (0-based) of everything the chain so far matches; a negative index counts from the end. `nth()` and `all()` build these */
@@ -32,19 +34,32 @@ export interface FilterTests {
   hasNot?: readonly Selector[];
 }
 
-/** What a text or label step looks for */
+/** The attributes `getByPlaceholder`, `getByAltText` and `getByTitle` look at */
+export type TextAttribute = "placeholder" | "alt" | "title";
+
+/** What a text, label or attribute step looks for; a RegExp is tested as written (`match` and `ignoreCase` do not apply) */
 interface TextMatch {
-  value: string;
+  value: string | RegExp;
   match: "full" | "partial";
   ignoreCase: boolean;
 }
 
 export interface TextOptions {
-  /** @default "full" */
+  /**
+   * `true` (the default) keeps the full-string, case-sensitive match; `false` switches this call to Playwright's
+   * matching: a case-insensitive substring, whitespace normalised. Does not apply to a RegExp. This is the one
+   * intentional difference from Playwright, whose default is the case-insensitive substring.
+   * @default true
+   */
+  exact?: boolean;
+  /** @default "full", or "partial" with `exact: false` */
   match?: "full" | "partial";
-  /** @default false */
+  /** @default false, or true with `exact: false` */
   ignoreCase?: boolean;
 }
+
+/** What `getByPlaceholder`, `getByAltText` and `getByTitle` take */
+export type ExactOption = Pick<TextOptions, "exact">;
 
 function nonEmpty(value: string, what: string): string {
   if (value.trim() === "") throw new TypeError(`${what} must not be empty`);
@@ -67,25 +82,55 @@ export function nthSelector(index: number): Selector {
 }
 
 function textMatch(
-  value: string,
+  value: string | RegExp,
   what: string,
-  { match = "full", ignoreCase = false }: TextOptions,
+  { exact = true, match, ignoreCase }: TextOptions,
 ): TextMatch {
-  return { value: nonEmpty(value, what), match, ignoreCase };
+  if (value instanceof RegExp) {
+    // The page tests it as written; g and y would make a repeated test depend on lastIndex
+    const plain = new RegExp(value.source, value.flags.replace(/[gy]/g, ""));
+    return { value: plain, match: "full", ignoreCase: false };
+  }
+  if (typeof value !== "string") {
+    throw new TypeError(`${what} must be a string or a RegExp`);
+  }
+  return {
+    value: nonEmpty(value, what),
+    match: match ?? (exact ? "full" : "partial"),
+    ignoreCase: ignoreCase ?? !exact,
+  };
 }
 
 export function textSelector(
-  value: string,
+  value: string | RegExp,
   options: TextOptions = {},
 ): Selector {
   return { kind: "text", ...textMatch(value, "the text", options) };
 }
 
 export function labelSelector(
-  value: string,
+  value: string | RegExp,
   options: TextOptions = {},
 ): Selector {
   return { kind: "label", ...textMatch(value, "the label", options) };
+}
+
+const ATTRIBUTE_WHAT: Record<TextAttribute, string> = {
+  placeholder: "the placeholder",
+  alt: "the alt text",
+  title: "the title",
+};
+
+export function attributeSelector(
+  attribute: TextAttribute,
+  value: string | RegExp,
+  options: ExactOption = {},
+): Selector {
+  return {
+    kind: "attribute",
+    attribute,
+    ...textMatch(value, ATTRIBUTE_WHAT[attribute], options),
+  };
 }
 
 export function testIdSelector(value: string): Selector {
@@ -126,6 +171,11 @@ export function toBiDiLocator(
     case "css":
       return { type: "css", value: selector.value };
     case "text":
+      if (typeof selector.value !== "string") {
+        throw new Error(
+          "a RegExp text is resolved by the framework, not by the browser",
+        );
+      }
       return {
         type: "innerText",
         value: selector.value,
@@ -147,7 +197,10 @@ export function toBiDiLocator(
       };
     // The locator resolves these two itself, so a chain never hands them to the browser
     case "label":
-      throw new Error("label is resolved by the framework, not by the browser");
+    case "attribute":
+      throw new Error(
+        `${selector.kind} is resolved by the framework, not by the browser`,
+      );
     case "nth":
       throw new Error("nth is resolved by the framework, not by the browser");
     case "filter":
@@ -172,7 +225,14 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
         selector.match === "partial" && "partial",
         selector.ignoreCase && "ignoring case",
       ].filter(Boolean);
-      return `${selector.kind}=${JSON.stringify(selector.value)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+      return `${selector.kind}=${describeValue(selector.value)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+    }
+    case "attribute": {
+      const flags = [
+        selector.match === "partial" && "partial",
+        selector.ignoreCase && "ignoring case",
+      ].filter(Boolean);
+      return `${selector.attribute}=${describeValue(selector.value)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
     }
     case "testid":
       return `testid=${JSON.stringify(selector.value)}`;
@@ -193,12 +253,15 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
   }
 }
 
+function describeValue(value: TextCriterion): string {
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
+
 function describeFilter(tests: FilterTests): string {
-  const text = (value: TextCriterion) =>
-    typeof value === "string" ? JSON.stringify(value) : String(value);
   return [
-    tests.hasText !== undefined && `hasText=${text(tests.hasText)}`,
-    tests.hasNotText !== undefined && `hasNotText=${text(tests.hasNotText)}`,
+    tests.hasText !== undefined && `hasText=${describeValue(tests.hasText)}`,
+    tests.hasNotText !== undefined &&
+      `hasNotText=${describeValue(tests.hasNotText)}`,
     tests.has && `has=${describeChain(tests.has)}`,
     tests.hasNot && `hasNot=${describeChain(tests.hasNot)}`,
   ]

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  attributeSelector,
   labelSelector,
   testIdSelector,
   cssSelector,
@@ -67,6 +68,60 @@ describe("selector constructors", () => {
     assert.deepEqual(roleSelector("button"), { kind: "role", role: "button" });
   });
 
+  it("keep today's matching by default: exact is a no-op, exact false is Playwright's", () => {
+    const full = textSelector("Go");
+    assert.deepEqual(textSelector("Go", { exact: true }), full);
+    assert.deepEqual(textSelector("Go", { exact: false }), {
+      kind: "text",
+      value: "Go",
+      match: "partial",
+      ignoreCase: true,
+    });
+    assert.deepEqual(labelSelector("Go", { exact: false }), {
+      kind: "label",
+      value: "Go",
+      match: "partial",
+      ignoreCase: true,
+    });
+    // an explicit match or ignoreCase still wins over what exact implies
+    assert.deepEqual(textSelector("Go", { exact: false, ignoreCase: false }), {
+      kind: "text",
+      value: "Go",
+      match: "partial",
+      ignoreCase: false,
+    });
+  });
+
+  it("keep a RegExp as written, without g and y, whatever exact says", () => {
+    assert.deepEqual(textSelector(/go/i, { exact: false }), {
+      kind: "text",
+      value: /go/i,
+      match: "full",
+      ignoreCase: false,
+    });
+    const kept = textSelector(/a.c/gimsy);
+    assert.equal(kept.kind === "text" && (kept.value as RegExp).flags, "ims");
+    assert.throws(() => textSelector(5 as never), /string or a RegExp/);
+  });
+
+  it("build attribute selectors for placeholder, alt and title", () => {
+    assert.deepEqual(attributeSelector("placeholder", "Name"), {
+      kind: "attribute",
+      attribute: "placeholder",
+      value: "Name",
+      match: "full",
+      ignoreCase: false,
+    });
+    assert.deepEqual(attributeSelector("alt", /logo/, { exact: false }), {
+      kind: "attribute",
+      attribute: "alt",
+      value: /logo/,
+      match: "full",
+      ignoreCase: false,
+    });
+    assert.throws(() => attributeSelector("title", " "), /the title/);
+  });
+
   it("reject empty input", () => {
     assert.throws(() => xpathSelector(""), TypeError);
     assert.throws(() => cssSelector("  "), TypeError);
@@ -127,9 +182,14 @@ describe("toBiDiLocator", () => {
     });
   });
 
-  it("refuses nth and label, which the browser does not know", () => {
+  it("refuses nth, label, attribute and a RegExp text, which the browser does not know", () => {
     assert.throws(() => toBiDiLocator({ kind: "nth", index: 0 }, false), /nth/);
     assert.throws(() => toBiDiLocator(labelSelector("Email"), false), /label/);
+    assert.throws(
+      () => toBiDiLocator(attributeSelector("alt", "x"), false),
+      /attribute/,
+    );
+    assert.throws(() => toBiDiLocator(textSelector(/x/), false), /RegExp text/);
   });
 });
 
@@ -184,6 +244,15 @@ describe("describeSelector", () => {
       "role=button",
     );
     assert.equal(describeSelector({ kind: "nth", index: 2 }, false), "nth=2");
+    assert.equal(describeSelector(textSelector(/go/i), false), "text=/go/i");
+    assert.equal(
+      describeSelector(labelSelector("Mail", { exact: false }), false),
+      'label="Mail" (partial, ignoring case)',
+    );
+    assert.equal(
+      describeSelector(attributeSelector("placeholder", "Name"), false),
+      'placeholder="Name"',
+    );
   });
 
   it("joins a chain with >> and scopes chained xpaths", () => {

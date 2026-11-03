@@ -1,7 +1,8 @@
 import Locator from "../locator/locator.js";
 import type { FilterOptions } from "../locator/filter-step.js";
-import type { TextOptions } from "../locator/selector.js";
+import type { ExactOption, TextOptions } from "../locator/selector.js";
 import {
+  attributeSelector,
   cssSelector,
   labelSelector,
   roleSelector,
@@ -179,14 +180,31 @@ export default class Page {
     return this.locators.locate([cssSelector(css)]);
   }
 
-  /** Locates elements by their text: an exact match unless `match: "partial"` */
-  public getByText(text: string, options?: TextOptions) {
+  /** Locates elements by their text: an exact match unless `match: "partial"` or `exact: false`; a RegExp is tested as written (see `TextOptions`) */
+  public getByText(text: string | RegExp, options?: TextOptions) {
     return this.locators.locate([textSelector(text, options)]);
   }
 
-  /** Locates form controls by their label text: an exact match unless `match: "partial"` */
-  public getByLabel(text: string, options?: TextOptions) {
+  /** Locates form controls by their label text: an exact match unless `match: "partial"` or `exact: false`; a RegExp is tested as written */
+  public getByLabel(text: string | RegExp, options?: TextOptions) {
     return this.locators.locate([labelSelector(text, options)]);
+  }
+
+  /** Locates elements by their `placeholder` (see `TextOptions` for `exact` and RegExp) */
+  public getByPlaceholder(text: string | RegExp, options?: ExactOption) {
+    return this.locators.locate([
+      attributeSelector("placeholder", text, options),
+    ]);
+  }
+
+  /** Locates elements by their `alt` text (images, areas, image inputs) */
+  public getByAltText(text: string | RegExp, options?: ExactOption) {
+    return this.locators.locate([attributeSelector("alt", text, options)]);
+  }
+
+  /** Locates elements by their `title` attribute */
+  public getByTitle(text: string | RegExp, options?: ExactOption) {
+    return this.locators.locate([attributeSelector("title", text, options)]);
   }
 
   /** Locates elements by their `data-testid` attribute */

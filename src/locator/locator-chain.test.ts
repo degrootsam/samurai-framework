@@ -426,6 +426,36 @@ describe("semantic locators", () => {
   });
 });
 
+describe("page-side text matching", () => {
+  it("a RegExp text and the attribute locators run in the page, not as a BiDi locator", async () => {
+    const stub = stubConnector(remote([]));
+    const page = new Page(stub.connector, "ctx");
+    assert.equal(await page.getByText(/go/i).count(), 0);
+    assert.equal(await page.getByPlaceholder("Name").count(), 0);
+    assert.equal(await page.getByAltText(/logo/).count(), 0);
+    assert.equal(await page.getByTitle("Close", { exact: false }).count(), 0);
+    assert.equal(locateCommands(stub.sent).length, 0);
+    assert.equal(stub.calls.length, 4);
+    assert.match(
+      stub.calls[1]!.functionDeclaration,
+      /querySelectorAll\("\[" \+ attribute/,
+    );
+    assert.equal(page.getByPlaceholder("Name").selector, 'placeholder="Name"');
+  });
+
+  it("exact:false text still goes to the browser's innerText locator, as a partial case-insensitive match", async () => {
+    const stub = stubConnector(remote(null));
+    const page = new Page(stub.connector, "ctx");
+    await page.getByText("go", { exact: false }).count();
+    assert.deepEqual(locateCommands(stub.sent)[0]!.locator, {
+      type: "innerText",
+      value: "go",
+      matchType: "partial",
+      ignoreCase: true,
+    });
+  });
+});
+
 describe("fallback locators", () => {
   function withStub(...responses: StubResponse[]) {
     const stub = stubConnector(

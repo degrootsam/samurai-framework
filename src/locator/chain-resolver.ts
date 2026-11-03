@@ -7,11 +7,10 @@ import type { Arg } from "../script/serialize.js";
 import { isDocumentSwap } from "./document-swap.js";
 import { intersect, union } from "./combine-step.js";
 import { applyFilter } from "./filter-step.js";
-import { LABEL_LOCATE } from "./label-locator.js";
 import { SORT_IN_DOCUMENT_ORDER } from "./page-search.js";
 import { InvalidSelectorError } from "./selector-errors.js";
+import { pageSearch, textSearch, type PageSearch } from "./page-step.js";
 import { describeSelector, toBiDiLocator, type Selector } from "./selector.js";
-import { TEXT_LOCATE } from "./text-locator.js";
 
 /** Calls `fn` in the page; the locator turns a throwing function into a "Failed to locate element" error */
 export type CallInPage = <T>(
@@ -154,13 +153,13 @@ export class ChainResolver {
     startNodes: readonly ElementHandle[] | undefined,
     max: number | undefined,
   ): Promise<ElementHandle[]> {
-    if (selector.kind === "label")
-      return this.locateInPage(LABEL_LOCATE, selector, startNodes, max);
+    const inPage = pageSearch(selector);
+    if (inPage) return this.locateInPage(inPage, startNodes, max);
     if (
       selector.kind === "text" &&
       unsupportedTypes(this.connector).has("innerText")
     ) {
-      return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
+      return this.locateInPage(textSearch(selector), startNodes, max);
     }
     try {
       return await this.locateNatively(selector, scoped, startNodes, max);
@@ -175,7 +174,7 @@ export class ChainResolver {
         if (selector.kind === "text") {
           // The browser has no innerText locator (Firefox): remember that and search in the page instead
           unsupportedTypes(this.connector).add("innerText");
-          return this.locateInPage(TEXT_LOCATE, selector, startNodes, max);
+          return this.locateInPage(textSearch(selector), startNodes, max);
         }
         throw new UnsupportedOperationError(
           `${describeSelector(selector, scoped)}: this kind of locator is not supported by the browser (${err.message})`,
@@ -210,18 +209,15 @@ export class ChainResolver {
     return [...found.values()];
   }
 
-  /** Runs a page-side search `(starts, value, match, ignoreCase) => elements` */
+  /** Runs a page-side search `(starts, ...args) => elements` */
   private async locateInPage(
-    fn: string,
-    selector: Extract<Selector, { kind: "text" | "label" }>,
+    { fn, args }: PageSearch,
     startNodes: readonly ElementHandle[] | undefined,
     max: number | undefined,
   ): Promise<ElementHandle[]> {
     const found = await this.call<ElementHandle[]>(fn, [
       startNodes ?? [],
-      selector.value,
-      selector.match,
-      selector.ignoreCase,
+      ...args,
     ]);
     return max === undefined ? found : found.slice(0, max);
   }

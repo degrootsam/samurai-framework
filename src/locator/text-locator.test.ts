@@ -42,7 +42,7 @@ const all = (from: FakeElement): FakeElement[] => [from, ...from.descendants()];
 
 function run(
   start: FakeElement[] | null,
-  value: string,
+  value: string | RegExp,
   match: string,
   ignoreCase: boolean,
 ) {
@@ -51,7 +51,7 @@ function run(
     querySelectorAll: () => documentRoot.descendants(),
   }) as (
     starts: unknown[],
-    value: string,
+    value: string | RegExp,
     match: string,
     ignoreCase: boolean,
   ) => FakeElement[];
@@ -91,6 +91,18 @@ describe("TEXT_LOCATE", () => {
     documentRoot = new FakeElement("HTML").add(p);
     assert.deepEqual(run(null, "sign in", "full", false), []);
     assert.deepEqual(run(null, "sign in", "full", true), [p]);
+  });
+
+  it("tests a RegExp as written on the collapsed text, ignoring g and y", () => {
+    const p = new FakeElement("P", "Sign   IN now");
+    const q = new FakeElement("P", "other");
+    documentRoot = new FakeElement("HTML").add(p, q);
+    assert.deepEqual(run(null, /sign in/i, "full", false), [p]);
+    assert.deepEqual(run(null, /sign in/, "full", true), []);
+    assert.deepEqual(run(null, /^Sign IN now$/, "full", false), [p]);
+    // match and ignoreCase do not apply to a RegExp; a g flag must not make repeated tests depend on lastIndex
+    assert.deepEqual(run(null, /IN/g, "partial", true), [p]);
+    assert.deepEqual(run(null, /IN/g, "partial", true), [p]);
   });
 
   it("returns the parent when the text is only complete across its children", () => {

@@ -3,14 +3,21 @@
  * of `TEXT_LOCATE` and `LABEL_LOCATE`, which run in the page with `(starts, value, match, ignoreCase)` in scope.
  */
 
-/** `normalise` collapses whitespace and trims (lower-casing with `ignoreCase`); `textMatches` compares a text with `value` by `match` */
+/**
+ * `normalise` collapses whitespace and trims (lower-casing with `ignoreCase`); `textMatches` compares a text with `value` by
+ * `match`. A RegExp `value` is tested on the collapsed text as written (flags kept, `g` and `y` dropped); `match` and
+ * `ignoreCase` then do not apply.
+ */
 export const MATCHING_JS = `
+  const collapse = (text) => String(text).replace(/\\s+/g, " ").trim();
   const normalise = (text) => {
-    const collapsed = String(text).replace(/\\s+/g, " ").trim();
+    const collapsed = collapse(text);
     return ignoreCase ? collapsed.toLowerCase() : collapsed;
   };
-  const wanted = normalise(value);
+  const pattern = typeof value === "string" ? null : new RegExp(value.source, value.flags.replace(/[gy]/g, ""));
+  const wanted = pattern ? "" : normalise(value);
   const textMatches = (text) => {
+    if (pattern) return pattern.test(collapse(text));
     const normal = normalise(text);
     return match === "full" ? normal === wanted : normal.includes(wanted);
   };`;
