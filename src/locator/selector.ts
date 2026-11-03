@@ -11,7 +11,20 @@ export type Selector =
   /** Elements whose `data-testid` attribute equals `value` */
   | { kind: "testid"; value: string }
   /** Picks the n-th (0-based) of everything the chain so far matches; a negative index counts from the end. `nth()` and `all()` build these */
-  | { kind: "nth"; index: number };
+  | { kind: "nth"; index: number }
+  /** Keeps the elements the chain so far matched that pass every given test (see `filterSelector`) */
+  | ({ kind: "filter" } & FilterTests);
+
+/** A text test of a filter: a string is a case-insensitive substring, a RegExp is tested on the element's text */
+export type TextCriterion = string | RegExp;
+
+/** The tests of a `filter` step; `has` and `hasNot` are chains searched inside each candidate */
+export interface FilterTests {
+  hasText?: TextCriterion;
+  hasNotText?: TextCriterion;
+  has?: readonly Selector[];
+  hasNot?: readonly Selector[];
+}
 
 /** What a text or label step looks for */
 interface TextMatch {
@@ -131,6 +144,10 @@ export function toBiDiLocator(
       throw new Error("label is resolved by the framework, not by the browser");
     case "nth":
       throw new Error("nth is resolved by the framework, not by the browser");
+    case "filter":
+      throw new Error(
+        "filter is resolved by the framework, not by the browser",
+      );
   }
 }
 
@@ -160,7 +177,22 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
       );
     case "nth":
       return `nth=${selector.index}`;
+    case "filter":
+      return `filter(${describeFilter(selector)})`;
   }
+}
+
+function describeFilter(tests: FilterTests): string {
+  const text = (value: TextCriterion) =>
+    typeof value === "string" ? JSON.stringify(value) : String(value);
+  return [
+    tests.hasText !== undefined && `hasText=${text(tests.hasText)}`,
+    tests.hasNotText !== undefined && `hasNotText=${text(tests.hasNotText)}`,
+    tests.has && `has=${describeChain(tests.has)}`,
+    tests.hasNot && `hasNot=${describeChain(tests.hasNot)}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 export function describeChain(chain: readonly Selector[]): string {

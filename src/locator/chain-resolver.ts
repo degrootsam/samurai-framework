@@ -5,6 +5,7 @@ import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js"
 import { ElementHandle } from "../script/element-handle.js";
 import type { Arg } from "../script/serialize.js";
 import { isDocumentSwap } from "./document-swap.js";
+import { applyFilter } from "./filter-step.js";
 import { LABEL_LOCATE } from "./label-locator.js";
 import { SORT_IN_DOCUMENT_ORDER } from "./page-search.js";
 import { InvalidSelectorError } from "./selector-errors.js";
@@ -71,6 +72,19 @@ export class ChainResolver {
             selector.index < 0 ? nodes.length + selector.index : selector.index
           ];
         nodes = picked ? [picked] : [];
+      } else if (selector.kind === "filter") {
+        try {
+          nodes = from
+            ? await applyFilter(from, selector, {
+                call: this.call,
+                findInside: (inner, element) =>
+                  this.resolveChain(inner, 1, [element]),
+              })
+            : [];
+        } catch (err) {
+          if (isDocumentSwap(err)) return [];
+          throw err;
+        }
       } else {
         try {
           nodes = await this.locateStep(

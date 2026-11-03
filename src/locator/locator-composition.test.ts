@@ -25,7 +25,10 @@ function setup(...responses: StubResponse[]) {
       .map(({ params }) => params as LocateParams);
   const make = (...steps: Parameters<typeof cssSelector>[0][]) =>
     new Locator(steps.map(cssSelector), stub.connector, "ctx");
-  return { ...stub, locates, make };
+  /** A locator from selector strings, as `page.locator` reads them */
+  const raw = (selector: string) =>
+    new Locator(selector, stub.connector, "ctx");
+  return { ...stub, locates, make, raw };
 }
 
 const nodes = (...ids: string[]): RemoteValue => ({
@@ -108,5 +111,74 @@ describe("nth, first and last", () => {
     assert.equal(locator.selector, "css=#a >> nth=1 or css=#b >> nth=1");
     assert.deepEqual(ids(await locator.elements()), ["stub-node-1"]);
     assert.equal(locates().length, 2);
+  });
+});
+
+describe("filter", () => {
+  it("hasText runs one page-side test over the candidates", async () => {
+    const { make, calls, nodeCounts } = setup(nodes("stub-node-1"));
+    nodeCounts(3);
+    const locator = make("li").filter({ hasText: "paid", hasNotText: /x/i });
+    assert.equal(
+      locator.selector,
+      'css=li >> filter(hasText="paid", hasNotText=/x/i)',
+    );
+    assert.deepEqual(ids(await locator.elements()), ["stub-node-1"]);
+    const [call] = calls;
+    assert.match(call!.functionDeclaration, /textContent/);
+    assert.deepEqual((call!.args[0] as unknown[]).length, 3);
+    assert.equal(call!.args[1], "paid");
+  });
+
+  it("matches nothing when no candidate passes", async () => {
+    const { make, nodeCounts } = setup(nodes());
+    nodeCounts(2);
+    assert.equal(await make("li").filter({ hasText: "z" }).count(), 0);
+  });
+
+  it("has searches inside each candidate with a scoped first step", async () => {
+    const { make, raw, locates, nodeCounts } = setup();
+    // 2 candidates: the first has a match, the second none
+    nodeCounts(2, 1, 0);
+    const outer = make("li").filter({ has: raw("//button") });
+    const found = await outer.elements();
+    assert.deepEqual(ids(found), ["stub-node-0"]);
+    const [list, first, second] = locates();
+    assert.deepEqual(list!.locator, { type: "css", value: "li" });
+    assert.deepEqual(first!.locator, { type: "xpath", value: ".//button" });
+    assert.deepEqual(first!.startNodes, [{ sharedId: "stub-node-0" }]);
+    assert.deepEqual(second!.startNodes, [{ sharedId: "stub-node-1" }]);
+    assert.equal(first!.maxNodeCount, 1);
+  });
+
+  it("hasNot keeps the candidates without a match", async () => {
+    const { make, raw, nodeCounts } = setup();
+    nodeCounts(2, 1, 0);
+    const found = await make("li")
+      .filter({ hasNot: raw("//button") })
+      .elements();
+    assert.deepEqual(ids(found), ["stub-node-1"]);
+  });
+
+  it("locator(selector, options) filters the new step", async () => {
+    const { make, calls, nodeCounts } = setup(nodes("stub-node-0"));
+    nodeCounts(1, 2);
+    const locator = make("ul").locator("li", { hasText: "x" });
+    assert.equal(locator.selector, 'css=ul >> css=li >> filter(hasText="x")');
+    assert.equal(await locator.count(), 1);
+    assert.equal(calls.length, 1);
+  });
+
+  it("rejects empty options, bad text and a locator with fallbacks", () => {
+    const { make } = setup();
+    assert.throws(() => make("li").filter({}), /filter\(\): give at least one/);
+    assert.throws(
+      () => make("li").filter({ hasText: 1 as unknown as string }),
+      /filter\(\): hasText must be a string or a RegExp/,
+    );
+    assert.throws(
+      () => make("li").filter({ has: make("a").withFallbacks(make("b")) }),
+      /filter\(\): a locator with fallbacks \(withFallbacks\) cannot be used as has/,
+    );
   });
 });

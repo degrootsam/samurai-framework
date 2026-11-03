@@ -62,6 +62,7 @@ import {
   type Selector,
   type TextOptions,
 } from "./selector.js";
+import { filterSelector, type FilterOptions } from "./filter-step.js";
 import { selectorFromString } from "./selector-string.js";
 
 export type { ActionOptions } from "./actionability.js";
@@ -186,10 +187,12 @@ export default class Locator {
 
   /**
    * Elements matching `selector` inside this locator's matches. An xpath (`//x`, `./x`, `xpath=…`, or an older
-   * relative one such as `a[@id='x']`) searches inside them; anything else is css (`css=` is accepted)
+   * relative one such as `a[@id='x']`) searches inside them; anything else is css (`css=` is accepted).
+   * `options` filter the matches, as `filter()` does
    */
-  public locator(selector: string): Locator {
-    return this.child(selectorFromString(selector));
+  public locator(selector: string, options?: FilterOptions<Locator>): Locator {
+    const found = this.child(selectorFromString(selector));
+    return options === undefined ? found : found.filter(options);
   }
 
   /** Elements matching the CSS selector inside this locator's matches */
@@ -210,6 +213,31 @@ export default class Locator {
   /** The n-th (0-based) match, in document order; a negative index counts from the end (`-1` is the last). Matches nothing when out of range */
   public nth(index: number): Locator {
     return this.child(nthSelector(index));
+  }
+
+  /**
+   * The matches that pass the tests, in their order. `hasText` keeps elements whose text contains the string
+   * (case-insensitive, whitespace collapsed; this is Playwright's rule, the `getBy*` text matching is unchanged)
+   * or matches the RegExp; `has` keeps elements containing a match of the locator, searched inside them.
+   * @example
+   *  await page.locator("li").filter({ hasText: "paid", has: page.getByRole("button") }).first().click();
+   */
+  public filter(options: FilterOptions<Locator>): Locator {
+    return this.child(
+      filterSelector(options, (inner, option) =>
+        inner.chainFor("filter()", option),
+      ),
+    );
+  }
+
+  /** The chain of a locator used inside another (`has`); a locator with fallbacks cannot be */
+  private chainFor(method: string, role: string): readonly Selector[] {
+    if (this.alternatives.length > 0) {
+      throw new TypeError(
+        `${method}: a locator with fallbacks (withFallbacks) cannot be used as ${role}`,
+      );
+    }
+    return this.chain;
   }
 
   /** The first match, in document order */
