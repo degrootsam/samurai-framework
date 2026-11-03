@@ -28,7 +28,7 @@ export class PageLocators {
     );
   }
 
-  /** `undefined` goes back to config `use.strictSelectors`; applies to locators already made, too */
+  /** `undefined` goes back to config `use.strictSelectors`; a locator asks once, at its first action or read, so earlier ones that already ran keep their answer */
   public setStrictSelectors(enabled: boolean | undefined): void {
     this.strictOverride = enabled;
   }

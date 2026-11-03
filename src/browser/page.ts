@@ -173,7 +173,8 @@ export default class Page {
   /**
    * Makes this page's locators strict (or not): an action or read on a locator matching several elements then
    * throws `name(): strict mode violation, N elements match ...` instead of using the first. `undefined` goes back
-   * to config `use.strictSelectors` (off unless set). Applies to locators already made, too
+   * to config `use.strictSelectors` (off unless set). Applies to locators made afterwards and to earlier ones that have not
+   * run an action or read yet: a locator keeps the answer it got at its first one
    */
   public setStrictSelectors(enabled: boolean | undefined): void {
     this.locators.setStrictSelectors(enabled);
