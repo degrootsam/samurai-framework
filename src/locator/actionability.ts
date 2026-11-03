@@ -37,7 +37,8 @@ export interface ActionOptions {
 
 /** What the actionability waits need of a locator: finding its element, calling into the page, naming itself */
 export interface ActionabilityContext {
-  resolveOne(): Promise<ElementHandle | null>;
+  /** `method` names the public method that asks; with it, a strict locator throws when several elements match */
+  resolveOne(method?: string): Promise<ElementHandle | null>;
   call<T>(fn: string, args: unknown[], sandbox?: string): Promise<T>;
   /** The locator's description for error messages */
   readonly selector: string;
@@ -49,8 +50,9 @@ export interface ActionabilityContext {
 export async function probeState(
   ctx: ActionabilityContext,
   options: ProbeOptions,
+  method: string,
 ): Promise<ElementState> {
-  const el = await ctx.resolveOne();
+  const el = await ctx.resolveOne(method);
   if (!el) return DETACHED_STATE;
   try {
     return parseElementState(await callProbe(ctx, el, options));
@@ -110,7 +112,7 @@ export async function waitForActionable(
   let lastChecks: CheckResults | undefined;
   try {
     return await waitUntil(
-      () => probeState(ctx, probe),
+      () => probeState(ctx, probe, action),
       (current, previous) => {
         lastChecks = evaluateChecks(required, current, previous);
         return allPass(lastChecks);
@@ -152,7 +154,7 @@ export async function waitForState(
   };
   try {
     await waitUntil(
-      () => probeState(ctx, { scroll: false, hitTest: false }),
+      () => probeState(ctx, { scroll: false, hitTest: false }, "waitFor"),
       reached[state],
       { timeout: resolved },
     );

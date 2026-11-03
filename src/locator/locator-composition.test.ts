@@ -6,6 +6,7 @@ import {
   type StubResponse,
 } from "../testing/stub-connector.js";
 import type { RemoteValue } from "../types/bidi-modules/script.js";
+import Page from "../browser/page.js";
 import Locator from "./locator.js";
 import { cssSelector } from "./selector.js";
 
@@ -264,6 +265,92 @@ describe("and and or", () => {
     assert.throws(
       () => raw("p").and(other),
       /and\(\): the locators belong to different pages/,
+    );
+  });
+});
+
+describe("strict selectors", () => {
+  const MESSAGE = /click\(\): strict mode violation, 2 elements match css=li/;
+
+  it("are off by default: an action uses the first match", async () => {
+    const { make, nodeCounts, locates } = setup(remote(null));
+    nodeCounts(2);
+    assert.equal(await make("li").getAttribute("id"), null);
+    assert.equal(locates()[0]!.maxNodeCount, 1);
+  });
+
+  it("make an action throw when the locator matches several elements", async () => {
+    const { make, nodeCounts } = setup();
+    nodeCounts(2);
+    await assert.rejects(make("li").strict().click({ timeout: 0 }), MESSAGE);
+  });
+
+  it("make reads and state checks throw too, naming the method", async () => {
+    const { make, nodeCounts } = setup();
+    nodeCounts(2);
+    await assert.rejects(
+      make("li").strict().textContent(),
+      /textContent\(\): strict mode violation, 2 elements match/,
+    );
+    await assert.rejects(
+      make("li").strict().isVisible(),
+      /isVisible\(\): strict mode violation/,
+    );
+  });
+
+  it("do not throw for one match, for none, or after first(), nth() or filter", async () => {
+    const { make, nodeCounts } = setup(remote("x"));
+    const strict = make("li").strict();
+    nodeCounts(1);
+    assert.equal(await strict.textContent(), "x");
+    nodeCounts(0);
+    assert.equal(await strict.textContent(), null);
+    nodeCounts(2);
+    assert.equal(await strict.first().textContent(), "x");
+    assert.equal(await strict.nth(-1).textContent(), "x");
+  });
+
+  it("do not touch count(), all() or elements()", async () => {
+    const { make, nodeCounts } = setup();
+    nodeCounts(2);
+    assert.equal(await make("li").strict().count(), 2);
+    assert.equal((await make("li").strict().all()).length, 2);
+  });
+
+  it("strict(false) turns a strict page off for one locator", async () => {
+    const stub = setup(remote("x"));
+    const page = new Page(stub.connector, "ctx", {
+      use: { strictSelectors: true },
+    });
+    stub.nodeCounts(2);
+    await assert.rejects(
+      page.locator("li").textContent(),
+      /strict mode violation/,
+    );
+    assert.equal(await page.locator("li").strict(false).textContent(), "x");
+  });
+
+  it("follow the page: config use.strictSelectors, then page.setStrictSelectors", async () => {
+    const stub = setup(remote("x"));
+    const page = new Page(stub.connector, "ctx", { use: {} });
+    stub.nodeCounts(2);
+    const locator = page.locator("li");
+    assert.equal(await locator.textContent(), "x");
+    page.setStrictSelectors(true);
+    await assert.rejects(
+      page.locator("li").textContent(),
+      /strict mode violation/,
+    );
+    page.setStrictSelectors(undefined);
+    assert.equal(await page.locator("li").textContent(), "x");
+  });
+
+  it("carry through steps added to a strict locator", async () => {
+    const { make, nodeCounts } = setup();
+    nodeCounts(1, 2);
+    await assert.rejects(
+      make("ul").strict().getByCss("li").textContent(),
+      /textContent\(\): strict mode violation, 2 elements match css=ul >> css=li/,
     );
   });
 });

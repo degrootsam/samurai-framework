@@ -83,6 +83,7 @@ export default class Page {
   private helperRealm: HelperRealm;
   private initScripts = new Set<PreloadHandle>();
   private pageConfig: PageConfig;
+  private strictOverride: boolean | undefined;
   private pageEvents = new EventEmitter();
   private documents: DocumentWatcher;
   private nav: PageNavigation;
@@ -154,7 +155,23 @@ export default class Page {
 
   private locate(selector: ConstructorParameters<typeof Locator>[0]): Locator {
     this.assertOpen();
-    return new Locator(selector, this.biDiConnector, this.id, this.helperRealm);
+    return new Locator(
+      selector,
+      this.biDiConnector,
+      this.id,
+      this.helperRealm,
+      [],
+      () => this.pageConfig.strictSelectors(this.strictOverride),
+    );
+  }
+
+  /**
+   * Makes this page's locators strict (or not): an action or read on a locator matching several elements then
+   * throws `name(): strict mode violation, N elements match ...` instead of using the first. `undefined` goes back
+   * to config `use.strictSelectors` (off unless set). Applies to locators already made, too
+   */
+  public setStrictSelectors(enabled: boolean | undefined): void {
+    this.strictOverride = enabled;
   }
 
   /** Locates elements with a CSS selector */

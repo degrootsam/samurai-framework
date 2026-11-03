@@ -34,6 +34,11 @@ import {
 } from "./element-state.js";
 import { bindOutput } from "../wait/output-sink.js";
 import type { HelperInstaller } from "./helper-realm.js";
+import {
+  NOT_STRICT,
+  strictViolation,
+  type StrictSource,
+} from "./strict-mode.js";
 import { cssPropertyName, IS_CHECKED_BODY } from "./element-reads.js";
 import {
   clickRect,
@@ -73,6 +78,9 @@ export default class Locator {
   private chain: readonly Selector[];
   private helpers: HelperInstaller | undefined;
   private alternatives: readonly Locator[];
+  private strictness: StrictSource;
+  /** Asked once per locator: the answer comes from the config, which a wait would otherwise read on every poll */
+  private strictAnswer: Promise<boolean> | undefined;
   private matched: { index: number; selector: string } | undefined;
   private resolver: ChainResolver;
   /** What the actionability waits use of this locator */
@@ -85,6 +93,7 @@ export default class Locator {
    * `helpers` is the page's helper realm. With it the actionability probe is installed once per
    * document and called by name; without it (a locator built by hand) the probe source is sent on every poll.
    * `alternatives` are fallback locators tried in order whenever this chain matches nothing (see `withFallbacks`).
+   * `strictness` says whether actions and reads throw when the locator matches several elements (see `strict`); default no.
    */
   constructor(
     selector: string | readonly Selector[],
@@ -92,6 +101,7 @@ export default class Locator {
     contextId: BrowsingContext,
     helpers?: HelperInstaller,
     alternatives: readonly Locator[] = [],
+    strictness: StrictSource = NOT_STRICT,
   ) {
     this.chain =
       typeof selector === "string" ? [selectorFromString(selector)] : selector;
@@ -99,9 +109,10 @@ export default class Locator {
     this.contextId = contextId;
     this.helpers = helpers;
     this.alternatives = alternatives;
+    this.strictness = strictness;
     const locator = this;
     this.actionability = {
-      resolveOne: () => this.resolveOne(),
+      resolveOne: (method) => this.resolveOne(method),
       call: (fn, args, sandbox) => this.call(fn, args as Arg[], sandbox),
       get selector() {
         return locator.selector;
@@ -146,6 +157,7 @@ export default class Locator {
       this.contextId,
       this.helpers,
       this.alternatives.map((alt) => alt.child(step)),
+      this.strictness,
     );
   }
 
@@ -164,6 +176,25 @@ export default class Locator {
       this.contextId,
       this.helpers,
       [...this.alternatives, ...fallbacks],
+      this.strictness,
+    );
+  }
+
+  /**
+   * This locator, strict or not whatever the page and the config say: a strict locator makes actions and reads
+   * (`click`, `fill`, `textContent`, ...) throw `name(): strict mode violation, N elements match ...` when it
+   * matches several elements, instead of using the first. Steps added to it stay strict. See config `use.strictSelectors`
+   * @example
+   *  await page.locator("li").strict().click(); // throws when there is more than one li
+   */
+  public strict(enabled = true): Locator {
+    return new Locator(
+      this.chain,
+      this.biDiConnector,
+      this.contextId,
+      this.helpers,
+      this.alternatives,
+      () => Promise.resolve(enabled),
     );
   }
 
@@ -255,6 +286,8 @@ export default class Locator {
       this.biDiConnector,
       this.contextId,
       this.helpers,
+      [],
+      this.strictness,
     );
   }
 
@@ -295,6 +328,8 @@ export default class Locator {
             this.biDiConnector,
             this.contextId,
             this.helpers,
+            [],
+            this.strictness,
           )
         : this.child({ kind: "nth", index }),
     );
@@ -339,11 +374,27 @@ export default class Locator {
       this.biDiConnector,
       this.contextId,
       this.helpers,
+      [],
+      this.strictness,
     );
   }
 
-  private async resolveOne(): Promise<ElementHandle | null> {
-    return (await this.resolve(1))[0] ?? null;
+  /**
+   * The element the locator matches first. With a `method` name and strict selectors on, several matches
+   * throw instead (`method` is the public method that asked, for the message)
+   */
+  private async resolveOne(method?: string): Promise<ElementHandle | null> {
+    if (
+      method === undefined ||
+      !(await (this.strictAnswer ??= this.strictness()))
+    ) {
+      return (await this.resolve(1))[0] ?? null;
+    }
+    const found = await this.resolve();
+    if (found.length > 1) {
+      throw strictViolation(method, found.length, this.selector);
+    }
+    return found[0] ?? null;
   }
 
   /** Calls `fn` in the page; a throwing function becomes a "Failed to locate element" error */
@@ -378,8 +429,9 @@ export default class Locator {
     body: string,
     params: string[] = [],
     args: Arg[] = [],
+    method?: string,
   ): Promise<T> {
-    const el = await this.resolveOne();
+    const el = await this.resolveOne(method);
     if (!el) return whenMissing;
     try {
       return await this.call<T>(
@@ -394,9 +446,18 @@ export default class Locator {
   }
 
   /** Like `callOnElement`, for operations that cannot go on without the element */
-  private async callOnExistingElement<T>(body: string): Promise<T> {
+  private async callOnExistingElement<T>(
+    body: string,
+    method?: string,
+  ): Promise<T> {
     const missing = Symbol("missing");
-    const result = await this.callOnElement<T | typeof missing>(missing, body);
+    const result = await this.callOnElement<T | typeof missing>(
+      missing,
+      body,
+      [],
+      [],
+      method,
+    );
     if (result === missing) throw this.noElementError();
     return result;
   }
@@ -415,8 +476,11 @@ export default class Locator {
     return el;
   }
 
-  private probeState(options: ProbeOptions): Promise<ElementState> {
-    return probeState(this.actionability, options);
+  private probeState(
+    options: ProbeOptions,
+    method: string,
+  ): Promise<ElementState> {
+    return probeState(this.actionability, options, method);
   }
 
   private waitForActionable(
@@ -518,10 +582,13 @@ export default class Locator {
 
   /** Returns the browser's getBoundingClientRect result for the given element */
   public async getBoundingClientRect(): Promise<ElementRectangle> {
-    const rect = await this.callOnExistingElement<unknown>(`
+    const rect = await this.callOnExistingElement<unknown>(
+      `
       const { x, y, width, height, top, right, bottom, left } = el.getBoundingClientRect();
       return { x, y, width, height, top, right, bottom, left };
-    `);
+    `,
+      "getBoundingClientRect",
+    );
     if (typeof rect !== "object" || rect === null) {
       throw new Error(
         `Expected to receive an object but instead received "${describeType(rect)}"`,
@@ -532,14 +599,23 @@ export default class Locator {
 
   /** Whether the element exists, has a non-empty box and is not hidden by CSS */
   public async isVisible(): Promise<boolean> {
-    const state = await this.probeState({ scroll: false, hitTest: false });
+    const state = await this.probeState(
+      { scroll: false, hitTest: false },
+      "isVisible",
+    );
     return state.attached && state.visible;
   }
 
   /** Trimmed text content, or null when the element is missing */
   public async textContent(): Promise<string | null> {
     return stringOrNull(
-      await this.callOnElement<unknown>(null, `return el.textContent.trim();`),
+      await this.callOnElement<unknown>(
+        null,
+        `return el.textContent.trim();`,
+        [],
+        [],
+        "textContent",
+      ),
     );
   }
 
@@ -549,6 +625,9 @@ export default class Locator {
       await this.callOnElement<unknown>(
         null,
         `return typeof el.value === "string" ? el.value : null;`,
+        [],
+        [],
+        "inputValue",
       ),
     );
   }
@@ -561,6 +640,7 @@ export default class Locator {
         `return el.getAttribute(name);`,
         ["name"],
         [name],
+        "getAttribute",
       ),
     );
   }
@@ -577,20 +657,32 @@ export default class Locator {
 
   /** Whether the element exists and is not disabled; does not wait */
   public async isEnabled(): Promise<boolean> {
-    const state = await this.probeState({ scroll: false, hitTest: false });
+    const state = await this.probeState(
+      { scroll: false, hitTest: false },
+      "isEnabled",
+    );
     return state.attached && state.enabled;
   }
 
   /** Like `isEnabled`, but null when the element is missing, so callers can tell "disabled" from "not there"; does not wait */
   public async enabledState(): Promise<boolean | null> {
-    const state = await this.probeState({ scroll: false, hitTest: false });
+    const state = await this.probeState(
+      { scroll: false, hitTest: false },
+      "enabledState",
+    );
     return state.attached ? state.enabled : null;
   }
 
   /** Whether a checkbox or radio input is checked or the element has `aria-checked="true"`; null when the element is missing */
   public async isChecked(): Promise<boolean | null> {
     return booleanOrNull(
-      await this.callOnElement<unknown>(null, IS_CHECKED_BODY),
+      await this.callOnElement<unknown>(
+        null,
+        IS_CHECKED_BODY,
+        [],
+        [],
+        "isChecked",
+      ),
     );
   }
 
@@ -600,6 +692,9 @@ export default class Locator {
       await this.callOnElement<unknown>(
         null,
         `return el.getAttribute("class") ?? "";`,
+        [],
+        [],
+        "classAttribute",
       ),
     );
   }
@@ -612,13 +707,17 @@ export default class Locator {
         `return getComputedStyle(el).getPropertyValue(name);`,
         ["name"],
         [cssPropertyName(name)],
+        "cssValue",
       ),
     );
   }
 
   /** Whether the element exists and accepts typing (enabled, not readonly, a text field); does not wait */
   public async isEditable(): Promise<boolean> {
-    const state = await this.probeState({ scroll: false, hitTest: false });
+    const state = await this.probeState(
+      { scroll: false, hitTest: false },
+      "isEditable",
+    );
     return state.attached && state.editable;
   }
 

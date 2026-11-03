@@ -142,6 +142,13 @@ export interface SamuraiTestConfig {
      * Left out, a run is headless when the `CI` environment variable is set and shows a window otherwise
      */
     headless?: boolean;
+    /**
+     * Make an action or read on a locator that matches several elements throw
+     * `name(): strict mode violation, N elements match ...` instead of using the first one. Narrow the locator
+     * (`first()`, `nth()`, `filter()`) or turn it off for one locator with `locator.strict(false)`
+     * @default false
+     */
+    strictSelectors?: boolean;
   };
   /** What to do with the browser's console output and uncaught page exceptions */
   logs?: {

@@ -53,6 +53,11 @@ export class PageConfig {
       : readSection("use");
   }
 
+  /** Whether locators throw when they match several elements: the given override, else config `use.strictSelectors`, else no */
+  public async strictSelectors(override?: boolean): Promise<boolean> {
+    return override ?? (await this.use()).strictSelectors ?? false;
+  }
+
   /** The time (ms) a navigation or a wait may take: the call's, else config `navigation.timeout`, else 30 s */
   public async navigationTimeout(override?: number): Promise<number> {
     return (
