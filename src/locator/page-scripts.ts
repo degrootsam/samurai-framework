@@ -44,6 +44,12 @@ export const CLICK_CHECKS: readonly CheckName[] = [
   "enabled",
   "hit target",
 ];
+/** `selectOption`: a select is not clicked, so it need not be stable or uncovered */
+export const SELECT_CHECKS: readonly CheckName[] = [
+  "attached",
+  "visible",
+  "enabled",
+];
 export const FILL_CHECKS: readonly CheckName[] = [
   "attached",
   "visible",

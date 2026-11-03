@@ -72,6 +72,7 @@ import {
   type ExactOption,
   type TextOptions,
 } from "./selector.js";
+import { selectOptions, type SelectOptionValue } from "./select-actions.js";
 import { filterSelector, type FilterOptions } from "./filter-step.js";
 import { selectorFromString } from "./selector-string.js";
 
@@ -460,6 +461,21 @@ export default class Locator {
     options?: CheckOptions,
   ): Promise<void> {
     await setChecked(this.access, "setChecked", checked, options);
+  }
+
+  /**
+   * Selects options of a `<select>` or `<select multiple>` (which replaces its selection) and fires `input` and
+   * `change`. A string matches an option's value or its label; `{ value, label, index }` must match every field
+   * given. Waits until the select is visible and enabled and every option exists. Returns the values now selected.
+   * @example
+   *  await page.getByLabel("Country").selectOption("Netherlands");
+   *  await page.locator("select").selectOption([{ index: 0 }, { value: "b" }]);
+   */
+  public async selectOption(
+    values: SelectOptionValue | SelectOptionValue[],
+    options?: ActionOptions,
+  ): Promise<string[]> {
+    return selectOptions(this.access, values, options);
   }
 
   /**
