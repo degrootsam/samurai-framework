@@ -256,6 +256,11 @@ These don't wait; they read the element as it is now.
 | Method                    | Returns                                                                                                                                           |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `textContent()`           | Trimmed text, or `null` when the element is missing                                                                                               |
+| `innerText()`             | The rendered text, as a person would copy it (untrimmed, hidden descendants left out), or `null` when the element is missing                      |
+| `innerHTML()`             | The markup inside the element, or `null` when the element is missing                                                                              |
+| `allTextContents()`       | The `textContent` of every match as the page has it (untrimmed); `[]` when nothing matches                                                        |
+| `allInnerTexts()`         | The `innerText` of every match; `[]` when nothing matches                                                                                         |
+| `boundingBox()`           | `{ x, y, width, height }` in CSS pixels from the viewport's top left, or `null` when the element is missing or not rendered (`display: none`)     |
 | `inputValue()`            | Value of an input, textarea or select, or `null`                                                                                                  |
 | `getAttribute(name)`      | Attribute value, or `null` when the element or the attribute is missing                                                                           |
 | `isVisible()`             | Whether the element exists, has a box and isn't hidden by CSS                                                                                     |
@@ -268,7 +273,33 @@ These don't wait; they read the element as it is now.
 | `count()`                 | Number of matching elements                                                                                                                       |
 | `getBoundingClientRect()` | The element's box; throws when it is missing                                                                                                      |
 
+`textContent()` trims its text; Playwright's does not. That is kept so existing tests keep their results, and `allTextContents()` follows Playwright instead and returns the text untrimmed (trim it yourself when you compare). For a missing element the single-element reads answer `null`, where Playwright waits and then times out. `boundingBox()` does not scroll, so a box below the fold has a `y` larger than the viewport; an element with `visibility: hidden` still has a box. In a strict locator the single-element reads throw for several matches; `allTextContents()`, `allInnerTexts()` and `evaluateAll()` never do.
+
 To _wait_ for a value, use an [assertion](Assertions).
+
+## Running code on the element
+
+```ts
+const id = await page.getByTestId("row").evaluate((el) => el.dataset.id);
+const total = await page
+  .locator("li")
+  .evaluate((el, factor) => el.children.length * factor, 3);
+const labels = await page
+  .locator("li")
+  .evaluateAll(
+    (els, upper) =>
+      els.map((el) => (upper ? el.textContent.toUpperCase() : el.textContent)),
+    true,
+  );
+```
+
+- `evaluate(fn, arg?, { timeout? })` waits until the element is attached (a hidden element is fine), then calls `fn(element, arg)` in the page and returns the result. A missing element ends in the usual `ActionTimeoutError` (`evaluate`, with the selector). A strict locator throws `evaluate(): strict mode violation` for several matches.
+- `evaluateAll(fn, arg?)` calls `fn(elements, arg)` with an array of every match, in document order. It does not wait, gives `[]` when nothing matches and ignores strict mode.
+- `fn` is a function or the source of one (`"(el) => el.id"`); `arg` is one value: plain objects, arrays, `Date`, `Map`, `Set`, `RegExp`, `BigInt`, `NaN`, `undefined`, and an element reference from an earlier call. Functions, symbols, circular structures and instances of your own classes are refused with a `TypeError` before anything is sent.
+- A promise is awaited. If the page function throws, you get a `ScriptError` with the page's own message (`Script threw: Error: ...`), not "Failed to locate element".
+- What comes back is described under [Running code in the page](Pages-and-browsers#running-code-in-the-page). The page function runs in the page: it cannot see variables of your test.
+
+Under `tsx` a function must not contain a named inner function; see the [note](Pages-and-browsers#functions-under-tsx).
 
 ## Waiting for state
 
@@ -293,7 +324,7 @@ await page.locator("li").strict().click(); // one locator, on or off whatever th
 await page.locator("li").strict(false).click();
 ```
 
-With strict mode on, `click`, `fill`, `textContent`, `isVisible` and the other actions and reads throw `click(): strict mode violation, 3 elements match css=li`. Narrow the locator with `first()`, `nth()`, `filter()` or a more specific query. Steps added to a strict locator stay strict. It is off unless you turn it on; the first of `locator.strict()`, `page.setStrictSelectors()` and `use.strictSelectors` that is set decides.
+With strict mode on, `click`, `fill`, `textContent`, `isVisible` and the other actions and reads throw `click(): strict mode violation, 3 elements match css=li`. Narrow the locator with `first()`, `nth()`, `filter()` or a more specific query. Steps added to a strict locator stay strict. It is off unless you turn it on; the first of `locator.strict()`, `page.setStrictSelectors()` and `use.strictSelectors` that is set decides. A locator asks once, at its first action or read, and keeps the answer: `page.setStrictSelectors()` reaches locators made afterwards and earlier ones that have not run anything yet.
 
 Strict mode leaves `count()`, `all()` and `elements()` alone, since they are meant to see every match, and it does not throw for the result of `first()` or `nth()`, which is one element by definition.
 

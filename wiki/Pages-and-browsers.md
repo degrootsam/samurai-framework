@@ -41,14 +41,93 @@ await page.waitForTimeout(2000); // wait 2 s
 
 For element state use [`locator.waitFor`](Locators#waiting-for-state); for traffic see [Network](Network).
 
+### Waiting for the URL
+
+```ts
+await page.getByRole("button", { name: "Sign in" }).click();
+await page.waitForURL("**/dashboard"); // a glob
+await page.waitForURL(/\/orders\/\d+$/); // a RegExp, tested on the full URL
+await page.waitForURL((url) => url.searchParams.get("tab") === "billing"); // a function of a URL object
+await page.waitForURL("/checkout", {
+  waitUntil: "domcontentloaded",
+  timeout: 10_000,
+});
+```
+
+`waitForURL(url, { timeout?, waitUntil? })` polls the page's URL, so it also sees a `history.pushState`, and returns at once when the URL already matches. A string equals the URL, or is a glob when it has `*` (`*` stops at `/`, `**` does not); a string starting with `/`, `./` or `../` resolves against the base URL as in `goto`. When it matches, the page waits for `waitUntil` (`"load"` by default, `"domcontentloaded"` or `"networkidle"`, as in `waitForLoadState`). `timeout` (default config `navigation.timeout`, 30 000 ms) applies to the URL and then again to the load state. A miss throws `UrlTimeoutError`, which names the pattern and the last URL. To _check_ a URL rather than wait for it, use [`expect(page).toHaveURL`](Assertions#the-page-expectpage).
+
 ## Viewport
 
 Every page starts at 1280×720 (config `use.viewport`; `null` keeps the browser's own size), so layout and screenshots match across machines.
 
 ```ts
 await page.setViewport({ width: 390, height: 844, devicePixelRatio: 3 });
+await page.setViewportSize({ width: 390, height: 844 }); // Playwright's name for the same call
 await page.setViewport(null); // browser's own size
+console.log(page.viewportSize()); // { width: 390, height: 844 }, or null
 ```
+
+`viewportSize()` is synchronous: the page remembers the last size it applied, whether through `setViewport`, `setViewportSize` or the default it gets when the browser opens it. It is `null` before a size is known, after `setViewport(null)` (the browser's own size is not read back) and when config `use.viewport` is `null`. It returns a copy and does not read the page, so a size changed by the page itself or by `emulate` is not reflected.
+
+## Running code in the page
+
+```ts
+const title = await page.evaluate("document.title"); // an expression
+const count = await page.evaluate(
+  (min) => document.querySelectorAll("li").length > min,
+  3,
+); // a function and one argument
+const data = await page.evaluate(async () => (await fetch("/api/me")).json()); // a promise is awaited
+```
+
+`evaluate(fn, arg?)` takes a function, the source of a function (`"(a) => a.x"`, `"async () => 1"`, `"function () {...}"`) or any other string, which is an expression (it takes no argument). A function is called with `arg` as its only argument. The page's own error comes through as a `ScriptError` whose message holds the page's (`Script threw: Error: boom`). For code on an element see [Running code on the element](Locators#running-code-on-the-element).
+
+A string counts as a function when it starts with `function`, `async function`, or an arrow function head (`x =>`, `(a, b) =>`, `async () =>`). Anything else, such as `"(() => 1)()"`, is an expression.
+
+What comes back:
+
+| In the page                                                                                                                                      | In your test                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| string, number, boolean, `null`, `undefined`, `NaN`, `Infinity`, `-0`                                                                            | the same value                                                                              |
+| array, plain object (also an instance of a class: its own properties), nested to any depth                                                       | an array or object; an `undefined` property is kept; a circular reference is rebuilt        |
+| `Date`, `RegExp`, `Map`, `Set`, `BigInt`                                                                                                         | the same kind of value                                                                      |
+| a DOM element                                                                                                                                    | an element reference (`ElementHandle`) you can pass as an argument to a later call          |
+| a function, `window`, `Error`, `Symbol`, typed array, `ArrayBuffer`, `WeakMap`, `NodeList`, `Proxy`, generator, `URL` and other platform objects | a `RemoteObject` that only has the `type` the browser reported (`"function"`, `"error"`, …) |
+
+Return what you need as plain data (`el.textContent`, `error.message`, `[...nodeList].map(...)`) rather than the object itself.
+
+### Functions under tsx
+
+`tsx` and esbuild add a `__name(...)` helper around named functions, and around an arrow function assigned to a variable. The helper does not exist in the page, so `evaluate` refuses such a function before sending it, with a `ScriptSerializationError` that says so:
+
+```ts
+await page.evaluate(() => {
+  function double(n: number) {
+    return n * 2;
+  } // named inner function: refused under tsx
+  return double(2);
+});
+```
+
+Write the function without inner named functions (pass callbacks inline: `list.map((n) => n * 2)`), or pass it as a string, which is sent as written:
+
+```ts
+await page.evaluate(
+  "() => { function double(n) { return n * 2; } return double(2); }",
+);
+```
+
+## Page content
+
+```ts
+await page.setContent(
+  "<button>Go</button><style>button { color: red }</style><script>document.title = 'x'</script>",
+);
+const html = await page.content(); // "<!DOCTYPE html><html>…"
+await page.setContent(html2, { waitUntil: "domcontentloaded", timeout: 5000 });
+```
+
+`setContent(html, { waitUntil?, timeout? })` replaces the document in place (`document.open()`, `write()`, `close()`), so scripts and styles in `html` run and apply, and then waits for `waitUntil` (`"load"` by default). The page keeps its URL and origin; it is not a `data:` page, whose opaque origin Firefox restricts. Timing out throws `LoadStateTimeoutError`. `content()` returns the document as it is now, doctype included.
 
 ## Screenshots and PDF
 

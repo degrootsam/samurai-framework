@@ -24,6 +24,7 @@ This page is the overview of what is built and what is open.
 - **App-facing API (0.16.0).** What the Electron app used to work out itself, the framework now states: a `capabilities` entry point with feature flags, test ids from `listTests`, whole-test ranges, a `remove-test` edit and a list of unreadable tests in the codec, `loadConfig` with every default resolved, and the recorder's first status; in 0.17.0 also the config as written next to the resolved one, and `outputDir` for a folder per run (see [Embedding](Embedding-the-framework#capabilities-and-the-resolved-config)).
 - **Test inputs and outputs (0.21.0).** A test declares text `inputs` (with defaults) and `outputs`, saved with `outputs.save` or `{ output }` on `fill` and the text checks; the codec and the toolbar (Save as output, Insert → input) read and write them, and a flow passes earlier tests' outputs to later tests' inputs, checked before it runs (see [Inputs and outputs](Writing-tests#inputs-and-outputs) and [Flows](Flows#inputs-and-outputs)).
 - **Flows per browser (0.21.0).** A flow runs once per browser, each run with its own variables, results and outputs; `runFlowInProject({ browsers })` picks the browsers (see [Flows](Flows#browsers)).
+- **Evaluate and reads.** `page.evaluate`, `locator.evaluate` and `locator.evaluateAll` (a function, a function's source or an expression string, one argument, the page's own error message); locator reads `innerText`, `innerHTML`, `allTextContents`, `allInnerTexts` and `boundingBox`; `page.waitForURL`, `page.content` and `page.setContent`; `page.setViewportSize` and a synchronous `page.viewportSize()`. See [Pages and browsers](Pages-and-browsers#running-code-in-the-page) and [Locators](Locators#running-code-on-the-element).
 - **CI.** Typecheck, unit tests, browser tests and Trunk on every pull request (the `samurai` command's own tests, `bun run test:cli`, are run locally).
 
 ## Open: recorder
@@ -71,7 +72,7 @@ Gaps in the runner today, found while writing these docs:
 
 What the framework still lacks next to Playwright, grouped; the order here is not a priority order.
 
-- **Page and locator reads.** The `evaluate` family (`page.evaluate`, `locator.evaluate`, `evaluateAll`, `evaluateHandle`); locator reads `innerText`, `innerHTML`, `allTextContents` and `boundingBox`; `waitForURL`; `content` and `setContent`; viewport aliases.
+- **Page and locator reads.** `evaluateHandle`, and a public export of `ScriptError`, `ElementHandle` and `RemoteObject`, which `evaluate` raises and returns.
 - **More matchers.** `toBeFocused`, `toHaveJSProperty`, `toMatchObject` and others of that kind.
 - **Test API.** `test.describe` aliases, `testInfo`, `test.use`, `test.extend` and `test.step`.
 - **Waiting and input.** `expect.poll` and `toPass`, a fake clock, keyboard and mouse as page-level APIs.

@@ -82,7 +82,7 @@ await expect(page).not.toHaveTitle(/Error/);
 | `toHaveURL(expected)`   | A `RegExp` matches the full URL. A string starting with `/`, `./` or `../` is resolved against the base URL exactly as `page.goto` resolves it (`page.setBaseURL`, else the environment's `baseURL`) and must equal the full URL; any other string must equal the full URL |
 | `toHaveTitle(expected)` | The trimmed title equals a trimmed string, or matches a `RegExp`                                                                                                                                                                                                           |
 
-A relative URL with no base URL fails at once ("needs a baseURL"). A read while the page navigates is retried; a closed page fails at once with its error.
+A relative URL with no base URL fails at once ("needs a baseURL"). A read while the page navigates is retried; a closed page fails at once with its error. To wait for a URL without asserting it, use [`page.waitForURL`](Pages-and-browsers#waiting-for-the-url).
 
 ## Plain values: `expect(value)`
 
