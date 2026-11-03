@@ -125,3 +125,21 @@ test("no timer outlives a resolved wait", async () => {
   );
   assert.equal(timers(), before);
 });
+
+test("intervals set the pause after each probe, the last one repeating", async () => {
+  const times: number[] = [];
+  await assert.rejects(
+    waitUntil(
+      async () => {
+        times.push(Date.now());
+        return 0;
+      },
+      () => false,
+      { timeout: 400, intervals: [40, 120] },
+    ),
+    WaitTimeoutError,
+  );
+  const gaps = times.slice(1).map((time, i) => time - times[i]!);
+  assert.ok(gaps[0]! >= 35 && gaps[0]! < 100, `gaps ${gaps}`);
+  assert.ok(gaps[1]! >= 115, `gaps ${gaps}`);
+});

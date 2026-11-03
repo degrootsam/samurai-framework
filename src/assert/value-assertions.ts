@@ -1,5 +1,6 @@
 import { AssertionError } from "./assertion-error.js";
 import { equalsWith, subsetMatches } from "./asymmetric.js";
+import { toPass, type RetryOptions } from "./retry-assertions.js";
 import { matchesText } from "./text-match.js";
 import {
   callAndCatch,
@@ -216,5 +217,19 @@ export class ValueAssertions<T> {
 
   toBeLessThanOrEqual(expected: number | bigint) {
     this.compare("toBeLessThanOrEqual", expected, (a, b) => a <= b);
+  }
+
+  /**
+   * Runs the function (sync or async) until it stops throwing, then resolves; with `.not`, until it throws.
+   * The default timeout is 0: one try. A failure rethrows the last error
+   */
+  toPass(options?: RetryOptions): Promise<void> {
+    const block = this.actual;
+    if (typeof block !== "function") {
+      throw new TypeError(
+        `toPass expects a function, received ${typeof block}`,
+      );
+    }
+    return toPass(block as () => unknown, options, this.negated);
   }
 }

@@ -6,6 +6,8 @@ const POLL_INTERVAL = 100;
 export interface WaitOptions {
   /** Total time (ms) to keep probing; 0 probes exactly once */
   timeout: number;
+  /** Pauses (ms) after the first, second, ... probe; the last one repeats. Default: 100 every time */
+  intervals?: readonly number[];
 }
 
 export class WaitTimeoutError<T> extends Error {
@@ -51,10 +53,11 @@ function probeBefore<T>(
 export async function waitUntil<T>(
   probe: () => Promise<T>,
   isDone: (current: T, previous: T | undefined) => boolean,
-  { timeout }: WaitOptions,
+  { timeout, intervals }: WaitOptions,
 ): Promise<T> {
   const deadline = Date.now() + timeout;
   let previous: T | undefined;
+  let probes = 0;
 
   for (let first = true; ; first = false) {
     const remaining = deadline - Date.now();
@@ -72,6 +75,10 @@ export async function waitUntil<T>(
 
     const left = deadline - Date.now();
     if (left <= 0) throw new WaitTimeoutError(timeout, previous);
-    await sleep(Math.min(POLL_INTERVAL, left));
+    const pause = intervals?.length
+      ? intervals[Math.min(probes, intervals.length - 1)]!
+      : POLL_INTERVAL;
+    probes++;
+    await sleep(Math.min(pause, left));
   }
 }

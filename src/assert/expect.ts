@@ -8,6 +8,7 @@ import {
   stringContaining,
   stringMatching,
 } from "./asymmetric.js";
+import { poll } from "./retry-assertions.js";
 import { LocatorAssertions } from "./locator-assertions.js";
 import { PageAssertions } from "./page-assertions.js";
 import { ValueAssertions } from "./value-assertions.js";
@@ -22,6 +23,8 @@ export interface Expect {
   (page: Page): PageAssertions;
   /** Synchronous assertions on a plain value */
   <T>(value: T): ValueAssertions<T>;
+  /** The value matchers, retried until they pass: `await expect.poll(() => getStatus()).toBe("done")` */
+  poll: typeof poll;
   any: typeof any;
   anything: typeof anything;
   stringContaining: typeof stringContaining;
@@ -37,6 +40,7 @@ function expectValue(value: unknown) {
 }
 
 export const expect: Expect = Object.assign(expectValue as Expect, {
+  poll,
   any,
   anything,
   stringContaining,
