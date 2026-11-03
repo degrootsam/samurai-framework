@@ -542,6 +542,11 @@ export default class Locator {
     return readIsVisible(this.actionability);
   }
 
+  /** The opposite of `isVisible`: true for a hidden element and for one that is not there */
+  public async isHidden(): Promise<boolean> {
+    return !(await this.isVisible());
+  }
+
   /** Trimmed text content, or null when the element is missing */
   public async textContent(): Promise<string | null> {
     return readTextContent(this.access);
@@ -570,6 +575,11 @@ export default class Locator {
   /** Whether the element exists and is not disabled; does not wait */
   public async isEnabled(): Promise<boolean> {
     return readIsEnabled(this.actionability);
+  }
+
+  /** The opposite of `isEnabled`: true for a disabled element and for one that is not there; does not wait */
+  public async isDisabled(): Promise<boolean> {
+    return !(await this.isEnabled());
   }
 
   /** Like `isEnabled`, but null when the element is missing, so callers can tell "disabled" from "not there"; does not wait */
