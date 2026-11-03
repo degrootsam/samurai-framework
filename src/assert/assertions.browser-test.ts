@@ -128,6 +128,35 @@ test(
 );
 
 test(
+  "toHaveAccessibleName and toHaveAccessibleDescription wait for the name and description to change",
+  OPTIONS,
+  async () => {
+    await setContent(
+      page,
+      `<p id="hint">Use <b>8</b> characters</p>
+       <input id="pw" aria-label="Password" aria-describedby="hint">
+       <button id="b" title="Tip">Save   draft</button>`,
+      `setTimeout(() => document.getElementById("pw").setAttribute("aria-label", "New password"), 300);`,
+    );
+    const input = page.locator("input[@id='pw']");
+    await expect(input).toHaveAccessibleName("New password", WAIT);
+    await expect(input).not.toHaveAccessibleName("Password", WAIT);
+    await expect(input).toHaveAccessibleDescription("Use 8 characters", WAIT);
+    await expect(input).toHaveAccessibleDescription(/8 char/, WAIT);
+    const button = page.locator("button[@id='b']");
+    await expect(button).toHaveAccessibleName("Save draft", WAIT);
+    await expect(button).toHaveAccessibleDescription("Tip", WAIT);
+    await assert.rejects(
+      expect(button).toHaveAccessibleName("Other", { timeout: 200 }),
+      (err) =>
+        err instanceof AssertionError &&
+        err.matcher === "toHaveAccessibleName" &&
+        err.actual === "Save draft",
+    );
+  },
+);
+
+test(
   "toHaveURL resolves a path against the base URL and waits for the change",
   OPTIONS,
   async () => {

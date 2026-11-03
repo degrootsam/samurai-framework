@@ -29,8 +29,8 @@ export function textCheck(
   return (actual) => actual !== null && matchesText(actual, expected, mode);
 }
 
-/** A check for a class attribute: a string equals it after collapsing whitespace and trimming both sides, a RegExp tests it as written */
-export function classCheck(
+/** A check for a text compared after normalising whitespace: a string equals it with whitespace collapsed and both sides trimmed, a RegExp tests it as written */
+export function normalizedCheck(
   expected: string | RegExp,
 ): (actual: string) => boolean {
   if (expected instanceof RegExp)

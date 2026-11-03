@@ -443,6 +443,48 @@ test("toHaveClass compares strings with whitespace collapsed and trimmed, regexp
   );
 });
 
+test("toHaveAccessibleName and toHaveAccessibleDescription compare normalised strings and RegExps as written", async () => {
+  const { locator } = locatorWith("button", text(" Save   draft "));
+  await expect(locator).toHaveAccessibleName("Save draft", { timeout: 0 });
+  await expect(locator).toHaveAccessibleName(/^ Save {3}draft $/, {
+    timeout: 0,
+  });
+  await expect(locator).not.toHaveAccessibleName("Save", { timeout: 0 });
+  await expect(locator).toHaveAccessibleDescription("Save draft", {
+    timeout: 0,
+  });
+  await assert.rejects(
+    expect(locator).toHaveAccessibleName("Other", { timeout: 0 }),
+    (err) => {
+      assert.ok(err instanceof AssertionError);
+      assert.equal(err.matcher, "toHaveAccessibleName");
+      assert.equal(err.expected, "Other");
+      assert.equal(err.actual, " Save   draft ");
+      return true;
+    },
+  );
+});
+
+test("a missing element never satisfies toHaveAccessibleName or toHaveAccessibleDescription, even negated", async () => {
+  for (const matcher of [
+    "toHaveAccessibleName",
+    "toHaveAccessibleDescription",
+  ]) {
+    for (const negated of [false, true]) {
+      const { locator } = locatorWith("div", missing);
+      const assertions: any = expect(locator);
+      await assert.rejects(
+        (negated ? assertions.not : assertions)[matcher]("x", { timeout: 50 }),
+        (err) => {
+          assert.ok(!(err instanceof AssertionError), matcher);
+          assert.match((err as Error).message, /could not read .* within/);
+          return true;
+        },
+      );
+    }
+  }
+});
+
 test("toHaveCSS reads the kebab-case property of a camelCase name", async () => {
   const { locator, calls } = locatorWith("div", text("rgb(0, 0, 0)"));
   await expect(locator).toHaveCSS("backgroundColor", "rgb(0, 0, 0)", {

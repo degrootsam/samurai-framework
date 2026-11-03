@@ -4,7 +4,12 @@ import { waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
 import { AssertionError } from "./assertion-error.js";
 import { track } from "./pending-assertions.js";
 import { bindOutput } from "../wait/output-sink.js";
-import { captured, classCheck, matchesText, textCheck } from "./text-match.js";
+import {
+  captured,
+  matchesText,
+  normalizedCheck,
+  textCheck,
+} from "./text-match.js";
 
 export interface LocatorAssertionOptions {
   /** Time (ms) to keep retrying. Defaults to config `expect.timeout`, then 5000 */
@@ -269,7 +274,7 @@ export class LocatorAssertions {
       "toHaveClass",
       expected,
       () => this.locator.classAttribute(),
-      classCheck(expected),
+      normalizedCheck(expected),
       options,
     );
   }
@@ -285,6 +290,34 @@ export class LocatorAssertions {
       expected,
       () => this.locator.cssValue(name),
       (actual) => matchesText(actual, expected, "exact"),
+      options,
+    );
+  }
+
+  /** The accessible name equals `expected` (string, whitespace collapsed and trimmed on both sides) or matches it (RegExp, tested as written); a missing element never passes, not even with `.not` */
+  toHaveAccessibleName(
+    expected: string | RegExp,
+    options?: LocatorAssertionOptions,
+  ) {
+    return this.assertExisting(
+      "toHaveAccessibleName",
+      expected,
+      () => this.locator.accessibleName(),
+      normalizedCheck(expected),
+      options,
+    );
+  }
+
+  /** The accessible description (`aria-describedby`, else `title` when it is not the name) equals or matches `expected`, as `toHaveAccessibleName`; "" when there is none */
+  toHaveAccessibleDescription(
+    expected: string | RegExp,
+    options?: LocatorAssertionOptions,
+  ) {
+    return this.assertExisting(
+      "toHaveAccessibleDescription",
+      expected,
+      () => this.locator.accessibleDescription(),
+      normalizedCheck(expected),
       options,
     );
   }
