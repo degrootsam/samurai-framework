@@ -1,203 +1,80 @@
-import { resolveTimeout } from "../config/timeouts.js";
-import type Locator from "../locator/locator.js";
-import { waitUntil, WaitTimeoutError } from "../wait/wait-until.js";
-import { AssertionError } from "./assertion-error.js";
-import { track } from "./pending-assertions.js";
-import { bindOutput } from "../wait/output-sink.js";
-import {
-  captured,
-  matchesText,
-  normalizedCheck,
-  textCheck,
-} from "./text-match.js";
+import { MoreLocatorAssertions } from "./more-locator-assertions.js";
+import { readCheckedState } from "./element-probes.js";
+import type {
+  LocatorAssertionOptions,
+  TextAssertionOptions,
+} from "./locator-assertion-base.js";
+import { matchesText, normalizedCheck } from "./text-match.js";
 
-export interface LocatorAssertionOptions {
-  /** Time (ms) to keep retrying. Defaults to config `expect.timeout`, then 5000 */
-  timeout?: number;
+export { readEventually } from "./locator-assertion-base.js";
+export type {
+  EventualRead,
+  LocatorAssertionOptions,
+  TextAssertionOptions,
+} from "./locator-assertion-base.js";
+
+export interface CheckedOptions extends LocatorAssertionOptions {
+  /** The state to expect: `true` (default), `false`, or `"mixed"` (an indeterminate checkbox, or `aria-checked="mixed"`) */
+  checked?: boolean | "mixed";
+  /** Same as `checked: "mixed"` */
+  indeterminate?: boolean;
 }
 
-/** The options of the checks that can keep the text they found */
-export interface TextAssertionOptions extends LocatorAssertionOptions {
-  /** Saves the text that passed (a RegExp's first group, else its match) as this output of the running test */
-  output?: string;
-}
-
-/** What `readEventually` reads, what it waits for and how its failure is named */
-export interface EventualRead<V> {
-  /** The matcher, with `not.` in front when negated */
-  name: string;
-  locator: Locator;
-  expected: unknown;
-  read: () => Promise<V>;
-  /** True for the read that ends the wait */
-  check: (actual: V) => boolean;
-  /** Time (ms) to keep retrying. Defaults to the expect timeout */
-  timeout?: number | undefined;
-  /** A read of `null` (no element) never passes, and fails as "could not read" */
-  mustExist?: boolean;
-  /** The first line of a failure, instead of `expect(locator).<name>` */
-  call?: string;
-}
-
-/**
- * Re-reads the element until `check` passes or the timeout expires, and resolves with the read that passed. A
- * timeout fails as an `AssertionError` with the last read, or as "could not read" when no read completed.
- */
-export async function readEventually<V>({
-  name,
-  locator,
-  expected,
-  read,
-  check,
-  timeout: perCall,
-  mustExist = false,
-  call,
-}: EventualRead<V>): Promise<V> {
-  const timeout = await resolveTimeout(perCall);
-  try {
-    return await waitUntil(
-      read,
-      (actual) => (mustExist && actual === null ? false : check(actual)),
-      { timeout },
-    );
-  } catch (err) {
-    if (!(err instanceof WaitTimeoutError)) throw err;
-    // Reads never resolve to undefined, so an undefined `last` means no read completed
-    if (err.last === undefined || (mustExist && err.last === null)) {
-      throw new Error(
-        `${call ?? `expect(locator).${name}`}: could not read ${locator.selector} within ${timeout}ms`,
-      );
-    }
-    throw new AssertionError({
-      matcher: name,
-      expected,
-      actual: err.last,
-      locator: locator.selector,
-      call,
-    });
-  }
-}
-
-export class LocatorAssertions {
-  private readonly locator: Locator;
-  private readonly negated: boolean;
-
-  constructor(locator: Locator, negated = false) {
-    this.locator = locator;
-    this.negated = negated;
-  }
-
+export class LocatorAssertions extends MoreLocatorAssertions {
   /** Inverts the next matcher: it retries until the condition is false */
   get not(): LocatorAssertions {
     return new LocatorAssertions(this.locator, !this.negated);
   }
 
-  /**
-   * Re-reads the element until `check` passes or the timeout expires. With `mustExist`, a read of `null`
-   * (no element) never passes, with or without `.not`, and fails as "could not read"
-   */
-  private assertEventually<V>(
-    matcher: string,
-    expected: unknown,
-    read: () => Promise<V>,
-    check: (actual: V) => boolean,
-    options?: LocatorAssertionOptions,
-    mustExist = false,
-    save?: (actual: V) => void,
-  ): Promise<void> {
-    const name = this.negated ? `not.${matcher}` : matcher;
-
-    return track(
-      `expect(locator).${name}()`,
-      readEventually({
-        name,
-        locator: this.locator,
-        expected,
-        read,
-        check: (actual) => check(actual) !== this.negated,
-        timeout: options?.timeout,
-        mustExist,
-      }).then((actual) => save?.(actual)),
-    );
-  }
-
-  /**
-   * A text check that can keep what it read: with `options.output` the read that passed goes to that output, as
-   * `expected` captures it. The sink is taken now, when the call starts.
-   */
-  private assertText(
-    matcher: string,
-    expected: string | RegExp,
-    read: () => Promise<string | null>,
-    mode: "exact" | "contains",
-    options?: TextAssertionOptions,
-  ): Promise<void> {
-    let save: ((actual: string | null) => void) | undefined;
-    if (options?.output !== undefined) {
-      const call = `expect(locator).${this.negated ? "not." : ""}${matcher}`;
-      if (this.negated)
-        throw new Error(`${call}: output can't be saved from a negated check`);
-      const keep = bindOutput(call, options.output);
-      save = (actual) => keep(captured(expected, actual!));
-    }
-    return this.assertEventually(
-      matcher,
-      expected,
-      read,
-      textCheck(expected, mode),
-      options,
-      false,
-      save,
-    );
-  }
-
-  /** For matchers that need an element: `read` answers null when there is none, which never passes */
-  private assertExisting<V>(
-    matcher: string,
-    expected: unknown,
-    read: () => Promise<V | null>,
-    check: (actual: V) => boolean,
-    options?: LocatorAssertionOptions,
-  ): Promise<void> {
-    return this.assertEventually(
-      matcher,
-      expected,
-      read,
-      (actual) => actual !== null && check(actual),
-      options,
-      true,
-    );
-  }
-
-  toBeVisible(options?: LocatorAssertionOptions) {
+  /** The element exists, has a box and isn't hidden by CSS; `visible: false` expects the opposite, as `toBeHidden` */
+  toBeVisible(options?: LocatorAssertionOptions & { visible?: boolean }) {
+    const want = options?.visible ?? true;
     return this.assertEventually(
       "toBeVisible",
-      true,
+      want,
       () => this.locator.isVisible(),
-      (visible) => visible,
+      (visible) => visible === want,
       options,
     );
   }
 
-  /** Trimmed text content equals `expected` (string) or matches it (RegExp) */
-  toHaveText(expected: string | RegExp, options?: TextAssertionOptions) {
+  /**
+   * Trimmed text content equals `expected` (a string, compared with whitespace collapsed on both sides) or matches it (RegExp).
+   * An array expects one entry per matched element, in order, and as many entries as elements
+   */
+  toHaveText(
+    expected: string | RegExp | Array<string | RegExp>,
+    options?: TextAssertionOptions,
+  ) {
+    if (Array.isArray(expected))
+      return this.assertTexts("toHaveText", expected, "exact", options);
     return this.assertText(
       "toHaveText",
       expected,
       () => this.locator.textContent(),
       "exact",
       options,
+      true,
     );
   }
 
-  /** Text content contains `expected` (string) or matches it (RegExp) */
-  toContainText(expected: string | RegExp, options?: TextAssertionOptions) {
+  /**
+   * Text content contains `expected` (a string, compared with whitespace collapsed on both sides) or matches it (RegExp).
+   * An array expects its entries, in order, in some of the matched elements (one entry per element, others may sit between)
+   */
+  toContainText(
+    expected: string | RegExp | Array<string | RegExp>,
+    options?: TextAssertionOptions,
+  ) {
+    if (Array.isArray(expected))
+      return this.assertTexts("toContainText", expected, "contains", options);
     return this.assertText(
       "toContainText",
       expected,
       () => this.locator.textContent(),
       "contains",
       options,
+      true,
     );
   }
 
@@ -211,11 +88,34 @@ export class LocatorAssertions {
     );
   }
 
+  /** The attribute equals `expected` (string) or matches it (RegExp); with only a name (and options), that the attribute exists */
+  toHaveAttribute(
+    name: string,
+    options?: LocatorAssertionOptions,
+  ): Promise<void>;
   toHaveAttribute(
     name: string,
     expected: string | RegExp,
     options?: TextAssertionOptions,
-  ) {
+  ): Promise<void>;
+  toHaveAttribute(
+    name: string,
+    expectedOrOptions?: string | RegExp | LocatorAssertionOptions,
+    options?: TextAssertionOptions,
+  ): Promise<void> {
+    if (
+      typeof expectedOrOptions !== "string" &&
+      !(expectedOrOptions instanceof RegExp)
+    ) {
+      return this.assertEventually(
+        "toHaveAttribute",
+        `attribute ${name} present`,
+        () => this.locator.getAttribute(name),
+        (value) => value !== null,
+        expectedOrOptions,
+      );
+    }
+    const expected = expectedOrOptions;
     return this.assertText(
       "toHaveAttribute",
       expected,
@@ -247,23 +147,35 @@ export class LocatorAssertions {
   }
 
   /** The element exists and is neither `:disabled` nor `aria-disabled="true"`; a missing element never passes, not even with `.not` */
-  toBeEnabled(options?: LocatorAssertionOptions) {
+  toBeEnabled(options?: LocatorAssertionOptions & { enabled?: boolean }) {
+    const want = options?.enabled ?? true;
     return this.assertExisting(
       "toBeEnabled",
-      true,
+      want,
       () => this.locator.enabledState(),
-      (enabled) => enabled,
+      (enabled) => enabled === want,
       options,
     );
   }
 
   /** A checked checkbox or radio input, or an element with `aria-checked="true"`; a missing element never passes, not even with `.not` */
-  toBeChecked(options?: LocatorAssertionOptions) {
+  toBeChecked(options?: CheckedOptions) {
+    const want = options?.indeterminate ? "mixed" : (options?.checked ?? true);
+    // Only "mixed" needs the three-state read; true and false use the plain one
+    if (want === "mixed") {
+      return this.assertExisting(
+        "toBeChecked",
+        want,
+        () => readCheckedState(this.locator),
+        (state) => state === "mixed",
+        options,
+      );
+    }
     return this.assertExisting(
       "toBeChecked",
-      true,
+      want,
       () => this.locator.isChecked(),
-      (checked) => checked,
+      (checked) => checked === want,
       options,
     );
   }

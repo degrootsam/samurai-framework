@@ -38,3 +38,15 @@ export function normalizedCheck(
   const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
   return (actual) => normalize(actual) === normalize(expected);
 }
+
+/** Like `textCheck`, but a string is compared with whitespace runs collapsed and both sides trimmed; a RegExp tests the text as written */
+export function normalizedTextCheck(
+  expected: string | RegExp,
+  mode: "exact" | "contains",
+): (actual: string | null) => boolean {
+  if (expected instanceof RegExp) return textCheck(expected, mode);
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+  const wanted = normalize(expected);
+  return (actual) =>
+    actual !== null && matchesText(normalize(actual), wanted, mode);
+}
