@@ -19,7 +19,7 @@ test("Visitor can sign in", async ({ page, env, secrets }) => {
 ```
 
 - **Auto-waiting.** Actions wait until the element is attached, visible, stable, enabled and not covered. Assertions retry until they pass or time out.
-- **Semantic locators.** By role, label, text, test id, CSS or XPath, with ordered fallbacks.
+- **Semantic locators.** By role, label, text, test id, CSS or XPath, with `nth`, `filter`, `and` / `or` and ordered fallbacks.
 - **Environments and secrets.** One test file runs against `dev`, `staging` or `production`; secrets come from the environment or a `.env.<name>` file and are masked in logs and reports.
 - **Parallel runs.** Tests run side by side in worker processes (`--workers`, `workers` in the config; half the CPUs by default), and a flow's Parallel node runs its branches at the same time (see [Running tests and reports](https://github.com/degrootsam/samurai-framework/wiki/Running-tests-and-reports#parallel-runs)).
 - **Network control.** Mock, block or modify requests; wait for requests, responses and network idle; read response bodies.
