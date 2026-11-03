@@ -6,6 +6,7 @@ import { ElementHandle } from "../script/element-handle.js";
 import type { Arg } from "../script/serialize.js";
 import { isDocumentSwap } from "./document-swap.js";
 import { LABEL_LOCATE } from "./label-locator.js";
+import { SORT_IN_DOCUMENT_ORDER } from "./page-search.js";
 import { InvalidSelectorError } from "./selector-errors.js";
 import { describeSelector, toBiDiLocator, type Selector } from "./selector.js";
 import { TEXT_LOCATE } from "./text-locator.js";
@@ -26,6 +27,24 @@ function unsupportedTypes(connector: BiDiConnector): Set<string> {
   return types;
 }
 
+/**
+ * How many matches step `index` has to find: `max` for the last step; for a step an `nth` follows, only
+ * as many as that index needs, when one start node (or none) makes the search order the document's
+ */
+function stepLimit(
+  chain: readonly Selector[],
+  index: number,
+  from: readonly ElementHandle[] | undefined,
+  max: number | undefined,
+): number | undefined {
+  if (index === chain.length - 1) return max;
+  const next = chain[index + 1]!;
+  const single = (from?.length ?? 0) <= 1;
+  return next.kind === "nth" && next.index >= 0 && single
+    ? next.index + 1
+    : undefined;
+}
+
 /** Finds the elements a chain of selector steps matches: every step searches inside the previous step's matches */
 export class ChainResolver {
   constructor(
@@ -34,24 +53,36 @@ export class ChainResolver {
     private readonly call: CallInPage,
   ) {}
 
-  /** In document order; `max` limits the final result. Nothing is cached: the first match can change between polls */
+  /**
+   * In document order; `max` limits the final result. Nothing is cached: the first match can change between polls.
+   * `start` makes the chain relative to those elements: its first step searches inside them, like a later step.
+   */
   public async resolveChain(
     chain: readonly Selector[],
     max?: number,
+    start?: readonly ElementHandle[],
   ): Promise<ElementHandle[]> {
     let nodes: ElementHandle[] | undefined;
     for (const [index, selector] of chain.entries()) {
+      const from = nodes ?? start;
       if (selector.kind === "nth") {
-        const picked = nodes?.[selector.index];
+        const picked =
+          nodes?.[
+            selector.index < 0 ? nodes.length + selector.index : selector.index
+          ];
         nodes = picked ? [picked] : [];
       } else {
         try {
           nodes = await this.locateStep(
             selector,
-            index > 0,
-            nodes,
-            index === chain.length - 1 ? max : undefined,
+            from !== undefined,
+            from,
+            stepLimit(chain, index, from, max),
           );
+          // Results per start node are not in document order, which an index into them needs
+          if (chain[index + 1]?.kind === "nth" && (from?.length ?? 0) > 1) {
+            nodes = await this.inDocumentOrder(nodes);
+          }
         } catch (err) {
           // The page is swapping documents: nothing matches right now, and the waits that poll try again
           if (isDocumentSwap(err)) return [];
@@ -63,10 +94,15 @@ export class ChainResolver {
     return nodes ?? [];
   }
 
+  private async inDocumentOrder(nodes: ElementHandle[]) {
+    if (nodes.length < 2) return nodes;
+    return this.call<ElementHandle[]>(SORT_IN_DOCUMENT_ORDER, [nodes]);
+  }
+
   private async locateStep(
     selector: Selector,
     scoped: boolean,
-    startNodes: ElementHandle[] | undefined,
+    startNodes: readonly ElementHandle[] | undefined,
     max: number | undefined,
   ): Promise<ElementHandle[]> {
     if (selector.kind === "label")
@@ -103,7 +139,7 @@ export class ChainResolver {
   private async locateNatively(
     selector: Selector,
     scoped: boolean,
-    startNodes: ElementHandle[] | undefined,
+    startNodes: readonly ElementHandle[] | undefined,
     max: number | undefined,
   ): Promise<ElementHandle[]> {
     const { nodes } = await this.connector.send("browsingContext.locateNodes", {
@@ -129,7 +165,7 @@ export class ChainResolver {
   private async locateInPage(
     fn: string,
     selector: Extract<Selector, { kind: "text" | "label" }>,
-    startNodes: ElementHandle[] | undefined,
+    startNodes: readonly ElementHandle[] | undefined,
     max: number | undefined,
   ): Promise<ElementHandle[]> {
     const found = await this.call<ElementHandle[]>(fn, [

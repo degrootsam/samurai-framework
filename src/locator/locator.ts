@@ -55,6 +55,7 @@ import {
   describeChain,
   describeSelector,
   labelSelector,
+  nthSelector,
   roleSelector,
   testIdSelector,
   textSelector,
@@ -204,6 +205,21 @@ export default class Locator {
   /** Elements with the ARIA role (and accessible name, when given), inside this locator's matches */
   public getByRole(role: string, options?: { name?: string }): Locator {
     return this.child(roleSelector(role, options));
+  }
+
+  /** The n-th (0-based) match, in document order; a negative index counts from the end (`-1` is the last). Matches nothing when out of range */
+  public nth(index: number): Locator {
+    return this.child(nthSelector(index));
+  }
+
+  /** The first match, in document order */
+  public first(): Locator {
+    return this.nth(0);
+  }
+
+  /** The last match, in document order */
+  public last(): Locator {
+    return this.nth(-1);
   }
 
   /** One locator per element currently matching, in document order */

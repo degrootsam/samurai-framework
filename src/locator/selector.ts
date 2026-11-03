@@ -10,7 +10,7 @@ export type Selector =
   | ({ kind: "label" } & TextMatch)
   /** Elements whose `data-testid` attribute equals `value` */
   | { kind: "testid"; value: string }
-  /** Picks the n-th (0-based) of everything the chain so far matches; `all()` builds these */
+  /** Picks the n-th (0-based) of everything the chain so far matches; a negative index counts from the end. `nth()` and `all()` build these */
   | { kind: "nth"; index: number };
 
 /** What a text or label step looks for */
@@ -38,6 +38,13 @@ export function xpathSelector(value: string): Selector {
 
 export function cssSelector(value: string): Selector {
   return { kind: "css", value: nonEmpty(value, "a css selector") };
+}
+
+export function nthSelector(index: number): Selector {
+  if (!Number.isInteger(index)) {
+    throw new TypeError(`nth(): index must be an integer, got ${index}`);
+  }
+  return { kind: "nth", index };
 }
 
 function textMatch(

@@ -184,8 +184,8 @@ describe("all() on non-xpath locators", () => {
     assert.deepEqual(last.locator, { type: "css", value: "li" });
     assert.equal(
       last.maxNodeCount,
-      undefined,
-      "the step before nth must not be limited",
+      3,
+      "the step before nth fetches only index + 1 matches",
     );
   });
 

@@ -20,3 +20,9 @@ export const ROOTS_JS = `const roots = starts.length > 0 ? starts : [document];`
 
 /** A sort callback putting elements in document order */
 export const DOCUMENT_ORDER_JS = `(a, b) => (a === b ? 0 : a.compareDocumentPosition(b) & 4 ? -1 : 1)`;
+
+/**
+ * Function declaration run in the page as `(elements)`: the same elements in document order. A search with
+ * several start nodes answers per start node, so its results are not in document order.
+ */
+export const SORT_IN_DOCUMENT_ORDER = `(elements) => elements.slice().sort(${DOCUMENT_ORDER_JS})`;
