@@ -76,7 +76,8 @@ import { HelperRealm } from "../locator/helper-realm.js";
 import type { PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import { callFunction } from "../script/call-function.js";
+import { callFunction, type PageFunction } from "../script/call-function.js";
+import { evaluateInPage } from "./page-evaluate.js";
 import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js";
 
 export type { LoadState, NavigateOptions, NavigationResult };
@@ -362,6 +363,24 @@ export default class Page {
       [],
       { awaitPromise: false },
     );
+  }
+
+  /**
+   * Runs `fn` in the page, with `arg` as its only argument, and returns the result (a promise is awaited). `fn` is a function,
+   * the source of one (`"async () => ..."`), or any other string, which is an expression (`"document.title"`; it takes no argument).
+   * Values come back as plain JavaScript: Date, Map, Set, RegExp, BigInt, NaN, undefined, nested objects and arrays;
+   * an element as an `ElementHandle`; what cannot be copied (a function, window, error, promise) as a `RemoteObject` with its `type`.
+   * The page's own error message is kept (`ScriptError`). A function written under tsx must not contain named inner functions
+   * (the transpiler adds a `__name` helper the page lacks); a string always works.
+   * @example
+   *  const count = await page.evaluate((min) => document.querySelectorAll("li").length > min, 3);
+   */
+  public async evaluate<R = unknown, A = unknown>(
+    fn: PageFunction<[A], R>,
+    arg?: A,
+  ): Promise<R> {
+    this.assertOpen();
+    return evaluateInPage(this.biDiConnector, this.id, fn, arg);
   }
 
   /**

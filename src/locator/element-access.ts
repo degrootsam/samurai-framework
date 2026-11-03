@@ -11,6 +11,8 @@ export interface ElementAccess extends ElementContext {
    * throw instead (`method` is the public method that asked, for the message)
    */
   resolveOne(method?: string): Promise<ElementHandle | null>;
+  /** Every element the locator matches now, in document order; never strict, never waits */
+  resolveAll(): Promise<ElementHandle[]>;
 }
 
 /** Calls `fn` in the page; a throwing function becomes a "Failed to locate element" error */

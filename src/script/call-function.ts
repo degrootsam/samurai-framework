@@ -40,17 +40,23 @@ export class ScriptSerializationError extends Error {
   }
 }
 
+/** A function to run in the page, or its source (a string is used as written) */
+export type PageFunction<A extends unknown[], R> =
+  string | ((...args: A) => R | Promise<R>);
+
 /** The source to send for `fn`; a function object must not depend on transpiler helpers */
 export function toFunctionDeclaration(
   fn: string | ((...args: any[]) => unknown),
 ): string {
   if (typeof fn === "string") return fn;
   const source = fn.toString();
-  // tsx/esbuild wrap named functions in a __name() helper that does not exist in the page
+  // tsx/esbuild (keepNames) wrap named functions in a __name() helper that does not exist in the page
   if (source.includes("__name(")) {
     throw new ScriptSerializationError(
-      "The function's source uses the transpiler's __name helper, which does not exist in the page. " +
-        "Use an arrow function without inner named functions, or pass the function as a string.",
+      "The function's source uses __name(), a helper that tsx and esbuild add around named functions " +
+        "(also an arrow function assigned to a variable) and that does not exist in the page. " +
+        "Write the function without inner named functions (pass callbacks inline as anonymous arrow functions), " +
+        "or pass it as a string.",
     );
   }
   return source;
@@ -83,6 +89,31 @@ export async function callFunction<T = unknown>(
     throw new ScriptError(
       result.exceptionDetails.text,
       functionDeclaration,
+      result.exceptionDetails.stackTrace,
+    );
+  }
+  return fromRemoteValue(result.result) as T;
+}
+
+/**
+ * Evaluates `expression` in the page and returns its deserialized result; a promise is awaited.
+ * Throws `ScriptError` with the page's message when it throws.
+ */
+export async function evaluateExpression<T = unknown>(
+  connector: BiDiConnector,
+  context: string,
+  expression: string,
+): Promise<T> {
+  const result = await connector.send("script.evaluate", {
+    expression,
+    awaitPromise: true,
+    target: { context },
+    resultOwnership: "none",
+  });
+  if (result.type === "exception") {
+    throw new ScriptError(
+      result.exceptionDetails.text,
+      expression,
       result.exceptionDetails.stackTrace,
     );
   }

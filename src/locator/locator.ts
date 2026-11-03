@@ -4,6 +4,7 @@ import type {
   ElementRectangle,
 } from "../types/bidi-modules/browsing-context.js";
 import { ElementHandle } from "../script/element-handle.js";
+import type { PageFunction } from "../script/call-function.js";
 import type { Arg } from "../script/serialize.js";
 import type { ElementScreenshotOptions } from "../browser/screenshot.js";
 import type { FileInput } from "../browser/generated-files.js";
@@ -31,18 +32,25 @@ import {
 import {
   readAccessibleDescription,
   readAccessibleName,
+  readAllInnerTexts,
+  readAllTextContents,
   readAttribute,
+  readBoundingBox,
   readBoundingClientRect,
   readClassAttribute,
   readCssValue,
   readEnabledState,
+  readInnerHTML,
+  readInnerText,
   readInputValue,
   readIsChecked,
   readIsEditable,
   readIsEnabled,
   readIsVisible,
   readTextContent,
+  type BoundingBox,
 } from "./element-reads.js";
+import { evaluateOnAll, evaluateOnElement } from "./evaluate.js";
 import { dropFiles, setInputFiles } from "./file-actions.js";
 import type {
   CheckName,
@@ -132,6 +140,7 @@ export default class Locator {
         return locator.selector;
       },
       resolveOne: (method) => this.resolveOne(method),
+      resolveAll: () => this.resolve(),
       call: (fn, args, sandbox) => callInPage(this.access, fn, args, sandbox),
       waitForActionable: (action, checks, probe, options) =>
         this.waitForActionable(action, checks, probe, options),
@@ -550,6 +559,53 @@ export default class Locator {
   /** Trimmed text content, or null when the element is missing */
   public async textContent(): Promise<string | null> {
     return readTextContent(this.access);
+  }
+
+  /** Rendered text of the element (as a person would copy it, hidden text left out), untrimmed, or null when the element is missing */
+  public async innerText(): Promise<string | null> {
+    return readInnerText(this.access);
+  }
+
+  /** The markup inside the element, or null when the element is missing */
+  public async innerHTML(): Promise<string | null> {
+    return readInnerHTML(this.access);
+  }
+
+  /** `textContent` of every match, as the page has it (untrimmed, unlike `textContent()`); `[]` when none match. Does not wait */
+  public async allTextContents(): Promise<string[]> {
+    return readAllTextContents(this.access);
+  }
+
+  /** `innerText` of every match; `[]` when none match. Does not wait */
+  public async allInnerTexts(): Promise<string[]> {
+    return readAllInnerTexts(this.access);
+  }
+
+  /** The element's box in CSS pixels from the viewport's top left, or null when it is missing or not rendered (`display: none`). Does not wait or scroll */
+  public async boundingBox(): Promise<BoundingBox | null> {
+    return readBoundingBox(this.access);
+  }
+
+  /**
+   * Waits until the element is attached (hidden is fine), then calls `fn(element, arg)` in the page and returns the result
+   * (see `page.evaluate` for what comes back). `fn` is a function or the source of one; a strict locator throws when several match.
+   * @example
+   *  const id = await page.getByTestId("row").evaluate((el) => el.dataset.id);
+   */
+  public async evaluate<R = unknown, A = unknown>(
+    fn: PageFunction<[any, A], R>,
+    arg?: A,
+    options?: { timeout?: number },
+  ): Promise<R> {
+    return evaluateOnElement(this.access, fn, arg, options);
+  }
+
+  /** Calls `fn(elements, arg)` in the page with an array of every match (empty when none; does not wait) and returns the result */
+  public async evaluateAll<R = unknown, A = unknown>(
+    fn: PageFunction<[any[], A], R>,
+    arg?: A,
+  ): Promise<R> {
+    return evaluateOnAll(this.access, fn, arg);
   }
 
   /** Value of an input/textarea/select, or null when missing */

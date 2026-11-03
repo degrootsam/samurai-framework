@@ -7,6 +7,7 @@ import {
 } from "./element-access.js";
 import { describeType } from "./element-state.js";
 import { ACCESSIBLE_NAME_JS } from "./accessible-name.js";
+import { evaluateOnAll } from "./evaluate.js";
 
 /** Body run in the page as `(el) => { ... }`: a checked checkbox or radio input, or `aria-checked="true"` */
 const IS_CHECKED_BODY = `
@@ -50,6 +51,89 @@ export async function readTextContent(
       "textContent",
     ),
   );
+}
+
+/** Rendered text (what a person would copy: line breaks, no hidden text), untrimmed, or null when the element is missing */
+export async function readInnerText(
+  access: ElementAccess,
+): Promise<string | null> {
+  return stringOrNull(
+    await callOnElement<unknown>(
+      access,
+      null,
+      `return el.innerText;`,
+      [],
+      [],
+      "innerText",
+    ),
+  );
+}
+
+/** The markup inside the element, or null when the element is missing */
+export async function readInnerHTML(
+  access: ElementAccess,
+): Promise<string | null> {
+  return stringOrNull(
+    await callOnElement<unknown>(
+      access,
+      null,
+      `return el.innerHTML;`,
+      [],
+      [],
+      "innerHTML",
+    ),
+  );
+}
+
+/** `textContent` of every match, as the page has it (untrimmed); an empty array when none match */
+export function readAllTextContents(access: ElementAccess): Promise<string[]> {
+  return evaluateOnAll<string[], undefined>(
+    access,
+    `(els) => els.map((el) => el.textContent ?? "")`,
+    undefined,
+  );
+}
+
+/** `innerText` of every match; an empty array when none match */
+export function readAllInnerTexts(access: ElementAccess): Promise<string[]> {
+  return evaluateOnAll<string[], undefined>(
+    access,
+    `(els) => els.map((el) => el.innerText ?? "")`,
+    undefined,
+  );
+}
+
+/** The element's box in CSS pixels from the viewport's top left */
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The element's box, or null when it is missing or not rendered (`display: none`, detached): it has no boxes then */
+export async function readBoundingBox(
+  access: ElementAccess,
+): Promise<BoundingBox | null> {
+  const box = await callOnElement<unknown>(
+    access,
+    null,
+    `
+      if (el.getClientRects().length === 0) return null;
+      const { x, y, width, height } = el.getBoundingClientRect();
+      return { x, y, width, height };
+    `,
+    [],
+    [],
+    "boundingBox",
+  );
+  if (box === null) return null;
+  if (typeof box !== "object") {
+    throw new Error(
+      `Expected to receive an object but instead received "${describeType(box)}"`,
+    );
+  }
+  return box as BoundingBox;
 }
 
 /** The accessible name (see `ACCESSIBLE_NAME_JS`), "" when it has none, or null when the element is missing */
