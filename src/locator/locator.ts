@@ -1,19 +1,13 @@
 import type { BiDiConnector } from "../transport/bidi-connection.js";
-import { BiDiError } from "../transport/bidi-error.js";
 import type {
   BrowsingContext,
   ElementRectangle,
 } from "../types/bidi-modules/browsing-context.js";
-import { callFunction, ScriptError } from "../script/call-function.js";
 import { ElementHandle } from "../script/element-handle.js";
 import type { Arg } from "../script/serialize.js";
-import {
-  takeScreenshot,
-  type ElementScreenshotOptions,
-} from "../browser/screenshot.js";
+import type { ElementScreenshotOptions } from "../browser/screenshot.js";
 import type { FileInput } from "../browser/generated-files.js";
 import {
-  probeState,
   waitForActionable,
   waitForState,
   type ActionabilityContext,
@@ -21,45 +15,45 @@ import {
 } from "./actionability.js";
 import { ChainResolver } from "./chain-resolver.js";
 import {
-  dropFiles,
-  setInputFiles,
-  type ElementContext,
-} from "./file-actions.js";
+  callInPage,
+  noElementError,
+  requireElement,
+  type ElementAccess,
+} from "./element-access.js";
 import {
-  describeType,
-  type CheckName,
-  type ElementState,
-  type ProbeOptions,
-  type WaitForState,
+  clickElement,
+  fillElement,
+  focusElement,
+  pressOnElement,
+  screenshotElement,
+} from "./element-actions.js";
+import {
+  readAttribute,
+  readBoundingClientRect,
+  readClassAttribute,
+  readCssValue,
+  readEnabledState,
+  readInputValue,
+  readIsChecked,
+  readIsEditable,
+  readIsEnabled,
+  readIsVisible,
+  readTextContent,
+} from "./element-reads.js";
+import { dropFiles, setInputFiles } from "./file-actions.js";
+import type {
+  CheckName,
+  ElementState,
+  ProbeOptions,
+  WaitForState,
 } from "./element-state.js";
-import { bindOutput } from "../wait/output-sink.js";
 import type { HelperInstaller } from "./helper-realm.js";
+import { DEFAULT_PAUSE_MS, pause } from "./input-actions.js";
 import {
   NOT_STRICT,
   strictViolation,
   type StrictSource,
 } from "./strict-mode.js";
-import {
-  booleanOrNull,
-  cssPropertyName,
-  IS_CHECKED_BODY,
-  stringOrNull,
-} from "./element-reads.js";
-import {
-  clickRect,
-  DEFAULT_PAUSE_MS,
-  NAMED_KEYS,
-  pause,
-  pressKey,
-  typeText,
-} from "./input-actions.js";
-import {
-  CLICK_CHECKS,
-  FILL_CHECKS,
-  PRESS_CHECKS,
-  SCREENSHOT_CHECKS,
-  ATTACHED_ONLY,
-} from "./page-scripts.js";
 import {
   cssSelector,
   describeChain,
@@ -90,8 +84,8 @@ export default class Locator {
   private resolver: ChainResolver;
   /** What the actionability waits use of this locator */
   private actionability: ActionabilityContext;
-  /** What the file actions use of this locator */
-  private elementContext: ElementContext;
+  /** What the reads and actions use of this locator */
+  private access: ElementAccess;
 
   /**
    * `selector` is an xpath, or a chain of selector steps that each search inside the previous step's matches.
@@ -118,28 +112,29 @@ export default class Locator {
     const locator = this;
     this.actionability = {
       resolveOne: (method) => this.resolveOne(method),
-      call: (fn, args, sandbox) => this.call(fn, args as Arg[], sandbox),
+      call: (fn, args, sandbox) => this.access.call(fn, args as Arg[], sandbox),
       get selector() {
         return locator.selector;
       },
       helpers,
     };
-    this.elementContext = {
+    this.access = {
       connector: biDiConnector,
       contextId,
       get selector() {
         return locator.selector;
       },
-      call: (fn, args, sandbox) => this.call(fn, args, sandbox),
+      resolveOne: (method) => this.resolveOne(method),
+      call: (fn, args, sandbox) => callInPage(this.access, fn, args, sandbox),
       waitForActionable: (action, checks, probe, options) =>
         this.waitForActionable(action, checks, probe, options),
-      requireElement: () => this.requireElement(),
-      noElementError: () => this.noElementError(),
+      requireElement: () => requireElement(this.access),
+      noElementError: () => noElementError(this.access.selector),
     };
     this.resolver = new ChainResolver(
       biDiConnector,
       contextId,
-      (fn, args, sandbox) => this.call(fn, args, sandbox),
+      (fn, args, sandbox) => this.access.call(fn, args, sandbox),
     );
   }
 
@@ -402,92 +397,6 @@ export default class Locator {
     return found[0] ?? null;
   }
 
-  /** Calls `fn` in the page; a throwing function becomes a "Failed to locate element" error */
-  private async call<T>(fn: string, args: Arg[], sandbox?: string): Promise<T> {
-    try {
-      return await callFunction<T>(
-        this.biDiConnector,
-        this.contextId,
-        fn,
-        args,
-        {
-          awaitPromise: false,
-          ...(sandbox !== undefined && { sandbox }),
-        },
-      );
-    } catch (err) {
-      if (err instanceof ScriptError) {
-        throw new Error(
-          `Failed to locate element ${this.selector}. Details: ${err.text}`,
-        );
-      }
-      throw err;
-    }
-  }
-
-  /**
-   * Calls a function on the first matching element: `body` sees it as `el`, followed by `params`.
-   * Answers `whenMissing` when nothing matches, or the element disappeared meanwhile.
-   */
-  private async callOnElement<T>(
-    whenMissing: T,
-    body: string,
-    params: string[] = [],
-    args: Arg[] = [],
-    method?: string,
-  ): Promise<T> {
-    const el = await this.resolveOne(method);
-    if (!el) return whenMissing;
-    try {
-      return await this.call<T>(
-        `(el${params.map((param) => `, ${param}`).join("")}) => { ${body} }`,
-        [el, ...args],
-      );
-    } catch (err) {
-      if (err instanceof BiDiError && err.code === "no such node")
-        return whenMissing;
-      throw err;
-    }
-  }
-
-  /** Like `callOnElement`, for operations that cannot go on without the element */
-  private async callOnExistingElement<T>(
-    body: string,
-    method?: string,
-  ): Promise<T> {
-    const missing = Symbol("missing");
-    const result = await this.callOnElement<T | typeof missing>(
-      missing,
-      body,
-      [],
-      [],
-      method,
-    );
-    if (result === missing) throw this.noElementError();
-    return result;
-  }
-
-  /** The error for an operation that needs an element when none matches */
-  private noElementError(): Error {
-    return new Error(
-      `Failed to locate element ${this.selector}. Details: no element matches`,
-    );
-  }
-
-  /** The element the locator matches now; throws when none does */
-  private async requireElement(): Promise<ElementHandle> {
-    const el = await this.resolveOne();
-    if (!el) throw this.noElementError();
-    return el;
-  }
-
-  private probeState(
-    options: ProbeOptions,
-    method: string,
-  ): Promise<ElementState> {
-    return probeState(this.actionability, options, method);
-  }
-
   private waitForActionable(
     action: string,
     checks: readonly CheckName[],
@@ -505,14 +414,7 @@ export default class Locator {
 
   /** Waits until the element is attached, visible, stable, enabled and not covered, then clicks its centre with real pointer input */
   public async click(options?: ActionOptions): Promise<void> {
-    const state = await this.waitForActionable(
-      "click",
-      CLICK_CHECKS,
-      { scroll: true, hitTest: true },
-      options,
-    );
-    // "attached" is always required, so the box is present
-    await clickRect(this.biDiConnector, this.contextId, state.box!);
+    await clickElement(this.access, options);
   }
 
   /**
@@ -527,7 +429,7 @@ export default class Locator {
     files: FileInput | FileInput[],
     options?: { timeout?: number },
   ): Promise<void> {
-    await setInputFiles(this.elementContext, files, options);
+    await setInputFiles(this.access, files, options);
   }
 
   /**
@@ -542,7 +444,7 @@ export default class Locator {
     files: FileInput | FileInput[],
     options?: { timeout?: number },
   ): Promise<void> {
-    await dropFiles(this.elementContext, files, options);
+    await dropFiles(this.access, files, options);
   }
 
   /**
@@ -554,28 +456,12 @@ export default class Locator {
   public async screenshot(
     options: ElementScreenshotOptions & { timeout?: number } = {},
   ): Promise<Buffer> {
-    const { timeout, ...capture } = options;
-    await this.waitForActionable(
-      "screenshot",
-      SCREENSHOT_CHECKS,
-      { scroll: true, hitTest: false },
-      timeout === undefined ? undefined : { timeout },
-    );
-    const el = await this.requireElement();
-    return takeScreenshot(this.biDiConnector, this.contextId, capture, {
-      sharedId: el.sharedId,
-    });
+    return screenshotElement(this.access, options);
   }
 
   /** Waits until the element is attached, then focuses it */
   public async focus(options?: ActionOptions): Promise<void> {
-    await this.waitForActionable(
-      "focus",
-      ATTACHED_ONLY,
-      { scroll: false, hitTest: false },
-      options,
-    );
-    await this.callOnExistingElement(`el.focus();`);
+    await focusElement(this.access, options);
   }
 
   /** Waits until the element reaches `state` (default "visible"); does not scroll */
@@ -587,67 +473,27 @@ export default class Locator {
 
   /** Returns the browser's getBoundingClientRect result for the given element */
   public async getBoundingClientRect(): Promise<ElementRectangle> {
-    const rect = await this.callOnExistingElement<unknown>(
-      `
-      const { x, y, width, height, top, right, bottom, left } = el.getBoundingClientRect();
-      return { x, y, width, height, top, right, bottom, left };
-    `,
-      "getBoundingClientRect",
-    );
-    if (typeof rect !== "object" || rect === null) {
-      throw new Error(
-        `Expected to receive an object but instead received "${describeType(rect)}"`,
-      );
-    }
-    return rect as ElementRectangle;
+    return readBoundingClientRect(this.access);
   }
 
   /** Whether the element exists, has a non-empty box and is not hidden by CSS */
   public async isVisible(): Promise<boolean> {
-    const state = await this.probeState(
-      { scroll: false, hitTest: false },
-      "isVisible",
-    );
-    return state.attached && state.visible;
+    return readIsVisible(this.actionability);
   }
 
   /** Trimmed text content, or null when the element is missing */
   public async textContent(): Promise<string | null> {
-    return stringOrNull(
-      await this.callOnElement<unknown>(
-        null,
-        `return el.textContent.trim();`,
-        [],
-        [],
-        "textContent",
-      ),
-    );
+    return readTextContent(this.access);
   }
 
   /** Value of an input/textarea/select, or null when missing */
   public async inputValue(): Promise<string | null> {
-    return stringOrNull(
-      await this.callOnElement<unknown>(
-        null,
-        `return typeof el.value === "string" ? el.value : null;`,
-        [],
-        [],
-        "inputValue",
-      ),
-    );
+    return readInputValue(this.access);
   }
 
   /** Attribute value, or null when the element or attribute is missing */
   public async getAttribute(name: string): Promise<string | null> {
-    return stringOrNull(
-      await this.callOnElement<unknown>(
-        null,
-        `return el.getAttribute(name);`,
-        ["name"],
-        [name],
-        "getAttribute",
-      ),
-    );
+    return readAttribute(this.access, name);
   }
 
   /** References to the elements currently matching, in document order. Internal: for tooling that identifies elements */
@@ -662,68 +508,32 @@ export default class Locator {
 
   /** Whether the element exists and is not disabled; does not wait */
   public async isEnabled(): Promise<boolean> {
-    const state = await this.probeState(
-      { scroll: false, hitTest: false },
-      "isEnabled",
-    );
-    return state.attached && state.enabled;
+    return readIsEnabled(this.actionability);
   }
 
   /** Like `isEnabled`, but null when the element is missing, so callers can tell "disabled" from "not there"; does not wait */
   public async enabledState(): Promise<boolean | null> {
-    const state = await this.probeState(
-      { scroll: false, hitTest: false },
-      "enabledState",
-    );
-    return state.attached ? state.enabled : null;
+    return readEnabledState(this.actionability);
   }
 
   /** Whether a checkbox or radio input is checked or the element has `aria-checked="true"`; null when the element is missing */
   public async isChecked(): Promise<boolean | null> {
-    return booleanOrNull(
-      await this.callOnElement<unknown>(
-        null,
-        IS_CHECKED_BODY,
-        [],
-        [],
-        "isChecked",
-      ),
-    );
+    return readIsChecked(this.access);
   }
 
   /** The class attribute as written ("" when the element has none), or null when the element is missing */
   public async classAttribute(): Promise<string | null> {
-    return stringOrNull(
-      await this.callOnElement<unknown>(
-        null,
-        `return el.getAttribute("class") ?? "";`,
-        [],
-        [],
-        "classAttribute",
-      ),
-    );
+    return readClassAttribute(this.access);
   }
 
   /** Computed value of a CSS property (camelCase names become kebab-case, `--custom` is kept), or null when the element is missing */
   public async cssValue(name: string): Promise<string | null> {
-    return stringOrNull(
-      await this.callOnElement<unknown>(
-        null,
-        `return getComputedStyle(el).getPropertyValue(name);`,
-        ["name"],
-        [cssPropertyName(name)],
-        "cssValue",
-      ),
-    );
+    return readCssValue(this.access, name);
   }
 
   /** Whether the element exists and accepts typing (enabled, not readonly, a text field); does not wait */
   public async isEditable(): Promise<boolean> {
-    const state = await this.probeState(
-      { scroll: false, hitTest: false },
-      "isEditable",
-    );
-    return state.attached && state.editable;
+    return readIsEditable(this.actionability);
   }
 
   /** Wait for certain time (ms). Default: 300ms  */
@@ -739,20 +549,7 @@ export default class Locator {
    *  await page.getByLabel("New todo").press("Enter");
    */
   public async press(key: string, options?: ActionOptions): Promise<void> {
-    const code = NAMED_KEYS[key] ?? (Array.from(key).length === 1 ? key : "");
-    if (code === "") {
-      throw new Error(
-        `press(): unknown key "${key}". Use one of ${Object.keys(NAMED_KEYS).join(", ")} or a single character`,
-      );
-    }
-    await this.waitForActionable(
-      "press",
-      PRESS_CHECKS,
-      { scroll: true, hitTest: false },
-      options,
-    );
-    await this.callOnElement(undefined, `el.focus();`);
-    await pressKey(this.biDiConnector, this.contextId, code);
+    await pressOnElement(this.access, key, options);
   }
 
   /** Waits until the field is editable and not covered, then replaces its value by typing `value`; an empty string clears it */
@@ -760,32 +557,6 @@ export default class Locator {
     value: string,
     options?: ActionOptions & { output?: string },
   ): Promise<void> {
-    // Taken when the call starts, so a fill that outlives its test saves into that test's closed sink
-    const save =
-      options?.output === undefined
-        ? undefined
-        : bindOutput("fill()", options.output);
-    const state = await this.waitForActionable(
-      "fill",
-      FILL_CHECKS,
-      { scroll: true, hitTest: true },
-      options,
-    );
-
-    // Typing over the selected existing value replaces it; Backspace clears it for an empty value
-    const keys = value === "" ? NAMED_KEYS.Backspace! : value;
-
-    await clickRect(this.biDiConnector, this.contextId, state.box!);
-
-    // Lets the focus the click caused (and the page's focus handlers) settle before the text is selected and typed over
-    await this.wait();
-
-    await this.callOnElement(
-      undefined,
-      `if (typeof el.select === "function") el.select();`,
-    );
-
-    await typeText(this.biDiConnector, this.contextId, keys);
-    save?.(value);
+    await fillElement(this.access, value, options);
   }
 }

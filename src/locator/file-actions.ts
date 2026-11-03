@@ -8,7 +8,7 @@ import {
   resolveFileInputs,
   type FileInput,
 } from "../browser/generated-files.js";
-import type { CheckName, ProbeOptions } from "./element-state.js";
+import type { CheckName, ElementState, ProbeOptions } from "./element-state.js";
 import type { ActionOptions } from "./actionability.js";
 import {
   DROP_CHECKS,
@@ -31,7 +31,7 @@ export interface ElementContext {
     checks: readonly CheckName[],
     probe: ProbeOptions,
     options: ActionOptions | undefined,
-  ): Promise<unknown>;
+  ): Promise<ElementState>;
   /** The element the locator matches now; throws when none does */
   requireElement(): Promise<ElementHandle>;
   /** The error for an operation that needs an element when none matches */
