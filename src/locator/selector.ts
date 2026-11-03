@@ -1,11 +1,17 @@
 import type { NodeLocator } from "../types/bidi-modules/browsing-context.js";
+import {
+  buildRoleSelector,
+  isNativeRole,
+  type RoleOptions,
+  type RoleSelector,
+} from "./role-locator.js";
 
 /** One step of a locator. A locator is a chain of them, each searching inside the previous step's matches */
 export type Selector =
   | { kind: "xpath"; value: string }
   | { kind: "css"; value: string }
   | ({ kind: "text" } & TextMatch)
-  | { kind: "role"; role: string; name?: string }
+  | RoleSelector
   /** Form controls named by a `<label>`, `aria-labelledby` or `aria-label` whose text matches */
   | ({ kind: "label" } & TextMatch)
   /** Elements whose `placeholder`, `alt` or `title` attribute matches */
@@ -139,12 +145,10 @@ export function testIdSelector(value: string): Selector {
 
 export function roleSelector(
   role: string,
-  { name }: { name?: string } = {},
+  options: RoleOptions = {},
 ): Selector {
   nonEmpty(role, "the role");
-  return name === undefined
-    ? { kind: "role", role }
-    : { kind: "role", role, name };
+  return buildRoleSelector(role, options);
 }
 
 /**
@@ -183,6 +187,11 @@ export function toBiDiLocator(
         ignoreCase: selector.ignoreCase,
       };
     case "role":
+      if (!isNativeRole(selector) || typeof selector.name === "object") {
+        throw new Error(
+          "this role search is resolved by the framework, not by the browser",
+        );
+      }
       return {
         type: "accessibility",
         value: {
@@ -237,12 +246,7 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
     case "testid":
       return `testid=${JSON.stringify(selector.value)}`;
     case "role":
-      return (
-        `role=${selector.role}` +
-        (selector.name === undefined
-          ? ""
-          : `[name=${JSON.stringify(selector.name)}]`)
-      );
+      return `role=${selector.role}${describeRoleOptions(selector)}`;
     case "nth":
       return `nth=${selector.index}`;
     case "filter":
@@ -255,6 +259,21 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
 
 function describeValue(value: TextCriterion): string {
   return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
+
+function describeRoleOptions({
+  kind: _kind,
+  role: _role,
+  name,
+  exact,
+  ...rest
+}: RoleSelector): string {
+  const parts = [
+    name !== undefined && `name=${describeValue(name)}`,
+    exact === false && "exact=false",
+    ...Object.entries(rest).map(([key, value]) => `${key}=${String(value)}`),
+  ].filter(Boolean);
+  return parts.length ? `[${parts.join(", ")}]` : "";
 }
 
 function describeFilter(tests: FilterTests): string {

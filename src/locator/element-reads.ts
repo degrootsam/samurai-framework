@@ -6,6 +6,7 @@ import {
   type ElementAccess,
 } from "./element-access.js";
 import { describeType } from "./element-state.js";
+import { ACCESSIBLE_NAME_JS } from "./accessible-name.js";
 
 /** Body run in the page as `(el) => { ... }`: a checked checkbox or radio input, or `aria-checked="true"` */
 const IS_CHECKED_BODY = `
@@ -47,6 +48,38 @@ export async function readTextContent(
       [],
       [],
       "textContent",
+    ),
+  );
+}
+
+/** The accessible name (see `ACCESSIBLE_NAME_JS`), "" when it has none, or null when the element is missing */
+export async function readAccessibleName(
+  access: ElementAccess,
+): Promise<string | null> {
+  return stringOrNull(
+    await callOnElement<unknown>(
+      access,
+      null,
+      `${ACCESSIBLE_NAME_JS} return accessibleName(el);`,
+      [],
+      [],
+      "accessibleName",
+    ),
+  );
+}
+
+/** The accessible description, "" when it has none, or null when the element is missing */
+export async function readAccessibleDescription(
+  access: ElementAccess,
+): Promise<string | null> {
+  return stringOrNull(
+    await callOnElement<unknown>(
+      access,
+      null,
+      `${ACCESSIBLE_NAME_JS} return accessibleDescription(el);`,
+      [],
+      [],
+      "accessibleDescription",
     ),
   );
 }

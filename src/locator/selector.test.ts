@@ -265,3 +265,96 @@ describe("describeSelector", () => {
     assert.equal(describeChain([xpathSelector("h1")]), "//h1");
   });
 });
+
+describe("role selectors", () => {
+  it("keep only the options that are not their default", () => {
+    assert.deepEqual(
+      roleSelector("button", { exact: true, includeHidden: false }),
+      {
+        kind: "role",
+        role: "button",
+      },
+    );
+    assert.deepEqual(
+      roleSelector("heading", {
+        name: /intro/gi,
+        exact: false,
+        level: 2,
+        checked: "mixed",
+        includeHidden: true,
+        disabled: false,
+      }),
+      {
+        kind: "role",
+        role: "heading",
+        name: /intro/i,
+        exact: false,
+        level: 2,
+        checked: "mixed",
+        disabled: false,
+        includeHidden: true,
+      },
+    );
+  });
+
+  it("reject options of the wrong type", () => {
+    assert.throws(
+      () => roleSelector("button", { name: 3 as never }),
+      /name must be a string or a RegExp/,
+    );
+    assert.throws(
+      () => roleSelector("heading", { level: 0 }),
+      /level must be a positive integer/,
+    );
+    assert.throws(() => roleSelector("heading", { level: 1.5 }), /level/);
+    assert.throws(
+      () => roleSelector("checkbox", { checked: "yes" as never }),
+      /checked must be a boolean or "mixed"/,
+    );
+    assert.throws(
+      () => roleSelector("tab", { selected: 1 as never }),
+      /selected must be a boolean/,
+    );
+    assert.throws(
+      () => roleSelector("tab", null as never),
+      /options must be an object/,
+    );
+  });
+
+  it("go to the browser only when it can do the whole job", () => {
+    const plain = [
+      roleSelector("button"),
+      roleSelector("button", { name: "Go" }),
+      roleSelector("button", { name: "Go", exact: true }),
+    ];
+    for (const selector of plain) {
+      assert.equal(toBiDiLocator(selector, false).type, "accessibility");
+    }
+    for (const options of [
+      { name: /go/ },
+      { name: "go", exact: false },
+      { level: 2 },
+      { checked: true },
+      { includeHidden: true },
+    ]) {
+      assert.throws(
+        () => toBiDiLocator(roleSelector("button", options), false),
+        /resolved by the framework/,
+      );
+    }
+  });
+
+  it("are described with their options", () => {
+    assert.equal(
+      describeSelector(
+        roleSelector("heading", { name: /a/i, level: 2, exact: false }),
+        false,
+      ),
+      "role=heading[name=/a/i, exact=false, level=2]",
+    );
+    assert.equal(
+      describeSelector(roleSelector("tab", { selected: true }), false),
+      "role=tab[selected=true]",
+    );
+  });
+});

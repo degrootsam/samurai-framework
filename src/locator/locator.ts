@@ -28,6 +28,8 @@ import {
   screenshotElement,
 } from "./element-actions.js";
 import {
+  readAccessibleDescription,
+  readAccessibleName,
   readAttribute,
   readBoundingClientRect,
   readClassAttribute,
@@ -54,6 +56,7 @@ import {
   strictViolation,
   type StrictSource,
 } from "./strict-mode.js";
+import type { RoleOptions } from "./role-locator.js";
 import {
   attributeSelector,
   cssSelector,
@@ -253,8 +256,8 @@ export default class Locator {
     return this.child(textSelector(text, options));
   }
 
-  /** Elements with the ARIA role (and accessible name, when given), inside this locator's matches */
-  public getByRole(role: string, options?: { name?: string }): Locator {
+  /** Elements with the ARIA role (and accessible name and state, when given), inside this locator's matches. See `RoleOptions` */
+  public getByRole(role: string, options?: RoleOptions): Locator {
     return this.child(roleSelector(role, options));
   }
 
@@ -536,6 +539,16 @@ export default class Locator {
   /** Whether a checkbox or radio input is checked or the element has `aria-checked="true"`; null when the element is missing */
   public async isChecked(): Promise<boolean | null> {
     return readIsChecked(this.access);
+  }
+
+  /** The accessible name (what `getByRole`'s `name` is matched against), "" when there is none, or null when the element is missing */
+  public async accessibleName(): Promise<string | null> {
+    return readAccessibleName(this.access);
+  }
+
+  /** The accessible description (`aria-describedby`, `aria-description`, else `title` when it is not the name), or null when the element is missing */
+  public async accessibleDescription(): Promise<string | null> {
+    return readAccessibleDescription(this.access);
   }
 
   /** The class attribute as written ("" when the element has none), or null when the element is missing */

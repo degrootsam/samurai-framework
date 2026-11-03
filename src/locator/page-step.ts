@@ -1,6 +1,7 @@
 import type { Arg } from "../script/serialize.js";
 import { ATTRIBUTE_LOCATE } from "./attribute-locator.js";
 import { LABEL_LOCATE } from "./label-locator.js";
+import { isNativeRole, ROLE_LOCATE, roleSearchArgs } from "./role-locator.js";
 import type { Selector } from "./selector.js";
 import { TEXT_LOCATE } from "./text-locator.js";
 
@@ -26,7 +27,7 @@ export function textSearch(
 }
 
 /**
- * The page-side search for a step the browser cannot locate by itself: labels, attributes and RegExp texts.
+ * The page-side search for a step the browser cannot locate by itself: labels, attributes, RegExp texts and roles with a RegExp name or options.
  * `undefined` when the browser's locator does the job
  */
 export function pageSearch(selector: Selector): PageSearch | undefined {
@@ -39,6 +40,10 @@ export function pageSearch(selector: Selector): PageSearch | undefined {
       return typeof selector.value === "string"
         ? undefined
         : textSearch(selector);
+    case "role":
+      return isNativeRole(selector)
+        ? undefined
+        : { fn: ROLE_LOCATE, args: [...roleSearchArgs(selector)] };
     default:
       return undefined;
   }

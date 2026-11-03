@@ -1,5 +1,6 @@
 import Locator from "../locator/locator.js";
 import type { FilterOptions } from "../locator/filter-step.js";
+import type { RoleOptions } from "../locator/role-locator.js";
 import type { ExactOption, TextOptions } from "../locator/selector.js";
 import {
   attributeSelector,
@@ -212,8 +213,8 @@ export default class Page {
     return this.locators.locate([testIdSelector(testId)]);
   }
 
-  /** Locates elements by ARIA role and, optionally, accessible name */
-  public getByRole(role: string, options?: { name?: string }) {
+  /** Locates elements by ARIA role and, optionally, accessible name and state (see `RoleOptions`) */
+  public getByRole(role: string, options?: RoleOptions) {
     return this.locators.locate([roleSelector(role, options)]);
   }
 
