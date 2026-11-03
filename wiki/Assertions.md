@@ -20,30 +20,38 @@ await expect(page.getByText("Spinner")).toBeHidden();
 await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
 await expect(page.getByLabel("Remember me")).toBeChecked();
 await expect(page.getByRole("tab", { name: "Billing" })).toHaveClass(/active/);
+await expect(page.getByRole("button", { name: "Save" })).toHaveAccessibleName(
+  "Save",
+);
+await expect(page.getByLabel("Password")).toHaveAccessibleDescription(
+  /at least 8/,
+);
 await expect(page.getByTestId("banner")).toHaveCSS(
   "background-color",
   "rgb(255, 0, 0)",
 );
 ```
 
-| Matcher                           | Passes when                                                                                                                                                                                     |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toBeVisible()`                   | The element exists, has a box and isn't hidden                                                                                                                                                  |
-| `toHaveText(expected)`            | Trimmed text content equals a string, or matches a `RegExp`                                                                                                                                     |
-| `toContainText(expected)`         | Text content contains a string, or matches a `RegExp`                                                                                                                                           |
-| `toHaveValue(expected)`           | The input's value equals a string, or matches a `RegExp`                                                                                                                                        |
-| `toHaveAttribute(name, expected)` | The attribute equals a string, or matches a `RegExp`                                                                                                                                            |
-| `toHaveCount(n)`                  | Exactly `n` elements match                                                                                                                                                                      |
-| `toBeHidden()`                    | No element matches, or it isn't visible (from 0.19.0)                                                                                                                                           |
-| `toBeEnabled()`                   | The element isn't disabled: not `:disabled` (a disabled `<fieldset>` counts) and no `aria-disabled="true"`; the same check `click` and `fill` wait for (from 0.19.0)                            |
-| `toBeChecked()`                   | A checked checkbox or radio, or `aria-checked="true"` (from 0.19.0)                                                                                                                             |
-| `toHaveClass(expected)`           | The `class` attribute equals a string (whitespace collapsed on both sides), or matches a `RegExp` (from 0.19.0)                                                                                 |
-| `toHaveCSS(name, expected)`       | The computed style value equals a string or matches a `RegExp`; `backgroundColor` and `background-color` both work. Browsers report computed values, so `red` is `rgb(255, 0, 0)` (from 0.19.0) |
+| Matcher                                 | Passes when                                                                                                                                                                                     |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toBeVisible()`                         | The element exists, has a box and isn't hidden                                                                                                                                                  |
+| `toHaveText(expected)`                  | Trimmed text content equals a string, or matches a `RegExp`                                                                                                                                     |
+| `toContainText(expected)`               | Text content contains a string, or matches a `RegExp`                                                                                                                                           |
+| `toHaveValue(expected)`                 | The input's value equals a string, or matches a `RegExp`                                                                                                                                        |
+| `toHaveAttribute(name, expected)`       | The attribute equals a string, or matches a `RegExp`                                                                                                                                            |
+| `toHaveCount(n)`                        | Exactly `n` elements match                                                                                                                                                                      |
+| `toBeHidden()`                          | No element matches, or it isn't visible (from 0.19.0)                                                                                                                                           |
+| `toBeEnabled()`                         | The element isn't disabled: not `:disabled` (a disabled `<fieldset>` counts) and no `aria-disabled="true"`; the same check `click` and `fill` wait for (from 0.19.0)                            |
+| `toBeChecked()`                         | A checked checkbox or radio, or `aria-checked="true"` (from 0.19.0)                                                                                                                             |
+| `toHaveClass(expected)`                 | The `class` attribute equals a string (whitespace collapsed on both sides), or matches a `RegExp` (from 0.19.0)                                                                                 |
+| `toHaveAccessibleName(expected)`        | The accessible name equals a string (whitespace collapsed and trimmed on both sides), or matches a `RegExp` (from 0.21.3)                                                                       |
+| `toHaveAccessibleDescription(expected)` | The accessible description equals a string (compared the same way), or matches a `RegExp`; a missing description is `""` (from 0.21.3)                                                          |
+| `toHaveCSS(name, expected)`             | The computed style value equals a string or matches a `RegExp`; `backgroundColor` and `background-color` both work. Browsers report computed values, so `red` is `rgb(255, 0, 0)` (from 0.19.0) |
 
 - Every matcher takes `{ timeout }` as its last argument: `await expect(x).toBeVisible({ timeout: 15_000 })`.
 - `.not` inverts: it retries until the condition is **false**.
 - Text is the element's `textContent`, trimmed. A missing element never matches (so `toHaveText("")` fails on a missing element).
-- `toBeEnabled`, `toBeChecked`, `toHaveClass` and `toHaveCSS` need the element: when nothing matches they fail, with or without `.not`, with "could not read … within …ms". So `.not.toBeEnabled()` does not pass for an element that isn't there; `toBeHidden()` does.
+- `toBeEnabled`, `toBeChecked`, `toHaveClass`, `toHaveCSS`, `toHaveAccessibleName` and `toHaveAccessibleDescription` need the element: when nothing matches they fail, with or without `.not`, with "could not read … within …ms". So `.not.toBeEnabled()` does not pass for an element that isn't there; `toBeHidden()` does.
 
 When an assertion times out the error shows the matcher, the locator, what was expected and the last value seen.
 

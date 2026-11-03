@@ -7,7 +7,8 @@ This page is the overview of what is built and what is open.
 - **Protocol layer.** WebDriver BiDi connection with typed commands, refcounted event subscriptions, script calls and preload scripts.
 - **Page API.** Navigation with real load waits, history, viewport, screenshots (also named, saved with the run), `waitForTimeout`, PDF, emulation, dialogs, downloads and file pickers, init scripts, console and page-error capture, user contexts and cookies.
 - **Network.** Request tracking, real network-idle, waiting for requests and responses, mocking, blocking and modifying, response bodies, cache control.
-- **Locators and assertions.** Role, label, text, test id, CSS and XPath locators with chaining and fallbacks; auto-waiting actions; retrying `expect`.
+- **Locators and assertions.** Role, label, text, placeholder, alt text, title, test id, CSS and XPath locators with chaining and fallbacks; auto-waiting actions; retrying `expect`.
+- **Locator toolkit (0.21.3).** `nth`, `first`, `last`, `filter` (`hasText`, `hasNotText`, `has`, `hasNot`), `and` and `or`; `locator()` reads CSS as well as XPath; `getByRole` with `name` (string or `RegExp`), `exact`, `level` and the state options; `exact` and `RegExp` on the text locators; `check`, `uncheck`, `setChecked` and `selectOption`; `isHidden`, `isDisabled`, `accessibleName` and `accessibleDescription`; `toHaveAccessibleName` and `toHaveAccessibleDescription`; strict selectors (`use.strictSelectors`, `page.setStrictSelectors`, `locator.strict`). See [Locators](Locators) and [Assertions](Assertions).
 - **Test API.** `describe`, `test` with `page`, `browser`, `browserName`, `env` and `secrets` fixtures; environments with variables, timeouts and base URLs; secrets from env vars or `.env.<environment>` with masking in logs and reports.
 - **Recorder foundations.** Step codec (parse a spec into steps, minimal-diff edits) and a recording engine (clicks, typing, Alt+click assertions, locator ranking, record from step N).
 - **Recorder toolbar.** A rail inside the recorded page: pause and resume, assertions with a choice of matcher, inserting and adding variables and secrets, waits, named screenshots and stop. Adds the `waitForTimeout` and `screenshot` steps and the `/project` writers (see [Steps and the recorder](Steps-and-the-recorder#the-toolbar)).
@@ -59,9 +60,20 @@ Gaps in the runner today, found while writing these docs:
 ## Open: framework API
 
 - **Browsers.** Firefox and Chrome launch. Safari and Edge do not.
-- **Locators.** No `first()`, `last()`, `nth(i)` or `filter(...)` (use `all()`), no `getByPlaceholder` or `getByAltText`, and the test-id attribute is fixed to `data-testid`. No iframe or shadow-DOM piercing beyond the browser's own support.
-- **Actions.** No `hover`, `dblclick`, `check`/`uncheck`, `selectOption`, `type`, page-level keyboard, drag and drop, or scrolling helpers. `locator.press` presses one key on an element. `fill` replaces the whole value; there is no append.
+- **Locators.** The test-id attribute is fixed to `data-testid`. No iframe or shadow-DOM piercing beyond the browser's own support; the page-side role search and accessible names do not pierce shadow DOM either.
+- **Actions.** No `hover`, `dblclick`, `type`, page-level keyboard or mouse, drag and drop, or scrolling helpers. `locator.press` presses one key on an element. `fill` replaces the whole value; there is no append.
 - **Assertions.** No screenshot comparison (`toHaveScreenshot`).
 - **Windows and tabs.** No `popup` event or API for tabs and windows the page opens itself; open extra pages with `context.newPage()`.
 - **HTTP authentication.** `network.continueWithAuth` (basic-auth challenges) was left out of the interception work.
-- **Not planned.** `webExtension.*` commands and `session.end` as public API.
+- **Not planned.** `webExtension.*` commands and `session.end` as public API, and WebKit (Safari has no WebDriver BiDi).
+
+## Open: closing the gap with Playwright
+
+What the framework still lacks next to Playwright, grouped; the order here is not a priority order.
+
+- **Page and locator reads.** The `evaluate` family (`page.evaluate`, `locator.evaluate`, `evaluateAll`, `evaluateHandle`); locator reads `innerText`, `innerHTML`, `allTextContents` and `boundingBox`; `waitForURL`; `content` and `setContent`; viewport aliases.
+- **More matchers.** `toBeFocused`, `toHaveJSProperty`, `toMatchObject` and others of that kind.
+- **Test API.** `test.describe` aliases, `testInfo`, `test.use`, `test.extend` and `test.step`.
+- **Waiting and input.** `expect.poll` and `toPass`, a fake clock, keyboard and mouse as page-level APIs.
+- **Network.** `page.request`.
+- **Runner and config.** `webServer`, `globalSetup`, serial mode and sharding, `projects`, and more reporters (see also the runner list above).
