@@ -1,4 +1,5 @@
 import Locator from "../locator/locator.js";
+import type { FilterOptions } from "../locator/filter-step.js";
 import type { TextOptions } from "../locator/selector.js";
 import {
   cssSelector,
@@ -147,10 +148,12 @@ export default class Page {
   }
   /**
    * Locates elements on the page. An xpath (`//x`, `/html/body`, `(//x)[2]`, `./x`, `xpath=…`, or an older
-   * relative one such as `a[@id='x']`) or a css selector (`input[name='x']`, `a, button`, `css=…`)
+   * relative one such as `a[@id='x']`) or a css selector (`input[name='x']`, `a, button`, `css=…`).
+   * `options` filter the matches, as `locator.filter()` does
    */
-  public locator(selector: string) {
-    return this.locate(selector);
+  public locator(selector: string, options?: FilterOptions<Locator>) {
+    const found = this.locate(selector);
+    return options === undefined ? found : found.filter(options);
   }
 
   private locate(selector: ConstructorParameters<typeof Locator>[0]): Locator {
