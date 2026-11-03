@@ -1,6 +1,6 @@
 # Samurai framework
 
-A TypeScript browser test framework over WebDriver BiDi (Firefox natively, Chrome through chromedriver). Layout, conventions and the tidiness checks are in [docs/contributing.md](docs/contributing.md). The user guides live in the [wiki](https://github.com/degrootsam/samurai-framework/wiki), not in this repository.
+A TypeScript browser test framework over WebDriver BiDi (Firefox natively, Chrome through chromedriver). Layout, conventions and the tidiness checks are in [docs/contributing.md](docs/contributing.md). The user guides live in [wiki/](wiki/Home.md) (published as the [public wiki](https://github.com/degrootsam/samurai-framework/wiki) at each release).
 
 ## Commands
 
@@ -30,8 +30,8 @@ Follow these steps, in order, for any change of size. Skip one only when the cha
 5. **Interfaces first, then parallel work.** Do the task that defines the shared interface first and commit it. Then give disjoint areas to parallel helpers (sub-agents). Each gets: the plan task, the exact signatures it must honour, the files it owns, the files it must not touch, "edit files only, no git commands that change state, run prettier only on files you edited", "tests first", and the exact reply format.
 6. **Verify yourself, never trust a helper's report alone.** Run, in this order: `typecheck`, `test`, `build`, `test-cli`, `knip`, `madge` (the size and import rules above), then both browser suites. Check the line count of every file you grew (`wc -l`). Investigate a red test alone before calling it flaky: most cascades come from one hung test, a shared profile or another helper's unfinished edit.
 7. **Commit per task, with explicit paths.** More than one session may share this working tree: look at `git status` and `git reflog` first, stage named paths (not `git add -A` at the root), and leave changes you did not make alone (mention them). Conventional prefix (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`), optional scope (`fix(framework):`), `!` for a breaking change; the root `commitlint.config.mjs` checks the message (commit-msg hook and CI). The Trunk pre-commit hook (root `.trunk/trunk.yaml`) formats staged files: commit what it formats.
-8. **Docs and version belong to the change.** A user-facing change updates the matching wiki page, the Roadmap page and, for anything breaking, an "Upgrading to X" note; never bump `package.json` by hand: `nx release` picks the version from the conventional commit messages (see Releasing), so get the prefix (and `!`) right.
-9. **Push and open the PR against the right base.** Body: Summary (what and why), Breaking change (when there is one, with the escape hatch), Test plan as checkboxes with real counts. Pushing a branch and opening a PR is part of "commit and open a PR". Anything outward-facing beyond that (the public wiki, a release, a publish) needs an explicit yes.
+8. **Docs and version belong to the change.** A user-facing change updates the matching page in `wiki/`, the Roadmap page and, for anything breaking, an "Upgrading to X" note; never bump `package.json` by hand: `nx release` picks the version from the conventional commit messages (see Releasing), so get the prefix (and `!`) right.
+9. **Push and open the PR against the right base.** Body: Summary (what and why), Breaking change (when there is one, with the escape hatch), Test plan as checkboxes with real counts. Pushing a branch and opening a PR is part of "commit and open a PR". Anything outward-facing beyond that (a release, a publish, and the wiki sync that a release tag triggers) needs an explicit yes.
 10. **Check CI, then report.** `gh pr checks <n>` on every open PR. The final report says: what changed, check results with numbers, what is untested or open (honestly), the merge order when PRs are stacked, and what the owner has to do elsewhere (for example in the Electron app, `apps/desktop` in this repository).
 
 ## Releasing
@@ -71,4 +71,4 @@ The cleanup review (three phases, PRs #31 to #40) set these rules; they hold for
 - `test()` starts running as soon as it is registered: top-level awaits between registrations race with it.
 - Public methods throw `name(): what is wrong` (lower-case, no `page.` prefix, no trailing full stop). State messages (`page closed`) and fixed-format error classes keep their form.
 - `workers` runs tests in child processes; a config passed as an object (not `samurai.config.ts` in the project folder) stays on one worker.
-- New files in `docs/superpowers/` stay local (see step 3). Do not link to the folder from the repository or the wiki.
+- New files in `docs/superpowers/` stay local (see step 3). Do not link to the folder from the repository or the wiki. The wiki folder is public (the mirror and the wiki both carry it): nothing private in it.
