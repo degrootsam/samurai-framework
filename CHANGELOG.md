@@ -1,3 +1,13 @@
+## 0.21.2 (2026-11-03)
+
+### 🩹 Fixes
+
+- **framework:** keep Chrome redirect chains in flight until the next hop shows
+
+### ❤️ Thank You
+
+- Sam @degrootsam
+
 ## 0.21.1 (2026-11-02)
 
 ### 🩹 Fixes
