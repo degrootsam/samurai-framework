@@ -5,6 +5,7 @@ import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js"
 import { ElementHandle } from "../script/element-handle.js";
 import type { Arg } from "../script/serialize.js";
 import { isDocumentSwap } from "./document-swap.js";
+import { intersect, union } from "./combine-step.js";
 import { applyFilter } from "./filter-step.js";
 import { LABEL_LOCATE } from "./label-locator.js";
 import { SORT_IN_DOCUMENT_ORDER } from "./page-search.js";
@@ -72,6 +73,17 @@ export class ChainResolver {
             selector.index < 0 ? nodes.length + selector.index : selector.index
           ];
         nodes = picked ? [picked] : [];
+      } else if (selector.kind === "and" || selector.kind === "or") {
+        try {
+          nodes = await this.combine(
+            selector,
+            from,
+            stepLimit(chain, index, from, max),
+          );
+        } catch (err) {
+          if (isDocumentSwap(err)) return [];
+          throw err;
+        }
       } else if (selector.kind === "filter") {
         try {
           nodes = from
@@ -106,6 +118,29 @@ export class ChainResolver {
       if (nodes.length === 0) return [];
     }
     return nodes ?? [];
+  }
+
+  /**
+   * `and` keeps what both chains match; `or` what either matches, in document order. Both chains search from
+   * scratch (or inside `from`, when the whole chain is relative). An `or` needs no more than `max` of each
+   */
+  private async combine(
+    { kind, left, right }: Extract<Selector, { kind: "and" | "or" }>,
+    from: readonly ElementHandle[] | undefined,
+    max: number | undefined,
+  ): Promise<ElementHandle[]> {
+    const limit = kind === "or" ? max : undefined;
+    const first = await this.resolveChain(left, limit, from);
+    const second = await this.resolveChain(right, limit, from);
+    if (kind === "and") {
+      const both = intersect(first, second);
+      return max === undefined ? both : both.slice(0, max);
+    }
+    if (first.length === 0 || second.length === 0) {
+      return (first.length === 0 ? second : first).slice(0, max);
+    }
+    const ordered = await this.inDocumentOrder(union(first, second));
+    return max === undefined ? ordered : ordered.slice(0, max);
   }
 
   private async inDocumentOrder(nodes: ElementHandle[]) {

@@ -182,3 +182,88 @@ describe("filter", () => {
     );
   });
 });
+
+describe("and and or", () => {
+  it("and keeps what both match, in the first locator's order", async () => {
+    const { make, locates, nodeCounts } = setup();
+    nodeCounts(3, 2);
+    const both = make("li").and(make(".x"));
+    assert.equal(both.selector, "(css=li) and (css=.x)");
+    assert.deepEqual(ids(await both.elements()), [
+      "stub-node-0",
+      "stub-node-1",
+    ]);
+    assert.deepEqual(
+      locates().map(({ locator }) => locator.value),
+      ["li", ".x"],
+    );
+  });
+
+  it("and matches nothing when either side does", async () => {
+    const { make, nodeCounts } = setup();
+    nodeCounts(0, 2);
+    assert.equal(await make("li").and(make(".x")).count(), 0);
+    nodeCounts(2, 0);
+    assert.equal(await make("li").and(make(".x")).count(), 0);
+  });
+
+  it("or joins both, once each, and has the page sort them", async () => {
+    const { make, calls, nodeCounts } = setup(
+      nodes("stub-node-1", "stub-node-0"),
+    );
+    nodeCounts(1, 2);
+    const either = make("a").or(make("b"));
+    assert.equal(either.selector, "(css=a) or (css=b)");
+    assert.deepEqual(ids(await either.elements()), [
+      "stub-node-1",
+      "stub-node-0",
+    ]);
+    assert.deepEqual((calls[0]!.args[0] as unknown[]).length, 2);
+    assert.match(calls[0]!.functionDeclaration, /compareDocumentPosition/);
+  });
+
+  it("or with a missing branch answers the other without sorting", async () => {
+    const { make, calls, nodeCounts } = setup();
+    nodeCounts(0, 2);
+    assert.equal(await make("a").or(make("b")).count(), 2);
+    nodeCounts(2, 0);
+    assert.equal(await make("a").or(make("b")).count(), 2);
+    assert.equal(calls.length, 0);
+  });
+
+  it("or asks each side for no more than the first match an action needs", async () => {
+    const { make, locates, nodeCounts } = setup(nodes("stub-node-0"));
+    nodeCounts(3, 3);
+    const first = make("a").or(make("b")).first();
+    await first.elements();
+    assert.deepEqual(
+      locates().map(({ maxNodeCount }) => maxNodeCount),
+      [1, 1],
+    );
+  });
+
+  it("steps after them search inside the combined matches", async () => {
+    const { make, locates, nodeCounts } = setup();
+    nodeCounts(1, 1, 1);
+    await make("a").and(make("b")).getByCss("span").count();
+    assert.deepEqual(locates()[2]!.startNodes, [{ sharedId: "stub-node-0" }]);
+  });
+
+  it("reject fallbacks and locators of another page", () => {
+    const { make, raw } = setup();
+    const other = new Locator([cssSelector("p")], setup().connector, "other");
+    const withFallbacks = make("a").withFallbacks(make("b"));
+    assert.throws(
+      () => withFallbacks.and(make("c")),
+      /and\(\): a locator with fallbacks \(withFallbacks\) cannot be used as an operand/,
+    );
+    assert.throws(
+      () => make("c").or(withFallbacks),
+      /or\(\): a locator with fallbacks/,
+    );
+    assert.throws(
+      () => raw("p").and(other),
+      /and\(\): the locators belong to different pages/,
+    );
+  });
+});

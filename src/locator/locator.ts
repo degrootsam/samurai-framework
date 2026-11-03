@@ -230,6 +230,34 @@ export default class Locator {
     );
   }
 
+  /** The elements both this locator and `other` match, in this locator's order */
+  public and(other: Locator): Locator {
+    return this.combined("and", other);
+  }
+
+  /** The elements either this locator or `other` matches, in document order, each once */
+  public or(other: Locator): Locator {
+    return this.combined("or", other);
+  }
+
+  private combined(kind: "and" | "or", other: Locator): Locator {
+    if (other.contextId !== this.contextId) {
+      throw new TypeError(`${kind}(): the locators belong to different pages`);
+    }
+    return new Locator(
+      [
+        {
+          kind,
+          left: this.chainFor(`${kind}()`, "an operand"),
+          right: other.chainFor(`${kind}()`, "an operand"),
+        },
+      ],
+      this.biDiConnector,
+      this.contextId,
+      this.helpers,
+    );
+  }
+
   /** The chain of a locator used inside another (`has`); a locator with fallbacks cannot be */
   private chainFor(method: string, role: string): readonly Selector[] {
     if (this.alternatives.length > 0) {

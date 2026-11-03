@@ -13,7 +13,13 @@ export type Selector =
   /** Picks the n-th (0-based) of everything the chain so far matches; a negative index counts from the end. `nth()` and `all()` build these */
   | { kind: "nth"; index: number }
   /** Keeps the elements the chain so far matched that pass every given test (see `filterSelector`) */
-  | ({ kind: "filter" } & FilterTests);
+  | ({ kind: "filter" } & FilterTests)
+  /** The elements two whole chains both match (`and`), or either matches (`or`, in document order); built by `and()` and `or()` */
+  | {
+      kind: "and" | "or";
+      left: readonly Selector[];
+      right: readonly Selector[];
+    };
 
 /** A text test of a filter: a string is a case-insensitive substring, a RegExp is tested on the element's text */
 export type TextCriterion = string | RegExp;
@@ -145,8 +151,10 @@ export function toBiDiLocator(
     case "nth":
       throw new Error("nth is resolved by the framework, not by the browser");
     case "filter":
+    case "and":
+    case "or":
       throw new Error(
-        "filter is resolved by the framework, not by the browser",
+        `${selector.kind} is resolved by the framework, not by the browser`,
       );
   }
 }
@@ -179,6 +187,9 @@ export function describeSelector(selector: Selector, scoped: boolean): string {
       return `nth=${selector.index}`;
     case "filter":
       return `filter(${describeFilter(selector)})`;
+    case "and":
+    case "or":
+      return `(${describeChain(selector.left)}) ${selector.kind} (${describeChain(selector.right)})`;
   }
 }
 
