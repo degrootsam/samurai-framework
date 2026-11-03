@@ -44,7 +44,9 @@ import type {
 } from "./page-navigation.js";
 import { PageNetwork } from "./page-network.js";
 import { PageTransfers } from "./page-transfers.js";
-import { initScriptSource } from "./init-script.js";
+import { InitScripts } from "./init-script.js";
+import { grantPermission } from "./page-permissions.js";
+import { PageLocators } from "./page-locators.js";
 import {
   sourcesFor,
   waitForPageEvent,
@@ -69,7 +71,7 @@ import {
 export type { PageSettings, ReadinessState };
 import { applyViewport, type Viewport } from "./viewport.js";
 import { HelperRealm } from "../locator/helper-realm.js";
-import { addPreload, type PreloadHandle } from "../script/preload.js";
+import type { PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import { callFunction } from "../script/call-function.js";
@@ -82,9 +84,9 @@ export default class Page {
   private id: BrowsingContext;
   private lazyTree = new Lazy<ContextTree>();
   private helperRealm: HelperRealm;
-  private initScripts = new Set<PreloadHandle>();
+  private initScripts = new InitScripts();
   private pageConfig: PageConfig;
-  private strictOverride: boolean | undefined;
+  private locators: PageLocators;
   private pageEvents = new EventEmitter();
   private documents: DocumentWatcher;
   private nav: PageNavigation;
@@ -107,6 +109,13 @@ export default class Page {
     this.id = contextId;
     this.pageConfig = new PageConfig(settings);
     this.helperRealm = new HelperRealm(biDiConnector, contextId);
+    this.locators = new PageLocators(
+      biDiConnector,
+      contextId,
+      this.helperRealm,
+      this.pageConfig,
+      () => this.assertOpen(),
+    );
     this.documents = new DocumentWatcher(biDiConnector, contextId);
     this.net = new PageNetwork(biDiConnector, contextId, {
       config: this.pageConfig,
@@ -152,20 +161,8 @@ export default class Page {
    * `options` filter the matches, as `locator.filter()` does
    */
   public locator(selector: string, options?: FilterOptions<Locator>) {
-    const found = this.locate(selector);
+    const found = this.locators.locate(selector);
     return options === undefined ? found : found.filter(options);
-  }
-
-  private locate(selector: ConstructorParameters<typeof Locator>[0]): Locator {
-    this.assertOpen();
-    return new Locator(
-      selector,
-      this.biDiConnector,
-      this.id,
-      this.helperRealm,
-      [],
-      () => this.pageConfig.strictSelectors(this.strictOverride),
-    );
   }
 
   /**
@@ -174,32 +171,32 @@ export default class Page {
    * to config `use.strictSelectors` (off unless set). Applies to locators already made, too
    */
   public setStrictSelectors(enabled: boolean | undefined): void {
-    this.strictOverride = enabled;
+    this.locators.setStrictSelectors(enabled);
   }
 
   /** Locates elements with a CSS selector */
   public getByCss(css: string) {
-    return this.locate([cssSelector(css)]);
+    return this.locators.locate([cssSelector(css)]);
   }
 
   /** Locates elements by their text: an exact match unless `match: "partial"` */
   public getByText(text: string, options?: TextOptions) {
-    return this.locate([textSelector(text, options)]);
+    return this.locators.locate([textSelector(text, options)]);
   }
 
   /** Locates form controls by their label text: an exact match unless `match: "partial"` */
   public getByLabel(text: string, options?: TextOptions) {
-    return this.locate([labelSelector(text, options)]);
+    return this.locators.locate([labelSelector(text, options)]);
   }
 
   /** Locates elements by their `data-testid` attribute */
   public getByTestId(testId: string) {
-    return this.locate([testIdSelector(testId)]);
+    return this.locators.locate([testIdSelector(testId)]);
   }
 
   /** Locates elements by ARIA role and, optionally, accessible name */
   public getByRole(role: string, options?: { name?: string }) {
-    return this.locate([roleSelector(role, options)]);
+    return this.locators.locate([roleSelector(role, options)]);
   }
 
   /**
@@ -216,21 +213,7 @@ export default class Page {
     arg?: unknown,
   ): Promise<PreloadHandle> {
     this.assertOpen();
-    const source = initScriptSource(script, arg);
-    const handle = await addPreload(this.biDiConnector, {
-      source,
-      contexts: [this.id],
-      onRunError: "log",
-    });
-    const tracked: PreloadHandle = {
-      id: handle.id,
-      dispose: async () => {
-        this.initScripts.delete(tracked);
-        await handle.dispose();
-      },
-    };
-    this.initScripts.add(tracked);
-    return tracked;
+    return this.initScripts.add(this.biDiConnector, this.id, script, arg);
   }
 
   /**
@@ -249,7 +232,7 @@ export default class Page {
 
   /** Removes everything the page registered in the browser: init scripts, framework helpers and event subscriptions */
   public async dispose(): Promise<void> {
-    const scripts = [...this.initScripts];
+    const scripts = this.initScripts.all();
     const results = await Promise.allSettled([
       ...scripts.map((handle) => handle.dispose()),
       this.helperRealm.dispose(),
@@ -471,19 +454,13 @@ export default class Page {
     options: { origin?: string } = {},
   ): Promise<void> {
     this.assertOpen();
-    const origin = options.origin ?? new URL(await this.url()).origin;
-    // about:blank and data: pages have no origin to grant to
-    if (origin === "null")
-      throw new Error(
-        "grantPermission(): needs a page on a web origin, or an explicit origin option",
-      );
-    const context = this.browserContext;
-    await this.biDiConnector.send("permissions.setPermission", {
-      descriptor: { name },
-      state: "granted",
-      origin,
-      ...(context && !context.isDefault && { userContext: context.id }),
-    });
+    await grantPermission(
+      this.biDiConnector,
+      () => this.url(),
+      () => this.browserContext,
+      name,
+      options,
+    );
   }
 
   /** True once `close()` has run */
