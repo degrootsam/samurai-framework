@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import Locator from "./locator.js";
+import { xpathSelector } from "./selector.js";
 import { BiDiError } from "../transport/bidi-error.js";
 import { ActionTimeoutError } from "./action-timeout-error.js";
 import type { ElementState } from "./element-state.js";
@@ -37,7 +38,10 @@ const detached = state({
 
 function locatorWith(xpath: string, ...responses: StubResponse[]) {
   const stub = stubConnector(...responses);
-  return { locator: new Locator(xpath, stub.connector, "ctx"), ...stub };
+  return {
+    locator: new Locator([xpathSelector(xpath)], stub.connector, "ctx"),
+    ...stub,
+  };
 }
 
 type Performed = {
@@ -366,7 +370,12 @@ function locatorWithHelpers(xpath: string, ...responses: StubResponse[]) {
   const stub = stubConnector(...responses);
   const { log, helpers } = fakeHelpers();
   return {
-    locator: new Locator(xpath, stub.connector, "ctx", helpers),
+    locator: new Locator(
+      [xpathSelector(xpath)],
+      stub.connector,
+      "ctx",
+      helpers,
+    ),
     log,
     ...stub,
   };
@@ -433,7 +442,12 @@ test("all() items keep using the helpers", async () => {
   const stub = stubConnector(state());
   stub.nodeCounts(2, 1);
   const { log, helpers } = fakeHelpers();
-  const items = await new Locator("li", stub.connector, "ctx", helpers).all();
+  const items = await new Locator(
+    [xpathSelector("li")],
+    stub.connector,
+    "ctx",
+    helpers,
+  ).all();
   await items[1]!.isEnabled();
   assert.ok(log.includes("ensure"));
   const probe = stub.sent.find(

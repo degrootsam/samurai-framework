@@ -144,9 +144,12 @@ export default class Page {
   public tree(): Promise<ContextTree> {
     return this.lazyTree.get(() => ContextTree.create(this.biDiConnector));
   }
-  /** Locates an element on the page and returns an interactable object */
-  public locator(xpath: string) {
-    return this.locate(xpath);
+  /**
+   * Locates elements on the page. An xpath (`//x`, `/html/body`, `(//x)[2]`, `./x`, `xpath=…`, or an older
+   * relative one such as `a[@id='x']`) or a css selector (`input[name='x']`, `a, button`, `css=…`)
+   */
+  public locator(selector: string) {
+    return this.locate(selector);
   }
 
   private locate(selector: ConstructorParameters<typeof Locator>[0]): Locator {

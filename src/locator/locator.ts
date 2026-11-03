@@ -58,10 +58,10 @@ import {
   roleSelector,
   testIdSelector,
   textSelector,
-  xpathSelector,
   type Selector,
   type TextOptions,
 } from "./selector.js";
+import { selectorFromString } from "./selector-string.js";
 
 export type { ActionOptions } from "./actionability.js";
 
@@ -92,7 +92,7 @@ export default class Locator {
     alternatives: readonly Locator[] = [],
   ) {
     this.chain =
-      typeof selector === "string" ? [xpathSelector(selector)] : selector;
+      typeof selector === "string" ? [selectorFromString(selector)] : selector;
     this.biDiConnector = biDiConnector;
     this.contextId = contextId;
     this.helpers = helpers;
@@ -183,9 +183,12 @@ export default class Locator {
     return this.child(testIdSelector(testId));
   }
 
-  /** Elements matching `xpath` inside this locator's matches (relative and `//` paths search inside them) */
-  public locator(xpath: string): Locator {
-    return this.child(xpathSelector(xpath));
+  /**
+   * Elements matching `selector` inside this locator's matches. An xpath (`//x`, `./x`, `xpath=…`, or an older
+   * relative one such as `a[@id='x']`) searches inside them; anything else is css (`css=` is accepted)
+   */
+  public locator(selector: string): Locator {
+    return this.child(selectorFromString(selector));
   }
 
   /** Elements matching the CSS selector inside this locator's matches */

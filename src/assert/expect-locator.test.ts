@@ -9,13 +9,14 @@ import {
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 import { expect, takePendingAssertions } from "./expect.js";
 import { AssertionError } from "./assertion-error.js";
+import { xpathSelector } from "../locator/selector.js";
 
 function locatorWith(xpath: string, ...responses: StubResponse[]) {
   const { connector, expressions, nodeCounts, calls } = stubConnector(
     ...responses,
   );
   return {
-    locator: new Locator(xpath, connector, "ctx"),
+    locator: new Locator([xpathSelector(xpath)], connector, "ctx"),
     expressions,
     nodeCounts,
     calls,

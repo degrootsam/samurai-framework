@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import Locator from "./locator.js";
+import { xpathSelector } from "./selector.js";
 import {
   remote,
   stubConnector,
@@ -9,7 +10,10 @@ import {
 
 function locatorWith(xpath: string, ...responses: StubResponse[]) {
   const stub = stubConnector(...responses);
-  return { locator: new Locator(xpath, stub.connector, "ctx"), ...stub };
+  return {
+    locator: new Locator([xpathSelector(xpath)], stub.connector, "ctx"),
+    ...stub,
+  };
 }
 
 /** Fails if the evaluated script is not valid JavaScript (compiles only, never runs) */
@@ -106,7 +110,11 @@ test("all() returns an empty array when nothing matches", async () => {
 test("actions on an all() item target that item", async () => {
   const stub = stubConnector(ready);
   stub.nodeCounts(2, 1);
-  const items = await new Locator("li", stub.connector, "ctx").all();
+  const items = await new Locator(
+    [xpathSelector("li")],
+    stub.connector,
+    "ctx",
+  ).all();
   await items[1]!.click({ timeout: 3000 });
   assert.deepEqual(locates(stub.sent)[1], {
     type: "xpath",

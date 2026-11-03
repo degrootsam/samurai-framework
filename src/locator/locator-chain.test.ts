@@ -45,16 +45,16 @@ function chainWith(
 }
 
 describe("chained locators", () => {
-  it("search inside the previous step's matches, with scoped xpaths", async () => {
+  it("search inside the previous step's matches, with scoped xpaths and css", async () => {
     const { locator, sent, nodeCounts } = chainWith("//form");
     nodeCounts(1, 2);
-    const child = locator.locator("input").getByCss("span.x");
-    assert.equal(child.selector, "//form >> .//input >> css=span.x");
+    const child = locator.locator("./input").getByCss("span.x");
+    assert.equal(child.selector, "//form >> ./input >> css=span.x");
     assert.equal(await child.count(), 2);
     const [first, second, third] = locateCommands(sent);
     assert.deepEqual(first!.locator, { type: "xpath", value: "//form" });
     assert.equal(first!.startNodes, undefined);
-    assert.deepEqual(second!.locator, { type: "xpath", value: ".//input" });
+    assert.deepEqual(second!.locator, { type: "xpath", value: "./input" });
     assert.deepEqual(second!.startNodes, [{ sharedId: "stub-node-0" }]);
     assert.deepEqual(third!.locator, { type: "css", value: "span.x" });
     assert.deepEqual(third!.startNodes, [
@@ -135,8 +135,12 @@ describe("selector kinds", () => {
       'role=button[name="Go"]',
     );
     assert.equal(
-      page.locator("h1").getByRole("link").selector,
+      page.locator("//h1").getByRole("link").selector,
       "//h1 >> role=link",
+    );
+    assert.equal(
+      page.locator("h1").getByRole("link").selector,
+      "css=h1 >> role=link",
     );
   });
 
@@ -199,7 +203,7 @@ describe("all() on non-xpath locators", () => {
     const items = await locator.locator("li").all();
     assert.deepEqual(
       items.map((item) => item.selector),
-      ["//ul >> .//li >> nth=0", "//ul >> .//li >> nth=1"],
+      ["//ul >> css=li >> nth=0", "//ul >> css=li >> nth=1"],
     );
   });
 });
