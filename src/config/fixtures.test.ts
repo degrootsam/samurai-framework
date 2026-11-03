@@ -5,10 +5,17 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { inspect } from "node:util";
 import { createEnvFixture, UnknownVariableError } from "./variables.js";
-import { createSecretsFixture, loadSecrets, MissingSecretError } from "./secrets.js";
+import {
+  createSecretsFixture,
+  loadSecrets,
+  MissingSecretError,
+} from "./secrets.js";
 
 describe("env fixture", () => {
-  const env = createEnvFixture("staging", { customerEmail: "sam@example.test", newCheckout: true });
+  const env = createEnvFixture("staging", {
+    customerEmail: "sam@example.test",
+    newCheckout: true,
+  });
 
   test("reads variables", () => {
     assert.equal(env.customerEmail, "sam@example.test");
@@ -21,7 +28,8 @@ describe("env fixture", () => {
       () => env.customerEmial,
       (err) =>
         err instanceof UnknownVariableError &&
-        err.message === 'Variable "customerEmial" is not defined in environment "staging"',
+        err.message ===
+          'Variable "customerEmial" is not defined in environment "staging"',
     );
   });
 
@@ -32,7 +40,10 @@ describe("env fixture", () => {
   });
 
   test("behaves like a plain object for JSON, inspect and await", async () => {
-    assert.equal(JSON.stringify(env), '{"customerEmail":"sam@example.test","newCheckout":true}');
+    assert.equal(
+      JSON.stringify(env),
+      '{"customerEmail":"sam@example.test","newCheckout":true}',
+    );
     assert.match(inspect(env), /customerEmail/);
     assert.equal(await env, env);
     assert.equal("customerEmail" in env, true);
@@ -55,7 +66,10 @@ describe("loadSecrets", () => {
   );
 
   test("parses comments and quotes in .env files", () => {
-    const secrets = loadSecrets("staging", { cwd: dir, env: {} as unknown as NodeJS.ProcessEnv });
+    const secrets = loadSecrets("staging", {
+      cwd: dir,
+      env: {} as unknown as NodeJS.ProcessEnv,
+    });
     assert.deepEqual(Object.fromEntries(secrets), {
       TEST_CARD: "4242424242424242",
       CUSTOMER_PW: "pa ss # word",
@@ -66,7 +80,11 @@ describe("loadSecrets", () => {
   test("env vars beat the file and non-prefixed keys are ignored", () => {
     const secrets = loadSecrets("staging", {
       cwd: dir,
-      env: { SAMURAI_SECRET_FROM_FILE: "env", SAMURAI_SECRET_ONLY_ENV: "x", PATH: "/bin" } as unknown as NodeJS.ProcessEnv,
+      env: {
+        SAMURAI_SECRET_FROM_FILE: "env",
+        SAMURAI_SECRET_ONLY_ENV: "x",
+        PATH: "/bin",
+      } as unknown as NodeJS.ProcessEnv,
     });
     assert.equal(secrets.get("FROM_FILE"), "env");
     assert.equal(secrets.get("ONLY_ENV"), "x");
@@ -76,12 +94,21 @@ describe("loadSecrets", () => {
   test("an empty value counts as unset and does not override a file value", () => {
     const empty = mkdtempSync(path.join(tmpdir(), "samurai-secrets-empty-"));
     try {
-      writeFileSync(path.join(empty, ".env.staging"), "SAMURAI_SECRET_A=\nSAMURAI_SECRET_B=fromfile\nSAMURAI_SECRET_C=\n");
+      writeFileSync(
+        path.join(empty, ".env.staging"),
+        "SAMURAI_SECRET_A=\nSAMURAI_SECRET_B=fromfile\nSAMURAI_SECRET_C=\n",
+      );
       const secrets = loadSecrets("staging", {
         cwd: empty,
-        env: { SAMURAI_SECRET_B: "", SAMURAI_SECRET_C: "fromenv" } as unknown as NodeJS.ProcessEnv,
+        env: {
+          SAMURAI_SECRET_B: "",
+          SAMURAI_SECRET_C: "fromenv",
+        } as unknown as NodeJS.ProcessEnv,
       });
-      assert.deepEqual(Object.fromEntries(secrets), { B: "fromfile", C: "fromenv" });
+      assert.deepEqual(Object.fromEntries(secrets), {
+        B: "fromfile",
+        C: "fromenv",
+      });
       assert.equal(secrets.has("A"), false);
     } finally {
       rmSync(empty, { recursive: true, force: true });
@@ -89,16 +116,33 @@ describe("loadSecrets", () => {
   });
 
   test("a missing file is fine", () => {
-    assert.deepEqual(Object.fromEntries(loadSecrets("dev", { cwd: dir, env: { SAMURAI_SECRET_A: "1" } as unknown as NodeJS.ProcessEnv })), { A: "1" });
+    assert.deepEqual(
+      Object.fromEntries(
+        loadSecrets("dev", {
+          cwd: dir,
+          env: { SAMURAI_SECRET_A: "1" } as unknown as NodeJS.ProcessEnv,
+        }),
+      ),
+      { A: "1" },
+    );
   });
 
   test("names that are not UPPER_SNAKE_CASE are skipped", () => {
-    assert.equal(loadSecrets("dev", { cwd: dir, env: { SAMURAI_SECRET_lower: "x" } as unknown as NodeJS.ProcessEnv }).size, 0);
+    assert.equal(
+      loadSecrets("dev", {
+        cwd: dir,
+        env: { SAMURAI_SECRET_lower: "x" } as unknown as NodeJS.ProcessEnv,
+      }).size,
+      0,
+    );
   });
 });
 
 describe("secrets fixture", () => {
-  const secrets = createSecretsFixture("staging", new Map([["TEST_CARD", "4242424242424242"]]));
+  const secrets = createSecretsFixture(
+    "staging",
+    new Map([["TEST_CARD", "4242424242424242"]]),
+  );
 
   test("reads a secret", () => {
     assert.equal(secrets.TEST_CARD, "4242424242424242");
@@ -109,17 +153,23 @@ describe("secrets fixture", () => {
       () => secrets.CUSTOMER_PW,
       (err) =>
         err instanceof MissingSecretError &&
-        err.message === 'Secret "CUSTOMER_PW" is not set (expected env var SAMURAI_SECRET_CUSTOMER_PW or .env.staging)',
+        err.message ===
+          'Secret "CUSTOMER_PW" is not set (expected env var SAMURAI_SECRET_CUSTOMER_PW or .env.staging)',
     );
   });
 
   test("an invalid name throws", () => {
-    assert.throws(() => secrets.testCard, { message: 'Invalid secret name "testCard" (use UPPER_SNAKE_CASE)' });
+    assert.throws(() => secrets.testCard, {
+      message: 'Invalid secret name "testCard" (use UPPER_SNAKE_CASE)',
+    });
   });
 
   test("JSON and inspect never show values", () => {
     assert.equal(JSON.stringify(secrets), '{"TEST_CARD":"••••"}');
-    assert.equal(JSON.stringify({ secrets }), '{"secrets":{"TEST_CARD":"••••"}}');
+    assert.equal(
+      JSON.stringify({ secrets }),
+      '{"secrets":{"TEST_CARD":"••••"}}',
+    );
     assert.doesNotMatch(inspect(secrets), /4242/);
     assert.match(inspect(secrets), /TEST_CARD/);
   });

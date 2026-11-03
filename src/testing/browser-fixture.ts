@@ -6,7 +6,10 @@ import type { BiDiConnector } from "../transport/bidi-connection.js";
  * wrapped in its own function scope) in the page. Reaches into Page's private fields.
  */
 export async function setContent(page: Page, html: string, setup = "") {
-  const internals = page as unknown as { biDiConnector: BiDiConnector; contextId: string };
+  const internals = page as unknown as {
+    biDiConnector: BiDiConnector;
+    contextId: string;
+  };
   const result = await internals.biDiConnector.send("script.evaluate", {
     expression: `document.body.innerHTML = ${JSON.stringify(html)}; (() => { ${setup} })();`,
     awaitPromise: false,

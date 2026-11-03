@@ -28,7 +28,9 @@ export function prepareRun(
   for (const [name, value] of secrets) {
     registerSecret(name, value);
     if (isShortSecret(value)) {
-      logger.warn(`Secret "${name}" is short; masking it may hide unrelated text in logs`);
+      logger.warn(
+        `Secret "${name}" is short; masking it may hide unrelated text in logs`,
+      );
     }
   }
   setRunSettings(settings);

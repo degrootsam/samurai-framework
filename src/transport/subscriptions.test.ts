@@ -4,7 +4,8 @@ import { tick } from "../testing/fake-websocket.js";
 import { SubscriptionManager, type SessionCommands } from "./subscriptions.js";
 
 function setup(options: { failSubscribe?: boolean; delay?: number } = {}) {
-  const calls: Array<{ command: "subscribe" | "unsubscribe"; params: any }> = [];
+  const calls: Array<{ command: "subscribe" | "unsubscribe"; params: any }> =
+    [];
   let next = 0;
   const commands: SessionCommands = {
     async subscribe(params) {
@@ -32,12 +33,18 @@ describe("SubscriptionManager", () => {
     assert.equal(calls.filter((c) => c.command === "subscribe").length, 1);
     await a.unsubscribe();
     await b.unsubscribe();
-    assert.deepEqual(calls[calls.length - 1], { command: "unsubscribe", params: { subscriptions: ["s1"] } });
+    assert.deepEqual(calls[calls.length - 1], {
+      command: "unsubscribe",
+      params: { subscriptions: ["s1"] },
+    });
   });
 
   it("subscribes each event separately and releases them together", async () => {
     const { calls, manager } = setup();
-    const sub = await manager.subscribe(["network.beforeRequestSent", "network.fetchError"]);
+    const sub = await manager.subscribe([
+      "network.beforeRequestSent",
+      "network.fetchError",
+    ]);
     assert.deepEqual(
       calls.map((c) => c.params.events),
       [["network.beforeRequestSent"], ["network.fetchError"]],
@@ -48,12 +55,17 @@ describe("SubscriptionManager", () => {
 
   it("keeps an event subscribed while another subscriber still needs it", async () => {
     const { calls, manager } = setup();
-    const a = await manager.subscribe(["network.fetchError", "network.responseCompleted"]);
+    const a = await manager.subscribe([
+      "network.fetchError",
+      "network.responseCompleted",
+    ]);
     const b = await manager.subscribe(["network.fetchError"]);
     await a.unsubscribe();
     // only responseCompleted was released
     assert.deepEqual(
-      calls.filter((c) => c.command === "unsubscribe").map((c) => c.params.subscriptions),
+      calls
+        .filter((c) => c.command === "unsubscribe")
+        .map((c) => c.params.subscriptions),
       [["s2"]],
     );
     await b.unsubscribe();
@@ -67,9 +79,15 @@ describe("SubscriptionManager", () => {
     const again = manager.subscribe(["log.entryAdded"]); // arrives before the queued unsubscribe runs
     const second = await again;
     await leaving;
-    assert.deepEqual(calls.map((c) => c.command), ["subscribe"]);
+    assert.deepEqual(
+      calls.map((c) => c.command),
+      ["subscribe"],
+    );
     await second.unsubscribe();
-    assert.deepEqual(calls.map((c) => c.command), ["subscribe", "unsubscribe"]);
+    assert.deepEqual(
+      calls.map((c) => c.command),
+      ["subscribe", "unsubscribe"],
+    );
   });
 
   it("resubscribes when a subscriber arrives after the last one fully left", async () => {
@@ -77,7 +95,10 @@ describe("SubscriptionManager", () => {
     const first = await manager.subscribe(["log.entryAdded"]);
     await first.unsubscribe();
     const again = await manager.subscribe(["log.entryAdded"]);
-    assert.deepEqual(calls.map((c) => c.command), ["subscribe", "unsubscribe", "subscribe"]);
+    assert.deepEqual(
+      calls.map((c) => c.command),
+      ["subscribe", "unsubscribe", "subscribe"],
+    );
     await again.unsubscribe();
   });
 
@@ -97,11 +118,16 @@ describe("SubscriptionManager", () => {
     const a = await manager.subscribe(["log.entryAdded"], { contexts: ["c1"] });
     const b = await manager.subscribe(["log.entryAdded"], { contexts: ["c1"] });
     assert.equal(calls.filter((c) => c.command === "subscribe").length, 2);
-    assert.deepEqual(calls[0]!.params, { events: ["log.entryAdded"], contexts: ["c1"] });
+    assert.deepEqual(calls[0]!.params, {
+      events: ["log.entryAdded"],
+      contexts: ["c1"],
+    });
     await a.unsubscribe();
     await a.unsubscribe();
     assert.deepEqual(
-      calls.filter((c) => c.command === "unsubscribe").map((c) => c.params.subscriptions),
+      calls
+        .filter((c) => c.command === "unsubscribe")
+        .map((c) => c.params.subscriptions),
       [["s1"]],
     );
     await b.unsubscribe();
@@ -109,8 +135,14 @@ describe("SubscriptionManager", () => {
 
   it("a failed subscribe rolls back and lets a later subscribe try again", async () => {
     const { calls, manager } = setup({ failSubscribe: true });
-    await assert.rejects(manager.subscribe(["log.entryAdded"]), /subscribe failed/);
-    await assert.rejects(manager.subscribe(["log.entryAdded"]), /subscribe failed/);
+    await assert.rejects(
+      manager.subscribe(["log.entryAdded"]),
+      /subscribe failed/,
+    );
+    await assert.rejects(
+      manager.subscribe(["log.entryAdded"]),
+      /subscribe failed/,
+    );
     assert.equal(calls.filter((c) => c.command === "subscribe").length, 2);
     assert.equal(calls.filter((c) => c.command === "unsubscribe").length, 0);
   });
@@ -133,8 +165,9 @@ describe("SubscriptionManager", () => {
       flaky.subscribe(["network.fetchError", "network.responseCompleted"]),
       /second failed/,
     );
-    assert.deepEqual(calls.filter((c) => c.command === "unsubscribe").map((c) => c.params), [
-      { subscriptions: ["ok"] },
-    ]);
+    assert.deepEqual(
+      calls.filter((c) => c.command === "unsubscribe").map((c) => c.params),
+      [{ subscriptions: ["ok"] }],
+    );
   });
 });

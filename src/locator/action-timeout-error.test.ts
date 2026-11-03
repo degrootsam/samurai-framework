@@ -2,11 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ActionTimeoutError } from "./action-timeout-error.js";
 
-const base = { action: "click", selector: '//button[@type="submit"]', timeout: 5000 } as const;
+const base = {
+  action: "click",
+  selector: '//button[@type="submit"]',
+  timeout: 5000,
+} as const;
 
 test("unreadable: no probe completed", () => {
   const err = new ActionTimeoutError({ ...base, reason: "unreadable" });
-  assert.equal(err.message, 'click(): could not read //button[@type="submit"] within 5000ms');
+  assert.equal(
+    err.message,
+    'click(): could not read //button[@type="submit"] within 5000ms',
+  );
 });
 
 test("not attached", () => {
@@ -15,7 +22,10 @@ test("not attached", () => {
     reason: "not-attached",
     checks: { attached: "fail", visible: "pending" },
   });
-  assert.equal(err.message, 'click(): //button[@type="submit"] was not attached within 5000ms');
+  assert.equal(
+    err.message,
+    'click(): //button[@type="submit"] was not attached within 5000ms',
+  );
 });
 
 test("wrong state for waitFor", () => {
@@ -26,7 +36,10 @@ test("wrong state for waitFor", () => {
     reason: "wrong-state",
     state: "hidden",
   });
-  assert.equal(err.message, 'waitFor(): //div[@class="spinner"] did not become hidden within 300ms');
+  assert.equal(
+    err.message,
+    'waitFor(): //div[@class="spinner"] did not become hidden within 300ms',
+  );
 });
 
 test("not actionable lists every check in order", () => {
@@ -70,7 +83,11 @@ test("a failed hit target names the covering element", () => {
 
 test("exposes its details", () => {
   const checks = { attached: "fail" } as const;
-  const err = new ActionTimeoutError({ ...base, reason: "not-attached", checks });
+  const err = new ActionTimeoutError({
+    ...base,
+    reason: "not-attached",
+    checks,
+  });
   assert.ok(err instanceof Error);
   assert.equal(err.name, "ActionTimeoutError");
   assert.equal(err.action, "click");

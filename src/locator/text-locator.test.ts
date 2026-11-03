@@ -18,7 +18,9 @@ class FakeElement {
     return this;
   }
   get innerText(): string {
-    return [this.ownText, ...this.children.map((kid) => kid.innerText)].filter(Boolean).join(" ");
+    return [this.ownText, ...this.children.map((kid) => kid.innerText)]
+      .filter(Boolean)
+      .join(" ");
   }
   get textContent(): string {
     return this.innerText;
@@ -38,11 +40,16 @@ let documentRoot: FakeElement;
 const root = () => documentRoot;
 const all = (from: FakeElement): FakeElement[] => [from, ...from.descendants()];
 
-function run(start: FakeElement[] | null, value: string, match: string, ignoreCase: boolean) {
-  const fn = new Function(
-    "document",
-    `return (${TEXT_LOCATE})`,
-  )({ documentElement: documentRoot, querySelectorAll: () => documentRoot.descendants() }) as (
+function run(
+  start: FakeElement[] | null,
+  value: string,
+  match: string,
+  ignoreCase: boolean,
+) {
+  const fn = new Function("document", `return (${TEXT_LOCATE})`)({
+    documentElement: documentRoot,
+    querySelectorAll: () => documentRoot.descendants(),
+  }) as (
     starts: unknown[],
     value: string,
     match: string,
@@ -59,7 +66,9 @@ describe("TEXT_LOCATE", () => {
   it("finds the innermost element with the full text", () => {
     const span = new FakeElement("SPAN", "Go");
     const div = new FakeElement("DIV").add(span);
-    documentRoot = new FakeElement("HTML").add(new FakeElement("BODY").add(div));
+    documentRoot = new FakeElement("HTML").add(
+      new FakeElement("BODY").add(div),
+    );
     assert.deepEqual(run(null, "Go", "full", false), [span]);
   });
 
@@ -112,7 +121,10 @@ describe("TEXT_LOCATE", () => {
   it("skips non-rendered elements", () => {
     const script = new FakeElement("SCRIPT", "Go");
     const p = new FakeElement("P", "Go");
-    documentRoot = new FakeElement("HTML").add(new FakeElement("HEAD").add(script), p);
+    documentRoot = new FakeElement("HTML").add(
+      new FakeElement("HEAD").add(script),
+      p,
+    );
     assert.deepEqual(run(null, "Go", "full", false), [p]);
   });
 });

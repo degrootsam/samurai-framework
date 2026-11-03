@@ -27,7 +27,9 @@ function globToRegExp(glob: string): RegExp {
 /** Whether `url` matches `pattern` */
 export function matchUrl(pattern: UrlPattern, url: string): boolean {
   if (typeof pattern === "string") {
-    return isExactString(pattern) ? pattern === url : globToRegExp(pattern).test(url);
+    return isExactString(pattern)
+      ? pattern === url
+      : globToRegExp(pattern).test(url);
   }
   // A global or sticky RegExp remembers where it stopped; every match must start fresh
   pattern.lastIndex = 0;

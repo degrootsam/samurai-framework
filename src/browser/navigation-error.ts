@@ -7,7 +7,12 @@ export class NavigationError extends Error {
   /** The BiDi error code, or "timeout" */
   public readonly code: string | undefined;
 
-  constructor(url: string, reason: string, code?: string, operation = "navigateTo") {
+  constructor(
+    url: string,
+    reason: string,
+    code?: string,
+    operation = "navigateTo",
+  ) {
     super(`${operation}(): ${url} failed: ${reason}`);
     this.name = "NavigationError";
     this.url = url;

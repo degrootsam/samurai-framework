@@ -52,7 +52,10 @@ export class Dialog {
 
   /** Clicks OK; `promptText` is typed into a `prompt` first */
   public accept(promptText?: string): Promise<void> {
-    return this.answer({ accept: true, ...(promptText !== undefined && { userText: promptText }) });
+    return this.answer({
+      accept: true,
+      ...(promptText !== undefined && { userText: promptText }),
+    });
   }
 
   /** Clicks Cancel */
@@ -66,7 +69,10 @@ export class Dialog {
     this.resolveClosed(result);
   }
 
-  private async answer(params: { accept: boolean; userText?: string }): Promise<void> {
+  private async answer(params: {
+    accept: boolean;
+    userText?: string;
+  }): Promise<void> {
     if (this.answered) throw new Error("dialog already handled");
     this.answered = true;
     try {

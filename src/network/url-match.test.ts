@@ -19,21 +19,46 @@ describe("matchUrl", () => {
   });
 
   it("* matches anything but a slash", () => {
-    assert.equal(matchUrl("https://example.test/api/*", "https://example.test/api/users"), true);
-    assert.equal(matchUrl("https://example.test/api/*", "https://example.test/api/users/1"), false);
-    assert.equal(matchUrl("https://*.test/api/users", "https://example.test/api/users"), true);
-    assert.equal(matchUrl("https://example.test/api/*?page=2", url.replace("users", "x")), true);
+    assert.equal(
+      matchUrl("https://example.test/api/*", "https://example.test/api/users"),
+      true,
+    );
+    assert.equal(
+      matchUrl(
+        "https://example.test/api/*",
+        "https://example.test/api/users/1",
+      ),
+      false,
+    );
+    assert.equal(
+      matchUrl("https://*.test/api/users", "https://example.test/api/users"),
+      true,
+    );
+    assert.equal(
+      matchUrl("https://example.test/api/*?page=2", url.replace("users", "x")),
+      true,
+    );
   });
 
   it("the rest of a glob is literal, regex characters included", () => {
-    assert.equal(matchUrl("https://example.test/a.b/*", "https://example.test/a.b/c"), true);
-    assert.equal(matchUrl("https://example.test/a.b/*", "https://example.test/aXb/c"), false);
+    assert.equal(
+      matchUrl("https://example.test/a.b/*", "https://example.test/a.b/c"),
+      true,
+    );
+    assert.equal(
+      matchUrl("https://example.test/a.b/*", "https://example.test/aXb/c"),
+      false,
+    );
     assert.equal(matchUrl("**/(x)+[y]?*", "https://e.test/(x)+[y]?z"), true);
   });
 
   it("a glob matches the whole URL, not a part", () => {
     assert.equal(matchUrl("*/users", url), false);
-    assert.equal(matchUrl("**/users", url), false, "the query string is part of the URL");
+    assert.equal(
+      matchUrl("**/users", url),
+      false,
+      "the query string is part of the URL",
+    );
   });
 
   it("a RegExp is tested against the URL", () => {

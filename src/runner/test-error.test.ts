@@ -19,7 +19,9 @@ test("AssertionError becomes an assertion error with expected/actual", () => {
 });
 
 test("a BigInt AssertionError can be written to the report", () => {
-  const result = toTestError(new AssertionError({ matcher: "toBe", expected: 4n, actual: 3n }));
+  const result = toTestError(
+    new AssertionError({ matcher: "toBe", expected: 4n, actual: 3n }),
+  );
   assert.doesNotThrow(() => JSON.stringify(result));
   assert.equal(result.expected, "4n");
   assert.equal(result.actual, "3n");
@@ -27,7 +29,11 @@ test("a BigInt AssertionError can be written to the report", () => {
 
 test("other errors stay type error", () => {
   const err = new Error("boom");
-  assert.deepEqual(toTestError(err), { message: "boom", stack: err.stack, type: "error" });
+  assert.deepEqual(toTestError(err), {
+    message: "boom",
+    stack: err.stack,
+    type: "error",
+  });
 });
 
 test("thrown strings stay type error", () => {

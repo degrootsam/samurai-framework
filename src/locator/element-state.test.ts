@@ -17,15 +17,28 @@ const READY: ElementState = {
   box: { x: 10, y: 20, width: 100, height: 40 },
   hitTarget: "self",
 };
-const ALL: CheckName[] = ["attached", "visible", "stable", "enabled", "editable", "hit target"];
+const ALL: CheckName[] = [
+  "attached",
+  "visible",
+  "stable",
+  "enabled",
+  "editable",
+  "hit target",
+];
 
 test("the probe is a function declaration that compiles", () => {
-  assert.doesNotThrow(() => new Function(`return (${PROBE_ELEMENT})`), PROBE_ELEMENT);
+  assert.doesNotThrow(
+    () => new Function(`return (${PROBE_ELEMENT})`),
+    PROBE_ELEMENT,
+  );
 });
 
 test("the probe takes the located element and the options", () => {
   assert.match(PROBE_ELEMENT, /^\(el, options\) =>/);
-  assert.ok(!PROBE_ELEMENT.includes("document.evaluate"), "the element is found by the browser's locate command");
+  assert.ok(
+    !PROBE_ELEMENT.includes("document.evaluate"),
+    "the element is found by the browser's locate command",
+  );
 });
 
 test("scrolling and hit testing are switched by the options argument", () => {
@@ -49,7 +62,10 @@ test("parseElementState rejects a non-object result", () => {
 });
 
 test("parseElementState rejects malformed state", () => {
-  assert.throws(() => parseElementState({ attached: true }), /Malformed element state/);
+  assert.throws(
+    () => parseElementState({ attached: true }),
+    /Malformed element state/,
+  );
   assert.throws(
     () => parseElementState({ ...READY, visible: "yes" }),
     /Malformed element state/,
@@ -95,33 +111,47 @@ test("stable needs a previous probe with the same box", () => {
 
 test("hit target passes only when the element itself is hit", () => {
   const hit = (hitTarget: string | null) =>
-    evaluateChecks(["hit target"], { ...READY, hitTarget }, READY)["hit target"];
+    evaluateChecks(["hit target"], { ...READY, hitTarget }, READY)[
+      "hit target"
+    ];
   assert.equal(hit("self"), "pass");
   assert.equal(hit("div#overlay"), "fail");
   assert.equal(hit(null), "fail");
 });
 
 test("only the required checks are evaluated, in the given order", () => {
-  assert.deepEqual(Object.keys(evaluateChecks(["attached", "enabled"], READY, undefined)), [
-    "attached",
-    "enabled",
-  ]);
+  assert.deepEqual(
+    Object.keys(evaluateChecks(["attached", "enabled"], READY, undefined)),
+    ["attached", "enabled"],
+  );
 });
 
 /** Runs the probe against fake DOM objects, the way the page would call it */
-function runProbe(element: object | null, options = { scroll: true, hitTest: true }) {
+function runProbe(
+  element: object | null,
+  options = { scroll: true, hitTest: true },
+) {
   const fakeDocument = {
     elementFromPoint: () => element,
   };
   const fakeWindow = { innerWidth: 1000, innerHeight: 800 };
-  const fakeComputedStyle = () => ({ display: "block", visibility: "visible", opacity: "1" });
+  const fakeComputedStyle = () => ({
+    display: "block",
+    visibility: "visible",
+    opacity: "1",
+  });
   const probe = new Function(
     "document",
     "XPathResult",
     "getComputedStyle",
     "window",
     `return (${PROBE_ELEMENT})`,
-  )(fakeDocument, { FIRST_ORDERED_NODE_TYPE: 9 }, fakeComputedStyle, fakeWindow) as (
+  )(
+    fakeDocument,
+    { FIRST_ORDERED_NODE_TYPE: 9 },
+    fakeComputedStyle,
+    fakeWindow,
+  ) as (
     el: object | null,
     options: { scroll: boolean; hitTest: boolean },
   ) => unknown;
@@ -137,7 +167,14 @@ test("editable is a boolean even for non-HTML elements without isContentEditable
     matches: () => false,
     getAttribute: () => null,
     contains: () => false,
-    getBoundingClientRect: () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }),
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      right: 10,
+      bottom: 10,
+      width: 10,
+      height: 10,
+    }),
   };
   const state = runProbe(svg);
   assert.equal(state.attached, true);
@@ -174,8 +211,18 @@ test("the probe skips the hit test unless asked", () => {
     matches: () => false,
     getAttribute: () => null,
     contains: () => false,
-    getBoundingClientRect: () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }),
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      right: 10,
+      bottom: 10,
+      width: 10,
+      height: 10,
+    }),
   };
   assert.equal(runProbe(el, { scroll: false, hitTest: false }).hitTarget, null);
-  assert.equal(runProbe(el, { scroll: false, hitTest: true }).hitTarget, "self");
+  assert.equal(
+    runProbe(el, { scroll: false, hitTest: true }).hitTarget,
+    "self",
+  );
 });

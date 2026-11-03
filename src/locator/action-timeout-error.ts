@@ -1,6 +1,12 @@
-import type { CheckName, CheckResult, CheckResults, WaitForState } from "./element-state.js";
+import type {
+  CheckName,
+  CheckResult,
+  CheckResults,
+  WaitForState,
+} from "./element-state.js";
 
-export type ActionTimeoutReason = "unreadable" | "not-attached" | "not-actionable" | "wrong-state";
+export type ActionTimeoutReason =
+  "unreadable" | "not-attached" | "not-actionable" | "wrong-state";
 
 export interface ActionTimeoutDetails {
   /** Locator method that timed out, e.g. "click" */
@@ -16,7 +22,11 @@ export interface ActionTimeoutDetails {
   state?: WaitForState | undefined;
 }
 
-const SYMBOLS: Record<CheckResult, string> = { pass: "✓", fail: "✗", pending: "—" };
+const SYMBOLS: Record<CheckResult, string> = {
+  pass: "✓",
+  fail: "✗",
+  pending: "—",
+};
 
 function formatMessage({
   action,
@@ -35,7 +45,9 @@ function formatMessage({
     case "wrong-state":
       return `${action}(): ${selector} did not become ${state} within ${timeout}ms`;
     case "not-actionable": {
-      const summary = (Object.entries(checks ?? {}) as Array<[CheckName, CheckResult]>)
+      const summary = (
+        Object.entries(checks ?? {}) as Array<[CheckName, CheckResult]>
+      )
         .map(([name, result]) => {
           const covered =
             name === "hit target" && result === "fail" && coveredBy

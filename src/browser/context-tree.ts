@@ -1,6 +1,9 @@
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { Subscription } from "../transport/subscriptions.js";
-import type { BrowsingContext, Info } from "../types/bidi-modules/browsing-context.js";
+import type {
+  BrowsingContext,
+  Info,
+} from "../types/bidi-modules/browsing-context.js";
 
 /**
  * Tracks which browsing contexts (iframes) belong to which top-level context, so events that
@@ -49,7 +52,11 @@ export class ContextTree {
   /** The top-level context that contains `context`; an unknown context is its own root */
   public rootOf(context: BrowsingContext): BrowsingContext {
     let current = context;
-    for (let parent = this.parentOf(current); parent !== null; parent = this.parentOf(current)) {
+    for (
+      let parent = this.parentOf(current);
+      parent !== null;
+      parent = this.parentOf(current)
+    ) {
       current = parent;
     }
     return current;
