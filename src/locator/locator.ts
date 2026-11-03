@@ -13,6 +13,7 @@ import {
   type ActionabilityContext,
   type ActionOptions,
 } from "./actionability.js";
+import { setChecked, type CheckOptions } from "./check-actions.js";
 import { ChainResolver } from "./chain-resolver.js";
 import {
   callInPage,
@@ -435,6 +436,30 @@ export default class Locator {
   /** Waits until the element is attached, visible, stable, enabled and not covered, then clicks its centre with real pointer input */
   public async click(options?: ActionOptions): Promise<void> {
     await clickElement(this.access, options);
+  }
+
+  /**
+   * Checks a checkbox, radio or `role=checkbox|radio|switch` element; does nothing when it is already checked.
+   * Waits like `click`, but a hidden input counts as reachable through its `<label>`, which is what gets clicked.
+   * `trial` waits without clicking. Throws when the click did not change the state.
+   * @example
+   *  await page.getByLabel("I accept the terms").check();
+   */
+  public async check(options?: CheckOptions): Promise<void> {
+    await setChecked(this.access, "check", true, options);
+  }
+
+  /** Unchecks a checkbox or `role=checkbox|switch` element; does nothing when it is already unchecked. A radio button cannot be unchecked: throws */
+  public async uncheck(options?: CheckOptions): Promise<void> {
+    await setChecked(this.access, "uncheck", false, options);
+  }
+
+  /** `check()` or `uncheck()`, whichever brings the element to `checked` */
+  public async setChecked(
+    checked: boolean,
+    options?: CheckOptions,
+  ): Promise<void> {
+    await setChecked(this.access, "setChecked", checked, options);
   }
 
   /**

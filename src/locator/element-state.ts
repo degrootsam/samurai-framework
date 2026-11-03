@@ -1,3 +1,5 @@
+import { CONTROL_PROBE_BRANCH } from "./control-probe.js";
+
 interface ElementBox {
   x: number;
   y: number;
@@ -24,6 +26,11 @@ export interface ProbeOptions {
   scroll: boolean;
   /** Check which element receives a click at the element's centre */
   hitTest: boolean;
+  /**
+   * Probe a checkbox, radio or switch the way a user reaches it: opacity 0 does not hide it, and a click on
+   * one of its labels counts as hitting it (`control-probe.ts`). Only the check actions set this
+   */
+  control?: boolean;
 }
 
 export type WaitForState = "attached" | "detached" | "visible" | "hidden";
@@ -63,6 +70,7 @@ export const PROBE_ELEMENT = `(el, options) => {
   if (!el || !el.isConnected) {
     return ${JSON.stringify(DETACHED_STATE)};
   }
+  ${CONTROL_PROBE_BRANCH}
   if (options.scroll) {
     const before = el.getBoundingClientRect();
     const inViewport = before.top >= 0 && before.left >= 0 &&
