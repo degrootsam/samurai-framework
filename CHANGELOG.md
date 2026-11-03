@@ -1,3 +1,17 @@
+## 0.21.4 (2026-11-03)
+
+### 🚀 Features
+
+- **framework:** add expect.poll and toPass
+- **framework:** add value matchers and asymmetric matchers
+- **framework:** add more locator matchers and array text assertions
+- **framework:** add page.content, setContent, waitForURL, setViewportSize and viewportSize
+- **framework:** add evaluate, evaluateAll and more locator reads
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.21.3 (2026-11-03)
 
 ### 🚀 Features
