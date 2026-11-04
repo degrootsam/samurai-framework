@@ -82,6 +82,8 @@ const data = await page.evaluate(async () => (await fetch("/api/me")).json()); /
 
 `evaluate(fn, arg?)` takes a function, the source of a function (`"(a) => a.x"`, `"async () => 1"`, `"function () {...}"`) or any other string, which is an expression (it takes no argument). A function is called with `arg` as its only argument. The page's own error comes through as a `ScriptError` whose message holds the page's (`Script threw: Error: boom`). For code on an element see [Running code on the element](Locators#running-code-on-the-element).
 
+The result types are exported from `@itmetsam/samurai-framework/browser`, so you can use `instanceof` and type the results: `ScriptError`, `ScriptSerializationError`, `ElementHandle` (what a DOM node comes back as; it has a `sharedId`), `RemoteObject` (a value that cannot be copied, such as a function, kept by its `type`), `UrlTimeoutError` (thrown by `waitForURL`), and the types `PageFunction` and `BoundingBox` (what `boundingBox()` returns).
+
 A string counts as a function when it starts with `function`, `async function`, or an arrow function head (`x =>`, `(a, b) =>`, `async () =>`). Anything else, such as `"(() => 1)()"`, is an expression.
 
 What comes back:
