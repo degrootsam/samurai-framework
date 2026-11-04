@@ -3,6 +3,8 @@ import path from "path";
 import { projectDir } from "../config/config.js";
 import { maskDeep } from "../config/mask.js";
 import type {
+  TestAnnotation,
+  TestAttachmentEntry,
   PartialTestResult,
   RegisteredTestCase,
   TestError,
@@ -93,6 +95,10 @@ export interface TestEndExtras extends TestRetries {
   inputs?: Record<string, string>;
   /** The test's saved outputs, when it declares any */
   outputs?: Record<string, string>;
+  /** Files the test attached with `testInfo.attach`, relative to the result folder */
+  attachments?: TestAttachmentEntry[];
+  /** The notes the test pushed to `testInfo.annotations` */
+  annotations?: TestAnnotation[];
 }
 
 export default class TestReporter implements TestSink {
@@ -284,6 +290,8 @@ export default class TestReporter implements TestSink {
       ...(extras?.screenshots?.length && { screenshots: extras.screenshots }),
       ...(extras?.inputs && { inputs: extras.inputs }),
       ...(extras?.outputs && { outputs: extras.outputs }),
+      ...(extras?.attachments && { attachments: extras.attachments }),
+      ...(extras?.annotations && { annotations: extras.annotations }),
       ...(extras?.retry && { retry: extras.retry }),
       ...(extras?.flaky && { flaky: true }),
       ...(extras?.previousAttempts?.length && {

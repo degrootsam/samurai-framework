@@ -1,18 +1,15 @@
+import path from "node:path";
 import { takePendingAssertions } from "../assert/expect.js";
 import { Browser } from "../browser/browser.js";
 import { Evidence } from "../browser/evidence.js";
 import type Page from "../browser/page.js";
 import { projectDir, readConfig } from "../config/config.js";
-import { createSecretsFixture } from "../config/secrets.js";
-import { createEnvFixture } from "../config/variables.js";
 import logger from "../logger/index.js";
 import { ConnectionClosedError } from "../transport/bidi-connection.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type {
-  AllHookFixtures,
   RegisteredTestCase,
   TestError,
-  TestFixtures,
   TestLogEntry,
 } from "../types/test.js";
 import type { RunnerOptions } from "./options.js";
@@ -26,12 +23,9 @@ import type { TestEndExtras, TestSink } from "./reporter.js";
 import { runOutput } from "./output.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
-import {
-  createInputsFixture,
-  createOutputsFixture,
-  ioOfAttempt,
-  missingOutputs,
-} from "./test-io.js";
+import { runInTestScope, TestInfoImpl } from "./test-info.js";
+import { ioOfAttempt, missingOutputs } from "./test-io.js";
+import { buildTestFixtures } from "./fixtures.js";
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
 type Logs = { logs?: TestLogEntry[]; logsDropped?: number };
@@ -51,6 +45,8 @@ class TestOutcome {
   public evidence: Evidence | undefined;
   /** The test's inputs and outputs, as its report entry lists them when it ends */
   public io: () => TestEndExtras = () => ({});
+  /** The test's info: its attachments and annotations are listed in the report entry */
+  public info: TestInfoImpl | undefined;
 
   constructor(
     private readonly reporter: TestSink,
@@ -78,6 +74,7 @@ class TestOutcome {
     this.reporter.onTestEnd(this.test, this.browser, error, {
       ...logs,
       screenshots: this.evidence?.screenshots,
+      ...this.info?.reportExtras(),
       ...this.io(),
     });
   }
@@ -95,21 +92,6 @@ export interface WorkerResources {
   attempt?: number;
   /** The `beforeAll` / `afterAll` hooks of this worker: kept across tests, closed when the worker is done */
   allHooks?: AllHooks;
-}
-
-/** What `beforeAll` and `afterAll` hooks get: no page, only what a run knows */
-export function allHookFixtures(
-  run: PreparedRun,
-  browserName: SupportedBrowser,
-  workerIndex = 0,
-): AllHookFixtures {
-  const { settings, secrets } = run;
-  return {
-    browserName,
-    workerIndex,
-    env: createEnvFixture(settings.environment, settings.variables),
-    secrets: createSecretsFixture(settings.environment, secrets),
-  };
 }
 
 /** Runs one test in one browser and reports it: launch, run the body, judge the page's logs, close the browser */
@@ -131,7 +113,7 @@ export async function runOneTest(
   logger.verbose("Starting test: %s in %s", test.name, browserName);
   reporter.onTestStart(test, browserName);
   const outcome = new TestOutcome(reporter, test, browserName);
-  const { settings, secrets } = run;
+  const { settings } = run;
   const timeout = settings.timeout;
   const { resultDir } = runOutput(options, projectDir());
 
@@ -192,26 +174,41 @@ export async function runOneTest(
         browserGone();
       });
       page = launched.page;
-      outcome.evidence = new Evidence(
-        resultDir,
-        `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`,
-      );
+      const testFolder = `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`;
+      outcome.evidence = new Evidence(resultDir, testFolder);
       launched.page.setEvidence(outcome.evidence);
-      const fixtures: TestFixtures = {
-        page: launched.page,
-        browser: launched.browser,
+      const info = new TestInfoImpl({
+        test,
         browserName,
         workerIndex: resources.workerIndex ?? 0,
-        env: createEnvFixture(settings.environment, settings.variables),
-        secrets: createSecretsFixture(settings.environment, secrets),
-        inputs: createInputsFixture(test.inputs, options.inputs),
-        outputs: createOutputsFixture(sink),
-      };
-      await runWithEachHooks(
-        test.suite,
-        fixtures,
-        timeoutController.signal,
-        () => test.function(fixtures),
+        retry: resources.attempt ?? 0,
+        settings: { baseURL: settings.baseURL, timeout },
+        resultDir,
+        outputDir: path.join(
+          resultDir,
+          "attachments",
+          ...testFolder.split("/"),
+        ),
+      });
+      outcome.info = info;
+      const fixtures = buildTestFixtures({
+        info,
+        launched,
+        browserName,
+        workerIndex: resources.workerIndex ?? 0,
+        run,
+        test,
+        options,
+        sink,
+      });
+      await runInTestScope({ info, fixtures }, () =>
+        runWithEachHooks(
+          test.suite,
+          fixtures,
+          timeoutController.signal,
+          () => test.function(fixtures),
+          (error) => info.bodyDone(error),
+        ),
       );
       // Already reported as timed out
       if (timeoutController.signal.aborted) return;

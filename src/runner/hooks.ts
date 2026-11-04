@@ -62,6 +62,8 @@ export async function runWithEachHooks(
   fixtures: TestFixtures,
   signal: AbortSignal,
   body: () => Promise<void>,
+  /** Called once the body (or a `beforeEach` hook) is over, before the `afterEach` hooks, with what it threw */
+  onBodyDone?: (error: unknown) => void,
 ): Promise<void> {
   let primary: unknown;
   let failed = false;
@@ -73,6 +75,7 @@ export async function runWithEachHooks(
     primary = error;
     failed = true;
   }
+  onBodyDone?.(failed ? primary : undefined);
   let afterError: unknown;
   let afterFailed = false;
   if (!signal.aborted) {

@@ -15,7 +15,8 @@ This page is the overview of what is built and what is open.
 - **Flows.** `samurai flow list|check|run`: graphs of tests, groups, conditions, variables, waits and parallel branches, checked before they run, with a report per run. Wait, Set variable and HTTP request run, and you can write more steps, and a project can list its own steps in `samurai.config.ts` (see [Flows](Flows) and [Writing a step](Writing-a-step)).
 - **Packaging.** Published on npm as `@itmetsam/samurai-framework`, with subpath exports (see [Embedding](Embedding-the-framework)) and the `samurai` command (see [Command line](Command-line)).
 - **Browser management.** `samurai browsers install|list|uninstall` downloads pinned Firefox and Chrome for Testing builds into a per-user cache.
-- **Test modifiers.** `test.skip`, `test.fixme` and `test.only`, also on `describe`, and `test.skip(condition, reason)` from inside a test; skipped tests are reported with the status `skipped`, and `forbidOnly` (on by default on CI) refuses a committed `.only` (see [Writing tests](Writing-tests#skipping-focusing-and-fixing-later)).
+- **Test modifiers.** `test.skip`, `test.fixme` and `test.only`, also on `describe`, and `test.skip(condition, reason)` from inside a test (the condition may be a function of the fixtures); skipped tests are reported with the status `skipped`, and `forbidOnly` (on by default on CI) refuses a committed `.only` (see [Writing tests](Writing-tests#skipping-focusing-and-fixing-later)).
+- **Test info and aliases.** `test.describe`, `test.beforeEach`, `test.afterEach`, `test.beforeAll` and `test.afterAll` next to the named exports; `testInfo` / `test.info()` with attachments and annotations; the `context` and `baseURL` fixtures (see [Test info](Writing-tests#test-info)).
 - **Hooks.** `beforeEach` and `afterEach` around every test (in the test's browser, with its page), `beforeAll` and `afterAll` once per worker and scope; a failing hook fails its test with the hook's name (see [Hooks](Writing-tests#hooks)).
 - **Retries.** `retries` in the config, `--retries` and `SAMURAI_RETRIES`: a failing test is run again with a fresh browser, up to that many times. A test that passes on a retry is one result marked `flaky`, with the errors of the failed attempts in `previousAttempts`, and does not fail the run; `test-start` is emitted per attempt and `test-end` once (see [Retries](Writing-tests#retries)).
 - **Parallel runs.** `workers` in the config (default half the CPUs), `--workers` and `SAMURAI_WORKERS`: tests run at the same time in worker processes, each with its own browser, port and profile, and a flow's Parallel node runs its branches concurrently on the same pool (see [Parallel runs](Running-tests-and-reports#parallel-runs)).
@@ -75,7 +76,7 @@ What the framework still lacks next to Playwright, grouped; the order here is no
 
 - **Page and locator reads.** `evaluateHandle`, and a public export of `ScriptError`, `ElementHandle` and `RemoteObject`, which `evaluate` raises and returns.
 - **More matchers.** `toHaveScreenshot`, `expect(promise).rejects`, `expect.not.*`, the `useInnerText` option of the text matchers.
-- **Test API.** `test.describe` aliases, `testInfo`, `test.use`, `test.extend` and `test.step`.
+- **Test API.** `test.use`, `test.extend`, `test.step`, a `projects` matrix, and the `isMobile` / `hasTouch` fixtures.
 - **Waiting and input.** A fake clock, keyboard and mouse as page-level APIs.
 - **Network.** `page.request`.
 - **Runner and config.** `webServer`, `globalSetup`, serial mode and sharding, `projects`, and more reporters (see also the runner list above).

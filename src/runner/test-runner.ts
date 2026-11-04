@@ -22,7 +22,8 @@ import {
   serialKeyOf,
   type PooledRunner,
 } from "./pooled-run.js";
-import { allHookFixtures, runOneTest } from "./run-test.js";
+import { allHookFixtures } from "./fixtures.js";
+import { runOneTest } from "./run-test.js";
 import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveRetries } from "./retries-option.js";

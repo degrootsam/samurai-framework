@@ -7,9 +7,11 @@ import type {
   RegisteredTestCase,
   TestCaseBase,
   TestDetails,
+  TestFixtures,
+  TestInfo,
   TestOptions,
 } from "../types/test.js";
-import { SkipSignal } from "./skip.js";
+import { currentTestInfo, skipFromCondition } from "./test-info.js";
 import { validateTestIO } from "./test-io.js";
 import {
   addHook,
@@ -37,6 +39,18 @@ export interface TestFunction {
     (title: string, fn: Body): void;
     (title: string, options: TestOptions, fn: Body): void;
   };
+  /** The running test's info, in the test and its hooks; throws outside one */
+  info: () => TestInfo;
+  /** `describe`, under the name other frameworks use */
+  describe: DescribeFunction;
+  /** `beforeEach`, as `test.beforeEach` */
+  beforeEach: typeof beforeEach;
+  /** `afterEach`, as `test.afterEach` */
+  afterEach: typeof afterEach;
+  /** `beforeAll`, as `test.beforeAll` */
+  beforeAll: typeof beforeAll;
+  /** `afterAll`, as `test.afterAll` */
+  afterAll: typeof afterAll;
 }
 
 /**
@@ -46,7 +60,11 @@ export interface TestFunction {
 interface SkipFunction {
   (title: string, fn: Body): void;
   (title: string, options: TestOptions, fn: Body): void;
-  (condition: boolean, reason?: string): void;
+  /** A function gets the test's fixtures (`({ browserName }) => browserName === "firefox"`) */
+  (
+    condition: boolean | ((fixtures: TestFixtures) => boolean),
+    reason?: string,
+  ): void;
 }
 
 /** `describe.skip` and `describe.fixme`: every test inside gets the modifier, and `{ reason }` says why */
@@ -93,7 +111,7 @@ interface TestExtras {
 }
 
 function add(
-  file: string,
+  { file, line, column }: Location,
   title: string,
   fn: Body,
   modifier?: Modifier,
@@ -108,6 +126,7 @@ function add(
     titlePath,
     function: fn,
     file,
+    ...(line !== undefined && { line, column }),
     suite,
     ...modifierOf({ modifier, ...(reason !== undefined && { reason }) }, suite),
     ...(inputs && { inputs }),
@@ -164,13 +183,17 @@ function registering(call: string, modifier?: Modifier): TestFunction["only"] {
     if (reason !== undefined)
       throw new Error(`${call}(): reason only applies to skip and fixme`);
     // Frames: Error, callerFile, this function, the spec
-    add(callerFile(), title, fn, modifier, io);
+    add(callerLocation(), title, fn, modifier, io);
   }) as TestFunction["only"];
 }
 
 /** `test.skip` and `test.fixme`: a title and a body register a test with the modifier; a condition skips the running test */
 function skipping(annotation: "skip" | "fixme"): SkipFunction {
-  return ((first: string | boolean, second?: unknown, third?: unknown) => {
+  return ((
+    first: string | boolean | ((fixtures: TestFixtures) => boolean),
+    second?: unknown,
+    third?: unknown,
+  ) => {
     if (typeof first === "string") {
       const { fn, ...extras } = bodyAndOptions<Body>(
         `test.${annotation}`,
@@ -179,10 +202,10 @@ function skipping(annotation: "skip" | "fixme"): SkipFunction {
         third,
       );
       // Frames: Error, callerFile, this function, the spec
-      add(callerFile(), first, fn, annotation, extras);
+      add(callerLocation(), first, fn, annotation, extras);
       return;
     }
-    if (first) throw new SkipSignal(annotation, second as string | undefined);
+    skipFromCondition(annotation, first, second as string | undefined);
   }) as SkipFunction;
 }
 
@@ -198,12 +221,6 @@ function describeSkipping(annotation: "skip" | "fixme"): DescribeSkipFunction {
     openDescribe(callerFile(), title, fn, annotation, reason);
   }) as DescribeSkipFunction;
 }
-
-export const test: TestFunction = Object.assign(registering("test"), {
-  skip: skipping("skip"),
-  fixme: skipping("fixme"),
-  only: registering("test.only", "only"),
-});
 
 export const describe: DescribeFunction = Object.assign(
   (title: string, fn: () => void) => openDescribe(callerFile(), title, fn),
@@ -235,6 +252,22 @@ export function afterAll(hook: AllHook): void {
   addHook(currentSuite(callerFile()), "afterAll", hook);
 }
 
+/**
+ * The aliases are the same functions as the named exports: they find the spec file from the stack, so they
+ * must not be wrapped
+ */
+export const test: TestFunction = Object.assign(registering("test"), {
+  skip: skipping("skip"),
+  fixme: skipping("fixme"),
+  only: registering("test.only", "only"),
+  info: currentTestInfo,
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+});
+
 export function registeredTests(): readonly RegisteredTestCase[] {
   return registered;
 }
@@ -245,11 +278,33 @@ export function clearRegistry(): void {
   resetSuites();
 }
 
-/** File of the code that called the entry point: stack lines are Error, callerFile, the entry point, the caller */
-function callerFile(): string {
+/** Where the code that called the entry point is */
+interface Location {
+  file: string;
+  line?: number;
+  column?: number;
+}
+
+/** The place of the caller: stack lines are Error, callerLocation, the entry point, the caller */
+function callerLocation(): Location {
   const caller = new Error().stack?.split("\n")[3] ?? "";
+  return parseFrame(caller);
+}
+
+/** File of the code that called the entry point (the same frames as `callerLocation`) */
+function callerFile(): string {
+  return parseFrame(new Error().stack?.split("\n")[3] ?? "").file;
+}
+
+function parseFrame(frame: string): Location {
   const match =
-    caller.match(/\((.+?):\d+:\d+\)$/) ?? caller.match(/at (.+?):\d+:\d+$/);
+    frame.match(/\((.+?):(\d+):(\d+)\)$/) ??
+    frame.match(/at (.+?):(\d+):(\d+)$/);
   const location = match?.[1] ?? "";
-  return location.startsWith("file://") ? fileURLToPath(location) : location;
+  const file = location.startsWith("file://")
+    ? fileURLToPath(location)
+    : location;
+  return match
+    ? { file, line: Number(match[2]), column: Number(match[3]) }
+    : { file };
 }
