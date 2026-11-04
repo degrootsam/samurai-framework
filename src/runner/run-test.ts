@@ -3,16 +3,12 @@ import { Browser } from "../browser/browser.js";
 import { Evidence } from "../browser/evidence.js";
 import type Page from "../browser/page.js";
 import { projectDir, readConfig } from "../config/config.js";
-import { createSecretsFixture } from "../config/secrets.js";
-import { createEnvFixture } from "../config/variables.js";
 import logger from "../logger/index.js";
 import { ConnectionClosedError } from "../transport/bidi-connection.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type {
-  AllHookFixtures,
   RegisteredTestCase,
   TestError,
-  TestFixtures,
   TestLogEntry,
 } from "../types/test.js";
 import type { RunnerOptions } from "./options.js";
@@ -26,12 +22,8 @@ import type { TestEndExtras, TestSink } from "./reporter.js";
 import { runOutput } from "./output.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
-import {
-  createInputsFixture,
-  createOutputsFixture,
-  ioOfAttempt,
-  missingOutputs,
-} from "./test-io.js";
+import { ioOfAttempt, missingOutputs } from "./test-io.js";
+import { buildTestFixtures } from "./fixtures.js";
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
 type Logs = { logs?: TestLogEntry[]; logsDropped?: number };
@@ -95,21 +87,6 @@ export interface WorkerResources {
   attempt?: number;
   /** The `beforeAll` / `afterAll` hooks of this worker: kept across tests, closed when the worker is done */
   allHooks?: AllHooks;
-}
-
-/** What `beforeAll` and `afterAll` hooks get: no page, only what a run knows */
-export function allHookFixtures(
-  run: PreparedRun,
-  browserName: SupportedBrowser,
-  workerIndex = 0,
-): AllHookFixtures {
-  const { settings, secrets } = run;
-  return {
-    browserName,
-    workerIndex,
-    env: createEnvFixture(settings.environment, settings.variables),
-    secrets: createSecretsFixture(settings.environment, secrets),
-  };
 }
 
 /** Runs one test in one browser and reports it: launch, run the body, judge the page's logs, close the browser */
@@ -197,16 +174,15 @@ export async function runOneTest(
         `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`,
       );
       launched.page.setEvidence(outcome.evidence);
-      const fixtures: TestFixtures = {
-        page: launched.page,
-        browser: launched.browser,
+      const fixtures = buildTestFixtures({
+        launched,
         browserName,
         workerIndex: resources.workerIndex ?? 0,
-        env: createEnvFixture(settings.environment, settings.variables),
-        secrets: createSecretsFixture(settings.environment, secrets),
-        inputs: createInputsFixture(test.inputs, options.inputs),
-        outputs: createOutputsFixture(sink),
-      };
+        run,
+        test,
+        options,
+        sink,
+      });
       await runWithEachHooks(
         test.suite,
         fixtures,
