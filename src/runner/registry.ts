@@ -37,6 +37,16 @@ export interface TestFunction {
     (title: string, fn: Body): void;
     (title: string, options: TestOptions, fn: Body): void;
   };
+  /** `describe`, under the name other frameworks use */
+  describe: DescribeFunction;
+  /** `beforeEach`, as `test.beforeEach` */
+  beforeEach: typeof beforeEach;
+  /** `afterEach`, as `test.afterEach` */
+  afterEach: typeof afterEach;
+  /** `beforeAll`, as `test.beforeAll` */
+  beforeAll: typeof beforeAll;
+  /** `afterAll`, as `test.afterAll` */
+  afterAll: typeof afterAll;
 }
 
 /**
@@ -199,12 +209,6 @@ function describeSkipping(annotation: "skip" | "fixme"): DescribeSkipFunction {
   }) as DescribeSkipFunction;
 }
 
-export const test: TestFunction = Object.assign(registering("test"), {
-  skip: skipping("skip"),
-  fixme: skipping("fixme"),
-  only: registering("test.only", "only"),
-});
-
 export const describe: DescribeFunction = Object.assign(
   (title: string, fn: () => void) => openDescribe(callerFile(), title, fn),
   {
@@ -234,6 +238,21 @@ export function beforeAll(hook: AllHook): void {
 export function afterAll(hook: AllHook): void {
   addHook(currentSuite(callerFile()), "afterAll", hook);
 }
+
+/**
+ * The aliases are the same functions as the named exports: they find the spec file from the stack, so they
+ * must not be wrapped
+ */
+export const test: TestFunction = Object.assign(registering("test"), {
+  skip: skipping("skip"),
+  fixme: skipping("fixme"),
+  only: registering("test.only", "only"),
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+});
 
 export function registeredTests(): readonly RegisteredTestCase[] {
   return registered;
