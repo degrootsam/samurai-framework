@@ -16,8 +16,11 @@ export {
 } from "./flows/steps/index.js";
 export type {
   AllHookFixtures,
+  TestAnnotation,
+  TestAttachment,
   TestDetails,
   TestFixtures,
+  TestInfo,
   TestOptions,
   TestOutputs,
 } from "./types/test.js";

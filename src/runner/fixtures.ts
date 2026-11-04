@@ -7,6 +7,7 @@ import type {
   AllHookFixtures,
   RegisteredTestCase,
   TestFixtures,
+  TestInfo,
 } from "../types/test.js";
 import type { RunnerOptions } from "./options.js";
 import type { PreparedRun } from "./prepare-run.js";
@@ -37,13 +38,19 @@ export interface FixtureSources {
   test: RegisteredTestCase;
   options: RunnerOptions;
   sink: OutputSink;
+  info: TestInfo;
 }
 
-/** The fixtures a test body and its each-hooks receive */
+/**
+ * The fixtures a test body and its each-hooks receive. `context`, `baseURL` and `testInfo` are getters: nothing
+ * is looked up until a test reads one (and `page.context()` throws for a page without one, which only a test
+ * that asks for it should see).
+ */
 export function buildTestFixtures(from: FixtureSources): TestFixtures {
-  const { launched, browserName, workerIndex, run, test, options, sink } = from;
+  const { launched, browserName, workerIndex, run, test, options, sink, info } =
+    from;
   const { settings, secrets } = run;
-  return {
+  const fixtures = {
     page: launched.page,
     browser: launched.browser,
     browserName,
@@ -53,4 +60,9 @@ export function buildTestFixtures(from: FixtureSources): TestFixtures {
     inputs: createInputsFixture(test.inputs, options.inputs),
     outputs: createOutputsFixture(sink),
   };
+  return Object.defineProperties(fixtures, {
+    context: { enumerable: true, get: () => launched.page.context() },
+    baseURL: { enumerable: true, get: () => settings.baseURL },
+    testInfo: { enumerable: true, get: () => info },
+  }) as TestFixtures;
 }

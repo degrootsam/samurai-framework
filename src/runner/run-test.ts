@@ -1,3 +1,4 @@
+import path from "node:path";
 import { takePendingAssertions } from "../assert/expect.js";
 import { Browser } from "../browser/browser.js";
 import { Evidence } from "../browser/evidence.js";
@@ -22,6 +23,7 @@ import type { TestEndExtras, TestSink } from "./reporter.js";
 import { runOutput } from "./output.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
+import { runInTestScope, TestInfoImpl } from "./test-info.js";
 import { ioOfAttempt, missingOutputs } from "./test-io.js";
 import { buildTestFixtures } from "./fixtures.js";
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
@@ -43,6 +45,8 @@ class TestOutcome {
   public evidence: Evidence | undefined;
   /** The test's inputs and outputs, as its report entry lists them when it ends */
   public io: () => TestEndExtras = () => ({});
+  /** The test's info: its attachments and annotations are listed in the report entry */
+  public info: TestInfoImpl | undefined;
 
   constructor(
     private readonly reporter: TestSink,
@@ -70,6 +74,7 @@ class TestOutcome {
     this.reporter.onTestEnd(this.test, this.browser, error, {
       ...logs,
       screenshots: this.evidence?.screenshots,
+      ...this.info?.reportExtras(),
       ...this.io(),
     });
   }
@@ -108,7 +113,7 @@ export async function runOneTest(
   logger.verbose("Starting test: %s in %s", test.name, browserName);
   reporter.onTestStart(test, browserName);
   const outcome = new TestOutcome(reporter, test, browserName);
-  const { settings, secrets } = run;
+  const { settings } = run;
   const timeout = settings.timeout;
   const { resultDir } = runOutput(options, projectDir());
 
@@ -169,12 +174,25 @@ export async function runOneTest(
         browserGone();
       });
       page = launched.page;
-      outcome.evidence = new Evidence(
-        resultDir,
-        `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`,
-      );
+      const testFolder = `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`;
+      outcome.evidence = new Evidence(resultDir, testFolder);
       launched.page.setEvidence(outcome.evidence);
+      const info = new TestInfoImpl({
+        test,
+        browserName,
+        workerIndex: resources.workerIndex ?? 0,
+        retry: resources.attempt ?? 0,
+        settings: { baseURL: settings.baseURL, timeout },
+        resultDir,
+        outputDir: path.join(
+          resultDir,
+          "attachments",
+          ...testFolder.split("/"),
+        ),
+      });
+      outcome.info = info;
       const fixtures = buildTestFixtures({
+        info,
         launched,
         browserName,
         workerIndex: resources.workerIndex ?? 0,
@@ -183,11 +201,14 @@ export async function runOneTest(
         options,
         sink,
       });
-      await runWithEachHooks(
-        test.suite,
-        fixtures,
-        timeoutController.signal,
-        () => test.function(fixtures),
+      await runInTestScope({ info, fixtures }, () =>
+        runWithEachHooks(
+          test.suite,
+          fixtures,
+          timeoutController.signal,
+          () => test.function(fixtures),
+          (error) => info.bodyDone(error),
+        ),
       );
       // Already reported as timed out
       if (timeoutController.signal.aborted) return;

@@ -1,5 +1,6 @@
 import type { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
+import type { BrowserContext } from "../browser/browser-context.js";
 import type Locator from "../locator/locator.js";
 import type { SupportedBrowser } from "./browser.js";
 
@@ -19,6 +20,72 @@ export interface TestFixtures {
   inputs: Readonly<Record<string, string>>;
   /** Saves the text values the test declared as outputs */
   outputs: TestOutputs;
+  /** The browser context (cookies, storage) of `page`; same as `page.context()` */
+  context: BrowserContext;
+  /** The run's `baseURL` (the environment's, else the project's); `undefined` when none is set */
+  baseURL: string | undefined;
+  /** About the running test: its title, retry, attachments; same as `test.info()` */
+  testInfo: TestInfo;
+}
+
+/** A file or text a test attached to its result */
+export interface TestAttachment {
+  name: string;
+  contentType: string;
+  /** Absolute path of the saved file */
+  path: string;
+}
+
+/** An attachment as the report lists it */
+export interface TestAttachmentEntry {
+  name: string;
+  contentType: string;
+  /** Relative to the result folder */
+  path: string;
+}
+
+/** A note on a test (`{ type: "issue", description: "PROJ-1" }`) that the report lists */
+export interface TestAnnotation {
+  type: string;
+  description?: string;
+}
+
+/** What `testInfo` and `test.info()` tell about the running test (hooks included) */
+export interface TestInfo {
+  /** The test's own title */
+  readonly title: string;
+  /** The `describe` titles, then the title */
+  readonly titlePath: string[];
+  /** Absolute path of the spec file */
+  readonly file: string;
+  /** Where the test is written; absent when unknown */
+  readonly line?: number;
+  readonly column?: number;
+  /** The attempt, counting from 0: 1 is the first run again */
+  readonly retry: number;
+  readonly workerIndex: number;
+  /** The browser this run is in. There is no `projects` matrix yet, so `name` is the browser name */
+  readonly project: { name: string };
+  /** The run settings that apply to the test */
+  readonly config: { baseURL: string | undefined; timeout: number };
+  /** Push notes here; they are listed in the report entry */
+  annotations: TestAnnotation[];
+  /** Undefined while the test body runs; set before the `afterEach` hooks */
+  readonly status: "passed" | "failed" | "skipped" | undefined;
+  /** What the test is expected to end as: always `"passed"` for now */
+  readonly expectedStatus: "passed";
+  /** Milliseconds since the attempt started; fixed once the body is done */
+  readonly duration: number;
+  /** The errors of the test body or of its `beforeEach` hooks; filled before the `afterEach` hooks */
+  readonly errors: TestError[];
+  /** Folder for the files this attempt attaches (created when the first one is saved) */
+  readonly outputDir: string;
+  readonly attachments: readonly TestAttachment[];
+  /** Saves a file in `outputDir` and lists it in the report entry; give `body` or `path`, not both */
+  attach(
+    name: string,
+    options: { body?: string | Buffer; path?: string; contentType?: string },
+  ): Promise<void>;
 }
 
 /** The `outputs` fixture */
@@ -80,6 +147,9 @@ export interface RegisteredTestCase extends TestCaseBase {
   file: string;
   /** describe titles, then the test title */
   titlePath: string[];
+  /** Where the test is written, when known */
+  line?: number;
+  column?: number;
   /** The `describe` block (or the file) the test is written in */
   suite: Suite;
   /** What applies to the test: its own modifier, or the one of a suite around it */
@@ -118,6 +188,10 @@ interface TestResultSuccess extends TestResultIdentity, TestRetries {
   inputs?: Record<string, string>;
   /** The outputs the test saved; absent when it declares none */
   outputs?: Record<string, string>;
+  /** Files the test attached, relative to the result folder; absent when it attached none */
+  attachments?: TestAttachmentEntry[];
+  /** The notes the test pushed to `testInfo.annotations`; absent when there are none */
+  annotations?: TestAnnotation[];
 }
 
 /** The error sits flat on the entry, as in the report: `message`, `type`, `stack`, and for assertions `expected` and `actual` */
@@ -132,6 +206,10 @@ interface TestResultFailed extends TestResultIdentity, TestError, TestRetries {
   inputs?: Record<string, string>;
   /** The outputs the test saved; absent when it declares none */
   outputs?: Record<string, string>;
+  /** Files the test attached, relative to the result folder; absent when it attached none */
+  attachments?: TestAttachmentEntry[];
+  /** The notes the test pushed to `testInfo.annotations`; absent when there are none */
+  annotations?: TestAnnotation[];
 }
 
 /** What a result says about the retries of its test; absent when it passed or failed on the first attempt */
