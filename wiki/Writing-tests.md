@@ -38,6 +38,9 @@ The test function receives one object:
 | `secrets`     | read-only object        | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](Environments-and-secrets#secrets)                         |
 | `inputs`      | read-only object        | The test's declared [inputs](#inputs-and-outputs): the value the run supplies, else the default. Reading a name the test did not declare throws |
 | `outputs`     | `{ save }`              | Saves the text values the test declared as [outputs](#inputs-and-outputs)                                                                       |
+| `context`     | `BrowserContext`        | The browser context of `page` (cookies, storage); the same object as `page.context()`                                                           |
+| `baseURL`     | `string \| undefined`   | The run's `baseURL` (the environment's, else the project's); `undefined` when none is set                                                       |
+| `testInfo`    | `TestInfo`              | About the running test, see [Test info](#test-info)                                                                                             |
 
 Tests may run at the same time, each in its own worker process and browser (see [Parallel runs](Running-tests-and-reports#parallel-runs)). Do not let two tests depend on the same account or data; give each its own, or pick one by `workerIndex`.
 
@@ -57,6 +60,37 @@ test("uses test data", async ({ page, env, secrets }) => {
   await page.getByLabel("Password").fill(secrets.TEST_PASSWORD!);
 });
 ```
+
+## Test info
+
+`testInfo` (a fixture) and `test.info()` (callable in the test body and in `beforeEach` / `afterEach` hooks, and the same object) tell a test about itself. `test.info()` throws `info(): no test is running` anywhere else, such as in `beforeAll`.
+
+| Field                                       | What it is                                                                                                                                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`, `titlePath`                        | The test's title, and the `describe` titles followed by it                                                                                                                                            |
+| `file`, `line`, `column`                    | Absolute path of the spec and where `test(...)` is written (`line` and `column` are left out when unknown)                                                                                            |
+| `retry`                                     | The attempt, from 0: 1 is the first run again (see [Retries](#retries))                                                                                                                               |
+| `workerIndex`                               | Same as the fixture                                                                                                                                                                                   |
+| `project.name`                              | The browser name. There is no `projects` matrix yet, so for now a "project" is the browser the test runs in                                                                                           |
+| `config`                                    | `{ baseURL, timeout }` of the run                                                                                                                                                                     |
+| `annotations`                               | An array you can push `{ type, description? }` to; the notes are listed in the report entry                                                                                                           |
+| `status`, `expectedStatus`                  | `status` is `undefined` while the body runs, then `"passed"`, `"failed"` or `"skipped"` before the `afterEach` hooks; `expectedStatus` is always `"passed"`                                           |
+| `errors`                                    | The errors of the body or of a `beforeEach` hook, filled before the `afterEach` hooks (same shape as an error in the report)                                                                          |
+| `duration`                                  | Milliseconds since the attempt started; fixed once the body is done                                                                                                                                   |
+| `outputDir`                                 | The folder for this attempt's attachments, `attachments/<browser>/<spec>/<test>[/retry-n]` in the result folder                                                                                       |
+| `attach(name, { body, path, contentType })` | Saves a string or `Buffer` `body`, or copies the file at `path`, into `outputDir` and lists it in the report entry. Give one of `body` and `path`. String bodies are masked like the rest of a report |
+
+```ts
+test.afterEach(async ({ page, testInfo }) => {
+  if (testInfo.status === "failed")
+    await testInfo.attach("page-html", {
+      body: await page.content(),
+      contentType: "text/html",
+    });
+});
+```
+
+A test that attached files has `attachments: [{ name, contentType, path }]` in its report entry (`path` is relative to the result folder), and one that pushed annotations has `annotations`. Both fields are absent otherwise, so existing reports read the same.
 
 ## Inputs and outputs
 
@@ -149,14 +183,14 @@ test("needs Chrome", async ({ page, browserName }) => {
 - **`skip` and `fixme`** register the test but do not run it. It never launches a browser and is reported as `skipped` with `annotation: "skip"` or `"fixme"`. A modifier on a `describe` applies to every test inside it, also in nested blocks.
 - **`{ reason }`** between the title and the body of `test.skip`, `test.fixme`, `describe.skip` and `describe.fixme` says why the tests are not run. It is optional. The reason shows in the console, the report and `samurai list`. A test gets the reason of the skip or fixme that applies to it: its own, else the closest `describe` around it.
 - **`only`** narrows the run: when any selected test is focused, only the focused ones run, and the others are not run and not reported. It applies after `--group` and `--grep` have chosen the tests, so a focused test they leave out narrows nothing. A skip wins over a focus: a `test.skip` inside a `describe.only` stays skipped.
-- **`test.skip(condition, reason)`** inside a test ends it as skipped when the condition is true (the reason goes into the report); when it is false nothing happens. The browser has launched by then, and the rest of the test does not run. `test.fixme(condition, reason)` is the same with the `fixme` annotation.
+- **`test.skip(condition, reason)`** inside a test (or a `beforeEach` hook) ends it as skipped when the condition is true (the reason goes into the report); when it is false nothing happens. The browser has launched by then, and the rest of the test does not run. `test.fixme(condition, reason)` is the same with the `fixme` annotation. The condition may be a synchronous function of the fixtures: `test.skip(({ browserName }) => browserName === "firefox", "needs Chrome")`. A condition function outside a running test throws.
 - **`forbidOnly`** refuses a run that contains a `.only`, so a forgotten focus cannot shrink a suite unseen. It is on by default when `CI` is set, see [Configuration](Configuration#forbidonly).
 
 Skipped tests count in the run (`run-start.total`) and in the report, never as failures: a run whose tests passed or were skipped succeeds. See [Running tests and reports](Running-tests-and-reports#skipped-tests).
 
 ## Hooks
 
-`beforeEach`, `afterEach`, `beforeAll` and `afterAll` come from the package, like `test`:
+`beforeEach`, `afterEach`, `beforeAll` and `afterAll` come from the package, like `test`. They are also reachable as `test.beforeEach`, `test.afterEach`, `test.beforeAll` and `test.afterAll`, and `describe` as `test.describe` (with `.skip`, `.fixme` and `.only`); both spellings are the same functions:
 
 ```ts
 import {
