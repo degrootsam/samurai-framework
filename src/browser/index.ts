@@ -6,5 +6,14 @@ export {
 export { BrowserContext } from "./browser-context.js";
 export { default as Page } from "./page.js";
 export { DownloadTimeoutError } from "./download.js";
+export { UrlTimeoutError } from "./navigation-error.js";
+export {
+  ScriptError,
+  ScriptSerializationError,
+  type PageFunction,
+} from "../script/call-function.js";
+export { ElementHandle } from "../script/element-handle.js";
+export { RemoteObject } from "../script/serialize.js";
+export type { BoundingBox } from "../locator/element-reads.js";
 export { EmulationUnsupportedError } from "./emulation.js";
 export { findBrowser } from "./browser-finder.js";

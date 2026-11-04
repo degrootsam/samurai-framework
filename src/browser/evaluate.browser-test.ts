@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { testBrowser } from "../testing/test-browser.js";
+import type Page from "./page.js";
 import {
+  Browser,
+  ElementHandle,
+  RemoteObject,
   ScriptError,
   ScriptSerializationError,
-} from "../script/call-function.js";
-import { ElementHandle } from "../script/element-handle.js";
-import { RemoteObject } from "../script/serialize.js";
-import { testBrowser } from "../testing/test-browser.js";
-import { Browser } from "./browser.js";
-import type Page from "./page.js";
+} from "./index.js";
 
 let browser: Browser;
 let page: Page;
