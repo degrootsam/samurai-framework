@@ -167,13 +167,27 @@ export default class Locator {
 
   /** Steps that keep the fallbacks: each fallback gets the same step, so "inside A or B" stays meaningful */
   private child(step: Selector): Locator {
+    return this.copy({
+      chain: [...this.chain, step],
+      alternatives: this.alternatives.map((alt) => alt.child(step)),
+    });
+  }
+
+  /** A locator on the same page and helpers, with the given parts replaced */
+  private copy(
+    parts: {
+      chain?: readonly Selector[] | string;
+      alternatives?: readonly Locator[];
+      strictness?: StrictSource;
+    } = {},
+  ): Locator {
     return new Locator(
-      [...this.chain, step],
+      parts.chain ?? this.chain,
       this.biDiConnector,
       this.contextId,
       this.helpers,
-      this.alternatives.map((alt) => alt.child(step)),
-      this.strictness,
+      parts.alternatives ?? this.alternatives,
+      parts.strictness ?? this.strictness,
     );
   }
 
@@ -186,14 +200,7 @@ export default class Locator {
    *  page.getByTestId("save").withFallbacks(page.getByRole("button", { name: "Save" }), page.getByText("Save"));
    */
   public withFallbacks(...fallbacks: Locator[]): Locator {
-    return new Locator(
-      this.chain,
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      [...this.alternatives, ...fallbacks],
-      this.strictness,
-    );
+    return this.copy({ alternatives: [...this.alternatives, ...fallbacks] });
   }
 
   /**
@@ -204,14 +211,7 @@ export default class Locator {
    *  await page.locator("li").strict().click(); // throws when there is more than one li
    */
   public strict(enabled = true): Locator {
-    return new Locator(
-      this.chain,
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      this.alternatives,
-      () => Promise.resolve(enabled),
-    );
+    return this.copy({ strictness: () => Promise.resolve(enabled) });
   }
 
   /**
@@ -306,20 +306,16 @@ export default class Locator {
     if (other.contextId !== this.contextId) {
       throw new TypeError(`${kind}(): the locators belong to different pages`);
     }
-    return new Locator(
-      [
+    return this.copy({
+      chain: [
         {
           kind,
           left: this.chainFor(`${kind}()`, "an operand"),
           right: other.chainFor(`${kind}()`, "an operand"),
         },
       ],
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      [],
-      this.strictness,
-    );
+      alternatives: [],
+    });
   }
 
   /** The chain of a locator used inside another (`has`); a locator with fallbacks cannot be */
@@ -354,14 +350,10 @@ export default class Locator {
     return Array.from({ length: count }, (_, index) =>
       only?.kind === "xpath"
         ? // A positional xpath keeps working without a second search for the whole chain
-          new Locator(
-            `(${describeSelector(only, false)})[${index + 1}]`,
-            this.biDiConnector,
-            this.contextId,
-            this.helpers,
-            [],
-            this.strictness,
-          )
+          this.copy({
+            chain: `(${describeSelector(only, false)})[${index + 1}]`,
+            alternatives: [],
+          })
         : this.child({ kind: "nth", index }),
     );
   }
@@ -400,14 +392,7 @@ export default class Locator {
   }
 
   private withoutFallbacks(): Locator {
-    return new Locator(
-      this.chain,
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      [],
-      this.strictness,
-    );
+    return this.copy({ alternatives: [] });
   }
 
   /**
