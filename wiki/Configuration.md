@@ -53,6 +53,8 @@ export default defineConfig({
 | `logs.capture`                                                                                                                                                                                     | `"failures"`                             | Which tests get the page's log in the report: `"off"`, `"failures"`, `"all"`                                                                                        |
 | `logs.failOnPageError`                                                                                                                                                                             | `false`                                  | Fail a passing test when the page threw an uncaught exception                                                                                                       |
 | `logs.ignoreErrors`                                                                                                                                                                                | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                                                                                                           |
+| `webServer`                                                                                                                                                                                        | none                                     | Servers the run starts before the first test and stops after the last; see [Web server](#web-server)                                                                |
+| `globalSetup`, `globalTeardown`                                                                                                                                                                    | none                                     | A module (or function) that runs once before / after all tests; see [Global setup and teardown](#global-setup-and-teardown)                                         |
 | `groups`                                                                                                                                                                                           | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option (see below)                                                                               |
 | `steps`                                                                                                                                                                                            | none                                     | Flow steps of this project, made with `defineStep`; see [Writing a step](Writing-a-step#steps-of-your-own)                                                          |
 
@@ -146,6 +148,61 @@ retries: 2,   // a failing test gets up to three runs
 ```
 
 The first that is set wins: `--retries`, then `SAMURAI_RETRIES`, then `retries` in the config, then 0. A value that is not a whole number from 0 is an error that names its source, for example `--retries must be a whole number from 0, got "abc"`. A negative number has to be written `--retries=-1` to reach that check: with a space, the argument parser takes `-1` for another flag and refuses it. There is no `retries` per group.
+
+### Web server
+
+`webServer` starts the application under test for the run. It is one object or a list of them:
+
+```ts
+webServer: {
+  command: "npm run start",           // a shell command, run in the project folder
+  url: "http://localhost:3000/",      // ready when this answers; or `port: 3000`
+  reuseExistingServer: !process.env.CI,
+},
+```
+
+| Field                 | Default                                | Meaning                                                                                                                                     |
+| --------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`             | required                               | Shell command that starts the server                                                                                                        |
+| `url` or `port`       | one is required                        | Ready once `url` answers with a status from 200 to 403 (`http` or `https`), or once `localhost` accepts connections on `port`               |
+| `cwd`                 | the project folder                     | Working directory of the command, relative to the project folder                                                                            |
+| `env`                 | none                                   | Extra environment variables for the command. Their values are never printed in errors                                                       |
+| `timeout`             | `60000`                                | Milliseconds the server may take to be ready                                                                                                |
+| `reuseExistingServer` | `false`                                | When `url` or `port` already answers, use that server and start nothing (it is not stopped either). Otherwise a busy address is an error    |
+| `stdout`, `stderr`    | `"ignore"`, `"pipe"`                   | Whether the command's output goes to this process's stdout / stderr. The last lines are kept for errors either way                          |
+| `ignoreHTTPSErrors`   | `false`                                | Accept a bad certificate while waiting for an `https` `url`                                                                                 |
+| `gracefulShutdown`    | `{ signal: "SIGTERM", timeout: 5000 }` | Signal sent to the server's whole process group at the end; what is still running after `timeout` ms is killed (`timeout: 0` kills at once) |
+
+The command leads its own process group, so the whole tree it starts (a shell, a package manager, the server) is stopped at the end, also when the run fails or is aborted with Ctrl-C. Servers start one after the other, before the first test, and stop after `globalTeardown`. A server that does not become ready fails the run before any test starts, with a message such as `webServer(): timed out after 60000ms waiting for http://localhost:3000/` or `webServer(): the process exited (code 1) before localhost:3000 was ready`, followed by the last lines of its output; servers that were already started are stopped again.
+
+When no `baseURL` is configured (neither the project's nor the environment's), the first server's address becomes the base URL: the origin of its `url`, or `http://localhost:<port>`. A configured `baseURL` always wins. The base URL reaches worker processes too.
+
+Only a run starts servers (`samurai run`, `runTests`, and runs the desktop app starts through them, once per run). `samurai list`, `listTests`, the recorder and flows do not. Mistakes in the block are config errors that name the key, such as `config.webServer.timeout: must be a positive number of milliseconds` or `config.webServer[1]: give either url or port`.
+
+### Global setup and teardown
+
+`globalSetup` and `globalTeardown` run once per run, not once per test or worker. Each is a path relative to the project folder to a module whose default export is a function, or the function itself.
+
+```ts
+// samurai.config.ts
+export default defineConfig({
+  globalSetup: "./global-setup.ts",
+  globalTeardown: "./global-teardown.ts",
+});
+
+// global-setup.ts
+import type { GlobalHookConfig } from "@itmetsam/samurai-framework";
+export default async function (config: GlobalHookConfig) {
+  process.env.TEST_USER = await createUser(config.baseURL);
+  return async () => deleteUser(process.env.TEST_USER!); // optional: runs as teardown too
+}
+```
+
+The function receives the project's resolved config (what `loadConfig` returns) with `baseURL` as the run uses it, including one from a `webServer`, and the run's `environment`. Variables it sets in `process.env` reach the tests, worker processes included.
+
+The order is: web servers start, `globalSetup`, the tests, what `globalSetup` returned, `globalTeardown`, web servers stop. The teardown also runs when tests fail, when the run is aborted and when `globalSetup` throws half way. It does not run when a web server failed to start, since nothing was set up. A throwing `globalSetup` fails the run before any test with `globalSetup(): <message>` (exit code 2); a throwing teardown fails it with `globalTeardown(): <message>`, unless the run had already failed, in which case the earlier error is reported.
+
+As with `webServer`, only a run uses these hooks, not `list`, the recorder or flows.
 
 ### Groups
 

@@ -7,6 +7,7 @@ This page is the overview of what is built and what is open.
 - **Protocol layer.** WebDriver BiDi connection with typed commands, refcounted event subscriptions, script calls and preload scripts.
 - **Page API.** Navigation with real load waits, history, viewport, screenshots (also named, saved with the run), `waitForTimeout`, PDF, emulation, dialogs, downloads and file pickers, init scripts, console and page-error capture, user contexts and cookies.
 - **API requests.** `page.request`, `context.request`, the `request` fixture and `request.newContext()`: get, post, put, patch, delete, head and fetch with params, data, form, multipart, redirects and a cookie bridge to the browser context (see [API requests](API-requests)). Not done: requests in the page's network events and the report, an HTTP proxy.
+- **Web server and global hooks.** `webServer` (one or several servers, ready by url or port, reuse, process-group shutdown, base URL fallback) and `globalSetup` / `globalTeardown` around the run (see [Configuration](Configuration#web-server)).
 - **Network.** Request tracking, real network-idle, waiting for requests and responses, mocking, blocking and modifying, response bodies, cache control.
 - **Locators and assertions.** Role, label, text, placeholder, alt text, title, test id, CSS and XPath locators with chaining and fallbacks; auto-waiting actions; retrying `expect`.
 - **Locator toolkit (0.21.3).** `nth`, `first`, `last`, `filter` (`hasText`, `hasNotText`, `has`, `hasNot`), `and` and `or`; `locator()` reads CSS as well as XPath; `getByRole` with `name` (string or `RegExp`), `exact`, `level` and the state options; `exact` and `RegExp` on the text locators; `check`, `uncheck`, `setChecked` and `selectOption`; `isHidden`, `isDisabled`, `accessibleName` and `accessibleDescription`; `toHaveAccessibleName` and `toHaveAccessibleDescription`; strict selectors (`use.strictSelectors`, `page.setStrictSelectors`, `locator.strict`). See [Locators](Locators) and [Assertions](Assertions).
@@ -83,4 +84,4 @@ What the framework still lacks next to Playwright, grouped; the order here is no
 - **More matchers.** `toHaveScreenshot`, `expect(promise).rejects`, `expect.not.*`, the `useInnerText` option of the text matchers.
 - **Test API.** A `projects` matrix, and `use` options per project; a way to save a `storageState` from a logged-in context.
 - **Waiting and input.** A fake clock.
-- **Runner and config.** `webServer`, `globalSetup`, serial mode and sharding, `projects`, and more reporters (see also the runner list above).
+- **Runner and config.** Serial mode and sharding, `projects`, and more reporters (see also the runner list above).

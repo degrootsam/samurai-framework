@@ -15,6 +15,7 @@ export type { APIResponse } from "./request/api-response.js";
 export type { FilePayload } from "./request/request-body.js";
 export { expect } from "./assert/expect.js";
 export { defineConfig } from "./config/config.js";
+export type { GlobalHookConfig, WebServerConfig } from "./types/config.js";
 export {
   defineStep,
   type StepDefinition,

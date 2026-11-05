@@ -8,9 +8,10 @@ bun run dev [--env <name>] [--timeout <ms>] [--expect-timeout <ms>]
 ```
 
 1. Reads `samurai.config.ts`, picks the [environment](Environments-and-secrets), loads its secrets and registers them for masking.
-2. Finds every `*.spec.ts` under `srcDir` (recursively) and imports each one, which registers its tests.
-3. Runs the tests, once in each of the [`browsers`](Configuration#browsers) of the run (all tests in the first browser, then all in the second), several at a time when the run has more than one [worker](#parallel-runs). For each test it launches a fresh browser, opens a page, runs the test function with the [fixtures](Writing-tests#fixtures), judges the page's log, and closes the browser.
-4. Prints each result as it finishes and a summary, writes `result/report.json` and exits with the run's status.
+2. Starts the config's [`webServer`](Configuration#web-server) servers and runs [`globalSetup`](Configuration#global-setup-and-teardown), when it has them.
+3. Finds every `*.spec.ts` under `srcDir` (recursively) and imports each one, which registers its tests.
+4. Runs the tests, once in each of the [`browsers`](Configuration#browsers) of the run (all tests in the first browser, then all in the second), several at a time when the run has more than one [worker](#parallel-runs). For each test it launches a fresh browser, opens a page, runs the test function with the [fixtures](Writing-tests#fixtures), judges the page's log, and closes the browser.
+5. Runs `globalTeardown`, stops the servers, prints each result as it finishes and a summary, writes `result/report.json` and exits with the run's status.
 
 The browser window is visible unless you pass `--headless`, set `use.headless` in the config, or run on CI (the `CI` environment variable is set); see [Headless](Configuration#headless). The browser's debugging port is 9223 unless you pass `--port`. `--grep <text>` runs only tests whose full name contains the text, `--group <name>` only the tests of a [group](Configuration#groups), and `--file <spec>` (repeatable, relative to the working directory) only those spec files. The process exits with code 0 when every test passed, 1 otherwise and 2 for a usage or configuration error, so a CI job can gate on it.
 
