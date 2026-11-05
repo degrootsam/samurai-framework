@@ -38,8 +38,12 @@ export const CAPABILITIES = {
   flowNodeFolders: 2,
   /** `nodeFolder(nodeId, browser)` from `./flows/run`: a flow node's folder under `outputDir` (version 2 takes the browser). */
   nodeFolder: 2,
-  /** Assertion matchers version 2: `toBeHidden`, `toBeEnabled`, `toBeChecked`, `toHaveClass` and `toHaveCSS`, in the framework and the step codec. */
-  assertionMatchers: 2,
+  /**
+   * Assertion matchers in the framework and the step codec. Version 2: `toBeHidden`, `toBeEnabled`, `toBeChecked`,
+   * `toHaveClass` and `toHaveCSS`. Version 3 adds `toBeFocused`, `toBeDisabled`, `toBeEditable`, `toBeAttached`,
+   * `toBeInViewport`, `toBeEmpty`, `toHaveId`, `toHaveAccessibleName` and `toHaveAccessibleDescription` to the codec.
+   */
+  assertionMatchers: 3,
   /** `expect(page).toHaveURL` and `toHaveTitle`, and the `expectPage` step in the step codec. */
   pageAssertions: true,
   /**
@@ -50,6 +54,16 @@ export const CAPABILITIES = {
   testInputsOutputs: true,
   /** A flow runs once per browser: `browser` on every flow event, `flow-done`, `runFlowInProject` resolving to `FlowRunResult`. */
   flowPerBrowser: true,
+  /** The codec's `check`, `uncheck`, `selectOption`, `hover`, `dblclick` and `clear` steps. */
+  actionSteps: true,
+  /**
+   * The codec's locator forms: `exact` and RegExp text and name, `getByPlaceholder` / `getByAltText` / `getByTitle`, the
+   * `getByRole` options `level`, `checked`, `pressed`, `expanded`, `selected`, `disabled` and `includeHidden`, and the
+   * `nth`, `first`, `last` and `filter({ hasText })` calls. `LocatorCall.text` and `.name` can be a RegExp.
+   */
+  locatorForms: true,
+  /** The recorder writes a `check` / `uncheck` for a checkbox or radio click and a `selectOption` for a `<select>` choice. */
+  recorderActionSteps: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */

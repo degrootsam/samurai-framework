@@ -91,6 +91,8 @@ describe("action steps", () => {
       `await page.getByLabel("A").selectOption({ other: "a" });`,
       `await page.getByLabel("A").pressSequentially("abc");`,
       `await page.keyboard.press("Enter");`,
+      // a test.step holds statements of its own, which the flat step list can't carry
+      `await test.step("sign in", async () => { await page.goto("/"); });`,
       `await page.getByLabel("A").press("Enter", { delay: 10 });`,
       `const picked = await page.getByLabel("A").selectOption("a");`,
     ])

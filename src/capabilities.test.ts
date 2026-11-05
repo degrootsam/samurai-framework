@@ -26,6 +26,9 @@ describe("capabilities", () => {
       pageAssertions: true,
       testInputsOutputs: true,
       flowPerBrowser: true,
+      actionSteps: true,
+      locatorForms: true,
+      recorderActionSteps: true,
     });
   });
 
