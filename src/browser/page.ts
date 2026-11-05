@@ -54,7 +54,8 @@ import { PageLocators } from "./page-locators.js";
 import Keyboard from "./keyboard.js";
 import Mouse from "./mouse.js";
 import {
-  sourcesFor,
+  startSources,
+  waitForEventOn,
   waitForPageEvent,
   type EventSource,
   type PageEventName,
@@ -690,8 +691,8 @@ export default class Page {
       network: () => this.startNetworkTracking(),
       bodies: () => this.startBodyCollection(),
     };
-    Promise.all(sourcesFor(event).map((source) => start[source]())).catch(
-      (err) => logger.error("Could not start listening for %s", event, { err }),
+    startSources(event, start, (err) =>
+      logger.error("Could not start listening for %s", event, { err }),
     );
   }
 
@@ -745,35 +746,22 @@ export default class Page {
       | ((item: PageEvents[E][0]) => boolean)
       | WaitForEventOptions<PageEvents[E][0]> = {},
   ): Promise<PageEvents[E][0]> {
-    const { predicate, ...options } =
-      typeof optionsOrPredicate === "function"
-        ? { predicate: optionsOrPredicate }
-        : optionsOrPredicate;
-    const accepts = (predicate ?? (() => true)) as (item: unknown) => boolean;
-    switch (event) {
-      case "request":
-        return this.waitForRequest(accepts, options) as Promise<
-          PageEvents[E][0]
-        >;
-      case "response":
-        return this.waitForResponse(accepts, options) as Promise<
-          PageEvents[E][0]
-        >;
-      case "download":
-        this.assertOpen();
-        return this.transfers.waitForDownload(options, accepts) as Promise<
-          PageEvents[E][0]
-        >;
-      case "filechooser":
-        this.assertOpen();
-        return this.transfers.waitForFileChooser(options, accepts) as Promise<
-          PageEvents[E][0]
-        >;
-      default:
-        throw new Error(
-          `waitForEvent(): "${String(event)}" is not supported; use page.on()`,
-        );
-    }
+    return waitForEventOn(
+      {
+        request: (accepts, options) => this.waitForRequest(accepts, options),
+        response: (accepts, options) => this.waitForResponse(accepts, options),
+        download: (options, accepts) => {
+          this.assertOpen();
+          return this.transfers.waitForDownload(options, accepts);
+        },
+        filechooser: (options, accepts) => {
+          this.assertOpen();
+          return this.transfers.waitForFileChooser(options, accepts);
+        },
+      },
+      event,
+      optionsOrPredicate,
+    );
   }
 
   /**
