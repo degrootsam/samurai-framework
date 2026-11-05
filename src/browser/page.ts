@@ -31,7 +31,8 @@ import {
   type ScreenshotOptions,
 } from "./screenshot.js";
 import { Evidence } from "./evidence.js";
-import { PageLogs, type LogRecord, type PageError } from "./page-logs.js";
+import type { LogRecord, PageError } from "./page-logs.js";
+import { PageLogging } from "./page-logging.js";
 import { Lazy } from "./lazy.js";
 import type { RouteHandler } from "../network/router.js";
 import { Response } from "../network/response.js";
@@ -105,8 +106,7 @@ export default class Page {
   private nav: PageNavigation;
   private net: PageNetwork;
   private dialogs: DialogHandling;
-  private lazyLogs = new Lazy<PageLogs>();
-  private errorsAllowed = false;
+  private logging: PageLogging;
   private isClosed = false;
   private browserContext: BrowserContext | undefined;
   private transfers: PageTransfers;
@@ -137,6 +137,12 @@ export default class Page {
     );
     this.mouse = new Mouse(biDiConnector, contextId, () => this.assertOpen());
     this.documents = new DocumentWatcher(biDiConnector, contextId);
+    this.logging = new PageLogging(
+      biDiConnector,
+      contextId,
+      () => this.tree(),
+      this.pageEvents,
+    );
     this.net = new PageNetwork(biDiConnector, contextId, {
       config: this.pageConfig,
       tree: { ensure: () => this.tree(), peek: () => this.lazyTree.peek() },
@@ -278,7 +284,7 @@ export default class Page {
       this.net.disposeTracker(),
     ]);
     const tree = this.lazyTree.take();
-    const pageLogs = this.lazyLogs.take();
+    const pageLogs = this.logging.take();
     results.push(
       ...(await Promise.allSettled([
         tree?.then((resolved) => resolved.dispose()),
@@ -854,35 +860,26 @@ export default class Page {
    * early output is kept; `page.on("console" | "pageerror")` starts it when needed.
    */
   public async startLogging(): Promise<void> {
-    await this.lazyLogs.get(async () => {
-      const logs = await PageLogs.start(
-        this.biDiConnector,
-        await this.tree(),
-        this.id,
-      );
-      logs.on("console", (message) => this.pageEvents.emit("console", message));
-      logs.on("pageerror", (error) => this.pageEvents.emit("pageerror", error));
-      return logs;
-    });
+    await this.logging.start();
   }
 
   /** The newest console and error entries of this page (empty until logging started), oldest first */
   public getLogs(): readonly LogRecord[] {
-    return this.lazyLogs.peek()?.entries ?? [];
+    return this.logging.entries();
   }
 
   /** Uncaught exceptions of the page since logging started or `clearLogs()` */
   public pageErrors(): readonly PageError[] {
-    return this.lazyLogs.peek()?.errors ?? [];
+    return this.logging.errors();
   }
 
   /** How many entries fell out of the page's log buffer */
   public get logsDropped(): number {
-    return this.lazyLogs.peek()?.dropped ?? 0;
+    return this.logging.dropped;
   }
 
   public clearLogs(): void {
-    this.lazyLogs.peek()?.clear();
+    this.logging.clear();
   }
 
   /** Resolves once everything the page logged before the call has arrived: events and replies share one ordered connection */
@@ -892,11 +889,11 @@ export default class Page {
 
   /** Tells the runner not to fail this test on uncaught page exceptions (config `logs.failOnPageError`) */
   public allowPageErrors(): void {
-    this.errorsAllowed = true;
+    this.logging.allowErrors();
   }
 
   public get pageErrorsAllowed(): boolean {
-    return this.errorsAllowed;
+    return this.logging.errorsAreAllowed;
   }
 
   /** Starts watching for dialogs; the browser does this when it opens a page, `page.on("dialog")` when needed */
