@@ -1,4 +1,9 @@
 import { requestedBy } from "./fixture-args.js";
+import {
+  checkedOptions,
+  OPTIONS_SUFFIX,
+  type FixtureMeta,
+} from "./fixture-meta.js";
 
 /** The function of a fixture: sets the value up, calls `use(value)`, cleans up after `use` returns */
 type FixtureSetup = (
@@ -7,7 +12,7 @@ type FixtureSetup = (
 ) => Promise<void>;
 
 /** One definition of a fixture: the value or the setup function, what it depends on, whether every test gets it */
-export interface FixtureDef {
+export interface FixtureDef extends FixtureMeta {
   name: string;
   auto: boolean;
   deps: string[];
@@ -36,39 +41,21 @@ export const BUILT_IN_FIXTURES: ReadonlySet<string> = new Set([
   "hasTouch",
 ]);
 
-const OPTION_KEYS = new Set(["auto", "scope"]);
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
   const proto = Object.getPrototypeOf(value) as unknown;
   return proto === Object.prototype || proto === null;
 }
 
-/** `[fixture, options]` is always a pair with options; an array value goes in a function */
-function checkedOptions(name: string, options: Record<string, unknown>) {
-  for (const key of Object.keys(options))
-    if (!OPTION_KEYS.has(key))
-      throw new Error(
-        `extend(): fixture "${name}" has an unknown option "${key}"`,
-      );
-  if (options.auto !== undefined && typeof options.auto !== "boolean")
-    throw new Error(`extend(): fixture "${name}": auto must be true or false`);
-  if (options.scope === "worker")
-    throw new Error(
-      `extend(): fixture "${name}" has scope "worker", which is not supported; fixtures live as long as one test ({ scope: "test" })`,
-    );
-  if (options.scope !== undefined && options.scope !== "test")
-    throw new Error(`extend(): fixture "${name}": scope must be "test"`);
-  return { auto: options.auto === true };
-}
-
 function definitionOf(name: string, raw: unknown): FixtureDef {
   const [fixture, options] =
     Array.isArray(raw) && raw.length === 2 && isPlainObject(raw[1])
       ? ([raw[0] as unknown, checkedOptions(name, raw[1])] as const)
-      : ([raw, { auto: false }] as const);
+      : ([raw, checkedOptions(name, {})] as const);
+  const { auto, meta } = options;
+  checkOptionFixture(name, fixture, meta);
   if (typeof fixture !== "function")
-    return { name, auto: options.auto, deps: [], value: fixture };
+    return { name, auto, deps: [], value: fixture, ...meta };
   const requested = requestedBy(fixture as (...args: never[]) => unknown);
   if (requested.kind === "opaque" || requested.rest)
     throw new Error(
@@ -76,11 +63,46 @@ function definitionOf(name: string, raw: unknown): FixtureDef {
     );
   return {
     name,
-    auto: options.auto,
+    auto,
     deps: requested.names,
     setup: fixture as FixtureSetup,
+    ...meta,
   };
 }
+
+/** `option: true` and `fields` go together with a name ending in `Options` and a plain object as the value */
+function checkOptionFixture(
+  name: string,
+  fixture: unknown,
+  meta: FixtureMeta,
+): void {
+  const suffixed = name.endsWith(OPTIONS_SUFFIX) && name !== OPTIONS_SUFFIX;
+  if (!meta.option) {
+    if (meta.fields)
+      throw new Error(
+        suffixed
+          ? `extend(): fixture "${name}" has fields but option is not true`
+          : `extend(): fixture "${name}" has fields but is not an option fixture; put them on "${name}${OPTIONS_SUFFIX}" (option: true)`,
+      );
+    return;
+  }
+  if (!suffixed)
+    throw new Error(
+      `extend(): fixture "${name}" is an option fixture, so its name must end in "${OPTIONS_SUFFIX}"`,
+    );
+  if (typeof fixture === "function")
+    throw new Error(
+      `extend(): option fixture "${name}" must be a plain object, not a function`,
+    );
+  if (!isPlainObject(fixture))
+    throw new Error(
+      `extend(): option fixture "${name}" must be a plain object`,
+    );
+}
+
+/** The name of the fixture an option fixture belongs to */
+const fixtureOf = (optionName: string): string =>
+  optionName.slice(0, -OPTIONS_SUFFIX.length);
 
 /** Where a dependency of `name` (at definition `level`) comes from: another definition, or the built-in fixture */
 export function dependencyOf(
@@ -98,6 +120,36 @@ export function dependencyOf(
   const defs = layers.get(dep);
   if (defs) return { name: dep, level: defs.length - 1 };
   return BUILT_IN_FIXTURES.has(dep) ? "built-in" : undefined;
+}
+
+/** The built-in fixtures a worker fixture may use: those that do not belong to one test or one page */
+const WORKER_BUILT_INS = new Set([
+  "browserName",
+  "workerIndex",
+  "env",
+  "secrets",
+  "baseURL",
+]);
+
+/** A worker fixture outlives every test: it may use the run's values, other worker fixtures and plain values */
+function checkWorkerDependency(
+  layers: FixtureLayers,
+  def: FixtureDef,
+  dep: string,
+  target: ReturnType<typeof dependencyOf>,
+): void {
+  if (target === "built-in") {
+    if (!WORKER_BUILT_INS.has(dep))
+      throw new Error(
+        `extend(): worker fixture "${def.name}" cannot use "${dep}"; it lives longer than one test (it may use ${[...WORKER_BUILT_INS].join(", ")}, other worker fixtures and values)`,
+      );
+    return;
+  }
+  const used = target && layers.get(target.name)?.[target.level];
+  if (used && used.scope !== "worker" && used.setup)
+    throw new Error(
+      `extend(): worker fixture "${def.name}" cannot use the test-scoped fixture "${dep}"`,
+    );
 }
 
 /** Throws for a dependency nobody defines and for a cycle (`a` needs `b` needs `a`) */
@@ -120,13 +172,20 @@ function validate(layers: FixtureLayers): void {
         throw new Error(
           `extend(): fixture "${name}" depends on unknown fixture "${dep}"`,
         );
+      if (def.scope === "worker")
+        checkWorkerDependency(layers, def, dep, target);
       if (target !== "built-in")
         walk(target.name, target.level, [...path, key]);
     }
     done.add(key);
   };
-  for (const [name, defs] of layers)
+  for (const [name, defs] of layers) {
+    if (defs[defs.length - 1]?.option && !layers.has(fixtureOf(name)))
+      throw new Error(
+        `extend(): option fixture "${name}" has no fixture "${fixtureOf(name)}"`,
+      );
     for (let level = 0; level < defs.length; level++) walk(name, level, []);
+  }
 }
 
 /** The fixtures after `test.extend(definitions)` on a test that has `base`; throws `extend(): ...` for a definition that cannot work */

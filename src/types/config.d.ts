@@ -293,6 +293,12 @@ export interface SamuraiTestConfig {
   globalSetup?: string | GlobalSetupFunction;
   /** Module (path relative to the project folder) whose default export runs once after the tests; or the function itself */
   globalTeardown?: string | GlobalTeardownFunction;
+  /**
+   * The tests made with `test.extend()` whose fixtures the app, the groups and `use.fixtures` can name. The
+   * fixtures are read from the list without running a test; a name defined twice, or not matching
+   * `/^[a-z][A-Za-z0-9]*$/`, refuses the run.
+   */
+  fixtures?: { extend: (...args: never[]) => unknown }[];
   /** Keyed by name: 'dev', 'staging', 'production' */
   environments?: Record<string, SamuraiEnvironment>;
   /** Used when no environment is chosen with --env or SAMURAI_ENV */

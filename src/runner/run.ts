@@ -3,6 +3,11 @@ import type { Modifier, TestSummary } from "../types/test.js";
 import type { PreparedRun } from "./prepare-run.js";
 import { withProject, type ProjectOptions } from "./project.js";
 import { testId, toPosix, type ResolvedGroup } from "./groups.js";
+import { projectConfig } from "../config/config.js";
+import {
+  fixtureCatalog,
+  type FixtureCatalogEntry,
+} from "./fixture-registry.js";
 import TestRunner from "./test-runner.js";
 import type { RunnerOptions } from "./options.js";
 
@@ -121,6 +126,17 @@ export async function listGroups(
   return inProject(options, (runner) => runner.groups());
 }
 
+/**
+ * Lists the fixtures of the extended tests in the config's `fixtures`, with their label, icon, scope, option form
+ * and declared outputs, without running a test. Throws for a name defined twice or one that is not allowed.
+ */
+export async function listFixtures(
+  options: ProjectOptions = {},
+): Promise<FixtureCatalogEntry[]> {
+  return fixtureCatalog((await projectConfig(options)).fixtures ?? []);
+}
+
+export type { FixtureCatalogEntry } from "./fixture-registry.js";
 export { BROWSER_NAMES, checkBrowserList } from "../config/browsers.js";
 export { parseWorkers } from "../config/workers.js";
 export { parseRetries } from "../config/retries.js";

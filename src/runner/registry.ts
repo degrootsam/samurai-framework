@@ -21,6 +21,7 @@ import type {
   TestFunction,
 } from "./test-function.js";
 import { extendLayers, type FixtureLayers } from "./fixture-defs.js";
+import { rememberLayers } from "./fixture-registry.js";
 import { validateUseOptions } from "../config/use-options.js";
 import {
   currentStepLog,
@@ -289,7 +290,7 @@ function use(options: UseOptions): void {
  * the named exports: they find the spec file from the stack, so they must not be wrapped.
  */
 function makeTest(extension?: FixtureLayers): TestFunction<never> {
-  return Object.assign(registering("test", undefined, extension), {
+  const made = Object.assign(registering("test", undefined, extension), {
     skip: skipping("skip", extension),
     fixme: skipping("fixme", extension),
     fail: failing(extension),
@@ -310,6 +311,8 @@ function makeTest(extension?: FixtureLayers): TestFunction<never> {
     afterAll,
     extend: (fixtures: unknown) => makeTest(extendLayers(extension, fixtures)),
   }) as unknown as TestFunction<never>;
+  if (extension) rememberLayers(made, extension);
+  return made;
 }
 
 export const test: TestFunction = makeTest() as unknown as TestFunction;

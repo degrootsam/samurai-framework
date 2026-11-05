@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { prepareRun } from "./prepare-run.js";
+import { test as samurai } from "./registry.js";
 import { peekRunSettings, setRunSettings } from "../config/run-settings.js";
 import { MASK, maskText, resetSecrets } from "../config/mask.js";
 
@@ -42,6 +43,26 @@ test("resolves settings, loads secrets for that environment and activates the ru
     maskText("card 4242424242424242 pin 12"),
     `card ${MASK} pin ${MASK}`,
   );
+});
+
+test("a fixture name defined in two listed tests refuses the run before it starts", () => {
+  const make = async ({}: any, use: (value: unknown) => Promise<void>) =>
+    use(1);
+  assert.throws(
+    () =>
+      prepareRun(
+        {
+          fixtures: [
+            samurai.extend<any>({ shared: make }),
+            samurai.extend<any>({ shared: make }),
+          ],
+        },
+        {},
+        { cwd: dir, env: {} as unknown as NodeJS.ProcessEnv },
+      ),
+    /fixture "shared" is defined twice \(config\.fixtures\[0\] and config\.fixtures\[1\]\)/,
+  );
+  assert.equal(peekRunSettings(), undefined);
 });
 
 test("an unknown environment fails before anything is activated", () => {

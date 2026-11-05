@@ -105,7 +105,7 @@ test("test.extend registers into the same registry, chains, and keeps the API", 
 test("test.extend throws extend() errors at the call", () => {
   assert.throws(
     () =>
-      samuraiTest.extend({ a: [async () => {}, { scope: "worker" }] } as never),
+      samuraiTest.extend({ a: [async () => {}, { scope: "file" }] } as never),
     /^Error: extend\(\): /,
   );
 });
