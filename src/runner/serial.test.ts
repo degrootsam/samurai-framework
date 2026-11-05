@@ -112,3 +112,21 @@ describe("chunkBySerialBlock", () => {
     );
   });
 });
+
+describe("serial blocks and groups", () => {
+  it("the same block run for two groups is two blocks, and two file units", () => {
+    const suite = newSuite();
+    configureSuite(suite, { mode: "serial" });
+    const phone = { ...testIn(suite), group: "phone" };
+    const desktop = { ...testIn(suite), group: "desktop" };
+    const chunks = chunkBySerialBlock([phone, desktop]);
+    assert.equal(chunks.length, 2);
+    assert.notEqual(chunks[0]!.block!.key, chunks[1]!.block!.key);
+    const plain = testIn(newSuite());
+    assert.notEqual(
+      unitOf({ ...plain, group: "phone" }, false)!.key,
+      unitOf({ ...plain, group: "desktop" }, false)!.key,
+    );
+    assert.equal(unitOf(plain, false)!.key, "file:/a.spec.ts");
+  });
+});

@@ -48,6 +48,7 @@ const failedResult = (
   name: item.testName,
   file: item.file,
   browser: item.browser,
+  ...(item.group !== undefined && { group: item.group }),
   worker,
   status: "failed",
   startTime: performance.now(),
@@ -80,9 +81,13 @@ export function handleMessages(
     if (!session)
       throw new Error("The worker was sent a test before it was initialised");
     channel.send({ type: "test-start", id });
-    const test = session.tests.find(
+    const found = session.tests.find(
       ({ file, name }) => file === item.file && name === item.testName,
     );
+    const test =
+      found && item.group !== undefined
+        ? { ...found, group: item.group }
+        : found;
     if (!test) {
       const message = `Test "${item.testName}" was not found in ${item.file}`;
       channel.send({

@@ -35,6 +35,20 @@ function infoIn(dir: string, retry = 0) {
   });
 }
 
+test("project.name is the group when the test runs for one, else the browser", () => {
+  const forGroup = new TestInfoImpl({
+    test: { ...registered, group: "phone" },
+    browserName: "chrome",
+    workerIndex: 0,
+    retry: 0,
+    settings: { baseURL: undefined, timeout: 5000 },
+    resultDir: "/r",
+    outputDir: "/r/a",
+  });
+  assert.deepEqual(forGroup.project, { name: "phone" });
+  assert.deepEqual(infoIn("/r").project, { name: "firefox" });
+});
+
 test("a test's info carries its identity and the run's settings", () => {
   const info = infoIn("/r", 1);
   assert.equal(info.title, "adds");

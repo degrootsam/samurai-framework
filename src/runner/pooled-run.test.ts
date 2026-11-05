@@ -111,6 +111,70 @@ describe("planItems", () => {
   });
 });
 
+describe("planItems with groups", () => {
+  const base = testCase("/p/src/a.spec.ts", "A > one");
+  const phone = { ...base, group: "phone" };
+  const desktop = { ...base, group: "desktop" };
+
+  it("lists the same test once per group, each item naming its group", () => {
+    const { items, planned } = planItems(
+      [phone, desktop],
+      ["firefox"],
+      () => undefined,
+    );
+    assert.deepEqual(
+      items.map((i) => [i.index, i.testName, i.group]),
+      [
+        [0, "A > one", "phone"],
+        [1, "A > one", "desktop"],
+      ],
+    );
+    assert.deepEqual(
+      planned.map((p) => p.test.group),
+      ["phone", "desktop"],
+    );
+  });
+
+  it("leaves group out of the items of a run without groups", () => {
+    const { items } = planItems([base], ["firefox"], () => undefined);
+    assert.ok(!("group" in items[0]!));
+  });
+
+  it("runs a test only in the browsers its group names", () => {
+    const { items } = planItems(
+      [phone, desktop],
+      ["firefox", "chrome"],
+      () => undefined,
+      undefined,
+      () => undefined,
+      (test, browser) => test.group !== "phone" || browser === "chrome",
+    );
+    assert.deepEqual(
+      items.map((i) => [i.group, i.browser]),
+      [
+        ["desktop", "firefox"],
+        ["phone", "chrome"],
+        ["desktop", "chrome"],
+      ],
+    );
+  });
+
+  it("gives a file's unit of each group its own key", () => {
+    const unit = (test: RegisteredTestCase) => ({
+      key: `file:${test.file}${test.group ? `@${test.group}` : ""}`,
+      serial: false,
+    });
+    const { items } = planItems(
+      [phone, desktop],
+      ["firefox"],
+      () => undefined,
+      undefined,
+      unit,
+    );
+    assert.equal(new Set(items.map((i) => i.unit)).size, 2);
+  });
+});
+
 describe("serialKeyOf", () => {
   const groups: ResolvedGroup[] = [
     group("parallel-ok", ["a.spec.ts::one"]),

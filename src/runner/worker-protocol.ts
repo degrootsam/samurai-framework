@@ -10,6 +10,8 @@ export interface WorkItem {
   /** The test's full name */
   testName: string;
   browser: SupportedBrowser;
+  /** The group this run of the test is for (`--group`): its `use` applies and the result names it */
+  group?: string;
   /** Items with the same key never run at the same time */
   serialKey?: string;
   /** Items with the same unit run one after the other on the same worker, in the order they are queued */

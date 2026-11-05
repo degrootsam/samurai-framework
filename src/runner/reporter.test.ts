@@ -98,6 +98,54 @@ test("masks secrets in errors and logs", async () => {
   assert.equal(result.logs[0].text, `card ${MASK}`);
 });
 
+test("the same test for two groups gives two results, each with its group", async () => {
+  const t = testCase("a.spec.ts", "pays");
+  const phone = { ...t, group: "phone" };
+  const desktop = { ...t, group: "desktop" };
+  const output = path.join(dir, `${Math.random()}.json`);
+  const events: { type: string; group?: string }[] = [];
+  const reporter = new TestReporter({
+    environment: "staging",
+    browsers: ["firefox"],
+    output,
+    onEvent: (event) =>
+      events.push({
+        type: event.type,
+        ...("group" in event && { group: event.group }),
+      }),
+  });
+  reporter.onStart(2);
+  reporter.onTestStart(phone, "firefox");
+  reporter.onTestStart(desktop, "firefox");
+  reporter.onTestEnd(desktop, "firefox");
+  reporter.onTestEnd(phone, "firefox", { message: "boom", type: "error" });
+  await reporter.onEnd();
+  const summary = JSON.parse(readFileSync(output, "utf8"));
+  assert.deepEqual(
+    summary.tests.map((r: { group: string; status: string }) => [
+      r.group,
+      r.status,
+    ]),
+    [
+      ["phone", "failed"],
+      ["desktop", "success"],
+    ],
+  );
+  assert.deepEqual(
+    events.filter((e) => e.type.startsWith("test-")).map((e) => e.group),
+    ["phone", "desktop", "desktop", "phone"],
+  );
+});
+
+test("a result without a group has no group key", async () => {
+  const t = testCase("a.spec.ts", "pays");
+  const summary = await report((reporter) => {
+    reporter.onTestStart(t, "firefox");
+    reporter.onTestEnd(t, "firefox");
+  });
+  assert.ok(!("group" in summary.tests[0]));
+});
+
 test("the same test in two browsers gives two results, each with its browser", async () => {
   const t = testCase("a.spec.ts", "pays");
   const output = path.join(dir, `${Math.random()}.json`);

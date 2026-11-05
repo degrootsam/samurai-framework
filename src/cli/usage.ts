@@ -14,7 +14,7 @@ Options for run and list:
   --env <name>                Environment to run against (or SAMURAI_ENV)
   --file <spec>               Only this spec file; repeatable
   --grep <text>               Only tests whose full name contains the text
-  --group <name>              Only the tests of this group of the config's groups
+  --group <name>              Only the tests of this group of the config's groups; repeat it for several
   --browser <name>            Run in this browser (firefox or chrome) instead of the config's
                               browsers; repeat it for more than one
   --json                      Machine-readable output: JSON lines for run, one array for list

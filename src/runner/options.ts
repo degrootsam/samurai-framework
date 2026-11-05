@@ -10,8 +10,12 @@ export interface RunnerOptions {
   grep?: string | RegExp;
   /** Only tests with exactly one of these full names (`describe` titles joined with " > ") */
   testNames?: string[];
-  /** Only the tests of this group of the config's `groups` (unknown name: an error). Combines with the other filters */
-  group?: string;
+  /**
+   * Only the tests of this group of the config's `groups`, or of any of these (unknown name: an error). Combines with
+   * the other filters. The run applies the group's `use` and `browsers`; a test in two selected groups runs once per
+   * group, and its results name the group.
+   */
+  group?: string | string[];
   /** The browsers to run in, instead of the group's or the project's `browsers` (the command line's `--browser`) */
   browsers?: SupportedBrowser[];
   /**

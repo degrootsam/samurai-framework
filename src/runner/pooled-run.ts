@@ -24,7 +24,7 @@ export interface PlannedTest {
  * Lists the run: every selected test in the first browser, then every selected test in the next one. The
  * position in the list is the item's `index`. `serialKey` says which group makes a test run alone, `unitOf` which
  * tests must run one after the other on one worker (a serial block, a file). `inputs`, the run's input values, go
- * with every item.
+ * with every item. `runsIn` says which browsers a test runs in (all of them unless a group names its own).
  */
 export function planItems(
   selected: RegisteredTestCase[],
@@ -32,9 +32,15 @@ export function planItems(
   serialKey: (test: RegisteredTestCase) => string | undefined,
   inputs?: Record<string, string>,
   unitOf: (test: RegisteredTestCase) => RunUnit | undefined = () => undefined,
+  runsIn: (
+    test: RegisteredTestCase,
+    browser: SupportedBrowser,
+  ) => boolean = () => true,
 ): { items: WorkItem[]; planned: PlannedTest[] } {
   const planned = browsers.flatMap((browser) =>
-    selected.map((test) => ({ test, browser })),
+    selected
+      .filter((test) => runsIn(test, browser))
+      .map((test) => ({ test, browser })),
   );
   // A test that does not run (skip, fixme) is in the plan but not in the queue; `index` is its place in the plan
   const items = planned.flatMap(({ test, browser }, index): WorkItem[] => {
@@ -47,6 +53,7 @@ export function planItems(
         file: test.file,
         testName: test.name,
         browser,
+        ...(test.group !== undefined && { group: test.group }),
         ...(key !== undefined && { serialKey: key }),
         // One unit per browser: the same block in two browsers is two runs
         ...(unit && { unit: `${unit.key}@${browser}` }),

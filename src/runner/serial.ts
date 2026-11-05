@@ -26,6 +26,9 @@ export function configureSuite(suite: Suite, options: unknown): void {
   else suite.mode = mode as SuiteMode;
 }
 
+const groupSuffix = (test: RegisteredTestCase) =>
+  test.group === undefined ? "" : `@${test.group}`;
+
 /** A group of tests that run in order on one worker; if one fails, the rest of the block is skipped */
 export interface SerialBlock {
   /** The file and the `describe` titles of the block's outermost serial suite; the same in every process */
@@ -43,7 +46,11 @@ export function serialBlockOf(
   const titles = suiteChain(suite).flatMap((s) =>
     s.title === undefined ? [] : [s.title],
   );
-  return { key: `serial:${test.file}::${titles.join(" > ")}`, suite };
+  // The same block run for two groups is two blocks
+  return {
+    key: `serial:${test.file}::${titles.join(" > ")}${groupSuffix(test)}`,
+    suite,
+  };
 }
 
 /** The tests that must run one after the other on one worker, in the order they are listed */
@@ -69,7 +76,9 @@ export function unitOf(
   const nearest = suiteChain(test.suite)
     .reverse()
     .find((s) => s.mode === "parallel");
-  return nearest ? undefined : { key: `file:${test.file}`, serial: false };
+  return nearest
+    ? undefined
+    : { key: `file:${test.file}${groupSuffix(test)}`, serial: false };
 }
 
 /** Tests that follow each other and belong to one serial block (`block`), or one test outside any block */

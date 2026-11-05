@@ -35,6 +35,8 @@ export type RunEvent =
       name: string;
       file: string;
       browser: SupportedBrowser;
+      /** The group the test runs for, when the run selected groups; absent otherwise */
+      group?: string;
       /** The attempt, counting from 1, when the test is run again after a failure; absent for the first */
       retry?: number;
     }
@@ -43,6 +45,8 @@ export type RunEvent =
       name: string;
       file: string;
       browser: SupportedBrowser;
+      /** The group the test ran for, when the run selected groups; absent otherwise */
+      group?: string;
       result: TestResult;
     }
   | { type: "run-end"; summary: TestSummary };
@@ -60,10 +64,14 @@ export interface ReporterOptions {
   onEvent?: (event: RunEvent) => void;
 }
 
-/** Results are keyed by file, full title and browser, so equal titles in different files or describe blocks, and the same test in two browsers, stay apart */
+/** Results are keyed by file, full title, browser and group, so equal titles in different files or describe blocks, and the same test in two browsers or for two groups, stay apart */
 function keyOf(test: RegisteredTestCase, browser: SupportedBrowser): string {
-  return `${test.file}::${test.name}::${browser}`;
+  return `${test.file}::${test.name}::${browser}${test.group === undefined ? "" : `::${test.group}`}`;
 }
+
+/** The `group` of a test's report entry and events: nothing when no group was selected */
+const groupOf = (test: RegisteredTestCase) =>
+  test.group === undefined ? {} : { group: test.group };
 
 /** What `runOneTest` reports a test to: the reporter of a run, or a worker that relays it */
 export interface TestSink {
@@ -215,6 +223,7 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+      ...groupOf(test),
       status: "started",
       startTime: t.startTime,
     });
@@ -223,6 +232,7 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+      ...groupOf(test),
       ...(retry ? { retry } : {}),
     });
   }
@@ -249,6 +259,7 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+      ...groupOf(test),
       result,
     });
   }
@@ -274,6 +285,7 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+      ...groupOf(test),
       result: ended,
     });
   }
@@ -317,6 +329,7 @@ export default class TestReporter implements TestSink {
       name: test.name,
       file: test.file,
       browser,
+      ...groupOf(test),
       result,
     });
   }

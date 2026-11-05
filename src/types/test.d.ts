@@ -209,6 +209,8 @@ export interface RegisteredTestCase extends TestCaseBase {
   expectedFail?: { description?: string };
   /** The custom fixtures of the `test` it was written with (`test.extend()`); absent for the plain `test` */
   extension?: ReadonlyMap<string, readonly unknown[]>;
+  /** The group this run of the test is for, when groups were selected; the same test runs once per selected group */
+  group?: string;
 }
 
 export interface TestCaseBase {
@@ -299,6 +301,8 @@ interface TestResultIdentity {
   file: string;
   /** The browser the test ran in */
   browser: SupportedBrowser;
+  /** The group the test ran for, when the run selected groups (`--group`); absent otherwise */
+  group?: string;
   /** The worker process that ran the test; absent when the test ran in the main process */
   worker?: number;
   startTime: number;
@@ -308,6 +312,7 @@ interface TestResultBase {
   name: string;
   file: string;
   browser: SupportedBrowser;
+  group?: string;
   worker?: number;
   startTime: number;
   status: "started";

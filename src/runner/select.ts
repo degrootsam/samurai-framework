@@ -80,33 +80,74 @@ export async function loadSpecs(testFiles: string[]): Promise<LoadedSpecs> {
   return { all, ...(await resolveAll(all)) };
 }
 
-/** The tests the options select: by `group`, `testNames` and `grep` */
+/** The group names the options select, once each and in the order given; none when no group is selected */
+export function groupNamesOf(group: RunnerOptions["group"]): string[] {
+  return [...new Set(group === undefined ? [] : [group].flat())];
+}
+
+/** The tests the options select: by `group` (in any of them), `testNames` and `grep`; each test once */
 export function selectTests(
   { all, groups, srcDir }: LoadedSpecs,
   options: RunnerOptions,
 ): RegisteredTestCase[] {
-  const { group } = options;
+  const names = groupNamesOf(options.group);
   let inGroup: (test: RegisteredTestCase) => boolean = () => true;
-  if (group !== undefined) {
-    const members = new Set(findGroup(groups, group).testIds);
+  if (names.length > 0) {
+    const members = new Set(
+      names.flatMap((name) => findGroup(groups, name).testIds),
+    );
     inGroup = (test) => members.has(idOf(test, srcDir));
   }
   return all.filter((test) => inGroup(test) && isSelected(test.name, options));
 }
 
 /**
- * The browsers the run uses: the options' (`--browser`), else the selected group's, else the project's, else
- * Firefox
+ * The runs of the selected tests: without a selected group, the tests as they are; else one copy per selected group
+ * that holds the test (its `group` set), the first group's tests first
  */
-export async function browsersOfRun(
+export function expandByGroup(
+  selected: RegisteredTestCase[],
+  { groups, srcDir }: LoadedSpecs,
+  options: RunnerOptions,
+): RegisteredTestCase[] {
+  const names = groupNamesOf(options.group);
+  if (names.length === 0) return selected;
+  return names.flatMap((name) => {
+    const members = new Set(findGroup(groups, name).testIds);
+    return selected
+      .filter((test) => members.has(idOf(test, srcDir)))
+      .map((test) => ({ ...test, group: name }));
+  });
+}
+
+/**
+ * The browsers a run of a test uses: the options' (`--browser`), else its group's, else the project's, else Firefox
+ */
+export async function browserPlan(
   groups: ResolvedGroup[],
   options: RunnerOptions,
-): Promise<SupportedBrowser[]> {
-  const { browsers: flag, group } = options;
+): Promise<{
+  /** Every browser of the run, in the order they run */
+  browsers: SupportedBrowser[];
+  /** The browsers one run of a test uses */
+  browsersOf(test: RegisteredTestCase): SupportedBrowser[];
+}> {
+  const { browsers: flag } = options;
   const config = await loadRawConfig();
-  const ofGroup =
-    group !== undefined && !(flag && flag.length > 0)
-      ? findGroup(groups, group).browsers
-      : undefined;
-  return browsersFor({ flag, group: ofGroup, project: config.browsers });
+  const names = groupNamesOf(options.group);
+  const flagged = flag && flag.length > 0;
+  const ofGroup = new Map(
+    names.map((name) => [name, findGroup(groups, name).browsers]),
+  );
+  const project = browsersFor({ flag, project: config.browsers });
+  const forGroup = (name: string) =>
+    flagged ? project : (ofGroup.get(name) ?? project);
+  const browsers = [
+    ...new Set(names.length > 0 ? names.flatMap(forGroup) : project),
+  ];
+  return {
+    browsers,
+    browsersOf: (test) =>
+      test.group === undefined ? project : forGroup(test.group),
+  };
 }

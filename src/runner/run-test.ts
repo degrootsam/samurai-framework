@@ -1,7 +1,7 @@
 import path from "node:path";
 import { takePendingAssertions } from "../assert/expect.js";
 import { Browser } from "../browser/browser.js";
-import { Evidence } from "../browser/evidence.js";
+import { cleanName, Evidence } from "../browser/evidence.js";
 import type Page from "../browser/page.js";
 import { projectDir, readConfig } from "../config/config.js";
 import logger from "../logger/index.js";
@@ -196,7 +196,7 @@ export async function runOneTest(
         Object.keys(use).length > 0
           ? await launched.browser.setUse(use, projectDir())
           : undefined;
-      const testFolder = `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`;
+      const testFolder = `${browserName}${test.group === undefined ? "" : `/${cleanName(test.group)}`}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`;
       outcome.evidence = new Evidence(resultDir, testFolder);
       launched.page.setEvidence(outcome.evidence);
       const info = new TestInfoImpl({

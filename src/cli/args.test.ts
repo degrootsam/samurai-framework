@@ -100,6 +100,16 @@ describe("parseRunnerFlags", () => {
     );
   });
 
+  test("reads --group, repeatable: one name stays a string, more become a list", () => {
+    assert.deepEqual(parseRunnerFlags(["--group", "phone"]), {
+      group: "phone",
+    });
+    assert.deepEqual(
+      parseRunnerFlags(["--group", "phone", "--group", "desktop"]),
+      { group: ["phone", "desktop"] },
+    );
+  });
+
   test("takes values that were parsed already, so a command line is parsed once", () => {
     const parsed = parseCommandLine(["--group", "smoke", "--env", "dev"]);
     assert.deepEqual(parseRunnerFlags(parsed.values), { group: "smoke" });

@@ -72,7 +72,8 @@ export class TestInfoImpl implements TestInfo {
     if (test.column !== undefined) this.column = test.column;
     this.retry = from.retry;
     this.workerIndex = from.workerIndex;
-    this.project = { name: from.browserName };
+    // A run for a group is named after it (as a Playwright project is), else after the browser
+    this.project = { name: test.group ?? from.browserName };
     this.config = { ...from.settings };
     this.resultDir = from.resultDir;
     this.outputDir = from.outputDir;

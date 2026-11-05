@@ -28,7 +28,7 @@ const FLAGS = {
   retries: { type: "string" },
   shard: { type: "string" },
   grep: { type: "string" },
-  group: { type: "string" },
+  group: { type: "string", multiple: true },
   browser: { type: "string", multiple: true },
   file: { type: "string", multiple: true },
   json: { type: "boolean" },
@@ -75,13 +75,14 @@ export interface RunnerFlags {
   /** `--shard=current/total`, parsed */
   shard?: Shard;
   grep?: string;
-  group?: string;
+  /** `--group`: one name as typed, or the list when it is repeated */
+  group?: string | string[];
   files?: string[];
   /** `--browser`, repeated for more than one; replaces the config's `browsers` for this run */
   browsers?: SupportedBrowser[];
 }
 
-/** Reads `--headless`, `--port <n>`, `--workers <n|n%>`, `--retries <n>`, `--shard <current/total>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
+/** Reads `--headless`, `--port <n>`, `--workers <n|n%>`, `--retries <n>`, `--shard <current/total>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (all three repeatable) from `argv`, or from values that were parsed already */
 export function parseRunnerFlags(
   source: string[] | CommandValues,
 ): RunnerFlags {
@@ -108,7 +109,8 @@ export function parseRunnerFlags(
   if (values.shard !== undefined)
     flags.shard = parseShard(values.shard, "--shard");
   if (values.grep !== undefined) flags.grep = values.grep;
-  if (values.group !== undefined) flags.group = values.group;
+  if (values.group?.length)
+    flags.group = values.group.length === 1 ? values.group[0]! : values.group;
   if (values.file?.length) flags.files = values.file;
   if (values.browser?.length) {
     checkBrowserList(values.browser, "--browser");

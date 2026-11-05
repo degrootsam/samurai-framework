@@ -5,6 +5,7 @@ import { projectBrowser } from "../browsers/resolve.js";
 import { loadRawConfig, projectDir, readConfig } from "../config/config.js";
 import { forbidsOnly } from "../config/forbid-only.js";
 import logger from "../logger/index.js";
+import type { SupportedBrowser } from "../types/browser.js";
 import type { SamuraiTestConfig } from "../types/config.js";
 import type { RegisteredTestCase } from "../types/test.js";
 import { AllHooks } from "./all-hooks.js";
@@ -26,7 +27,12 @@ import {
 import { allHookFixtures } from "./fixtures.js";
 import { runOneTest } from "./run-test.js";
 import { staticSkip } from "./skip.js";
-import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
+import {
+  browserPlan,
+  expandByGroup,
+  loadSpecs,
+  selectTests,
+} from "./select.js";
 import { resolveRetries } from "./retries-option.js";
 import { runWithRetries } from "./retry.js";
 import { chunkBySerialBlock, unitOf } from "./serial.js";
@@ -149,12 +155,19 @@ export default class TestRunner {
       ? parseShard(this.options.shard, "shard")
       : undefined;
     const focused = narrowToOnly(selectTests(loaded, this.options));
-    const selected = shard
+    const sharded = shard
       ? shardTests(focused, shard, (test) =>
           shardGroupOf(test, config.fullyParallel),
         )
       : focused;
-    const browsers = await browsersOfRun(loaded.groups, this.options);
+    // A test of two selected groups is two runs, each with its group's `use` and `browsers`
+    const selected = expandByGroup(sharded, loaded, this.options);
+    const { browsers, browsersOf } = await browserPlan(
+      loaded.groups,
+      this.options,
+    );
+    const runsIn = (test: RegisteredTestCase, browser: SupportedBrowser) =>
+      browsersOf(test).includes(browser);
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
       browsers,
@@ -181,6 +194,7 @@ export default class TestRunner {
       serialKeyOf(loaded.groups, config.groups, loaded.srcDir),
       this.options.inputs,
       (test) => unitOf(test, config.fullyParallel),
+      runsIn,
     );
     // A pool larger than what can overlap would only hold idle workers: a group that runs one at a time needs one
     const lanes = concurrency(plan.items);
@@ -219,7 +233,7 @@ export default class TestRunner {
       return reporter.onEnd();
     }
 
-    reporter.onStart(selected.length * browsers.length);
+    reporter.onStart(plan.planned.length);
     // The `afterAll` hooks run when the last test is done, before the run ends
     const allHooks = new AllHooks({
       timeout: this.run.settings.timeout,
@@ -227,7 +241,8 @@ export default class TestRunner {
     });
     try {
       for (const browser of browsers) {
-        for (const chunk of chunkBySerialBlock(selected)) {
+        const forBrowser = selected.filter((test) => runsIn(test, browser));
+        for (const chunk of chunkBySerialBlock(forBrowser)) {
           const runTest: BlockTest = (test, sink, attempt) =>
             runOneTest(
               test,
