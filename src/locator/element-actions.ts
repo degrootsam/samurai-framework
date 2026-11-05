@@ -10,36 +10,16 @@ import {
   requireElement,
   type ElementAccess,
 } from "./element-access.js";
-import {
-  clickRect,
-  DEFAULT_PAUSE_MS,
-  NAMED_KEYS,
-  pause,
-  pressKey,
-  typeText,
-} from "./input-actions.js";
+import { clickRect } from "./pointer-actions.js";
+import { DEFAULT_PAUSE_MS, pause, typeText } from "./input-actions.js";
+import { chordSteps, performKeys, textSteps } from "./key-actions.js";
+import { NAMED_KEYS, parseKeyChord } from "./key-map.js";
 import {
   ATTACHED_ONLY,
-  CLICK_CHECKS,
   FILL_CHECKS,
   PRESS_CHECKS,
   SCREENSHOT_CHECKS,
 } from "./page-scripts.js";
-
-/** Waits until the element is attached, visible, stable, enabled and not covered, then clicks its centre with real pointer input */
-export async function clickElement(
-  access: ElementAccess,
-  options?: ActionOptions,
-): Promise<void> {
-  const state = await access.waitForActionable(
-    "click",
-    CLICK_CHECKS,
-    { scroll: true, hitTest: true },
-    options,
-  );
-  // "attached" is always required, so the box is present
-  await clickRect(access.connector, access.contextId, state.box!);
-}
 
 /** Takes a screenshot of just the element, after scrolling it into view and waiting until it is attached and visible */
 export async function screenshotElement(
@@ -73,26 +53,56 @@ export async function focusElement(
   await callOnExistingElement(access, `el.focus();`);
 }
 
-/** Waits until the element is attached, visible and enabled, focuses it and presses `key` with real keyboard input */
-export async function pressOnElement(
+/** Waits until the element is attached, visible and enabled and focuses it; the keys then go to the page's keyboard */
+async function focusForKeys(
   access: ElementAccess,
-  key: string,
-  options?: ActionOptions,
+  method: string,
+  options: ActionOptions | undefined,
 ): Promise<void> {
-  const code = NAMED_KEYS[key] ?? (Array.from(key).length === 1 ? key : "");
-  if (code === "") {
-    throw new Error(
-      `press(): unknown key "${key}". Use one of ${Object.keys(NAMED_KEYS).join(", ")} or a single character`,
-    );
-  }
   await access.waitForActionable(
-    "press",
+    method,
     PRESS_CHECKS,
     { scroll: true, hitTest: false },
     options,
   );
   await callOnElement(access, undefined, `el.focus();`);
-  await pressKey(access.connector, access.contextId, code);
+}
+
+/** Focuses the element and presses `key` with real keyboard input; `key` can be a chord such as `Control+a` */
+export async function pressOnElement(
+  access: ElementAccess,
+  key: string,
+  options?: ActionOptions & { delay?: number },
+): Promise<void> {
+  const chord = parseKeyChord(key, "press");
+  await focusForKeys(access, "press", options);
+  await performKeys(
+    access.connector,
+    access.contextId,
+    chordSteps(chord, options?.delay),
+  );
+}
+
+/** Focuses the element and types `text` into it one key press at a time, `delay` ms apart */
+export async function pressSequentially(
+  access: ElementAccess,
+  text: string,
+  options?: ActionOptions & { delay?: number },
+): Promise<void> {
+  await focusForKeys(access, "pressSequentially", options);
+  await performKeys(
+    access.connector,
+    access.contextId,
+    textSteps(text, options?.delay),
+  );
+}
+
+/** Empties an input, textarea or editable element, as `fill("")` does */
+export async function clearElement(
+  access: ElementAccess,
+  options?: ActionOptions,
+): Promise<void> {
+  await fillElement(access, "", options);
 }
 
 /** Waits until the field is editable and not covered, then replaces its value by typing `value`; an empty string clears it */
