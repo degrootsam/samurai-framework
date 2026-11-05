@@ -4,6 +4,7 @@ import type {
   AllHook,
   EachHook,
   Modifier,
+  SuiteMode,
   RegisteredTestCase,
   TestFixtures,
   TestOptions,
@@ -39,6 +40,7 @@ import {
   modifierOf,
   resetSuites,
 } from "./suite.js";
+import { configureSuite } from "./serial.js";
 
 const registered: RegisteredTestCase[] = [];
 
@@ -49,8 +51,9 @@ function openDescribe(
   fn: () => void,
   modifier?: Modifier,
   reason?: string,
+  mode?: SuiteMode,
 ): void {
-  enterSuite(file, title, modifier, reason);
+  enterSuite(file, title, modifier, reason, mode);
   try {
     const result: unknown = fn();
     if (result instanceof Promise) {
@@ -247,6 +250,12 @@ export const describe: DescribeFunction = Object.assign(
     fixme: describeSkipping("fixme"),
     only: (title: string, fn: () => void) =>
       openDescribe(callerFile(), title, fn, "only"),
+    configure: (options: { mode: SuiteMode }) =>
+      configureSuite(currentSuite(callerFile()), options),
+    serial: (title: string, fn: () => void) =>
+      openDescribe(callerFile(), title, fn, undefined, undefined, "serial"),
+    parallel: (title: string, fn: () => void) =>
+      openDescribe(callerFile(), title, fn, undefined, undefined, "parallel"),
   },
 );
 

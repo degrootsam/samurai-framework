@@ -1,5 +1,6 @@
 import type {
   AllHook,
+  SuiteMode,
   TestCaseBase,
   TestDetails,
   TestInfo,
@@ -108,6 +109,16 @@ export interface DescribeFunction {
   skip: DescribeSkipFunction;
   fixme: DescribeSkipFunction;
   only(title: string, fn: () => void): void;
+  /**
+   * Sets how the tests of the `describe` block it is written in (of the file, at the top level) run:
+   * `"serial"` runs them in order on one worker and skips the rest after a failure, `"parallel"` lets them run on
+   * different workers even when the config does not, `"default"` follows the config's `fullyParallel`
+   */
+  configure(options: { mode: SuiteMode }): void;
+  /** A `describe` block in `"serial"` mode */
+  serial(title: string, fn: () => void): void;
+  /** A `describe` block in `"parallel"` mode */
+  parallel(title: string, fn: () => void): void;
 }
 
 /** `test.fail()` and `test.slow()`: with a condition (a function gets the test's fixtures), or none for "always" */

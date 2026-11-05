@@ -1,4 +1,4 @@
-import type { EachHook, Modifier, Suite } from "../types/test.js";
+import type { EachHook, Modifier, Suite, SuiteMode } from "../types/test.js";
 import type { UseOptions } from "../types/use.js";
 
 /** The four hook lists a suite can hold */
@@ -14,12 +14,14 @@ export function newSuite(
   parent?: Suite,
   modifier?: Modifier,
   reason?: string,
+  mode?: SuiteMode,
 ): Suite {
   return {
     ...(title !== undefined && { title }),
     ...(parent && { parent }),
     ...(modifier && { modifier }),
     ...(reason !== undefined && { reason }),
+    ...(mode && { mode }),
   };
 }
 
@@ -41,8 +43,9 @@ export function enterSuite(
   title: string,
   modifier?: Modifier,
   reason?: string,
+  mode?: SuiteMode,
 ): Suite {
-  const suite = newSuite(title, currentSuite(file), modifier, reason);
+  const suite = newSuite(title, currentSuite(file), modifier, reason, mode);
   open.push(suite);
   return suite;
 }

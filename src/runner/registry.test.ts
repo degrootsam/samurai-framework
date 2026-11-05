@@ -339,3 +339,29 @@ test("describe.skip keeps only the reason in its details", () => {
   });
   assert.equal(registeredTests()[0]?.reason, "r");
 });
+
+test("describe.serial and describe.parallel set the mode of their tests' suite", () => {
+  samuraiDescribe.serial("S", () => samuraiTest("a", noop));
+  samuraiDescribe.parallel("P", () => samuraiTest("b", noop));
+  samuraiDescribe("D", () => samuraiTest("c", noop));
+  assert.deepEqual(
+    registeredTests().map((t) => t.suite.mode),
+    ["serial", "parallel", undefined],
+  );
+});
+
+test("describe.configure sets the mode of the describe block, or of the file at the top level", () => {
+  samuraiDescribe.configure({ mode: "serial" });
+  samuraiTest("top", noop);
+  samuraiDescribe("Inner", () => {
+    samuraiDescribe.configure({ mode: "parallel" });
+    samuraiTest("inner", noop);
+  });
+  const [top, inner] = registeredTests();
+  assert.equal(top?.suite.mode, "serial");
+  assert.equal(inner?.suite.mode, "parallel");
+  assert.throws(
+    () => samuraiDescribe.configure({ mode: "nope" as never }),
+    /describe\.configure\(\): mode must be/,
+  );
+});

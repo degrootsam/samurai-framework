@@ -180,7 +180,12 @@ export interface Suite {
   marks?: { type: "fail" | "slow"; description?: string }[];
   /** The `test.use()` calls written in this scope, in order; they apply to every test below */
   use?: UseOptions[];
+  /** Set by `describe.configure({ mode })`, `describe.serial` or `describe.parallel`; absent: `"default"` */
+  mode?: SuiteMode;
 }
+
+/** How the tests of a suite run: `"serial"` in order on one worker, the rest stops at the first failure */
+export type SuiteMode = "default" | "parallel" | "serial";
 
 export interface RegisteredTestCase extends TestCaseBase {
   /** Path of the spec file that registered the test */
