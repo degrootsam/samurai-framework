@@ -26,6 +26,8 @@ export interface ProbeOptions {
   scroll: boolean;
   /** Check which element receives a click at the element's centre */
   hitTest: boolean;
+  /** Where to check the hit: this far from the element's top left corner; the centre without it */
+  at?: { x: number; y: number };
   /**
    * Probe a checkbox, radio or switch the way a user reaches it: opacity 0 does not hide it, and a click on
    * one of its labels counts as hitting it (`control-probe.ts`). Only the check actions set this
@@ -89,7 +91,8 @@ export const PROBE_ELEMENT = `(el, options) => {
   const editable = Boolean(enabled && !el.readOnly && typeable);
   let hitTarget = null;
   if (options.hitTest) {
-    const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    const at = options.at || { x: rect.width / 2, y: rect.height / 2 };
+    const top = document.elementFromPoint(rect.left + at.x, rect.top + at.y);
     hitTarget = !top ? "nothing"
       : top === el || el.contains(top) ? "self"
       : top.tagName.toLowerCase() + (top.id ? "#" + top.id : "") +

@@ -44,6 +44,13 @@ export const CLICK_CHECKS: readonly CheckName[] = [
   "enabled",
   "hit target",
 ];
+/** `hover`: the pointer only moves, so the element need not be enabled */
+export const HOVER_CHECKS: readonly CheckName[] = [
+  "attached",
+  "visible",
+  "stable",
+  "hit target",
+];
 /** `selectOption`: a select is not clicked, so it need not be stable or uncovered */
 export const SELECT_CHECKS: readonly CheckName[] = [
   "attached",

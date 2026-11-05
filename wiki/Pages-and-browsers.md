@@ -153,6 +153,31 @@ Both return a `Buffer` and also write to `path` (folders are created). `quality`
 
 `name` saves the image in the result folder next to the report, and lists it in the test's report entry (see [Running tests and reports](Running-tests-and-reports#screenshots)). It combines with `path`. The name keeps letters, digits, `-` and `_`; every other character becomes `-`, and an empty name becomes `screenshot`. In one test, a repeated name gets `-2`, `-3`, …. The recorder's Screenshot tool writes this step.
 
+## Keyboard and mouse
+
+`page.keyboard` and `page.mouse` send real input to whatever has focus or sits at a point, for what no single locator owns: shortcuts, drawing, a canvas.
+
+```ts
+await page.keyboard.press("Control+a"); // a key or a chord; same names as locator.press
+await page.keyboard.press("Shift+Tab");
+await page.keyboard.type("hello", { delay: 50 }); // one key press per character, ms apart; "\n" is Enter
+await page.keyboard.down("Shift"); // held until up(); a held Shift capitalizes the next key
+await page.keyboard.press("a"); // "A"
+await page.keyboard.up("Shift");
+await page.keyboard.insertText("pasted text"); // one step, fires input but no key events
+
+await page.mouse.move(100, 200, { steps: 10 }); // straight line from the last mouse position
+await page.mouse.click(120, 80, { button: "right", clickCount: 1, delay: 0 });
+await page.mouse.dblclick(120, 80);
+await page.mouse.down(); // press where the mouse is
+await page.mouse.up();
+await page.mouse.wheel(0, 300); // scroll the element under the mouse
+```
+
+Coordinates are CSS pixels from the top left of the visible page. `keyboard.down` and `up` take one key, not a chord; BiDi remembers which keys are down between calls. `mouse.move` interpolates from the last position set through `page.mouse` (it starts at 0, 0); a locator action moves the pointer without telling it. `insertText` writes at the caret of the focused input, textarea or editable element (also in a same-origin frame) and does nothing when none has focus.
+
+Firefox quirks: a headless Firefox window has no system focus, so `focus` and `blur` events do not fire there (the focus itself moves; `document.activeElement` changes). And when the page under a pointer that has not moved is replaced, Firefox hit-tests the next `mouse.wheel` against the old page: move the mouse to a new point first. Errors read `keyboard.press(): unknown key "Hyper"` and `mouse.click(): unknown button "back"`.
+
 ## Emulation
 
 Pretend things about the browser. `undefined` leaves an option alone, `null` restores the real value.

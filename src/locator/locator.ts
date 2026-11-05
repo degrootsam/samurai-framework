@@ -23,12 +23,22 @@ import {
   type ElementAccess,
 } from "./element-access.js";
 import {
-  clickElement,
+  clearElement,
   fillElement,
   focusElement,
   pressOnElement,
+  pressSequentially,
   screenshotElement,
 } from "./element-actions.js";
+import { dragElement, type DragOptions } from "./drag-actions.js";
+import { blurElement, dispatchEventOn } from "./event-actions.js";
+import {
+  clickElement,
+  hoverElement,
+  tapElement,
+  type ClickOptions,
+  type PointerOptions,
+} from "./pointer-element-actions.js";
 import {
   readAccessibleDescription,
   readAccessibleName,
@@ -167,13 +177,27 @@ export default class Locator {
 
   /** Steps that keep the fallbacks: each fallback gets the same step, so "inside A or B" stays meaningful */
   private child(step: Selector): Locator {
+    return this.copy({
+      chain: [...this.chain, step],
+      alternatives: this.alternatives.map((alt) => alt.child(step)),
+    });
+  }
+
+  /** A locator on the same page and helpers, with the given parts replaced */
+  private copy(
+    parts: {
+      chain?: readonly Selector[] | string;
+      alternatives?: readonly Locator[];
+      strictness?: StrictSource;
+    } = {},
+  ): Locator {
     return new Locator(
-      [...this.chain, step],
+      parts.chain ?? this.chain,
       this.biDiConnector,
       this.contextId,
       this.helpers,
-      this.alternatives.map((alt) => alt.child(step)),
-      this.strictness,
+      parts.alternatives ?? this.alternatives,
+      parts.strictness ?? this.strictness,
     );
   }
 
@@ -186,14 +210,7 @@ export default class Locator {
    *  page.getByTestId("save").withFallbacks(page.getByRole("button", { name: "Save" }), page.getByText("Save"));
    */
   public withFallbacks(...fallbacks: Locator[]): Locator {
-    return new Locator(
-      this.chain,
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      [...this.alternatives, ...fallbacks],
-      this.strictness,
-    );
+    return this.copy({ alternatives: [...this.alternatives, ...fallbacks] });
   }
 
   /**
@@ -204,14 +221,7 @@ export default class Locator {
    *  await page.locator("li").strict().click(); // throws when there is more than one li
    */
   public strict(enabled = true): Locator {
-    return new Locator(
-      this.chain,
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      this.alternatives,
-      () => Promise.resolve(enabled),
-    );
+    return this.copy({ strictness: () => Promise.resolve(enabled) });
   }
 
   /**
@@ -306,20 +316,16 @@ export default class Locator {
     if (other.contextId !== this.contextId) {
       throw new TypeError(`${kind}(): the locators belong to different pages`);
     }
-    return new Locator(
-      [
+    return this.copy({
+      chain: [
         {
           kind,
           left: this.chainFor(`${kind}()`, "an operand"),
           right: other.chainFor(`${kind}()`, "an operand"),
         },
       ],
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      [],
-      this.strictness,
-    );
+      alternatives: [],
+    });
   }
 
   /** The chain of a locator used inside another (`has`); a locator with fallbacks cannot be */
@@ -354,14 +360,10 @@ export default class Locator {
     return Array.from({ length: count }, (_, index) =>
       only?.kind === "xpath"
         ? // A positional xpath keeps working without a second search for the whole chain
-          new Locator(
-            `(${describeSelector(only, false)})[${index + 1}]`,
-            this.biDiConnector,
-            this.contextId,
-            this.helpers,
-            [],
-            this.strictness,
-          )
+          this.copy({
+            chain: `(${describeSelector(only, false)})[${index + 1}]`,
+            alternatives: [],
+          })
         : this.child({ kind: "nth", index }),
     );
   }
@@ -400,14 +402,7 @@ export default class Locator {
   }
 
   private withoutFallbacks(): Locator {
-    return new Locator(
-      this.chain,
-      this.biDiConnector,
-      this.contextId,
-      this.helpers,
-      [],
-      this.strictness,
-    );
+    return this.copy({ alternatives: [] });
   }
 
   /**
@@ -443,9 +438,60 @@ export default class Locator {
     );
   }
 
-  /** Waits until the element is attached, visible, stable, enabled and not covered, then clicks its centre with real pointer input */
-  public async click(options?: ActionOptions): Promise<void> {
+  /**
+   * Waits until the element is attached, visible, stable, enabled and not covered, then clicks it with real pointer
+   * input: its centre, or `position` (pixels from its top left corner). `button`, `clickCount`, `delay` (ms between press
+   * and release) and `modifiers` (keys held down) are as in Playwright
+   */
+  public async click(options?: ClickOptions): Promise<void> {
     await clickElement(this.access, options);
+  }
+
+  /** `click` with `clickCount: 2` */
+  public async dblclick(options?: ClickOptions): Promise<void> {
+    await clickElement(this.access, { ...options, clickCount: 2 }, "dblclick");
+  }
+
+  /** Waits until the element is attached, visible, stable and not covered, then moves the mouse onto it (`:hover`, `mouseover`, tooltips) */
+  public async hover(options?: PointerOptions): Promise<void> {
+    await hoverElement(this.access, options);
+  }
+
+  /** Waits like `click`, then touches the element with a touch pointer: `touchstart`, `touchend`, then the mouse events a tap ends in */
+  public async tap(options?: PointerOptions): Promise<void> {
+    await tapElement(this.access, options);
+  }
+
+  /** Drags this element onto `target` with real pointer input; `sourcePosition`, `targetPosition` and `steps` shape the gesture. Firefox needs synthetic drop events, see the wiki */
+  public async dragTo(target: Locator, options?: DragOptions): Promise<void> {
+    await dragElement(this.access, target.access, options);
+  }
+
+  /** Waits until the element is attached, then fires a synthetic event (`click`, `keydown`, ...; the class follows the type) at it, bubbling and composed */
+  public async dispatchEvent(
+    type: string,
+    eventInit?: Record<string, unknown>,
+    options?: ActionOptions,
+  ): Promise<void> {
+    await dispatchEventOn(this.access, type, eventInit, options);
+  }
+
+  /** Waits until the element is attached, then removes focus from it */
+  public async blur(options?: ActionOptions): Promise<void> {
+    await blurElement(this.access, options);
+  }
+
+  /** Empties an input, textarea or editable element, as `fill("")` does */
+  public async clear(options?: ActionOptions): Promise<void> {
+    await clearElement(this.access, options);
+  }
+
+  /** Focuses the element and types `text` into it one key press at a time, `delay` ms apart */
+  public async pressSequentially(
+    text: string,
+    options?: ActionOptions & { delay?: number },
+  ): Promise<void> {
+    await pressSequentially(this.access, text, options);
   }
 
   /**
@@ -680,12 +726,17 @@ export default class Locator {
 
   /**
    * Waits until the element is attached, visible and enabled, focuses it and presses `key` with real keyboard input.
-   * Named keys are `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Home`, `End`, `PageUp`, `PageDown` and the arrows;
-   * any other key must be a single character.
+   * Named keys are `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`,
+   * `F1` to `F12` and the arrows; any other key must be a single character. A chord holds modifiers (`Control`, `Shift`,
+   * `Alt`, `Meta`, `ControlOrMeta`) while the last key is pressed.
    * @example
    *  await page.getByLabel("New todo").press("Enter");
+   *  await page.getByLabel("Name").press("Control+a");
    */
-  public async press(key: string, options?: ActionOptions): Promise<void> {
+  public async press(
+    key: string,
+    options?: ActionOptions & { delay?: number },
+  ): Promise<void> {
     await pressOnElement(this.access, key, options);
   }
 
