@@ -67,7 +67,7 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
             await runWithRetries(
               test,
               browser,
-              init.retries ?? 0,
+              perTest.retries ?? init.retries ?? 0,
               signal,
               (sink, attempt) =>
                 runOneTest(test, browser, run, options, loaded.srcDir, sink, {

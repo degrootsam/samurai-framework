@@ -1,4 +1,6 @@
 import type { TestResult } from "../types/test.js";
+import { failedResult, serialSkipped, UnitState } from "./pool-units.js";
+import { eligibleCount, nextEligible, type Worker } from "./pool-schedule.js";
 import type {
   FromWorker,
   WorkerFactory,
@@ -51,11 +53,13 @@ interface Entry {
   at: number;
 }
 
-interface Slot {
+interface Slot extends Worker {
   index: number;
   handle: WorkerHandle;
   /** Has answered `init` and can take a run */
   ready: boolean;
+  /** Told to leave so the block it ran starts again on a new worker: takes no more items */
+  retiring?: boolean;
   busy?: { id: number; entry: Entry; startTime: number };
 }
 
@@ -69,6 +73,7 @@ export class WorkerPool {
   private readonly slots = new Map<number, Slot>();
   private readonly calls = new Set<Call>();
   private readonly timers = new Set<NodeJS.Timeout>();
+  private readonly units = new Map<string, UnitState<Entry>>();
   private nextId = 0;
   /** Workers in a row that exited before they were ready */
   private startupFailures = 0;
@@ -152,49 +157,18 @@ export class WorkerPool {
   private pump() {
     if (this.disposed) return;
     for (const slot of [...this.slots.values()]) {
-      if (!slot.ready || slot.busy) continue;
-      const at = this.nextEligible();
-      if (at < 0) break;
+      if (!slot.ready || slot.busy || slot.retiring) continue;
+      const at = nextEligible(this.queue, [...this.slots.values()], slot);
+      if (at < 0) continue;
       const [entry] = this.queue.splice(at, 1);
       if (entry) this.dispatch(slot, entry);
     }
     let starting = [...this.slots.values()].filter((s) => !s.ready).length;
-    const wanted = this.eligibleCount();
+    const wanted = eligibleCount(this.queue, [...this.slots.values()]);
     while (this.slots.size < this.options.workers && starting < wanted) {
       if (!this.start(this.freeIndex())) return;
       starting++;
     }
-  }
-
-  private busyKeys(): Set<string> {
-    const keys = new Set<string>();
-    for (const { busy } of this.slots.values()) {
-      const key = busy?.entry.item.serialKey;
-      if (key) keys.add(key);
-    }
-    return keys;
-  }
-
-  /** The queue position of the first item whose serial key is not running */
-  private nextEligible(): number {
-    const busy = this.busyKeys();
-    return this.queue.findIndex(
-      ({ item }) => !item.serialKey || !busy.has(item.serialKey),
-    );
-  }
-
-  /** How many queued items could run at the same time right now */
-  private eligibleCount(): number {
-    const taken = this.busyKeys();
-    let count = 0;
-    for (const { item } of this.queue) {
-      if (item.serialKey) {
-        if (taken.has(item.serialKey)) continue;
-        taken.add(item.serialKey);
-      }
-      count++;
-    }
-    return count;
   }
 
   private freeIndex(): number {
@@ -222,6 +196,13 @@ export class WorkerPool {
 
   private dispatch(slot: Slot, entry: Entry) {
     const id = this.nextId++;
+    const { unit, serialKey } = entry.item;
+    if (unit) {
+      slot.unit = unit;
+      slot.unitKey = serialKey;
+      if (!this.units.has(unit))
+        this.units.set(unit, new UnitState(entry.call));
+    }
     slot.busy = { id, entry, startTime: Date.now() };
     slot.handle.send({ type: "run", id, item: entry.item });
   }
@@ -243,7 +224,7 @@ export class WorkerPool {
           type: "test-start",
           item: busy.entry.item,
           worker: slot.index,
-          ...(message.retry && { retry: message.retry }),
+          ...this.retryOf(busy.entry, message.retry),
         });
       case "test-end":
         if (busy?.id !== message.id) return;
@@ -266,23 +247,92 @@ export class WorkerPool {
       const message = call.aborted
         ? "Run aborted"
         : `The worker process exited (code ${code})`;
-      this.finish(slot, busy.entry, failure(item, message, busy.startTime));
+      this.finish(
+        slot,
+        busy.entry,
+        failedResult(item, message, busy.startTime),
+      );
     } else {
       this.pump();
     }
   }
 
+  /** The attempt a started item is on: the worker's own retry, or the attempt at its serial block */
+  private retryOf({ item }: Entry, workerRetry?: number): { retry?: number } {
+    const retry =
+      workerRetry || (item.serial ? this.units.get(item.unit!)?.attempt : 0);
+    return retry ? { retry } : {};
+  }
+
   /** Records an item's result, tells the listener, and gives the worker its next item */
   private finish(slot: Slot, entry: Entry, result: TestResult) {
     const stamped = { ...result, worker: slot.index };
+    if (entry.item.serial) this.finishInBlock(slot, entry, stamped);
+    else this.report(entry, slot.index, stamped);
+    this.pump();
+  }
+
+  private report(entry: Entry, worker: number, result: TestResult) {
     this.emit(entry.call, {
       type: "test-end",
       item: entry.item,
-      worker: slot.index,
-      result: stamped,
+      worker,
+      result,
     });
-    this.settle(entry, stamped);
-    this.pump();
+    this.settle(entry, result);
+  }
+
+  /**
+   * An item of a serial block ended. After a failure the rest of the block is skipped; with retries the block
+   * starts over on a new worker first, and what its tests ended with is held until the last attempt is known.
+   */
+  private finishInBlock(slot: Slot, entry: Entry, result: TestResult) {
+    const state = this.units.get(entry.item.unit!)!;
+    const retries = this.options.init.retries ?? 0;
+    if (retries === 0) this.report(entry, slot.index, result);
+    else state.hold(entry, result);
+    if (result.status !== "failed") {
+      const last = !this.queue.some((e) => e.item.unit === entry.item.unit);
+      if (last) this.release(state);
+      return;
+    }
+    const aborted = entry.call.aborted || result.message === "Run aborted";
+    if (state.attempt < retries && !aborted && !this.disposed) {
+      return this.restartBlock(slot, state, entry, result);
+    }
+    this.release(state);
+    for (let i = 0; i < this.queue.length; i++) {
+      const next = this.queue[i]!;
+      if (next.item.unit !== entry.item.unit) continue;
+      this.queue.splice(i--, 1);
+      this.report(next, slot.index, serialSkipped(next.item));
+    }
+  }
+
+  /** Reports what a block's tests ended with in its last attempt */
+  private release(state: UnitState<Entry>) {
+    for (const { entry, result } of state.release())
+      this.report(entry, result.worker ?? 0, result);
+  }
+
+  /** Puts the block back in the queue, from its first test, and tells the worker that ran it to leave */
+  private restartBlock(
+    slot: Slot,
+    state: UnitState<Entry>,
+    failed: Entry,
+    result: TestResult,
+  ) {
+    this.queue.unshift(...state.restart(failed, result));
+    slot.unit = slot.unitKey = undefined;
+    if (this.slots.get(slot.index) !== slot) return;
+    slot.retiring = true;
+    slot.handle.send({ type: "exit" });
+    const timer = setTimeout(() => {
+      this.timers.delete(timer);
+      slot.handle.kill();
+    }, this.options.shutdownMs ?? SHUTDOWN_MS);
+    timer.unref();
+    this.timers.add(timer);
   }
 
   private settle({ call, at }: Entry, result: TestResult) {
@@ -304,11 +354,13 @@ export class WorkerPool {
   /** Fails the queued items of a call, asks its busy workers to stop, and kills the ones that do not */
   private abort(call: Call) {
     call.aborted = true;
+    for (const state of this.units.values())
+      if (state.call === call) this.release(state);
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const entry = this.queue[i];
       if (entry?.call !== call) continue;
       this.queue.splice(i, 1);
-      this.settle(entry, failure(entry.item, "Run aborted"));
+      this.settle(entry, failedResult(entry.item, "Run aborted"));
     }
     for (const slot of this.slots.values()) {
       const busy = slot.busy;
@@ -349,21 +401,4 @@ export class WorkerPool {
       handle.kill();
     }
   }
-}
-
-function failure(
-  item: WorkItem,
-  message: string,
-  startTime = Date.now(),
-): TestResult {
-  return {
-    name: item.testName,
-    file: item.file,
-    browser: item.browser,
-    status: "failed",
-    type: "error",
-    message,
-    startTime,
-    duration: Date.now() - startTime,
-  };
 }

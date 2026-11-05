@@ -70,6 +70,30 @@ describe("planItems", () => {
     );
   });
 
+  it("puts the tests of a unit in one unit per browser, and marks a serial block", () => {
+    const a = testCase("/p/src/a.spec.ts", "one");
+    const b = testCase("/p/src/a.spec.ts", "two");
+    const c = testCase("/p/src/a.spec.ts", "three");
+    const { items } = planItems(
+      [a, b, c],
+      ["firefox", "chrome"],
+      () => undefined,
+      undefined,
+      (test) => (test === c ? undefined : { key: "block", serial: test === a }),
+    );
+    assert.deepEqual(
+      items.map((i) => [i.unit, i.serial]),
+      [
+        ["block@firefox", true],
+        ["block@firefox", undefined],
+        [undefined, undefined],
+        ["block@chrome", true],
+        ["block@chrome", undefined],
+        [undefined, undefined],
+      ],
+    );
+  });
+
   it("gives a test of a serial group its group's key, in every browser", () => {
     const a = testCase("/p/src/a.spec.ts", "one");
     const b = testCase("/p/src/b.spec.ts", "two");
@@ -141,6 +165,17 @@ describe("concurrency", () => {
     assert.equal(concurrency([item(0), item(1), item(2)]), 3);
     assert.equal(concurrency([item(0, "g"), item(1, "g"), item(2)]), 2);
     assert.equal(concurrency([item(0, "g"), item(1, "h")]), 2);
+  });
+
+  it("counts the items of one unit once", () => {
+    const unit = (index: number, name: string): WorkItem => ({
+      ...item(index),
+      unit: name,
+    });
+    assert.equal(
+      concurrency([unit(0, "u"), unit(1, "u"), unit(2, "v"), item(3)]),
+      3,
+    );
   });
 
   it("is 1 when one group that runs alone holds everything", () => {

@@ -45,9 +45,27 @@ export class AllHooks {
 
   /** Runs the `afterAll` hooks of every suite entered, last entered first, and returns the errors; a second call has nothing to do */
   public async closeAll(): Promise<HookError[]> {
-    const errors: HookError[] = [];
     const entered = this.entered.splice(0).reverse();
     this.scopes.clear();
+    return this.runAfter(entered);
+  }
+
+  /**
+   * Runs the `afterAll` hooks of `root` and of the suites inside it that were entered, so the next test that arrives
+   * runs their `beforeAll` hooks again: a serial block that starts over. Returns the errors.
+   */
+  public async closeWithin(root: Suite): Promise<HookError[]> {
+    const inside = (scope: Scope) => suiteChain(scope.suite).includes(root);
+    const closing = this.entered.filter(inside).reverse();
+    for (const scope of closing) {
+      this.entered.splice(this.entered.indexOf(scope), 1);
+      this.scopes.get(scope.suite)?.delete(scope.browser);
+    }
+    return this.runAfter(closing);
+  }
+
+  private async runAfter(entered: Scope[]): Promise<HookError[]> {
+    const errors: HookError[] = [];
     for (const { suite, browser, ready } of entered) {
       await ready.catch(() => undefined);
       for (const hook of suite.afterAll ?? []) {

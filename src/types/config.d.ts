@@ -114,6 +114,14 @@ export interface SamuraiTestConfig {
    */
   workers?: number | string;
   /**
+   * Whether the tests of one file may run on different workers. Not set: they do, one test at a time goes to the
+   * next free worker (the same as `true`). `false` keeps the tests of a file together, in order, on one worker;
+   * `describe.configure({ mode: 'parallel' })` frees a part of it again. A serial block (`describe.serial`) is
+   * never split, whatever this says.
+   * @default not set
+   */
+  fullyParallel?: boolean;
+  /**
    * How many times a failing test is run again, each time with a fresh browser. A test that passes on a retry is
    * reported as flaky and does not fail the run; a run that is aborted is never retried. `--retries` and
    * `SAMURAI_RETRIES` win over it.

@@ -4,6 +4,7 @@ import type { RegisteredTestCase, TestResult } from "../types/test.js";
 import type { ResolvedGroup } from "./groups.js";
 import type TestReporter from "./reporter.js";
 import { idOf } from "./select.js";
+import type { RunUnit } from "./serial.js";
 import { staticSkip } from "./skip.js";
 import type { RunHooks } from "./worker-pool.js";
 import type { WorkItem } from "./worker-protocol.js";
@@ -21,14 +22,16 @@ export interface PlannedTest {
 
 /**
  * Lists the run: every selected test in the first browser, then every selected test in the next one. The
- * position in the list is the item's `index`. `serialKey` says which group makes a test run alone. `inputs`, the
- * run's input values, go with every item.
+ * position in the list is the item's `index`. `serialKey` says which group makes a test run alone, `unitOf` which
+ * tests must run one after the other on one worker (a serial block, a file). `inputs`, the run's input values, go
+ * with every item.
  */
 export function planItems(
   selected: RegisteredTestCase[],
   browsers: SupportedBrowser[],
   serialKey: (test: RegisteredTestCase) => string | undefined,
   inputs?: Record<string, string>,
+  unitOf: (test: RegisteredTestCase) => RunUnit | undefined = () => undefined,
 ): { items: WorkItem[]; planned: PlannedTest[] } {
   const planned = browsers.flatMap((browser) =>
     selected.map((test) => ({ test, browser })),
@@ -37,6 +40,7 @@ export function planItems(
   const items = planned.flatMap(({ test, browser }, index): WorkItem[] => {
     if (staticSkip(test)) return [];
     const key = serialKey(test);
+    const unit = unitOf(test);
     return [
       {
         index,
@@ -44,6 +48,9 @@ export function planItems(
         testName: test.name,
         browser,
         ...(key !== undefined && { serialKey: key }),
+        // One unit per browser: the same block in two browsers is two runs
+        ...(unit && { unit: `${unit.key}@${browser}` }),
+        ...(unit?.serial && { serial: true }),
         ...(inputs !== undefined && { inputs }),
       },
     ];
@@ -70,15 +77,16 @@ export function serialKeyOf(
 }
 
 /**
- * How many items can run at the same time: each item alone counts one, and the items of one serial key together
- * count one. More workers than this would only sit idle.
+ * How many items can run at the same time: each item alone counts one, and the items of one unit, or of one serial
+ * key, together count one. More workers than this would only sit idle.
  */
 export function concurrency(items: WorkItem[]): number {
   const keys = new Set<string>();
   let free = 0;
   for (const item of items) {
-    if (item.serialKey === undefined) free++;
-    else keys.add(item.serialKey);
+    if (item.unit !== undefined) keys.add(`unit:${item.unit}`);
+    else if (item.serialKey !== undefined) keys.add(`key:${item.serialKey}`);
+    else free++;
   }
   return free + keys.size;
 }

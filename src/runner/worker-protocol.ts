@@ -12,6 +12,10 @@ export interface WorkItem {
   browser: SupportedBrowser;
   /** Items with the same key never run at the same time */
   serialKey?: string;
+  /** Items with the same unit run one after the other on the same worker, in the order they are queued */
+  unit?: string;
+  /** The unit is a serial block: a failure skips the rest, and `retries` run the whole block again (the pool does it, not the worker) */
+  serial?: boolean;
   /** Where this test's screenshots go, instead of the run's `outputDir` (a flow gives each node its own) */
   outputDir?: string;
   /** The values the run supplies for the inputs tests declare (`runTests({ inputs })`) */

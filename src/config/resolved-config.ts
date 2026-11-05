@@ -73,6 +73,8 @@ export interface ResolvedConfig {
   workers?: number | string;
   /** The workers a run without `--workers` and `SAMURAI_WORKERS` uses on this machine */
   workersResolved: number;
+  /** The config's `fullyParallel` as written; absent when not set */
+  fullyParallel?: boolean;
   retries: number;
   forbidOnly: boolean;
   headless: boolean;
@@ -187,6 +189,9 @@ export function resolveConfig(
     bidiCommandTimeout: config.bidi?.commandTimeout ?? DEFAULT_COMMAND_TIMEOUT,
     ...(config.workers !== undefined && { workers: config.workers }),
     workersResolved: resolveWorkers({ config: config.workers }),
+    ...(config.fullyParallel !== undefined && {
+      fullyParallel: config.fullyParallel,
+    }),
     // Matches the runner's `resolveRetries` without the command line flag and the environment (config/ cannot import runner/)
     retries: config.retries ?? DEFAULT_RETRIES,
     forbidOnly: forbidsOnly(config, env),

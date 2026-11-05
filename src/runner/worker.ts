@@ -18,7 +18,12 @@ export interface WorkerSession {
     browser: SupportedBrowser,
     signal: AbortSignal,
     onEvent: (event: RunEvent) => void,
-    options?: { outputDir?: string; inputs?: Record<string, string> },
+    options?: {
+      outputDir?: string;
+      inputs?: Record<string, string>;
+      /** Instead of the run's `retries` */
+      retries?: number;
+    },
   ): Promise<void>;
   /** Ends the project's session */
   close(): Promise<void>;
@@ -109,6 +114,8 @@ export function handleMessages(
         {
           ...(item.outputDir !== undefined && { outputDir: item.outputDir }),
           ...(item.inputs !== undefined && { inputs: item.inputs }),
+          // The pool runs a whole serial block again, not the test
+          ...(item.serial && { retries: 0 }),
         },
       );
     } finally {

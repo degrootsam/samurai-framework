@@ -6,6 +6,7 @@ import { validateBrowserConfig } from "./browsers.js";
 import { validateUseConfig } from "./use-options.js";
 import { validateForbidOnlyConfig } from "./forbid-only.js";
 import { validateRetriesConfig } from "./retries.js";
+import { validateFullyParallelConfig } from "./fully-parallel.js";
 import { validateWorkersConfig } from "./workers.js";
 import { validateWebServerConfig } from "./web-server-options.js";
 
@@ -49,6 +50,7 @@ export function validateConfig(config: SamuraiTestConfig): void {
   validateWorkersConfig(config);
   validateForbidOnlyConfig(config);
   validateRetriesConfig(config);
+  validateFullyParallelConfig(config);
   validateUseConfig(config);
   validateWebServerConfig(config);
 }

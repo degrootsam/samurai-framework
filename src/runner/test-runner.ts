@@ -29,6 +29,8 @@ import { staticSkip } from "./skip.js";
 import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveRetries } from "./retries-option.js";
 import { runWithRetries } from "./retry.js";
+import { chunkBySerialBlock, unitOf } from "./serial.js";
+import { serialBlockRun, type BlockTest } from "./serial-run.js";
 import { resolveWorkers } from "../config/workers-option.js";
 import { runOutput } from "./output.js";
 import { withRunHooks } from "./run-hooks.js";
@@ -168,6 +170,7 @@ export default class TestRunner {
       browsers,
       serialKeyOf(loaded.groups, config.groups, loaded.srcDir),
       this.options.inputs,
+      (test) => unitOf(test, config.fullyParallel),
     );
     // A pool larger than what can overlap would only hold idle workers: a group that runs one at a time needs one
     const lanes = concurrency(plan.items);
@@ -214,37 +217,56 @@ export default class TestRunner {
     });
     try {
       for (const browser of browsers) {
-        for (const test of selected) {
-          const skip = staticSkip(test);
-          if (skip) {
-            reporter.onTestSkipped(test, browser, skip);
-            continue;
-          }
-          if (signal?.aborted) {
-            reporter.onTestStart(test, browser);
-            reporter.onTestEnd(test, browser, {
-              message: "Run aborted",
-              type: "error",
+        for (const chunk of chunkBySerialBlock(selected)) {
+          const runTest: BlockTest = (test, sink, attempt) =>
+            runOneTest(
+              test,
+              browser,
+              this.run,
+              this.options,
+              loaded.srcDir,
+              sink,
+              { allHooks, attempt },
+            );
+          if (chunk.block) {
+            const { suite } = chunk.block;
+            await serialBlockRun({
+              tests: chunk.tests,
+              browser,
+              retries,
+              signal,
+              sink: reporter,
+              runTest,
+              restart: async () => {
+                for (const error of await allHooks.closeWithin(suite))
+                  logger.error("%s", error.message);
+              },
             });
             continue;
           }
-          await runWithRetries(
-            test,
-            browser,
-            retries,
-            signal,
-            (sink, attempt) =>
-              runOneTest(
-                test,
-                browser,
-                this.run,
-                this.options,
-                loaded.srcDir,
-                sink,
-                { allHooks, attempt },
-              ),
-            reporter,
-          );
+          for (const test of chunk.tests) {
+            const skip = staticSkip(test);
+            if (skip) {
+              reporter.onTestSkipped(test, browser, skip);
+              continue;
+            }
+            if (signal?.aborted) {
+              reporter.onTestStart(test, browser);
+              reporter.onTestEnd(test, browser, {
+                message: "Run aborted",
+                type: "error",
+              });
+              continue;
+            }
+            await runWithRetries(
+              test,
+              browser,
+              retries,
+              signal,
+              (sink, attempt) => runTest(test, sink, attempt),
+              reporter,
+            );
+          }
         }
       }
     } finally {

@@ -169,3 +169,35 @@ describe("closeAll", () => {
     assert.deepEqual(log, ["next"]);
   });
 });
+
+describe("closeWithin", () => {
+  it("runs afterAll of the suite and the ones inside it, so beforeAll runs again; the suites around stay open", async () => {
+    const { all, log, hook } = setup();
+    const outer = newSuite("A");
+    const block = newSuite("B", outer);
+    const inner = newSuite("C", block);
+    outer.beforeAll = [hook("before outer")];
+    outer.afterAll = [hook("after outer")];
+    block.beforeAll = [hook("before block")];
+    block.afterAll = [hook("after block")];
+    inner.afterAll = [hook("after inner")];
+
+    await all.ensure(testIn(inner), "firefox");
+    assert.deepEqual(await all.closeWithin(block), []);
+    assert.deepEqual(log, [
+      "before outer",
+      "before block",
+      "after inner",
+      "after block",
+    ]);
+
+    await all.ensure(testIn(inner), "firefox");
+    assert.deepEqual(log.slice(4), ["before block"]);
+    await all.closeAll();
+    assert.deepEqual(log.slice(5), [
+      "after inner",
+      "after block",
+      "after outer",
+    ]);
+  });
+});
