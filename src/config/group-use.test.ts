@@ -15,7 +15,7 @@ test("a group's use accepts the options of config use, and a viewport", () => {
   validateGroupUse(
     withUse({
       locale: "nl-NL",
-      timezoneId: "Europe/Amsterdam",
+      timezone: "Europe/Amsterdam",
       isMobile: true,
       hasTouch: true,
       acceptInsecureCerts: true,
@@ -38,8 +38,8 @@ test("errors name the group's place in the config and the option", () => {
     /config\.groups\[1\]\.use\.isMobile: isMobile must be true or false/,
   );
   refuses(
-    { timezoneId: "Mars/Base" },
-    /config\.groups\[1\]\.use\.timezoneId: unknown timezoneId "Mars\/Base"/,
+    { timezone: "Mars/Base" },
+    /config\.groups\[1\]\.use\.timezone: unknown timezone "Mars\/Base"/,
   );
   refuses(
     { colour: 1 },

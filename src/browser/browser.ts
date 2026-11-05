@@ -8,7 +8,8 @@ import Page from "./page.js";
 import { launchChrome, type BrowserProcess } from "./chrome-launch.js";
 import { BrowserContext, type ContextHost } from "./browser-context.js";
 import type { UserPromptHandler } from "../types/bidi-modules/session.js";
-import { validateEmulation, type EmulationOptions } from "./emulation.js";
+import { validateRuntimeUse } from "./use-commands.js";
+import type { RuntimeUseOptions } from "../types/use.js";
 import { UseApplier } from "./use-applier.js";
 import type { GroupUse } from "../types/config.js";
 import { prepareDownloadsDir, removeIfEmpty } from "./downloads-dir.js";
@@ -35,7 +36,7 @@ export type { BrowserLaunchOptions } from "./launch-flags.js";
 const BROWSER_CLOSE_GRACE = 2000;
 
 /** Options of `browser.newContext()` */
-export interface ContextOptions extends EmulationOptions {
+export interface ContextOptions extends RuntimeUseOptions {
   acceptInsecureCerts?: boolean;
   /** How this context's pages answer JavaScript dialogs; the session default is to leave them for the framework */
   unhandledPromptBehavior?: UserPromptHandler;
@@ -289,12 +290,12 @@ export class Browser {
   public async newContext(
     options: ContextOptions = {},
   ): Promise<BrowserContext> {
-    const { unhandledPromptBehavior, ...emulation } = options;
+    const { unhandledPromptBehavior, ...settings } = options;
     const insecure =
       options.acceptInsecureCerts ?? this.use?.acceptInsecureCerts;
-    delete (emulation as ContextOptions).acceptInsecureCerts;
+    delete (settings as ContextOptions).acceptInsecureCerts;
     // A wrong value must not leave a context behind, so it is refused before one is created
-    validateEmulation(emulation);
+    validateRuntimeUse(settings);
     const { userContext } = await this.biDiConnector.send(
       "browser.createUserContext",
       {
@@ -304,14 +305,14 @@ export class Browser {
     );
     const context = new BrowserContext(this.host, userContext, false);
     this.userContexts.set(userContext, context);
-    if (this.use || Object.keys(emulation).length > 0) {
+    if (this.use || Object.keys(settings).length > 0) {
       try {
         await this.use?.context(context);
-        if (Object.keys(emulation).length > 0) await context.emulate(emulation);
+        if (Object.keys(settings).length > 0) await context.use(settings);
       } catch (err) {
         // Firefox keeps a context in its profile until it is removed
         await context.close().catch((closeErr) =>
-          logger.debug("Could not remove a context whose emulation failed", {
+          logger.debug("Could not remove a context whose settings failed", {
             closeErr,
           }),
         );

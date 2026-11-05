@@ -6,11 +6,8 @@ import {
   FakeWebSocket,
   makeConnector,
 } from "../testing/fake-websocket.js";
-import {
-  applyEmulation,
-  EmulationError,
-  type EmulationOptions,
-} from "./emulation.js";
+import { applyUse, UseError } from "./use-commands.js";
+import type { RuntimeUseOptions } from "../types/use.js";
 
 const stops: Array<() => void> = [];
 afterEach(() => stops.splice(0).forEach((stop) => stop()));
@@ -27,8 +24,8 @@ function setup(handlers: Record<string, (params: any) => object | Error> = {}) {
 }
 const PAGE = { contexts: ["ctx-1"] };
 
-describe("applyEmulation: what each option sends", () => {
-  const cases: Array<[string, EmulationOptions, string, object]> = [
+describe("applyUse: what each option sends", () => {
+  const cases: Array<[string, RuntimeUseOptions, string, object]> = [
     [
       "locale",
       { locale: "nl-NL" },
@@ -89,10 +86,10 @@ describe("applyEmulation: what each option sends", () => {
       { screenArea: { width: 800, height: 600 } },
     ],
     [
-      "touch",
-      { touch: 5 },
+      "hasTouch",
+      { hasTouch: true },
       "emulation.setTouchOverride",
-      { maxTouchPoints: 5 },
+      { maxTouchPoints: 1 },
     ],
     [
       "javaScriptEnabled false",
@@ -104,16 +101,16 @@ describe("applyEmulation: what each option sends", () => {
   for (const [name, options, method, params] of cases) {
     it(`${name} → ${method}`, async () => {
       const { connector, sent } = setup();
-      await applyEmulation(connector, PAGE, options);
+      await applyUse(connector, PAGE, options);
       assert.deepEqual(sent(), [[method, { ...params, ...PAGE }]]);
     });
   }
 });
 
-describe("applyEmulation: resetting", () => {
+describe("applyUse: resetting", () => {
   it("null puts the real value back", async () => {
     const { connector, sent } = setup();
-    await applyEmulation(connector, PAGE, {
+    await applyUse(connector, PAGE, {
       locale: null,
       timezone: null,
       userAgent: null,
@@ -121,7 +118,7 @@ describe("applyEmulation: resetting", () => {
       offline: null,
       orientation: null,
       screen: null,
-      touch: null,
+      hasTouch: null,
       javaScriptEnabled: null,
     });
     assert.deepEqual(
@@ -145,7 +142,7 @@ describe("applyEmulation: resetting", () => {
 
   it("offline false is back online, javaScriptEnabled true is back to the default", async () => {
     const { connector, sent } = setup();
-    await applyEmulation(connector, PAGE, {
+    await applyUse(connector, PAGE, {
       offline: false,
       javaScriptEnabled: true,
     });
@@ -157,8 +154,8 @@ describe("applyEmulation: resetting", () => {
 
   it("undefined leaves an option alone; no options send nothing", async () => {
     const { connector, sent } = setup();
-    await applyEmulation(connector, PAGE, {});
-    await applyEmulation(connector, PAGE, {
+    await applyUse(connector, PAGE, {});
+    await applyUse(connector, PAGE, {
       locale: undefined,
       timezone: "UTC",
     });
@@ -169,14 +166,10 @@ describe("applyEmulation: resetting", () => {
   });
 });
 
-describe("applyEmulation: targets and order", () => {
+describe("applyUse: targets and order", () => {
   it("a user context target is sent as userContexts", async () => {
     const { connector, sent } = setup();
-    await applyEmulation(
-      connector,
-      { userContexts: ["u1"] },
-      { locale: "de-DE" },
-    );
+    await applyUse(connector, { userContexts: ["u1"] }, { locale: "de-DE" });
     assert.deepEqual(sent(), [
       [
         "emulation.setLocaleOverride",
@@ -187,7 +180,7 @@ describe("applyEmulation: targets and order", () => {
 
   it("options are applied in a fixed order, whatever the order they were given in", async () => {
     const { connector, sent } = setup();
-    await applyEmulation(connector, PAGE, {
+    await applyUse(connector, PAGE, {
       offline: true,
       timezone: "UTC",
       locale: "en-GB",
@@ -205,8 +198,8 @@ describe("applyEmulation: targets and order", () => {
   });
 });
 
-describe("applyEmulation: validation happens before anything is sent", () => {
-  const invalid: Array<[string, EmulationOptions, RegExp]> = [
+describe("applyUse: validation happens before anything is sent", () => {
+  const invalid: Array<[string, RuntimeUseOptions, RegExp]> = [
     [
       "latitude too big",
       { geolocation: { latitude: 91, longitude: 0 } },
@@ -242,7 +235,11 @@ describe("applyEmulation: validation happens before anything is sent", () => {
       { locale: "not a locale!" },
       /invalid locale "not a locale!"/,
     ],
-    ["empty user agent", { userAgent: "" }, /userAgent must not be empty/],
+    [
+      "empty user agent",
+      { userAgent: "" },
+      /userAgent must be a non-empty string/,
+    ],
     [
       "fractional screen",
       { screen: { width: 800.5, height: 600 } },
@@ -258,16 +255,39 @@ describe("applyEmulation: validation happens before anything is sent", () => {
       { orientation: "diagonal" as never },
       /unknown orientation "diagonal"/,
     ],
-    ["touch below one", { touch: 0 }, /touch must be a positive integer/],
-    ["fractional touch", { touch: 1.5 }, /touch must be a positive integer/],
+    [
+      "hasTouch not a boolean",
+      { hasTouch: 1 as never },
+      /hasTouch must be true, false or null/,
+    ],
+    [
+      "a renamed option",
+      { timezoneId: "UTC" } as never,
+      /unknown option "timezoneId"; use "timezone"/,
+    ],
+    [
+      "the old touch option",
+      { touch: 2 } as never,
+      /unknown option "touch"; use "hasTouch"/,
+    ],
+    [
+      "an option that cannot change while the browser runs",
+      { colorScheme: "dark" } as never,
+      /colorScheme can only be set before the browser starts/,
+    ],
+    [
+      "an unknown option",
+      { colour: "red" } as never,
+      /unknown option "colour"/,
+    ],
   ];
   for (const [name, options, message] of invalid) {
-    it(`${name} is a RangeError`, async () => {
+    it(`${name} is a TypeError`, async () => {
       const { connector, sent } = setup();
       await assert.rejects(
-        applyEmulation(connector, PAGE, { locale: "en-GB", ...options }),
+        applyUse(connector, PAGE, { locale: "en-GB", ...options }),
         (err: unknown) => {
-          assert.ok(err instanceof RangeError, String(err));
+          assert.ok(err instanceof TypeError, String(err));
           assert.match((err as Error).message, message);
           return true;
         },
@@ -278,7 +298,7 @@ describe("applyEmulation: validation happens before anything is sent", () => {
 
   it("accepts UTC offsets as timezones, and locales with extensions", async () => {
     const { connector, sent } = setup();
-    await applyEmulation(connector, PAGE, {
+    await applyUse(connector, PAGE, {
       timezone: "Europe/Berlin",
       locale: "de-DE-u-nu-latn",
     });
@@ -286,23 +306,45 @@ describe("applyEmulation: validation happens before anything is sent", () => {
   });
 });
 
-describe("applyEmulation: when the browser refuses", () => {
+describe("applyUse: when the browser refuses", () => {
   it("a command the browser does not know is UnsupportedOperationError naming the option, with what was applied", async () => {
     const { connector } = setup({
       "emulation.setTouchOverride": () => failing("unknown command"),
     });
     await assert.rejects(
-      applyEmulation(connector, PAGE, { locale: "nl-NL", touch: 5 }),
+      applyUse(connector, PAGE, { locale: "nl-NL", hasTouch: true }),
       (err: unknown) => {
         assert.ok(err instanceof UnsupportedOperationError);
         assert.match(
           err.message,
-          /emulate\(\): touch is not supported by the browser/,
+          /use\(\): hasTouch is not supported by the browser/,
         );
-        assert.equal((err as { option?: string }).option, "touch");
+        assert.equal((err as { option?: string }).option, "hasTouch");
         assert.deepEqual((err as { applied?: string[] }).applied, ["locale"]);
         return true;
       },
+    );
+  });
+
+  it("with onUnsupported the option is reported and skipped, and the rest is applied (how config use behaves)", async () => {
+    const { connector, sent } = setup({
+      "emulation.setTouchOverride": () => failing("unknown command"),
+    });
+    const skipped: string[] = [];
+    await applyUse(
+      connector,
+      PAGE,
+      { locale: "nl-NL", hasTouch: true, timezone: "UTC" },
+      (option) => skipped.push(option),
+    );
+    assert.deepEqual(skipped, ["hasTouch"]);
+    assert.deepEqual(
+      sent().map(([method]) => method),
+      [
+        "emulation.setLocaleOverride",
+        "emulation.setTimezoneOverride",
+        "emulation.setTouchOverride",
+      ],
     );
   });
 
@@ -311,31 +353,31 @@ describe("applyEmulation: when the browser refuses", () => {
       "emulation.setScriptingEnabled": () => failing("unsupported operation"),
     });
     await assert.rejects(
-      applyEmulation(connector, PAGE, { javaScriptEnabled: false }),
+      applyUse(connector, PAGE, { javaScriptEnabled: false }),
       UnsupportedOperationError,
     );
   });
 
-  it("another failure is an EmulationError listing what was applied and what failed; nothing is rolled back", async () => {
+  it("another failure is an UseError listing what was applied and what failed; nothing is rolled back", async () => {
     const { connector, sent } = setup({
       "emulation.setUserAgentOverride": () =>
         failing("invalid argument", "bad ua"),
     });
     await assert.rejects(
-      applyEmulation(connector, PAGE, {
+      applyUse(connector, PAGE, {
         locale: "nl-NL",
         timezone: "Europe/Amsterdam",
         userAgent: "x",
         offline: true,
       }),
       (err: unknown) => {
-        assert.ok(err instanceof EmulationError);
+        assert.ok(err instanceof UseError);
         assert.deepEqual(err.applied, ["locale", "timezone"]);
         assert.equal(err.failed, "userAgent");
         assert.equal((err.cause as { code: string }).code, "invalid argument");
         assert.match(
           err.message,
-          /emulate\(\): userAgent failed after applying locale, timezone: .*bad ua/,
+          /use\(\): userAgent failed after applying locale, timezone: .*bad ua/,
         );
         return true;
       },
@@ -352,8 +394,8 @@ describe("applyEmulation: when the browser refuses", () => {
       "emulation.setLocaleOverride": () => failing("invalid argument", "bad"),
     });
     await assert.rejects(
-      applyEmulation(connector, PAGE, { locale: "nl-NL" }),
-      /emulate\(\): locale failed: /,
+      applyUse(connector, PAGE, { locale: "nl-NL" }),
+      /use\(\): locale failed: /,
     );
   });
 });

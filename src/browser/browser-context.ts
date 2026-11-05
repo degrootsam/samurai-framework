@@ -13,7 +13,8 @@ import {
   type RequestContextOptions,
 } from "../request/api-request-context.js";
 import { ContextCookieStore } from "./context-cookie-store.js";
-import { applyEmulation, type EmulationOptions } from "./emulation.js";
+import { applyUse } from "./use-commands.js";
+import type { RuntimeUseOptions } from "../types/use.js";
 import type Page from "./page.js";
 
 /** A cookie as `context.cookies()` returns it */
@@ -151,23 +152,20 @@ export class BrowserContext {
   }
 
   /**
-   * Pretends things about every page of this context, including pages opened later: locale, timezone, user agent,
-   * geolocation, offline, orientation, screen size. A page's own `emulate()` wins over the context's.
+   * Changes the `use` options that can change while the browser runs for every page of this context, including
+   * pages opened later: locale, timezone, user agent, geolocation, offline, orientation, screen, hasTouch,
+   * javaScriptEnabled. A page's own `use()` wins over the context's.
    * @example
-   *  await context.emulate({ locale: "nl-NL", timezone: "Europe/Amsterdam", offline: false });
+   *  await context.use({ locale: "nl-NL", timezone: "Europe/Amsterdam", offline: false });
    */
-  public async emulate(options: EmulationOptions): Promise<void> {
+  public async use(options: RuntimeUseOptions): Promise<void> {
     this.assertOpen();
-    await applyEmulation(
-      this.host.connector,
-      { userContexts: [this.id] },
-      options,
-    );
+    await applyUse(this.host.connector, { userContexts: [this.id] }, options);
   }
 
   /**
    * Grants, denies or resets a browser permission ("geolocation", "notifications", "camera", …) for `origin`
-   * in this context. Geolocation emulation only answers once the permission is granted.
+   * in this context. A geolocation override only answers once the permission is granted.
    */
   public async setPermission(
     name: string,

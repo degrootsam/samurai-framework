@@ -21,7 +21,8 @@ import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
 import { ContextTree } from "./context-tree.js";
 import type { BrowserContext } from "./browser-context.js";
 import { printPdf, type PdfOptions } from "./pdf.js";
-import { applyEmulation, type EmulationOptions } from "./emulation.js";
+import { applyUse } from "./use-commands.js";
+import type { RuntimeUseOptions } from "../types/use.js";
 import type { Download } from "./download.js";
 import type { FileChooser } from "./file-chooser.js";
 import {
@@ -110,7 +111,7 @@ export default class Page {
   private transfers: PageTransfers;
   private evidence: Evidence | undefined;
   private knownViewport: { width: number; height: number } | null = null;
-  /** Chrome's phone layout is on (`emulateMobile`): viewport changes keep it */
+  /** Chrome's phone layout is on (`setMobileLayout`): viewport changes keep it */
   private mobile = false;
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
@@ -447,7 +448,7 @@ export default class Page {
   }
 
   /** @internal Chrome: lays this page out like a phone from now on (`use.isMobile`), including the size it has now */
-  public async emulateMobile(): Promise<void> {
+  public async setMobileLayout(): Promise<void> {
     this.mobile = true;
     await this.setViewport(this.knownViewport);
   }
@@ -550,19 +551,20 @@ export default class Page {
   }
 
   /**
-   * Pretends things about this page only: locale, timezone, user agent, geolocation, offline, orientation, screen
-   * size. It wins over what the page's context says; `null` puts the real (or the context's) value back.
+   * Changes the `use` options that can change while the browser runs for this page only: locale, timezone, user
+   * agent, geolocation, offline, orientation, screen, hasTouch, javaScriptEnabled. It wins over what the page's
+   * context says; `null` puts the real (or the context's) value back. Same options as `test.use()`, applied now.
    * @example
-   *  await page.emulate({ locale: "nl-NL", offline: true });
+   *  await page.use({ locale: "nl-NL", offline: true });
    */
-  public async emulate(options: EmulationOptions): Promise<void> {
+  public async use(options: RuntimeUseOptions): Promise<void> {
     this.assertOpen();
-    await applyEmulation(this.biDiConnector, { contexts: [this.id] }, options);
+    await applyUse(this.biDiConnector, { contexts: [this.id] }, options);
   }
 
   /**
    * Grants a browser permission ("geolocation", "notifications", "camera", …) to the origin this page is on,
-   * or to `options.origin`. Geolocation emulation only answers once this is granted.
+   * or to `options.origin`. A geolocation override only answers once this is granted.
    */
   public async grantPermission(
     name: string,

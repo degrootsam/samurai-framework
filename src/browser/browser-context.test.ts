@@ -451,7 +451,7 @@ describe("Browser.close", () => {
   });
 });
 
-describe("emulation", () => {
+describe("use", () => {
   const url = (value: string) => ({
     "script.callFunction": () => ({
       type: "success",
@@ -460,10 +460,10 @@ describe("emulation", () => {
     }),
   });
 
-  it("context.emulate applies to the whole user context", async () => {
+  it("context.use applies to the whole user context", async () => {
     const { browser, commands } = setup();
     const context = await browser.newContext();
-    await context.emulate({ locale: "de-DE", timezone: "Europe/Berlin" });
+    await context.use({ locale: "de-DE", timezone: "Europe/Berlin" });
     assert.deepEqual(commands("emulation.setLocaleOverride"), [
       { locale: "de-DE", userContexts: ["u1"] },
     ]);
@@ -474,17 +474,17 @@ describe("emulation", () => {
 
   it("the default context is targeted as the default user context", async () => {
     const { browser, commands } = setup();
-    await browser.defaultContext.emulate({ offline: true });
+    await browser.defaultContext.use({ offline: true });
     assert.deepEqual(commands("emulation.setNetworkConditions"), [
       { networkConditions: { type: "offline" }, userContexts: ["default"] },
     ]);
   });
 
-  it("page.emulate applies to that page only", async () => {
+  it("page.use applies to that page only", async () => {
     const { browser, commands } = setup();
     const context = await browser.newContext();
     const page = await context.newPage();
-    await page.emulate({ locale: "fr-FR", geolocation: null });
+    await page.use({ locale: "fr-FR", geolocation: null });
     assert.deepEqual(commands("emulation.setLocaleOverride"), [
       { locale: "fr-FR", contexts: ["tab-1"] },
     ]);
@@ -493,24 +493,21 @@ describe("emulation", () => {
     ]);
   });
 
-  it("page.emulate on a closed page is refused", async () => {
+  it("page.use on a closed page is refused", async () => {
     const { browser } = setup({ "browsingContext.close": () => ({}) });
     const page = await (await browser.newContext()).newPage();
     await page.close();
-    await assert.rejects(page.emulate({ locale: "nl-NL" }), /page closed/);
+    await assert.rejects(page.use({ locale: "nl-NL" }), /page closed/);
   });
 
-  it("context.emulate on a closed context is refused", async () => {
+  it("context.use on a closed context is refused", async () => {
     const { browser } = setup();
     const context = await browser.newContext();
     await context.close();
-    await assert.rejects(
-      context.emulate({ locale: "nl-NL" }),
-      /context closed/,
-    );
+    await assert.rejects(context.use({ locale: "nl-NL" }), /context closed/);
   });
 
-  it("newContext applies emulation options before the first page can exist", async () => {
+  it("newContext applies use options before the first page can exist", async () => {
     const { ws, browser, commands } = setup();
     const context = await browser.newContext({
       acceptInsecureCerts: true,
@@ -539,14 +536,14 @@ describe("emulation", () => {
     assert.equal(order.filter((m) => m === "browsingContext.create").length, 1);
   });
 
-  it("a context whose emulation fails is removed again, so nothing is left in the profile", async () => {
+  it("a context whose use fails is removed again, so nothing is left in the profile", async () => {
     const { browser, commands } = setup({
       "emulation.setTimezoneOverride": () =>
         failing("invalid argument", "bad tz"),
     });
     await assert.rejects(
       browser.newContext({ locale: "nl-NL", timezone: "Europe/Amsterdam" }),
-      { name: "EmulationError" },
+      { name: "UseError" },
     );
     assert.deepEqual(commands("browser.removeUserContext"), [
       { userContext: "u1" },
@@ -561,8 +558,8 @@ describe("emulation", () => {
     const { browser, commands } = setup({
       "emulation.setTouchOverride": () => failing("unknown command"),
     });
-    await assert.rejects(browser.newContext({ touch: 3 }), {
-      name: "EmulationUnsupportedError",
+    await assert.rejects(browser.newContext({ hasTouch: true }), {
+      name: "UseUnsupportedError",
     });
     assert.equal(commands("browser.removeUserContext").length, 1);
   });
@@ -571,12 +568,12 @@ describe("emulation", () => {
     const { browser, commands } = setup();
     await assert.rejects(
       browser.newContext({ timezone: "Not/AZone" }),
-      RangeError,
+      TypeError,
     );
     assert.equal(commands("browser.createUserContext").length, 0);
   });
 
-  it("no emulation options, no emulation commands", async () => {
+  it("no use options, no emulation commands", async () => {
     const { ws, browser } = setup();
     await browser.newContext({ acceptInsecureCerts: false });
     assert.equal(

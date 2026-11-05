@@ -4,7 +4,8 @@ import type { BiDiConnector } from "../transport/bidi-connection.js";
 import type { GroupUse } from "../types/config.js";
 import type { BrowserContext } from "./browser-context.js";
 import { cdpSend, sendRaw } from "./cdp.js";
-import type { EmulationOptions } from "./emulation.js";
+import { applyUse, RUNTIME_OPTIONS } from "./use-commands.js";
+import type { RuntimeUseOptions } from "../types/use.js";
 import type Page from "./page.js";
 import { cookiesOf } from "./storage-state.js";
 import { loadStorageState } from "../config/storage-state-file.js";
@@ -55,20 +56,22 @@ export class UseApplier {
   }
 
   /**
-   * Sets up a context: locale, timezone, user agent, touch and JavaScript through BiDi emulation, the extra headers,
-   * then the storage state. Firefox gets JavaScript and the colour scheme when it starts (a profile setting).
+   * Sets up a context: the run-time options (`page.use()`'s) through BiDi, the extra headers, then the storage state.
+   * An option the browser does not support is skipped with a one-time warning (`page.use()` throws instead).
+   * Firefox gets JavaScript and the colour scheme when it starts (a profile setting).
    */
   public async context(context: BrowserContext): Promise<void> {
     const { options } = this;
-    const emulation: EmulationOptions = {
-      ...(options.locale !== undefined && { locale: options.locale }),
-      ...(options.timezoneId !== undefined && { timezone: options.timezoneId }),
-      ...(options.userAgent !== undefined && { userAgent: options.userAgent }),
-      ...(this.hasTouch && { touch: 1 }),
-      ...(this.chrome &&
-        options.javaScriptEnabled === false && { javaScriptEnabled: false }),
-    };
-    if (Object.keys(emulation).length > 0) await context.emulate(emulation);
+    await applyUse(
+      this.connector,
+      { userContexts: [context.id] },
+      this.startUp(),
+      (option) =>
+        warnOnce(
+          `use.${option}`,
+          `use.${option} is not supported by this browser: it is ignored`,
+        ),
+    );
     context.setRequestDefaults({
       extraHTTPHeaders: options.extraHTTPHeaders,
       ignoreHTTPSErrors: options.acceptInsecureCerts,
@@ -93,8 +96,28 @@ export class UseApplier {
       await page.setViewport(this.options.viewport);
   }
 
+  /**
+   * The declared options that go through BiDi. Left out: those that are not set (or `null`), the ones that change
+   * nothing (`offline: false`), Chrome-only touch on Firefox (warned once in the constructor) and JavaScript on
+   * Firefox (a profile setting).
+   */
+  private startUp(): RuntimeUseOptions {
+    const { options } = this;
+    const wanted: Record<string, unknown> = {};
+    for (const name of RUNTIME_OPTIONS) {
+      const value = options[name];
+      if (value === undefined || value === null) continue;
+      if (name === "offline" && value === false) continue;
+      if (name === "hasTouch" && !this.hasTouch) continue;
+      if (name === "javaScriptEnabled" && !(this.chrome && value === false))
+        continue;
+      wanted[name] = value;
+    }
+    return wanted;
+  }
+
   private async chromePage(page: Page): Promise<void> {
-    if (this.isMobile) await page.emulateMobile();
+    if (this.isMobile) await page.setMobileLayout();
     if (this.options.colorScheme !== undefined)
       await cdpSend(
         this.connector,

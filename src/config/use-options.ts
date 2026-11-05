@@ -1,11 +1,15 @@
 import type { SamuraiTestConfig } from "../types/config.js";
 import type { UseOptions } from "../types/use.js";
 
-/** The options of `test.use()` */
+/** The options of `use`: config, group, `test.use()` and (those that can change at run time) `page.use()` */
 export const USE_OPTION_NAMES: readonly string[] = [
   "locale",
-  "timezoneId",
+  "timezone",
   "userAgent",
+  "geolocation",
+  "offline",
+  "orientation",
+  "screen",
   "javaScriptEnabled",
   "acceptInsecureCerts",
   "hasTouch",
@@ -15,12 +19,22 @@ export const USE_OPTION_NAMES: readonly string[] = [
   "colorScheme",
 ];
 
-const BOOLEANS = [
-  "javaScriptEnabled",
-  "acceptInsecureCerts",
-  "hasTouch",
-  "isMobile",
+/** A name that was in use once, and the one that replaced it: refused with a message that says which */
+const RENAMED: Record<string, string> = {
+  timezoneId: "timezone",
+  touch: "hasTouch",
+};
+
+const ORIENTATIONS = [
+  "portrait-primary",
+  "portrait-secondary",
+  "landscape-primary",
+  "landscape-secondary",
 ] as const;
+
+/** These may be `null` (the real value back) */
+const NULLABLE_BOOLEANS = ["javaScriptEnabled", "hasTouch", "offline"] as const;
+const BOOLEANS = ["acceptInsecureCerts", "isMobile"] as const;
 
 const COLOR_SCHEMES = ["light", "dark", "no-preference"];
 const HEADER_NAME = /^[\w!#$%&'*+.^`|~-]+$/;
@@ -42,17 +56,29 @@ export function validateUseOptions(
   allowOthers = false,
 ): UseOptions {
   if (!isObject(options)) return fail("the options must be an object");
-  for (const key of Object.keys(options))
+  for (const key of Object.keys(options)) {
+    const renamed = RENAMED[key];
+    if (renamed !== undefined)
+      fail(`unknown option "${key}"; use "${renamed}"`);
     if (!allowOthers && !USE_OPTION_NAMES.includes(key))
       fail(`unknown option "${key}"`);
+  }
   const use = options as UseOptions;
   for (const name of BOOLEANS)
     if (use[name] !== undefined && typeof use[name] !== "boolean")
       fail(`${name} must be true or false, got ${JSON.stringify(use[name])}`);
-  checkLocale(use.locale);
-  checkTimezone(use.timezoneId);
-  if (use.userAgent !== undefined && !nonEmpty(use.userAgent))
+  for (const name of NULLABLE_BOOLEANS)
+    if (use[name] != null && typeof use[name] !== "boolean")
+      fail(
+        `${name} must be true, false or null, got ${JSON.stringify(use[name])}`,
+      );
+  if (use.locale !== null) checkLocale(use.locale);
+  if (use.timezone !== null) checkTimezone(use.timezone);
+  if (use.userAgent != null && !nonEmpty(use.userAgent))
     fail("userAgent must be a non-empty string");
+  checkGeolocation(use.geolocation);
+  checkOrientation(use.orientation);
+  checkScreen(use.screen);
   if (use.colorScheme !== undefined && !COLOR_SCHEMES.includes(use.colorScheme))
     fail(
       `colorScheme must be "light", "dark" or "no-preference", got ${JSON.stringify(use.colorScheme)}`,
@@ -81,8 +107,45 @@ function checkTimezone(timezone: unknown): void {
     if (!nonEmpty(timezone)) throw new RangeError();
     new Intl.DateTimeFormat(undefined, { timeZone: timezone });
   } catch {
-    fail(`unknown timezoneId ${JSON.stringify(timezone)}`);
+    fail(`unknown timezone ${JSON.stringify(timezone)}`);
   }
+}
+
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+const isPositiveInteger = (value: unknown): value is number =>
+  Number.isInteger(value) && (value as number) > 0;
+
+function checkGeolocation(place: unknown): void {
+  if (place === undefined || place === null) return;
+  if (!isObject(place))
+    return fail("geolocation must be { latitude, longitude } or null");
+  const { latitude, longitude, accuracy } = place;
+  if (!isNumber(latitude) || latitude < -90 || latitude > 90)
+    fail("latitude must be between -90 and 90");
+  if (!isNumber(longitude) || longitude < -180 || longitude > 180)
+    fail("longitude must be between -180 and 180");
+  if (accuracy !== undefined && (!isNumber(accuracy) || accuracy < 0))
+    fail("accuracy must be 0 or more");
+}
+
+function checkOrientation(orientation: unknown): void {
+  if (orientation === undefined || orientation === null) return;
+  const type =
+    orientation === "portrait" || orientation === "landscape"
+      ? `${orientation}-primary`
+      : orientation;
+  if (!ORIENTATIONS.includes(type as never))
+    fail(`unknown orientation ${JSON.stringify(orientation)}`);
+}
+
+function checkScreen(screen: unknown): void {
+  if (screen === undefined || screen === null) return;
+  if (
+    !isObject(screen) ||
+    !(isPositiveInteger(screen.width) && isPositiveInteger(screen.height))
+  )
+    fail("screen width and height must be positive integers");
 }
 
 function checkHeaders(headers: unknown): void {

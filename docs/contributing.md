@@ -15,7 +15,7 @@ src/
   index.ts               development entry (`bun run dev`): the command line, straight from the sources
   runner/                test registry (suites, modifiers), runner, reporter, page-log verdicts
   config/                config loading, run settings, env variables, secrets, masking, key validation (`web-server-options` for `webServer` / `globalSetup`, `group-use` for `groups[].use`)
-  browser/               Browser, BrowserContext, Page, navigation, screenshots, downloads, dialogs, emulation, the `use` options (use-applier, cdp, storage-state)
+  browser/               Browser, BrowserContext, Page, navigation, screenshots, downloads, dialogs, the `use` options and `page.use()` (use-commands, use-applier, cdp, storage-state)
   browsers/              pinned browser builds: download, cache folder, which executable a launch uses
   locator/               Locator, selectors, actionability probe, text and label search
   assert/                expect and AssertionError

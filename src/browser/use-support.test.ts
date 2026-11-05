@@ -227,6 +227,94 @@ describe("UseApplier", () => {
     assert.equal(applier("chrome", {}).isMobile, false);
   });
 
+  describe("context(): the options that go through BiDi", () => {
+    const run = async (
+      browser: "firefox" | "chrome",
+      options: object,
+      handlers: Record<string, () => object | Error> = {},
+    ) => {
+      const ws = new FakeWebSocket();
+      stops.push(
+        autoReply(ws, {
+          "emulation.setLocaleOverride": () => ({}),
+          "emulation.setTimezoneOverride": () => ({}),
+          "emulation.setGeolocationOverride": () => ({}),
+          "emulation.setNetworkConditions": () => ({}),
+          "emulation.setScreenOrientationOverride": () => ({}),
+          "emulation.setScreenSettingsOverride": () => ({}),
+          "emulation.setTouchOverride": () => ({}),
+          "emulation.setScriptingEnabled": () => ({}),
+          ...handlers,
+        }),
+      );
+      const use = new UseApplier(makeConnector(ws), browser, options, tmp());
+      await use.context({ id: "u1", setRequestDefaults() {} } as never);
+      return ws.sent.map((m) => m.method);
+    };
+
+    it("sends every declared option, but nothing that changes nothing or is null", async () => {
+      resetWarnOnce();
+      assert.deepEqual(
+        await run("chrome", {
+          locale: "nl-NL",
+          timezone: "UTC",
+          userAgent: null,
+          geolocation: { latitude: 1, longitude: 2 },
+          offline: false,
+          orientation: "portrait",
+          screen: { width: 800, height: 600 },
+          hasTouch: true,
+          javaScriptEnabled: false,
+        }),
+        [
+          "emulation.setLocaleOverride",
+          "emulation.setTimezoneOverride",
+          "emulation.setGeolocationOverride",
+          "emulation.setScreenOrientationOverride",
+          "emulation.setScreenSettingsOverride",
+          "emulation.setTouchOverride",
+          "emulation.setScriptingEnabled",
+        ],
+      );
+    });
+
+    it("leaves Chrome-only touch and the Firefox profile setting JavaScript out on Firefox", async () => {
+      resetWarnOnce();
+      assert.deepEqual(
+        await run("firefox", { hasTouch: true, javaScriptEnabled: false }),
+        [],
+      );
+    });
+
+    it("an option the browser does not support is skipped with a one-time warning, the rest is applied", async () => {
+      resetWarnOnce();
+      const lines: string[] = [];
+      const warn = logger.warn.bind(logger);
+      logger.warn = ((message: string) => (
+        lines.push(message),
+        logger
+      )) as never;
+      try {
+        const options = { orientation: "portrait", offline: true };
+        const failing = {
+          "emulation.setScreenOrientationOverride": () =>
+            Object.assign(new Error("nope"), { code: "unknown command" }),
+        };
+        assert.deepEqual(await run("firefox", options, failing), [
+          "emulation.setNetworkConditions",
+          "emulation.setScreenOrientationOverride",
+        ]);
+        await run("firefox", options, failing);
+      } finally {
+        logger.warn = warn;
+      }
+      assert.equal(
+        lines.filter((l) => l.includes("use.orientation")).length,
+        1,
+      );
+    });
+  });
+
   it("reads a storage state file at once, so a wrong path fails before the test", () => {
     assert.throws(
       () => applier("chrome", { storageState: "missing.json" }),

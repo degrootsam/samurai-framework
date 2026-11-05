@@ -38,6 +38,7 @@ export type {
   ColorScheme,
   StorageState,
   StorageStateCookie,
+  RuntimeUseOptions,
   UseOptions,
 } from "./types/use.js";
 export {

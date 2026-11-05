@@ -50,7 +50,7 @@ test("plain", async ({ page }) => {
   await log(page, "plain");
 });
 test.describe("inner", () => {
-  test.use({ timezoneId: "Asia/Tokyo" });
+  test.use({ timezone: "Asia/Tokyo" });
   test("overridden", async ({ page }) => {
     await page.navigateTo(process.env.GROUP_BASE + "/");
     await log(page, "overridden");
@@ -63,7 +63,7 @@ const GROUPS = [
     name: "phone",
     use: {
       locale: "nl-NL",
-      timezoneId: "Europe/Amsterdam",
+      timezone: "Europe/Amsterdam",
       viewport: { width: 390, height: 844 },
       hasTouch: true,
       isMobile: true,
@@ -86,7 +86,7 @@ function project() {
       expect: { timeout: 2000 },
       forbidOnly: false,
       ...browserConfig(),
-      use: { locale: "en-GB", timezoneId: "UTC" },
+      use: { locale: "en-GB", timezone: "UTC" },
       groups: GROUPS,
     })};`,
   );
@@ -153,7 +153,7 @@ test(
     assert.equal(
       desktop.zone,
       "UTC",
-      "the group has no timezoneId: config's stays",
+      "the group has no timezone: config's stays",
     );
     assert.deepEqual(desktop.size, { width: 1024, height: 768 });
     assert.equal(desktop.touch, 0);

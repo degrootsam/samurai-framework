@@ -24,7 +24,7 @@ const config: SamuraiTestConfig = {
   browsers: ["firefox"],
   use: {
     locale: "en-US",
-    timezoneId: "UTC",
+    timezone: "UTC",
     viewport: { width: 800, height: 600 },
   },
   groups: [
@@ -37,7 +37,7 @@ const config: SamuraiTestConfig = {
         viewport: { width: 390, height: 844 },
       },
     },
-    { name: "desktop", use: { timezoneId: "Europe/Amsterdam" } },
+    { name: "desktop", use: { timezone: "Europe/Amsterdam" } },
     { name: "login", src: "./src/auth" },
   ],
 };
@@ -177,14 +177,14 @@ describe("the use a test runs with", () => {
         await effectiveUse(testIn("phone", { locale: "fr-FR" })),
         {
           locale: "fr-FR",
-          timezoneId: "UTC",
+          timezone: "UTC",
           isMobile: true,
           viewport: { width: 390, height: 844 },
         },
       );
       assert.deepEqual(await effectiveUse(testIn("phone")), {
         locale: "nl-NL",
-        timezoneId: "UTC",
+        timezone: "UTC",
         isMobile: true,
         viewport: { width: 390, height: 844 },
       });
@@ -195,11 +195,11 @@ describe("the use a test runs with", () => {
     await inProject(async () => {
       assert.deepEqual(await effectiveUse(testIn("desktop")), {
         locale: "en-US",
-        timezoneId: "Europe/Amsterdam",
+        timezone: "Europe/Amsterdam",
       });
       assert.deepEqual(await effectiveUse(testIn()), {
         locale: "en-US",
-        timezoneId: "UTC",
+        timezone: "UTC",
       });
     });
   });

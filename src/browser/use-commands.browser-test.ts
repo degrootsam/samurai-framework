@@ -29,7 +29,7 @@ before(async () => {
     res
       .setHeader("content-type", "text/html")
       .end(
-        `<!doctype html><body>emulation<script>window.__inline = "ran"</script></body>`,
+        `<!doctype html><body>use<script>window.__inline = "ran"</script></body>`,
       );
   });
   server.on("connection", (socket) => {
@@ -79,9 +79,9 @@ test(
       );
     // The starting locale is the machine's own, so it is read rather than assumed
     const before = await read();
-    await tab.emulate({ locale: "nl-NL" });
+    await tab.use({ locale: "nl-NL" });
     assert.deepEqual(await read(), { language: "nl-NL", number: "1.234,5" });
-    await tab.emulate({ locale: null });
+    await tab.use({ locale: null });
     assert.deepEqual(await read(), before);
   },
 );
@@ -97,11 +97,11 @@ test(
         `() => ({ zone: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: new Date(0).getTimezoneOffset() })`,
       );
     const before = await read();
-    await tab.emulate({ timezone: "Asia/Tokyo" });
+    await tab.use({ timezone: "Asia/Tokyo" });
     assert.deepEqual(await read(), { zone: "Asia/Tokyo", offset: -540 });
-    await tab.emulate({ timezone: "America/New_York" });
+    await tab.use({ timezone: "America/New_York" });
     assert.deepEqual(await read(), { zone: "America/New_York", offset: 300 });
-    await tab.emulate({ timezone: null });
+    await tab.use({ timezone: null });
     assert.deepEqual(await read(), before);
   },
 );
@@ -112,7 +112,7 @@ test(
   async () => {
     const { tab } = await freshPage();
     const original = await evaluate<string>(tab, "() => navigator.userAgent");
-    await tab.emulate({ userAgent: "Samurai/1.0 (test)" });
+    await tab.use({ userAgent: "Samurai/1.0 (test)" });
     assert.equal(
       await evaluate<string>(tab, "() => navigator.userAgent"),
       "Samurai/1.0 (test)",
@@ -123,7 +123,7 @@ test(
       `async () => { await fetch(${JSON.stringify(base + "/ping")}); }`,
     );
     assert.deepEqual(userAgents, ["Samurai/1.0 (test)"]);
-    await tab.emulate({ userAgent: null });
+    await tab.use({ userAgent: null });
     assert.equal(
       await evaluate<string>(tab, "() => navigator.userAgent"),
       original,
@@ -142,26 +142,26 @@ test(
         `async () => ({ online: navigator.onLine, fetch: await fetch(${JSON.stringify(base + "/ping")}).then(() => "ok", () => "failed") })`,
       );
     assert.deepEqual(await read(), { online: true, fetch: "ok" });
-    await tab.emulate({ offline: true });
+    await tab.use({ offline: true });
     assert.deepEqual(await read(), { online: false, fetch: "failed" });
-    await tab.emulate({ offline: false });
+    await tab.use({ offline: false });
     assert.deepEqual(await read(), { online: true, fetch: "ok" });
   },
 );
 
 test("orientation changes screen.orientation", OPTIONS, async () => {
   const { tab } = await freshPage();
-  await tab.emulate({ orientation: "portrait" });
+  await tab.use({ orientation: "portrait" });
   assert.equal(
     await evaluate<string>(tab, "() => screen.orientation.type"),
     "portrait-primary",
   );
-  await tab.emulate({ orientation: "landscape-secondary" });
+  await tab.use({ orientation: "landscape-secondary" });
   assert.equal(
     await evaluate<string>(tab, "() => screen.orientation.type"),
     "landscape-secondary",
   );
-  await tab.emulate({ orientation: null });
+  await tab.use({ orientation: null });
   assert.equal(
     await evaluate<string>(tab, "() => screen.orientation.type"),
     "landscape-primary",
@@ -174,9 +174,9 @@ test("screen changes screen.width and screen.height", OPTIONS, async () => {
   const size = () =>
     evaluate<number[]>(tab, "() => [screen.width, screen.height]");
   const original = await size();
-  await tab.emulate({ screen: { width: 1111, height: 777 } });
+  await tab.use({ screen: { width: 1111, height: 777 } });
   assert.deepEqual(await size(), [1111, 777]);
-  await tab.emulate({ screen: null });
+  await tab.use({ screen: null });
   assert.deepEqual(await size(), original);
 });
 
@@ -199,18 +199,18 @@ test(
         { timeout: 4000, maximumAge: 0 }))`,
       );
     await tab.grantPermission("geolocation");
-    await tab.emulate({
+    await tab.use({
       geolocation: { latitude: 52.37, longitude: 4.9, accuracy: 10 },
     });
     assert.deepEqual(await position(), { lat: 52.37, lon: 4.9, accuracy: 10 });
-    await tab.emulate({ geolocation: { latitude: -33.87, longitude: 151.21 } });
+    await tab.use({ geolocation: { latitude: -33.87, longitude: 151.21 } });
     const sydney = await position();
     assert.deepEqual([sydney.lat, sydney.lon], [-33.87, 151.21]);
   },
 );
 
 test(
-  "a context's emulation reaches its pages, also the ones opened later; other contexts are untouched",
+  "a context's use reaches its pages, also the ones opened later; other contexts are untouched",
   OPTIONS,
   async () => {
     const language = (p: Page) =>
@@ -222,14 +222,14 @@ test(
       "de-DE",
       "options given to newContext are in place for its first page",
     );
-    await context.emulate({ locale: "es-ES" });
+    await context.use({ locale: "es-ES" });
     assert.equal(await language(tab), "es-ES", "an open page follows a change");
     const later = await context.newPage();
     await later.navigateTo(`${base}/`);
     assert.equal(
       await language(later),
       "es-ES",
-      "a page opened later is emulated too",
+      "a page opened later gets it too",
     );
     assert.equal(
       await language(page),
@@ -240,14 +240,14 @@ test(
 );
 
 test(
-  "a page's own emulation wins over its context's, and null falls back to the context",
+  "a page's own use wins over its context's, and null falls back to the context",
   OPTIONS,
   async () => {
     const { context, tab } = await freshPage({ locale: "de-DE" });
     const language = () => evaluate<string>(tab, "() => navigator.language");
-    await tab.emulate({ locale: "fr-FR" });
+    await tab.use({ locale: "fr-FR" });
     assert.equal(await language(), "fr-FR");
-    await tab.emulate({ locale: null });
+    await tab.use({ locale: null });
     assert.equal(await language(), "de-DE");
     void context;
   },
@@ -255,16 +255,16 @@ test(
 
 onlyOn(
   "firefox",
-  "Chrome supports touch and javaScriptEnabled (spec 05)",
-  "touch and javaScriptEnabled are reported as unsupported by this Firefox, after what came before them was applied",
+  "Chrome supports hasTouch and javaScriptEnabled (spec 05)",
+  "hasTouch and javaScriptEnabled are reported as unsupported by this Firefox, after what came before them was applied",
   OPTIONS,
   async () => {
     const { tab } = await freshPage();
     await assert.rejects(
-      tab.emulate({ locale: "it-IT", touch: 5 }),
+      tab.use({ locale: "it-IT", hasTouch: true }),
       (err: unknown) => {
         assert.ok(err instanceof UnsupportedOperationError);
-        assert.equal((err as { option?: string }).option, "touch");
+        assert.equal((err as { option?: string }).option, "hasTouch");
         assert.deepEqual((err as { applied?: string[] }).applied, ["locale"]);
         return true;
       },
@@ -275,35 +275,35 @@ onlyOn(
       "nothing is rolled back",
     );
     await assert.rejects(
-      tab.emulate({ javaScriptEnabled: false }),
-      UnsupportedOperationError,
+      tab.use({ javaScriptEnabled: false }),
+      /javaScriptEnabled is not supported by the browser at run time/,
     );
   },
 );
 
 skipOn(
   "firefox",
-  "Firefox does not support touch and javaScriptEnabled",
-  "touch and javaScriptEnabled take effect",
+  "Firefox does not support hasTouch and javaScriptEnabled",
+  "hasTouch and javaScriptEnabled take effect",
   OPTIONS,
   async () => {
     const { tab } = await freshPage();
-    await tab.emulate({ touch: 5 });
+    await tab.use({ hasTouch: true });
     assert.equal(
       await evaluate<number>(tab, "() => navigator.maxTouchPoints"),
-      5,
+      1,
     );
-    await tab.emulate({ touch: null });
+    await tab.use({ hasTouch: null });
     assert.equal(
       await evaluate<number>(tab, "() => navigator.maxTouchPoints"),
       0,
     );
     const ran = () =>
       evaluate<string | undefined>(tab, "() => window.__inline");
-    await tab.emulate({ javaScriptEnabled: false });
+    await tab.use({ javaScriptEnabled: false });
     await tab.reload();
     assert.equal(await ran(), undefined, "the page's own script did not run");
-    await tab.emulate({ javaScriptEnabled: true });
+    await tab.use({ javaScriptEnabled: true });
     await tab.reload();
     assert.equal(await ran(), "ran");
   },
@@ -311,19 +311,19 @@ skipOn(
 
 onlyOn(
   "firefox",
-  "Chrome supports touch (spec 05)",
+  "Chrome supports hasTouch (spec 05)",
   "newContext refuses an unsupported option and leaves no context behind",
   OPTIONS,
   async () => {
     const before = browser.contexts().length;
     await assert.rejects(
-      browser.newContext({ locale: "nl-NL", touch: 3 }),
+      browser.newContext({ locale: "nl-NL", hasTouch: true }),
       UnsupportedOperationError,
     );
     assert.equal(browser.contexts().length, before);
     await assert.rejects(
       browser.newContext({ timezone: "Not/AZone" }),
-      RangeError,
+      TypeError,
     );
     assert.equal(browser.contexts().length, before);
   },
@@ -331,11 +331,14 @@ onlyOn(
 
 skipOn(
   "firefox",
-  "Firefox does not support touch",
+  "Firefox does not support hasTouch",
   "newContext applies every option Chrome supports",
   OPTIONS,
   async () => {
-    const context = await browser.newContext({ locale: "nl-NL", touch: 3 });
+    const context = await browser.newContext({
+      locale: "nl-NL",
+      hasTouch: true,
+    });
     contexts.push(context);
     const tab = await context.newPage();
     await tab.navigateTo(`${base}/`);
@@ -345,7 +348,7 @@ skipOn(
     );
     assert.equal(
       await evaluate<number>(tab, "() => navigator.maxTouchPoints"),
-      3,
+      1,
     );
   },
 );
@@ -357,7 +360,7 @@ test(
     const before = browser.contexts().length;
     await assert.rejects(
       browser.newContext({ timezone: "Not/AZone" }),
-      RangeError,
+      TypeError,
     );
     assert.equal(browser.contexts().length, before);
   },
@@ -369,9 +372,9 @@ test(
   async () => {
     const { tab } = await freshPage();
     await assert.rejects(
-      tab.emulate({ geolocation: { latitude: 100, longitude: 0 } }),
-      RangeError,
+      tab.use({ geolocation: { latitude: 100, longitude: 0 } }),
+      TypeError,
     );
-    await assert.rejects(tab.emulate({ timezone: "Mars/Olympus" }), RangeError);
+    await assert.rejects(tab.use({ timezone: "Mars/Olympus" }), TypeError);
   },
 );

@@ -107,7 +107,7 @@ test(
   async () => {
     const { dir, json } = project(
       `
-test.use({ timezoneId: "Asia/Tokyo", colorScheme: "dark" });
+test.use({ timezone: "Asia/Tokyo", colorScheme: "dark" });
 test("file level", async ({ page }) => {
   await page.navigateTo(BASE + "/");
   logJSON({ name: "file", ...(await facts(page)) });
@@ -120,7 +120,7 @@ test.describe("nl", () => {
   });
 });
 `,
-      { use: { locale: "de-DE", timezoneId: "Europe/Paris" } },
+      { use: { locale: "de-DE", timezone: "Europe/Paris" } },
     );
     passed(await run(dir, 9341));
     const [file, nl] = json();
@@ -131,6 +131,47 @@ test.describe("nl", () => {
     assert.equal(nl?.userAgent, "Samurai/1 (nl)");
     assert.equal(nl?.zone, "Asia/Tokyo");
     assert.equal(nl?.dark, true);
+  },
+);
+
+test(
+  "geolocation, offline, orientation and screen are declared like the other options, and page.use() changes them in the test",
+  LONG,
+  async () => {
+    const { dir, json } = project(
+      `
+test.use({
+  geolocation: { latitude: 52.37, longitude: 4.9 },
+  orientation: "landscape",
+  screen: { width: 800, height: 600 },
+});
+test("declared", async ({ page }) => {
+  await page.navigateTo(BASE + "/");
+  await page.grantPermission("geolocation");
+  const read = () => page.evaluate(\`() => new Promise((resolve) =>
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, screen: screen.width + "x" + screen.height, orientation: screen.orientation.type, online: navigator.onLine }),
+      (e) => resolve({ error: e.code })))\`);
+  const declared = await read();
+  await page.use({ offline: true, screen: { width: 640, height: 480 } });
+  const changed = await read();
+  await page.use({ offline: null, screen: null });
+  logJSON({ declared, changed, back: await read() });
+});
+`,
+    );
+    passed(await run(dir, 9350));
+    const [facts] = json();
+    assert.deepEqual(facts?.declared, {
+      lat: 52.37,
+      lon: 4.9,
+      screen: "800x600",
+      orientation: "landscape-primary",
+      online: true,
+    });
+    assert.equal(facts?.changed.online, false);
+    assert.equal(facts?.changed.screen, "640x480");
+    assert.equal(facts?.back.online, true);
   },
 );
 
@@ -311,7 +352,7 @@ test(
   LONG,
   async () => {
     const { dir, json } = project(`
-test.use({ locale: "nl-NL", colorScheme: "dark", timezoneId: "Asia/Tokyo" });
+test.use({ locale: "nl-NL", colorScheme: "dark", timezone: "Asia/Tokyo" });
 test("more contexts", async ({ page, browser, context }) => {
   const second = await context.newPage();
   await second.navigateTo(BASE + "/");

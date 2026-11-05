@@ -17,5 +17,5 @@ export {
 export { ElementHandle } from "../script/element-handle.js";
 export { RemoteObject } from "../script/serialize.js";
 export type { BoundingBox } from "../locator/element-reads.js";
-export { EmulationUnsupportedError } from "./emulation.js";
+export { UseError, UseUnsupportedError } from "./use-commands.js";
 export { findBrowser } from "./browser-finder.js";
