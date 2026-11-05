@@ -155,6 +155,12 @@ function expectationToSource(
     case "toBeHidden":
     case "toBeEnabled":
     case "toBeChecked":
+    case "toBeFocused":
+    case "toBeDisabled":
+    case "toBeEditable":
+    case "toBeAttached":
+    case "toBeInViewport":
+    case "toBeEmpty":
       return `${expectation.matcher}()`;
     case "toHaveAttribute":
       return `toHaveAttribute(${str(expectation.name)}, ${matcherToSource(expectation.expected)}${tail})`;

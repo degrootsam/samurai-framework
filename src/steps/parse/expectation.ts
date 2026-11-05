@@ -9,6 +9,28 @@ import { stringOf } from "./literals.js";
 
 const TEXT_MATCHERS = ["toHaveText", "toContainText", "toHaveValue"] as const;
 
+/** The matchers that take no argument: a call with options (`{ visible: false }`, `{ timeout }`) is custom */
+const NO_ARGUMENT_MATCHERS = [
+  "toBeVisible",
+  "toBeHidden",
+  "toBeEnabled",
+  "toBeChecked",
+  "toBeFocused",
+  "toBeDisabled",
+  "toBeEditable",
+  "toBeAttached",
+  "toBeInViewport",
+  "toBeEmpty",
+] as const;
+
+/** The matchers that take one text or RegExp; only `TEXT_MATCHERS` can also save an output */
+const TEXT_ARGUMENT_MATCHERS = [
+  ...TEXT_MATCHERS,
+  "toHaveId",
+  "toHaveAccessibleName",
+  "toHaveAccessibleDescription",
+] as const;
+
 /** `env.NAME`, `secrets.NAME`, `inputs.NAME` (or `env["NAME"]` and so on) or a string literal */
 export function readValue(
   node: ts.Expression | undefined,
@@ -61,13 +83,10 @@ export function readExpectation(
   matcher: string,
   args: readonly ts.Expression[],
 ): Expectation | undefined {
-  if (
-    matcher === "toBeVisible" ||
-    matcher === "toBeHidden" ||
-    matcher === "toBeEnabled" ||
-    matcher === "toBeChecked"
-  )
-    return args.length === 0 ? { matcher } : undefined;
+  if ((NO_ARGUMENT_MATCHERS as readonly string[]).includes(matcher))
+    return args.length === 0
+      ? { matcher: matcher as (typeof NO_ARGUMENT_MATCHERS)[number] }
+      : undefined;
   if (matcher === "toHaveClass") {
     const expected = readTextMatcher(args[0]);
     return args.length === 1 && expected !== undefined
@@ -94,10 +113,13 @@ export function readExpectation(
       ? { matcher, name, expected }
       : undefined;
   }
-  if ((TEXT_MATCHERS as readonly string[]).includes(matcher)) {
+  if ((TEXT_ARGUMENT_MATCHERS as readonly string[]).includes(matcher)) {
     const expected = readTextMatcher(args[0]);
     return args.length === 1 && expected !== undefined
-      ? { matcher: matcher as (typeof TEXT_MATCHERS)[number], expected }
+      ? {
+          matcher: matcher as (typeof TEXT_ARGUMENT_MATCHERS)[number],
+          expected,
+        }
       : undefined;
   }
   return undefined;

@@ -61,11 +61,29 @@ export type TextValue =
 export type TextMatcher = string | { regex: { source: string; flags: string } };
 
 export type Expectation =
-  | { matcher: "toBeVisible" | "toBeHidden" | "toBeEnabled" | "toBeChecked" }
+  | {
+      matcher:
+        | "toBeVisible"
+        | "toBeHidden"
+        | "toBeEnabled"
+        | "toBeChecked"
+        | "toBeFocused"
+        | "toBeDisabled"
+        | "toBeEditable"
+        | "toBeAttached"
+        | "toBeInViewport"
+        | "toBeEmpty";
+    }
   | { matcher: "toHaveClass"; expected: TextMatcher }
   | { matcher: "toHaveCSS"; name: string; expected: TextMatcher }
   | {
-      matcher: "toHaveText" | "toContainText" | "toHaveValue";
+      matcher:
+        | "toHaveText"
+        | "toContainText"
+        | "toHaveValue"
+        | "toHaveId"
+        | "toHaveAccessibleName"
+        | "toHaveAccessibleDescription";
       expected: TextMatcher;
     }
   | { matcher: "toHaveAttribute"; name: string; expected: TextMatcher }
