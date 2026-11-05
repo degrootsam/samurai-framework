@@ -136,3 +136,32 @@ test("a retried test says how it ended, and flaky passes are counted inside the 
   assert.match(out, /✖ broken \(1\.5s, failed after 1 retry\)/);
   assert.match(out, /1 failed, 2 passed \(1 flaky\)/);
 });
+
+test("a shard says which slice it runs, and an empty shard says so", () => {
+  let out = "";
+  const reporter = new ConsoleReporter({
+    write: (text) => (out += text),
+    color: false,
+  });
+  reporter.handle({
+    type: "run-start",
+    environment: "staging",
+    total: 0,
+    browsers: ["firefox"],
+    shard: { current: 3, total: 3 },
+  });
+  reporter.handle({
+    type: "run-end",
+    summary: {
+      status: "success",
+      duration: 10,
+      startTime: 0,
+      environment: "staging",
+      browsers: ["firefox"],
+      shard: { current: 3, total: 3 },
+      tests: [],
+    } as TestSummary,
+  });
+  assert.match(out, /Running 0 tests \(shard 3\/3\) against staging/);
+  assert.match(out, /Shard 3\/3 has no tests to run/);
+});

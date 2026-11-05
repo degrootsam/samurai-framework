@@ -1,5 +1,6 @@
 import type { SupportedBrowser } from "../types/browser.js";
 import type { RunEvent } from "./reporter.js";
+import type { Shard } from "./shard.js";
 
 /** What decides which tests of the found files run, and how the browser starts */
 export interface RunnerOptions {
@@ -25,6 +26,12 @@ export interface RunnerOptions {
    * @default the config's `retries`, else 0
    */
   retries?: number | string;
+  /**
+   * Runs only one slice of the selected tests, to split a run over several machines (the command line's
+   * `--shard=current/total`). Whole files, and serial blocks, go to one shard; the shards are disjoint and together
+   * hold every test. The report names the shard. A shard without tests succeeds.
+   */
+  shard?: Shard;
   /**
    * Values for the inputs the tests declare, by name: every test of the run reads the names it declares from
    * here, and its own default for a name missing here

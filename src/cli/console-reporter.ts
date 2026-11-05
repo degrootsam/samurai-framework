@@ -33,7 +33,7 @@ export class ConsoleReporter {
       case "run-start":
         this.labelled = event.browsers.length > 1;
         this.write(
-          `Running ${event.total} ${event.total === 1 ? "test" : "tests"}${event.workers ? ` with ${event.workers} workers` : ""} against ${event.environment}${this.labelled ? ` in ${event.browsers.join(", ")}` : ""}\n`,
+          `Running ${event.total} ${event.total === 1 ? "test" : "tests"}${event.shard ? ` (shard ${event.shard.current}/${event.shard.total})` : ""}${event.workers ? ` with ${event.workers} workers` : ""} against ${event.environment}${this.labelled ? ` in ${event.browsers.join(", ")}` : ""}\n`,
         );
         return;
       case "test-end":
@@ -68,6 +68,12 @@ export class ConsoleReporter {
   }
 
   private summary(summary: TestSummary): void {
+    if (summary.shard && summary.tests.length === 0) {
+      this.write(
+        `\n${this.paint(90, `Shard ${summary.shard.current}/${summary.shard.total} has no tests to run`)}\n`,
+      );
+      return;
+    }
     const skipped = summary.tests.filter((test) => test.status === "skipped");
     const failed = summary.tests.filter(
       (test) => test.status !== "success" && test.status !== "skipped",

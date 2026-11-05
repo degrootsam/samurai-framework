@@ -342,4 +342,6 @@ interface TestSummaryBase {
   environment: string;
   /** The browsers the run used, in the order they ran */
   browsers: SupportedBrowser[];
+  /** The slice of the selected tests the run held (`--shard`); absent for a whole run */
+  shard?: { current: number; total: number };
 }

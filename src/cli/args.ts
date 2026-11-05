@@ -2,9 +2,11 @@ import { parseArgs } from "node:util";
 import {
   checkBrowserList,
   parseRetries,
+  parseShard,
   parseWorkers,
   type ProjectOptions,
   type RunnerOptions,
+  type Shard,
 } from "../runner/run.js";
 
 /** `firefox` or `chrome` */
@@ -24,6 +26,7 @@ const FLAGS = {
   port: { type: "string" },
   workers: { type: "string" },
   retries: { type: "string" },
+  shard: { type: "string" },
   grep: { type: "string" },
   group: { type: "string" },
   browser: { type: "string", multiple: true },
@@ -69,6 +72,8 @@ export interface RunnerFlags {
   workers?: string;
   /** `--retries`: a whole number from 0, as typed */
   retries?: string;
+  /** `--shard=current/total`, parsed */
+  shard?: Shard;
   grep?: string;
   group?: string;
   files?: string[];
@@ -76,7 +81,7 @@ export interface RunnerFlags {
   browsers?: SupportedBrowser[];
 }
 
-/** Reads `--headless`, `--port <n>`, `--workers <n|n%>`, `--retries <n>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
+/** Reads `--headless`, `--port <n>`, `--workers <n|n%>`, `--retries <n>`, `--shard <current/total>`, `--grep <text>`, `--group <name>`, `--file <spec>` and `--browser <name>` (both repeatable) from `argv`, or from values that were parsed already */
 export function parseRunnerFlags(
   source: string[] | CommandValues,
 ): RunnerFlags {
@@ -100,6 +105,8 @@ export function parseRunnerFlags(
     parseRetries(values.retries, "--retries");
     flags.retries = values.retries;
   }
+  if (values.shard !== undefined)
+    flags.shard = parseShard(values.shard, "--shard");
   if (values.grep !== undefined) flags.grep = values.grep;
   if (values.group !== undefined) flags.group = values.group;
   if (values.file?.length) flags.files = values.file;

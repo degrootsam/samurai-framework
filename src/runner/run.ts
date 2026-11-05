@@ -124,6 +124,7 @@ export async function listGroups(
 export { BROWSER_NAMES, checkBrowserList } from "../config/browsers.js";
 export { parseWorkers } from "../config/workers.js";
 export { parseRetries } from "../config/retries.js";
+export { parseShard, type Shard } from "./shard.js";
 export type { RunEvent } from "./reporter.js";
 export type {
   Modifier,

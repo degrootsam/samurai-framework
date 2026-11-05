@@ -15,6 +15,7 @@ import type {
   TestSummary,
 } from "../types/test.js";
 import type { SupportedBrowser } from "../types/browser.js";
+import type { Shard } from "./shard.js";
 
 /** What a run reports while it happens */
 export type RunEvent =
@@ -26,6 +27,8 @@ export type RunEvent =
       browsers: SupportedBrowser[];
       /** How many tests run at the same time; absent when they run one after the other */
       workers?: number;
+      /** The slice of the selected tests this run holds, when it is a shard */
+      shard?: Shard;
     }
   | {
       type: "test-start";
@@ -51,6 +54,8 @@ export interface ReporterOptions {
   browsers: SupportedBrowser[];
   /** Where the report is written. @default <cwd>/result/report.json */
   output?: string | false;
+  /** The slice of the selected tests this run holds; recorded in the report */
+  shard?: Shard;
   /** Called with every event, in order. A throwing listener is ignored */
   onEvent?: (event: RunEvent) => void;
 }
@@ -111,6 +116,7 @@ export default class TestReporter implements TestSink {
   private browsers: SupportedBrowser[];
   private output: string | false;
   private listener: ((event: RunEvent) => void) | undefined;
+  private shard: Shard | undefined;
   /** Keys of the run's tests in the order the report lists them; unset: the order they started in */
   private order: string[] | undefined;
 
@@ -120,6 +126,7 @@ export default class TestReporter implements TestSink {
     this.output =
       options.output ?? path.join(projectDir(), "result/report.json");
     this.listener = options.onEvent;
+    this.shard = options.shard;
   }
 
   private emit(event: RunEvent): void {
@@ -153,6 +160,7 @@ export default class TestReporter implements TestSink {
       total,
       browsers: this.browsers,
       ...(workers > 1 && { workers }),
+      ...(this.shard && { shard: this.shard }),
     });
   }
 
@@ -177,6 +185,7 @@ export default class TestReporter implements TestSink {
       duration,
       environment: this.environment,
       browsers: this.browsers,
+      ...(this.shard && { shard: this.shard }),
       tests,
       status: tests.every(
         (r: TestResult) => r.status === "success" || r.status === "skipped",

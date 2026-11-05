@@ -61,6 +61,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       ...(flags.port !== undefined && { port: flags.port }),
       ...(flags.workers !== undefined && { workers: flags.workers }),
       ...(flags.retries !== undefined && { retries: flags.retries }),
+      ...(flags.shard && { shard: flags.shard }),
       ...(flags.grep !== undefined && { grep: flags.grep }),
       ...(flags.group !== undefined && { group: flags.group }),
       ...(flags.files && { files: flags.files }),

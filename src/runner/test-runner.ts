@@ -30,6 +30,7 @@ import { browsersOfRun, loadSpecs, selectTests } from "./select.js";
 import { resolveRetries } from "./retries-option.js";
 import { runWithRetries } from "./retry.js";
 import { chunkBySerialBlock, unitOf } from "./serial.js";
+import { parseShard, shardGroupOf, shardTests } from "./shard.js";
 import { serialBlockRun, type BlockTest } from "./serial-run.js";
 import { resolveWorkers } from "../config/workers-option.js";
 import { runOutput } from "./output.js";
@@ -144,12 +145,21 @@ export default class TestRunner {
     const loaded = await loadSpecs(this.testFiles);
     // A focused test the config refuses stops the run before anything starts; else only the focused ones run
     assertNoOnly(loaded.all, forbidsOnly(config), loaded.srcDir);
-    const selected = narrowToOnly(selectTests(loaded, this.options));
+    const shard = this.options.shard
+      ? parseShard(this.options.shard, "shard")
+      : undefined;
+    const focused = narrowToOnly(selectTests(loaded, this.options));
+    const selected = shard
+      ? shardTests(focused, shard, (test) =>
+          shardGroupOf(test, config.fullyParallel),
+        )
+      : focused;
     const browsers = await browsersOfRun(loaded.groups, this.options);
     const reporter = new TestReporter({
       environment: this.run.settings.environment,
       browsers,
       output: runOutput(this.options, projectDir()).report,
+      ...(shard && { shard }),
       ...(onEvent && { onEvent }),
     });
 

@@ -171,3 +171,24 @@ describe("flow flags", () => {
     assert.throws(() => parseCommandLine(["run", "--allow-unsupportd"]));
   });
 });
+
+describe("parseRunnerFlags --shard", () => {
+  test("reads current/total", () => {
+    assert.deepEqual(parseRunnerFlags(["--shard=2/4"]), {
+      shard: { current: 2, total: 4 },
+    });
+    assert.deepEqual(parseRunnerFlags(["--shard", "1/1"]), {
+      shard: { current: 1, total: 1 },
+    });
+  });
+
+  test("refuses what is not current/total with 1 <= current <= total", () => {
+    for (const bad of ["0/3", "4/3", "x", "2", "1/0", ""])
+      assert.throws(
+        () => parseRunnerFlags([`--shard=${bad}`]),
+        new RegExp(
+          `^Error: --shard: expected current/total with 1 <= current <= total, got "${bad}"$`,
+        ),
+      );
+  });
+});

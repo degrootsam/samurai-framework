@@ -65,6 +65,16 @@ describe("main", () => {
     const negative = io();
     assert.equal(await main(["run", "--retries=-1"], negative.target), 2);
     assert.match(negative.err(), /--retries must be a whole number from 0/);
+    const shard = io();
+    assert.equal(await main(["run", "--shard=3/2"], shard.target), 2);
+    assert.match(
+      shard.err(),
+      /^--shard: expected current\/total with 1 <= current <= total, got "3\/2"/,
+    );
+  });
+
+  it("documents --shard in the usage", () => {
+    assert.match(USAGE, /--shard <current\/total>/);
   });
 
   it("documents --retries in the usage, for run and for flow run", () => {

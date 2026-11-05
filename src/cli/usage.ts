@@ -30,6 +30,9 @@ Options for run:
                               workers (or SAMURAI_WORKERS), else half the CPUs
   --retries <n>               Run a failing test again up to n times, each with a fresh browser
                               (or SAMURAI_RETRIES; default 0)
+  --shard <current/total>     Run one slice of the selected tests, to split a run over machines:
+                              --shard=2/4 runs the second of four. Whole files (and serial
+                              blocks) go to one shard; an empty shard succeeds
 
 Options for record (also --env, --port, --json, --headless, --no-headless):
   --browser <name>            Record in this browser (default: the first of the config's browsers)
