@@ -9,7 +9,7 @@ import type {
   TestFixtures,
   TestOptions,
 } from "../types/test.js";
-import type { UseOptions } from "../types/use.js";
+import type { FixtureUse, UseOptions } from "../types/use.js";
 import type {
   Body,
   DescribeFunction,
@@ -22,6 +22,7 @@ import type {
 } from "./test-function.js";
 import { extendLayers, type FixtureLayers } from "./fixture-defs.js";
 import { rememberLayers } from "./fixture-registry.js";
+import { checkTestFixtureUse } from "./fixture-use.js";
 import { validateUseOptions } from "../config/use-options.js";
 import {
   currentStepLog,
@@ -280,9 +281,14 @@ export function afterAll(hook: AllHook): void {
   addHook(currentSuite(callerFile()), "afterAll", hook);
 }
 
-/** `test.use(options)`: checked now, applied when each test of the scope runs */
-function use(options: UseOptions): void {
-  addUse(currentSuite(callerFile()), validateUseOptions(options));
+/** `test.use(options)` of a test with the fixtures `extension`: checked now, applied when each test of the scope runs */
+function usingFor(extension?: FixtureLayers) {
+  return (options: UseOptions & FixtureUse): void => {
+    const checked = validateUseOptions(options);
+    // `fixtures` and option fixtures may only name what this test's `test.extend()` defines
+    checkTestFixtureUse(checked, extension);
+    addUse(currentSuite(callerFile()), checked);
+  };
 }
 
 /**
@@ -303,7 +309,7 @@ function makeTest(extension?: FixtureLayers): TestFunction<never> {
     ) => runStep(currentStepLog(), title, body, options),
     only: registering("test.only", "only", extension),
     info: currentTestInfo,
-    use,
+    use: usingFor(extension),
     describe,
     beforeEach,
     afterEach,

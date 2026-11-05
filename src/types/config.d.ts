@@ -1,6 +1,6 @@
 import type { StepDefinition } from "../flows/steps/define.js";
 import type { SupportedBrowser } from "./browser.js";
-import type { UseOptions } from "./use.js";
+import type { FixtureUse, UseOptions } from "./use.js";
 import type { ResolvedConfig } from "../config/resolved-config.js";
 
 interface SamuraiTest {
@@ -39,7 +39,7 @@ export interface SamuraiGroup {
    * as config `use` that make sense per group (`locale`, `isMobile`, `viewport`, ...). They apply when the group is
    * selected (`--group`); a run without `--group` ignores them. The way to port a Playwright project.
    */
-  use?: GroupUse;
+  use?: GroupUse & FixtureUse;
 }
 
 /** The options of a group's `use`: those of `test.use()`, and the page's `viewport` */
@@ -105,6 +105,12 @@ export interface SamuraiEnvironment {
   headless?: boolean;
   /** Test data, used in steps as ${name}. Never put secrets here. */
   variables?: Record<string, string | number | boolean>;
+  /**
+   * `use` options for every test run in this environment, over config `use` and under a group's `use` and
+   * `test.use()`. `fixtures: { order: false }` turns a fixture off here for good: a test that needs it is skipped,
+   * whatever a group or test says.
+   */
+  use?: GroupUse & FixtureUse;
 }
 
 export interface SamuraiTestConfig {
@@ -199,26 +205,27 @@ export interface SamuraiTestConfig {
    */
   filesDir?: string;
   /** How pages are opened, and what the browser pretends: the options of `test.use()` apply to every test */
-  use?: UseOptions & {
-    /**
-     * Size of the page's viewport, so screenshots and layout are the same on every machine.
-     * `null` keeps the browser's own size
-     * @default { width: 1280, height: 720 }
-     */
-    viewport?: { width: number; height: number } | null;
-    /**
-     * Run the browser without a window. Needed on machines without a display, such as CI runners.
-     * Left out, a run is headless when the `CI` environment variable is set and shows a window otherwise
-     */
-    headless?: boolean;
-    /**
-     * Make an action or read on a locator that matches several elements throw
-     * `name(): strict mode violation, N elements match ...` instead of using the first one. Narrow the locator
-     * (`first()`, `nth()`, `filter()`) or turn it off for one locator with `locator.strict(false)`
-     * @default false
-     */
-    strictSelectors?: boolean;
-  };
+  use?: UseOptions &
+    FixtureUse & {
+      /**
+       * Size of the page's viewport, so screenshots and layout are the same on every machine.
+       * `null` keeps the browser's own size
+       * @default { width: 1280, height: 720 }
+       */
+      viewport?: { width: number; height: number } | null;
+      /**
+       * Run the browser without a window. Needed on machines without a display, such as CI runners.
+       * Left out, a run is headless when the `CI` environment variable is set and shows a window otherwise
+       */
+      headless?: boolean;
+      /**
+       * Make an action or read on a locator that matches several elements throw
+       * `name(): strict mode violation, N elements match ...` instead of using the first one. Narrow the locator
+       * (`first()`, `nth()`, `filter()`) or turn it off for one locator with `locator.strict(false)`
+       * @default false
+       */
+      strictSelectors?: boolean;
+    };
   /** What to do with the browser's console output and uncaught page exceptions */
   logs?: {
     /**

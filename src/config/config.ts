@@ -3,7 +3,7 @@ import path from "path";
 import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
 import { validateBrowserConfig } from "./browsers.js";
-import { validateGroupUse } from "./group-use.js";
+import { validateEnvironmentUse, validateGroupUse } from "./group-use.js";
 import { validateUseConfig } from "./use-options.js";
 import { validateForbidOnlyConfig } from "./forbid-only.js";
 import { validateRetriesConfig } from "./retries.js";
@@ -54,6 +54,7 @@ export function validateConfig(config: SamuraiTestConfig): void {
   validateFullyParallelConfig(config);
   validateUseConfig(config);
   validateGroupUse(config);
+  validateEnvironmentUse(config);
   validateWebServerConfig(config);
 }
 

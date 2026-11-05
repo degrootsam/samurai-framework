@@ -40,6 +40,7 @@ export type {
   StorageStateCookie,
   RuntimeUseOptions,
   UseOptions,
+  FixtureUse,
 } from "./types/use.js";
 export {
   generatedFile,

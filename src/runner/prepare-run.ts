@@ -9,6 +9,7 @@ import { loadSecrets } from "../config/secrets.js";
 import logger from "../logger/index.js";
 import type { SamuraiTestConfig } from "../types/config.js";
 import { fixtureCatalog } from "./fixture-registry.js";
+import { checkFixtureUseNames } from "./fixture-use.js";
 
 export interface PreparedRun {
   settings: RunSettings;
@@ -25,7 +26,8 @@ export function prepareRun(
   options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
 ): PreparedRun {
   // A fixture name defined twice refuses the run before any test starts
-  if (config.fixtures !== undefined) fixtureCatalog(config.fixtures);
+  const catalog = fixtureCatalog(config.fixtures ?? []);
+  checkFixtureUseNames(config, catalog);
   const settings = resolveRunSettings(config, overrides);
   const secrets = loadSecrets(settings.environment, options);
   for (const [name, value] of secrets) {

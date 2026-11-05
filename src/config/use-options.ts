@@ -1,5 +1,6 @@
 import type { SamuraiTestConfig } from "../types/config.js";
 import type { UseOptions } from "../types/use.js";
+import { checkFixtureUse, isFixtureUseKey } from "./fixture-use.js";
 
 /** The options of `use`: config, group, `test.use()` and (those that can change at run time) `page.use()` */
 export const USE_OPTION_NAMES: readonly string[] = [
@@ -60,9 +61,14 @@ export function validateUseOptions(
     const renamed = RENAMED[key];
     if (renamed !== undefined)
       fail(`unknown option "${key}"; use "${renamed}"`);
-    if (!allowOthers && !USE_OPTION_NAMES.includes(key))
+    if (
+      !allowOthers &&
+      !USE_OPTION_NAMES.includes(key) &&
+      !isFixtureUseKey(key)
+    )
       fail(`unknown option "${key}"`);
   }
+  checkFixtureUse(options);
   const use = options as UseOptions;
   for (const name of BOOLEANS)
     if (use[name] !== undefined && typeof use[name] !== "boolean")

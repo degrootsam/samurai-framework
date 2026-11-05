@@ -38,6 +38,20 @@ export interface UseOptions {
   colorScheme?: ColorScheme;
 }
 
+/**
+ * What a `use` that is layered over config, environment, group and `test.use()` can also say about fixtures. Not
+ * part of `UseOptions`: `page.use()` and the browser know nothing of fixtures.
+ */
+export interface FixtureUse {
+  /**
+   * Fixtures to attach by name (`true`: set up before `beforeEach`, like an `auto` fixture) or to remove (`false`).
+   * An environment's `false` wins over a group's or test's `true`.
+   */
+  fixtures?: Record<string, boolean>;
+  /** The values of an option fixture (`orderOptions: { items: 2 }`), merged key by key with the other layers */
+  [option: `${string}Options`]: Record<string, unknown> | undefined;
+}
+
 /** The options `page.use()` and `context.use()` take: those that can change while the browser runs */
 export type RuntimeUseOptions = Pick<
   UseOptions,

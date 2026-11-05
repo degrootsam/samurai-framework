@@ -232,6 +232,108 @@ test("value fixtures and overrides: a custom fixture replaces the built-in, and 
   assert.equal(await scope.teardown(1000), undefined);
 });
 
+const withRun = (
+  defs: object,
+  run: ConstructorParameters<typeof FixtureScope>[2],
+) => new FixtureScope(extendLayers(undefined, defs), builtIn, run);
+
+test("attached fixtures are set up with the auto ones, before anything asks for them", async () => {
+  const log: string[] = [];
+  const scope = withRun(
+    {
+      a: logged(log, "a"),
+      b: logged(log, "b"),
+      c: [logged(log, "c"), { auto: true }],
+    },
+    { attach: ["b"] },
+  );
+  await scope.prepareAuto();
+  assert.deepEqual(log, ["+c", "+b"]);
+  await scope.teardown(1000);
+});
+
+test("an option fixture is its default with the values from use over it, key by key", async () => {
+  const defs = {
+    orderOptions: [{ items: 1, paid: true }, { option: true }],
+    order: async ({ orderOptions }: any, use: any) => use(orderOptions),
+  };
+  const plain = withRun(defs, {});
+  await plain.prepare(body(async ({ order }: any) => order));
+  assert.deepEqual((plain.fixtures as any).order, { items: 1, paid: true });
+  const set = withRun(defs, { options: { orderOptions: { items: 2 } } });
+  await set.prepare(body(async ({ order }: any) => order));
+  assert.deepEqual((set.fixtures as any).order, { items: 2, paid: true });
+});
+
+test("secret and variable fields are resolved before the fixture gets its options", async () => {
+  const layers = extendLayers(undefined, {
+    loginOptions: [
+      { user: "", password: "", nested: { host: "" }, plain: "x" },
+      {
+        option: true,
+        fields: [
+          { path: "user", type: "variable" },
+          { path: "password", type: "secret" },
+          { path: "nested.host", type: "variable" },
+          { path: "plain", type: "text" },
+        ],
+      },
+    ],
+    login: async ({ loginOptions }: any, use: any) => use(loginOptions),
+  });
+  const base = {
+    ...builtIn,
+    env: { customerEmail: "sam@example.test", apiHost: "api.test" },
+    secrets: { CUSTOMER_PW: "hunter2" },
+  } as unknown as TestFixtures;
+  const scope = new FixtureScope(layers, base, {
+    options: {
+      loginOptions: {
+        user: "customerEmail",
+        password: "CUSTOMER_PW",
+        nested: { host: "apiHost" },
+      },
+    },
+  });
+  await scope.prepare(body(async ({ login }: any) => login));
+  assert.deepEqual((scope.fixtures as any).login, {
+    user: "sam@example.test",
+    password: "hunter2",
+    nested: { host: "api.test" },
+    plain: "x",
+  });
+});
+
+test("a fixture the environment turns off skips the test, by name or as a dependency", async () => {
+  const disabled = new Map([
+    ["order", "Fixture order is turned off in production"],
+  ]);
+  const defs = {
+    order: async ({}: any, use: any) => use(1),
+    receipt: async ({ order }: any, use: any) => use(order),
+    other: 2,
+  };
+  const asked = withRun(defs, { disabled });
+  await assert.rejects(
+    asked.prepare(body(async ({ order }: any) => order)),
+    (err: any) =>
+      err.name === "SkipSignal" &&
+      err.reason === "Fixture order is turned off in production",
+  );
+  const viaDependency = withRun(defs, { disabled });
+  await assert.rejects(
+    viaDependency.prepare(body(async ({ receipt }: any) => receipt)),
+    (err: any) => err.name === "SkipSignal",
+  );
+  const unrelated = withRun(defs, { disabled });
+  await unrelated.prepare(body(async ({ other }: any) => other));
+  const attached = withRun(defs, { disabled, attach: ["order"] });
+  await assert.rejects(
+    attached.prepareAuto(),
+    (err: any) => err.name === "SkipSignal",
+  );
+});
+
 test("a rest entry sets every custom fixture up", async () => {
   const log: string[] = [];
   const scope = scopeOf({ a: logged(log, "a"), b: logged(log, "b") });

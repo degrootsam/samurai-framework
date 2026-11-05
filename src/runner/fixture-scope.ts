@@ -1,4 +1,6 @@
 import type { TestFixtures } from "../types/test.js";
+import { resolveOptions } from "./fixture-options.js";
+import { SkipSignal } from "./skip.js";
 import { requestedBy } from "./fixture-args.js";
 import {
   BUILT_IN_FIXTURES,
@@ -11,6 +13,16 @@ import {
   startSetup,
   type Started,
 } from "./fixture-start.js";
+
+/** What `use` and the run's environment say about the fixtures of one test */
+export interface ScopeRun {
+  /** Fixtures to set up with the `auto` ones */
+  attach?: readonly string[];
+  /** The values of the option fixtures from `use`, by option fixture name */
+  options?: Readonly<Record<string, Record<string, unknown>>>;
+  /** Fixtures the environment turns off, with the reason a test that needs one is skipped for */
+  disabled?: ReadonlyMap<string, string>;
+}
 
 /**
  * The custom fixtures of one test run. Fixtures are set up when a test or hook asks for them (by destructuring
@@ -28,16 +40,21 @@ export class FixtureScope {
   constructor(
     private readonly layers: FixtureLayers,
     private readonly base: TestFixtures,
+    private readonly run: ScopeRun = {},
   ) {
     const own = Object.getOwnPropertyDescriptors(base);
     for (const descriptor of Object.values(own)) descriptor.configurable = true;
     this.fixtures = Object.defineProperties({}, own) as TestFixtures;
   }
 
-  /** Sets up the fixtures marked `auto` */
+  /** Sets up the fixtures marked `auto`, then those `use` attaches */
   public async prepareAuto(): Promise<void> {
     for (const [name, defs] of this.layers)
       if (defs[defs.length - 1]?.auto) await this.ensure(name, defs.length - 1);
+    for (const name of this.run.attach ?? []) {
+      const defs = this.layers.get(name);
+      if (defs) await this.ensure(name, defs.length - 1);
+    }
   }
 
   /** Sets up the custom fixtures `fn` destructures from its first parameter */
@@ -87,6 +104,8 @@ export class FixtureScope {
   }
 
   private ensure(name: string, level: number): Promise<void> {
+    const off = this.run.disabled?.get(name);
+    if (off !== undefined) return Promise.reject(new SkipSignal("skip", off));
     const key = `${name}#${level}`;
     let promise = this.pending.get(key);
     if (!promise) {
@@ -111,6 +130,8 @@ export class FixtureScope {
         }
       }
       let value = def.value;
+      if (def.option)
+        value = resolveOptions(def, this.run.options?.[name], this.base);
       if (def.setup) {
         const started = await startSetup(def, args);
         if (this.closed) {
@@ -129,7 +150,7 @@ export class FixtureScope {
           writable: true,
         });
     } catch (err) {
-      throw err instanceof FixtureSetupError
+      throw err instanceof FixtureSetupError || err instanceof SkipSignal
         ? err
         : new FixtureSetupError(name, err);
     }

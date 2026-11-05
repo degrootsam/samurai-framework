@@ -6,7 +6,7 @@ import type {
   TestInfo,
   TestOptions,
 } from "../types/test.js";
-import type { UseOptions } from "../types/use.js";
+import type { FixtureUse, UseOptions } from "../types/use.js";
 import type {
   FixtureDefinitions,
   FixturesOf,
@@ -61,7 +61,7 @@ export interface TestFunction<X = NoFixtures> {
    * the whole file at the top level, whether before or after the tests. An inner block wins over an outer one, and
    * both win over config `use`.
    */
-  use: (options: UseOptions) => void;
+  use: (options: UseOptions & FixtureUse) => void;
   /** `describe`, under the name other frameworks use */
   describe: DescribeFunction;
   /** `beforeEach`, as `test.beforeEach` */

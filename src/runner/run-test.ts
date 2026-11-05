@@ -32,6 +32,7 @@ import type { FixtureLayers } from "./fixture-defs.js";
 import { FixtureScope } from "./fixture-scope.js";
 import { RequestFixture } from "./request-fixture.js";
 import { effectiveUse } from "./use-options.js";
+import { effectiveFixtureUse } from "./fixture-use.js";
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
 type Logs = { logs?: TestLogEntry[]; logsDropped?: number };
@@ -167,6 +168,9 @@ export async function runOneTest(
       // The `beforeAll` hooks come first, before a browser exists
       await resources.allHooks?.ensure(test, browserName);
       const use = await effectiveUse(test);
+      const fixtureUse = test.extension
+        ? await effectiveFixtureUse(test)
+        : undefined;
       const launched = await Browser.launch(
         browserName,
         {
@@ -233,7 +237,7 @@ export async function runOneTest(
       });
       // A test written with `test.extend()` gets its custom fixtures set up on demand, and torn down below
       const custom = test.extension
-        ? new FixtureScope(test.extension as FixtureLayers, built)
+        ? new FixtureScope(test.extension as FixtureLayers, built, fixtureUse)
         : undefined;
       customFixtures = custom;
       const fixtures = custom?.fixtures ?? built;

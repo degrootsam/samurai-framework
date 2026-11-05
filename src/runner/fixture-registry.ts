@@ -13,6 +13,10 @@ export function rememberLayers(test: object, layers: FixtureLayers): void {
   layersByTest.set(test, layers);
 }
 
+/** The fixtures of an extended `test`; nothing for the plain one */
+export const layersOf = (test: object): FixtureLayers | undefined =>
+  layersByTest.get(test);
+
 /** What the app and the CLI show of one fixture of a project, read without running a test */
 export interface FixtureCatalogEntry {
   name: string;
