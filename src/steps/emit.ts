@@ -5,6 +5,7 @@ import type {
   LocatorCall,
   LocatorSpec,
   PageExpectation,
+  SelectChoice,
   Step,
   TextMatcher,
   TextValue,
@@ -166,6 +167,12 @@ function expectationToSource(
   }
 }
 
+function choiceToSource(option: SelectChoice): string {
+  if (typeof option === "string") return str(option);
+  const [key, value] = Object.entries(option)[0]!;
+  return `{ ${key}: ${typeof value === "string" ? str(value) : value} }`;
+}
+
 /** The statement for a step, on one line */
 export function stepToSource(step: Step): string {
   switch (step.kind) {
@@ -175,6 +182,14 @@ export function stepToSource(step: Step): string {
       return `await ${locatorToSource(step.locator)}.click();`;
     case "fill":
       return `await ${locatorToSource(step.locator)}.fill(${valueToSource(step.value)}${outputOption(step.output)});`;
+    case "check":
+    case "uncheck":
+    case "hover":
+    case "dblclick":
+    case "clear":
+      return `await ${locatorToSource(step.locator)}.${step.kind}();`;
+    case "selectOption":
+      return `await ${locatorToSource(step.locator)}.selectOption(${choiceToSource(step.option)});`;
     case "press":
       return `await ${locatorToSource(step.locator)}.press(${str(step.key)});`;
     case "expect":

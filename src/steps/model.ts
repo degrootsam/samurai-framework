@@ -91,10 +91,24 @@ export interface GeneratedFileSpec {
 /** A file a step sets or drops: one stored in the project (relative to the project folder), or a generated one */
 export type FileEntry = { path: string } | { generate: GeneratedFileSpec };
 
+/**
+ * The option `selectOption` chooses: a string (the option's value or its label), or exactly one of its `value`,
+ * `label` or position
+ */
+export type SelectChoice =
+  string | { value: string } | { label: string } | { index: number };
+
 /** The restricted set of statements the recorder writes. Anything else in a test is a `custom` step */
 export type Step =
   | { kind: "goto"; url: string }
   | { kind: "click"; locator: LocatorSpec }
+  /** An action on an element with no argument: ticks or unticks it, moves the pointer over it, double-clicks it, empties a field */
+  | {
+      kind: "check" | "uncheck" | "hover" | "dblclick" | "clear";
+      locator: LocatorSpec;
+    }
+  /** Chooses one option of a `<select>`; a list of options is `custom` */
+  | { kind: "selectOption"; locator: LocatorSpec; option: SelectChoice }
   /** `output` saves the typed value as that output, `{ output: "name" }` */
   | { kind: "fill"; locator: LocatorSpec; value: TextValue; output?: string }
   | {

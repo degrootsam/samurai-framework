@@ -16,6 +16,7 @@ export type {
   LocatorCall,
   LocatorSpec,
   PageExpectation,
+  SelectChoice,
   ParsedStep,
   ParsedTest,
   Step,

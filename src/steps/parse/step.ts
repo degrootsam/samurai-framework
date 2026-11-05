@@ -1,5 +1,5 @@
 import ts from "typescript";
-import type { Step } from "../model.js";
+import type { SelectChoice, Step } from "../model.js";
 import { readLocator } from "./call.js";
 import {
   OUTPUT_MATCHERS,
@@ -9,7 +9,7 @@ import {
   readValue,
 } from "./expectation.js";
 import { readFiles } from "./file-entry.js";
-import { readObject, stringOf } from "./literals.js";
+import { integerOf, readObject, readProps, stringOf } from "./literals.js";
 
 /**
  * The name in a trailing `{ output: "name" }`: undefined without one, null when the argument is there but
@@ -70,6 +70,25 @@ function readLocatorExpect(
         ...(output !== undefined && { output }),
       }
     : undefined;
+}
+
+/** The actions that take a locator and nothing else */
+const ACTIONS = ["check", "uncheck", "hover", "dblclick", "clear"] as const;
+
+/** `"value or label"`, `{ value }`, `{ label }` or `{ index }`: exactly one key; anything else is undefined */
+function readSelectChoice(node: ts.Expression): SelectChoice | undefined {
+  const text = stringOf(node);
+  if (text !== undefined) return text;
+  const props = readProps(node, ["value", "label", "index"]);
+  const keys = Object.keys(props ?? {});
+  if (!props || keys.length !== 1) return undefined;
+  const [key] = keys as ["value" | "label" | "index"];
+  if (key === "index") {
+    const index = integerOf(props.index);
+    return index !== undefined && index >= 0 ? { index } : undefined;
+  }
+  const value = stringOf(props[key]);
+  return value === undefined ? undefined : ({ [key]: value } as SelectChoice);
 }
 
 /** The step a statement stands for, or undefined when it is outside the recorder's set */
@@ -149,6 +168,14 @@ export function readStep(statement: ts.Statement): Step | undefined {
   if (!locator) return undefined;
   if (name.text === "click" && args.length === 0)
     return { kind: "click", locator };
+  if ((ACTIONS as readonly string[]).includes(name.text) && args.length === 0)
+    return { kind: name.text as (typeof ACTIONS)[number], locator };
+  if (name.text === "selectOption" && args.length === 1) {
+    const option = readSelectChoice(args[0]!);
+    return option === undefined
+      ? undefined
+      : { kind: "selectOption", locator, option };
+  }
   if (name.text === "press" && args.length === 1) {
     const key = stringOf(args[0]);
     return key === undefined ? undefined : { kind: "press", locator, key };
