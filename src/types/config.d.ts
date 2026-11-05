@@ -1,6 +1,7 @@
 import type { StepDefinition } from "../flows/steps/define.js";
 import type { SupportedBrowser } from "./browser.js";
 import type { UseOptions } from "./use.js";
+import type { ResolvedConfig } from "../config/resolved-config.js";
 
 interface SamuraiTest {
   /** Path relative to srcDir, e.g. 'checkout/coupons.spec.ts' */
@@ -34,6 +35,53 @@ export interface SamuraiGroup {
    */
   workers?: number;
 }
+
+/** One server the run starts before the first test (see `SamuraiTestConfig.webServer`). Give either `url` or `port`. */
+export interface WebServerConfig {
+  /** Shell command that starts the server. It leads its own process group, so the whole tree is stopped at the end */
+  command: string;
+  /** Where the server answers: ready once it responds with a status from 200 to 403 */
+  url?: string;
+  /** Where the server listens: ready once `localhost` accepts TCP connections on it */
+  port?: number;
+  /** Working directory of the command, relative to the project folder. @default the project folder */
+  cwd?: string;
+  /** Extra environment variables for the command, on top of this process's. Never printed in errors */
+  env?: Record<string, string>;
+  /** Time (ms) the server may take to be ready. @default 60000 */
+  timeout?: number;
+  /** When `url`/`port` already answers, use that server and start nothing (it is not stopped either). @default false */
+  reuseExistingServer?: boolean;
+  /** Send the command's stdout to this process's stdout, or drop it. @default "ignore" */
+  stdout?: "pipe" | "ignore";
+  /** Send the command's stderr to this process's stderr, or drop it. @default "pipe" */
+  stderr?: "pipe" | "ignore";
+  /** Do not fail on a certificate error while waiting for an `https` `url`. @default false */
+  ignoreHTTPSErrors?: boolean;
+  /**
+   * How the server is stopped: `signal` goes to the whole process group, and after `timeout` ms what is left is
+   * killed. @default { signal: "SIGTERM", timeout: 5000 }
+   */
+  gracefulShutdown?: { signal?: "SIGTERM" | "SIGINT"; timeout?: number };
+}
+
+/** What `globalSetup` and `globalTeardown` receive: the project's resolved config, with the run's environment and base URL */
+export type GlobalHookConfig = ResolvedConfig & {
+  /** The environment the run uses */
+  environment: string;
+};
+
+/** A run-level hook; `globalSetup` may return a function that runs as teardown too */
+export type GlobalSetupFunction = (
+  config: GlobalHookConfig,
+) =>
+  | void
+  | (() => void | Promise<void>)
+  | Promise<void | (() => void | Promise<void>)>;
+
+export type GlobalTeardownFunction = (
+  config: GlobalHookConfig,
+) => void | Promise<void>;
 
 export interface SamuraiEnvironment {
   /** Where page.goto('/…') resolves to in this environment, and where recordings start */
@@ -210,6 +258,21 @@ export interface SamuraiTestConfig {
      */
     maxBodySize?: number;
   };
+  /**
+   * Servers the run starts before the first test and stops after the last. Each waits until its `url` answers or
+   * its `port` accepts connections. When no `baseURL` is configured (project or environment), the first server's
+   * `url` origin (or `http://localhost:<port>`) becomes the base URL. Only a run (`samurai run`, `runTests`)
+   * starts them, not `list` or the recorder.
+   */
+  webServer?: WebServerConfig | WebServerConfig[];
+  /**
+   * Module (path relative to the project folder) whose default export `async (config) => void | teardown` runs once
+   * before the tests, after the web servers are up; or the function itself. Variables it sets in `process.env`
+   * reach the tests, workers included. A function it returns runs as teardown.
+   */
+  globalSetup?: string | GlobalSetupFunction;
+  /** Module (path relative to the project folder) whose default export runs once after the tests; or the function itself */
+  globalTeardown?: string | GlobalTeardownFunction;
   /** Keyed by name: 'dev', 'staging', 'production' */
   environments?: Record<string, SamuraiEnvironment>;
   /** Used when no environment is chosen with --env or SAMURAI_ENV */

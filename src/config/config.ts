@@ -7,6 +7,7 @@ import { validateUseConfig } from "./use-options.js";
 import { validateForbidOnlyConfig } from "./forbid-only.js";
 import { validateRetriesConfig } from "./retries.js";
 import { validateWorkersConfig } from "./workers.js";
+import { validateWebServerConfig } from "./web-server-options.js";
 
 /** The project a run belongs to; without one, everything is relative to the working directory */
 interface ActiveProject {
@@ -49,6 +50,7 @@ export function validateConfig(config: SamuraiTestConfig): void {
   validateForbidOnlyConfig(config);
   validateRetriesConfig(config);
   validateUseConfig(config);
+  validateWebServerConfig(config);
 }
 
 /** The whole `samurai.config.ts` of the project (the working directory unless a project is active) */
