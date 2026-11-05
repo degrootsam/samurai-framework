@@ -1,7 +1,8 @@
 import type { SamuraiTestConfig } from "../types/config.js";
 import type { UseOptions } from "../types/use.js";
 
-const NAMES = [
+/** The options of `test.use()` */
+export const USE_OPTION_NAMES: readonly string[] = [
   "locale",
   "timezoneId",
   "userAgent",
@@ -12,7 +13,7 @@ const NAMES = [
   "storageState",
   "extraHTTPHeaders",
   "colorScheme",
-] as const;
+];
 
 const BOOLEANS = [
   "javaScriptEnabled",
@@ -42,7 +43,7 @@ export function validateUseOptions(
 ): UseOptions {
   if (!isObject(options)) return fail("the options must be an object");
   for (const key of Object.keys(options))
-    if (!allowOthers && !(NAMES as readonly string[]).includes(key))
+    if (!allowOthers && !USE_OPTION_NAMES.includes(key))
       fail(`unknown option "${key}"`);
   const use = options as UseOptions;
   for (const name of BOOLEANS)
@@ -131,8 +132,8 @@ export function checkStorageStateObject(state: Record<string, unknown>): void {
 }
 
 /** The options after `layers` are applied in order: a later layer wins, key by key */
-export function mergeUse(layers: readonly UseOptions[]): UseOptions {
-  return Object.assign({}, ...layers) as UseOptions;
+export function mergeUse<T extends UseOptions>(layers: readonly T[]): T {
+  return Object.assign({}, ...layers) as T;
 }
 
 /** Checks the new options of a config's `use` */
@@ -144,7 +145,7 @@ export function validateUseConfig(config: SamuraiTestConfig): void {
 export function useOptionsOf(configUse: object | undefined): UseOptions {
   return Object.fromEntries(
     Object.entries(configUse ?? {}).filter(([key]) =>
-      (NAMES as readonly string[]).includes(key),
+      USE_OPTION_NAMES.includes(key),
     ),
   );
 }

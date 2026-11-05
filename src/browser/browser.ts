@@ -10,7 +10,7 @@ import { BrowserContext, type ContextHost } from "./browser-context.js";
 import type { UserPromptHandler } from "../types/bidi-modules/session.js";
 import { validateEmulation, type EmulationOptions } from "./emulation.js";
 import { UseApplier } from "./use-applier.js";
-import type { UseOptions } from "../types/use.js";
+import type { GroupUse } from "../types/config.js";
 import { prepareDownloadsDir, removeIfEmpty } from "./downloads-dir.js";
 import { ChromeDownloadFolders } from "./download-folders.js";
 import { launchFirefox } from "./launch-firefox.js";
@@ -206,7 +206,7 @@ export class Browser {
    * and to every context and page created later. Options passed to `newContext` win over them.
    */
   public async setUse(
-    options: UseOptions,
+    options: GroupUse,
     projectDir: string,
   ): Promise<UseApplier> {
     const name = this.biDiConnector.browserName ?? "firefox";

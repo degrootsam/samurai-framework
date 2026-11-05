@@ -1,7 +1,7 @@
 import { warnOnce } from "../logger/warn-once.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
-import type { UseOptions } from "../types/use.js";
+import type { GroupUse } from "../types/config.js";
 import type { BrowserContext } from "./browser-context.js";
 import { cdpSend, sendRaw } from "./cdp.js";
 import type { EmulationOptions } from "./emulation.js";
@@ -18,7 +18,7 @@ export class UseApplier {
   constructor(
     private readonly connector: BiDiConnector,
     browserName: SupportedBrowser,
-    private readonly options: UseOptions,
+    private readonly options: GroupUse,
     projectDir: string,
   ) {
     this.chrome = browserName === "chrome";
@@ -83,9 +83,17 @@ export class UseApplier {
     if (this.state) await this.restore(context, this.state);
   }
 
-  /** Sets up a page of a context this applier set up: Chrome's phone layout and colour scheme (CDP, so per page) */
+  /**
+   * Sets up a page of a context this applier set up: Chrome's phone layout and colour scheme (CDP, so per page), and
+   * the viewport a group asked for (after the phone layout, so the size keeps it)
+   */
   public async page(page: Page): Promise<void> {
-    if (!this.chrome) return;
+    if (this.chrome) await this.chromePage(page);
+    if (this.options.viewport !== undefined)
+      await page.setViewport(this.options.viewport);
+  }
+
+  private async chromePage(page: Page): Promise<void> {
     if (this.isMobile) await page.emulateMobile();
     if (this.options.colorScheme !== undefined)
       await cdpSend(

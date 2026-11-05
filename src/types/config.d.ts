@@ -34,6 +34,18 @@ export interface SamuraiGroup {
    * nothing but such a group uses one worker.
    */
   workers?: number;
+  /**
+   * Options for this group's tests, over the config's `use` and under the `test.use()` of a spec: the same options
+   * as config `use` that make sense per group (`locale`, `isMobile`, `viewport`, ...). They apply when the group is
+   * selected (`--group`); a run without `--group` ignores them. The way to port a Playwright project.
+   */
+  use?: GroupUse;
+}
+
+/** The options of a group's `use`: those of `test.use()`, and the page's `viewport` */
+export interface GroupUse extends UseOptions {
+  /** Size of the page's viewport, instead of config `use.viewport`. `null` keeps the browser's own size */
+  viewport?: { width: number; height: number } | null;
 }
 
 /** One server the run starts before the first test (see `SamuraiTestConfig.webServer`). Give either `url` or `port`. */
