@@ -55,6 +55,19 @@ export interface TestAnnotation {
   description?: string;
 }
 
+/** A step the test ran with `test.step`, as the report lists it */
+export interface TestStepEntry {
+  title: string;
+  /** `"skipped"`: the step ended the test with `test.skip(...)` */
+  status: "passed" | "failed" | "skipped";
+  /** Milliseconds */
+  duration: number;
+  /** The message of what the step threw, or that the test ended before it finished */
+  error?: string;
+  /** The steps started inside this one; absent when there are none */
+  steps?: TestStepEntry[];
+}
+
 /** What `testInfo` and `test.info()` tell about the running test (hooks included) */
 export interface TestInfo {
   /** The test's own title */
@@ -77,8 +90,20 @@ export interface TestInfo {
   annotations: TestAnnotation[];
   /** Undefined while the test body runs; set before the `afterEach` hooks */
   readonly status: "passed" | "failed" | "skipped" | undefined;
-  /** What the test is expected to end as: always `"passed"` for now */
-  readonly expectedStatus: "passed";
+  /** What the test is expected to end as: `"failed"` after `test.fail()`, else `"passed"` */
+  readonly expectedStatus: "passed" | "failed";
+  /** The time limit of the test in milliseconds (0: none); see `setTimeout` */
+  readonly timeout: number;
+  /** Sets the limit of this test, counted from its start; `0` removes it */
+  setTimeout(ms: number): void;
+  /** Triples the timeout, once, and adds a `slow` annotation; nothing happens when `condition` is false */
+  slow(condition?: boolean, description?: string): void;
+  /** Expects the test to fail (`expectedStatus` is `"failed"`) and adds a `fail` annotation */
+  fail(condition?: boolean, description?: string): void;
+  /** Ends the test as skipped when `condition` is not false */
+  skip(condition?: boolean, description?: string): void;
+  /** Ends the test as skipped (known to be broken) when `condition` is not false */
+  fixme(condition?: boolean, description?: string): void;
   /** Milliseconds since the attempt started; fixed once the body is done */
   readonly duration: number;
   /** The errors of the test body or of its `beforeEach` hooks; filled before the `afterEach` hooks */
@@ -145,6 +170,8 @@ export interface Suite {
   afterEach?: EachHook[];
   beforeAll?: AllHook[];
   afterAll?: AllHook[];
+  /** `test.fail(true)` and `test.slow(true)` written in this scope: they apply to every test below */
+  marks?: { type: "fail" | "slow"; description?: string }[];
   /** The `test.use()` calls written in this scope, in order; they apply to every test below */
   use?: UseOptions[];
 }
@@ -167,6 +194,8 @@ export interface RegisteredTestCase extends TestCaseBase {
   inputs?: Record<string, string>;
   /** The names of the outputs the test declared */
   outputs?: string[];
+  /** Registered with `test.fail("title", fn)`: expected to fail; `description` is the `{ reason }` given */
+  expectedFail?: { description?: string };
   /** The custom fixtures of the `test` it was written with (`test.extend()`); absent for the plain `test` */
   extension?: ReadonlyMap<string, readonly unknown[]>;
 }
@@ -201,6 +230,8 @@ interface TestResultSuccess extends TestResultIdentity, TestRetries {
   attachments?: TestAttachmentEntry[];
   /** The notes the test pushed to `testInfo.annotations`; absent when there are none */
   annotations?: TestAnnotation[];
+  /** The steps the test ran with `test.step`; absent when it ran none */
+  steps?: TestStepEntry[];
 }
 
 /** The error sits flat on the entry, as in the report: `message`, `type`, `stack`, and for assertions `expected` and `actual` */
@@ -219,6 +250,8 @@ interface TestResultFailed extends TestResultIdentity, TestError, TestRetries {
   attachments?: TestAttachmentEntry[];
   /** The notes the test pushed to `testInfo.annotations`; absent when there are none */
   annotations?: TestAnnotation[];
+  /** The steps the test ran with `test.step`; absent when it ran none */
+  steps?: TestStepEntry[];
 }
 
 /** What a result says about the retries of its test; absent when it passed or failed on the first attempt */

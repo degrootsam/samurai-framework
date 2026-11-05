@@ -24,6 +24,8 @@ import { runOutput } from "./output.js";
 import { testDirOf } from "./test-dir.js";
 import { toTestError } from "./test-error.js";
 import { runInTestScope, TestInfoImpl } from "./test-info.js";
+import { applyDeclaredMarks, judgeExpectation } from "./test-annotations.js";
+import { TestTimeout } from "./test-timeout.js";
 import { ioOfAttempt, missingOutputs } from "./test-io.js";
 import { buildTestFixtures } from "./fixtures.js";
 import type { FixtureLayers } from "./fixture-defs.js";
@@ -69,6 +71,11 @@ class TestOutcome {
       annotation: signal.annotation,
       reason: signal.reason,
     });
+  }
+
+  /** The test body ended by itself: a test expected to fail is passed by a failure and failed by a pass */
+  public conclude(error?: TestError, logs?: Logs): void {
+    this.finish(judgeExpectation(this.info, error), logs);
   }
 
   public finish(error?: TestError, logs?: Logs): void {
@@ -123,21 +130,23 @@ export async function runOneTest(
   let browser: Browser | undefined;
   let page: Page | undefined;
   let customFixtures: FixtureScope | undefined;
-  let timeoutTimer: NodeJS.Timeout | undefined;
   let onRunAborted: (() => void) | undefined;
   const timeoutController = new AbortController();
   let browserGone: () => void = () => {};
 
+  let testTimeout: TestTimeout | undefined;
   /** Resolves when the time is up or the run is aborted; the test is reported failed then */
   const limit = new Promise<void>((resolve) => {
-    timeoutTimer = setTimeout(() => {
+    // The test can change its own limit (`test.setTimeout`, `test.slow`): the message names the one in force
+    testTimeout = new TestTimeout(timeout, () => {
       outcome.finish({
-        message: `Test timed out after ${timeout / 1000} seconds`,
+        message: `Test timed out after ${(testTimeout?.ms ?? timeout) / 1000} seconds`,
         type: "timeout",
       });
       timeoutController.abort(new Error("Test timed out"));
       resolve();
-    }, timeout);
+    });
+    testTimeout.start();
     onRunAborted = () => {
       if (timeoutController.signal.aborted) return;
       outcome.finish({ message: "Run aborted", type: "error" });
@@ -194,6 +203,7 @@ export async function runOneTest(
         workerIndex: resources.workerIndex ?? 0,
         retry: resources.attempt ?? 0,
         settings: { baseURL: settings.baseURL, timeout },
+        ...(testTimeout && { timeout: testTimeout }),
         resultDir,
         outputDir: path.join(
           resultDir,
@@ -202,6 +212,7 @@ export async function runOneTest(
         ),
       });
       outcome.info = info;
+      applyDeclaredMarks(info, test);
       const built = buildTestFixtures({
         info,
         launched,
@@ -249,7 +260,7 @@ export async function runOneTest(
       if (timeoutController.signal.aborted) return;
       const unawaited = takePendingAssertions();
       if (unawaited.length > 0) {
-        outcome.finish(
+        outcome.conclude(
           {
             message: unawaited
               .map((label) => `${label} was not awaited`)
@@ -263,23 +274,25 @@ export async function runOneTest(
       // Checked only after a pass: a test that failed first reports its own failure
       const missing = missingOutputs(test.outputs, sink);
       if (missing) {
-        outcome.finish(missing, await judgeLogs(page, true));
+        outcome.conclude(missing, await judgeLogs(page, true));
         return;
       }
       const verdict = await judgeLogs(page, false);
-      outcome.finish(verdict.error, verdict);
+      outcome.conclude(verdict.error, verdict);
     } catch (err) {
       if (timeoutController.signal.aborted) return;
       if (isSkipSignal(err)) return outcome.skip(err);
-      outcome.finish(
-        outcome.browserClosed || err instanceof ConnectionClosedError
-          ? {
-              message: "The browser was closed while the test was running",
-              type: "error",
-            }
-          : toTestError(err),
-        await judgeLogs(page, true),
-      );
+      const closed =
+        outcome.browserClosed || err instanceof ConnectionClosedError;
+      const error = closed
+        ? {
+            message: "The browser was closed while the test was running",
+            type: "error" as const,
+          }
+        : toTestError(err);
+      const logs = await judgeLogs(page, true);
+      if (closed) outcome.finish(error, logs);
+      else outcome.conclude(error, logs);
     }
   };
 
@@ -295,7 +308,7 @@ export async function runOneTest(
     endOutputs();
   }
 
-  clearTimeout(timeoutTimer);
+  testTimeout?.stop();
   if (onRunAborted) options.signal?.removeEventListener("abort", onRunAborted);
   takePendingAssertions();
   logger.verbose("Closing browser for test: %s", test.name);

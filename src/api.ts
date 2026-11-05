@@ -23,6 +23,7 @@ export type {
   TestInfo,
   TestOptions,
   TestOutputs,
+  TestStepEntry,
 } from "./types/test.js";
 export type { FixtureOptions } from "./types/extend.js";
 export type {
