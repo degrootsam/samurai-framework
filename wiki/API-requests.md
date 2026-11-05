@@ -51,7 +51,7 @@ Redirects are followed by hand: 303 (and 301 and 302 after a POST) become a GET 
 | `status()`, `statusText()`   | `404`, `"Not Found"`                                                                                                   |
 | `ok()`                       | `true` for 200 to 299                                                                                                  |
 | `url()`                      | The URL answered: the last one when redirects were followed                                                            |
-| `headers()`                  | An object with lower-case names; a repeated name is joined with `, ` (`set-cookie` with a new line)                    |
+| `headers()`                  | An object with lower-case names; a repeated name is joined with a comma and a space (`set-cookie` with a new line)     |
 | `headersArray()`             | `[{ name, value }]` as they arrived, each `Set-Cookie` an entry of its own                                             |
 | `body()`, `text()`, `json()` | The decoded body as a `Buffer`, as text, parsed. `json()` throws `json(): the response body of <url> is not JSON: ...` |
 | `dispose()`                  | Frees the body; reading it afterwards throws `response disposed`                                                       |
