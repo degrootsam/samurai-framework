@@ -63,6 +63,43 @@ test("uses test data", async ({ page, env, secrets }) => {
 });
 ```
 
+## Your own fixtures
+
+`test.extend` returns a `test` that also has the fixtures you define. A fixture is a value, or a function that sets something up, hands it to the test with `use`, and cleans up after `use` returns:
+
+```ts
+import { test as base, expect } from "@itmetsam/samurai-framework";
+
+const test = base.extend<{ shop: ShopPage; admin: { token: string } }>({
+  shop: async ({ page, baseURL }, use) => {
+    await page.goto(`${baseURL}/shop`);
+    await use(new ShopPage(page)); // the test runs here
+    // anything after use() runs once the test and its afterEach hooks are done
+  },
+  admin: async ({ secrets }, use) => {
+    const token = await login(secrets.ADMIN_PASSWORD!);
+    await use({ token });
+    await logout(token);
+  },
+});
+
+test("adds to the cart", async ({ shop }) => {
+  await shop.add("Sword");
+  await expect(shop.cart).toHaveText("1");
+});
+```
+
+- **Lazy.** A fixture is set up only when a test or hook destructures it. `admin` above is not set up for a test that asks for `shop` alone. The destructuring is read from the function's source, so write it in the parameter list (`async ({ shop }) => ...`); a function that takes the fixtures whole (`async (f) => ...`) gets only the built-in ones, and `({ ...all })` sets every custom fixture up.
+- **Dependencies.** A fixture destructures the built-in fixtures (`page`, `context`, `baseURL`, `testInfo`, `isMobile`, ...) and other custom ones in its own first parameter, and takes `{}` when it needs none. They are set up first and torn down last. A fixture that depends on an unknown one, or on itself through others, throws `extend(): ...` when `extend` is called.
+- **One instance per test.** The `beforeEach` and `afterEach` hooks and the body of a test get the same instance. Fixtures are torn down in reverse order after the `afterEach` hooks, also when the test failed or timed out. A setup error fails the test as `fixture "shop" setup failed: ...`; a teardown error fails a passing test as `fixture "shop" teardown failed: ...`.
+- **Auto fixtures.** `[async ({ page }, use) => {...}, { auto: true }]` is set up for every test, before the `beforeEach` hooks, whether or not anything asks for it.
+- **Values.** A fixture that is not a function is handed over as it is (`answer: 42`). To use a function or an array as the value, set it up with `use`: an array of two with an options object second is read as `[fixture, options]`.
+- **Overriding.** A fixture with the name of a built-in one replaces it for the tests of that `test` (`baseURL: "http://localhost:3000"`); inside, asking for the same name gets the one it replaces, so `page: async ({ page }, use) => ...` wraps the built-in page. This works the same when you extend an extended `test`.
+- **Chaining.** `base.extend(...)` can be extended again. The result has the whole API (`describe`, `beforeEach`, `skip`, `use`, `info`, ...), and its tests are registered like any other, so `samurai list`, groups and the recorder find them. Hooks written on an extended `test` get its custom fixtures.
+- **Only per test.** `{ scope: "test" }` is the only scope; worker-scoped fixtures are not supported (`extend()` throws). Share expensive setup between tests with `beforeAll`.
+
+The types follow: give `extend` the fixtures' types as its generic, and the destructured names are typed in the body and the hooks. Put the extended `test` in a module of its own and import it in the specs.
+
 ## Test info
 
 `testInfo` (a fixture) and `test.info()` (callable in the test body and in `beforeEach` / `afterEach` hooks, and the same object) tell a test about itself. `test.info()` throws `info(): no test is running` anywhere else, such as in `beforeAll`.
