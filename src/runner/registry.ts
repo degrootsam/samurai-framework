@@ -11,10 +11,13 @@ import type {
   TestInfo,
   TestOptions,
 } from "../types/test.js";
+import type { UseOptions } from "../types/use.js";
+import { validateUseOptions } from "../config/use-options.js";
 import { currentTestInfo, skipFromCondition } from "./test-info.js";
 import { validateTestIO } from "./test-io.js";
 import {
   addHook,
+  addUse,
   currentSuite,
   enterSuite,
   leaveSuite,
@@ -41,6 +44,12 @@ export interface TestFunction {
   };
   /** The running test's info, in the test and its hooks; throws outside one */
   info: () => TestInfo;
+  /**
+   * Sets the `use` options (locale, colorScheme, storageState, ...) for the `describe` block it is written in, or for
+   * the whole file at the top level, whether before or after the tests. An inner block wins over an outer one, and
+   * both win over config `use`.
+   */
+  use: (options: UseOptions) => void;
   /** `describe`, under the name other frameworks use */
   describe: DescribeFunction;
   /** `beforeEach`, as `test.beforeEach` */
@@ -252,6 +261,11 @@ export function afterAll(hook: AllHook): void {
   addHook(currentSuite(callerFile()), "afterAll", hook);
 }
 
+/** `test.use(options)`: checked now, applied when each test of the scope runs */
+function use(options: UseOptions): void {
+  addUse(currentSuite(callerFile()), validateUseOptions(options));
+}
+
 /**
  * The aliases are the same functions as the named exports: they find the spec file from the stack, so they
  * must not be wrapped
@@ -261,6 +275,7 @@ export const test: TestFunction = Object.assign(registering("test"), {
   fixme: skipping("fixme"),
   only: registering("test.only", "only"),
   info: currentTestInfo,
+  use,
   describe,
   beforeEach,
   afterEach,

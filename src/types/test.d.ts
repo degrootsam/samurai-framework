@@ -3,6 +3,7 @@ import type Page from "../browser/page.js";
 import type { BrowserContext } from "../browser/browser-context.js";
 import type Locator from "../locator/locator.js";
 import type { SupportedBrowser } from "./browser.js";
+import type { UseOptions } from "./use.js";
 
 /** What a test function receives */
 export interface TestFixtures {
@@ -26,6 +27,10 @@ export interface TestFixtures {
   baseURL: string | undefined;
   /** About the running test: its title, retry, attachments; same as `test.info()` */
   testInfo: TestInfo;
+  /** Whether the page runs as a phone (`use.isMobile`); always false on Firefox, which cannot do it */
+  isMobile: boolean;
+  /** Whether the page has touch input (`use.hasTouch`); always false on Firefox, which cannot do it */
+  hasTouch: boolean;
 }
 
 /** A file or text a test attached to its result */
@@ -140,6 +145,8 @@ export interface Suite {
   afterEach?: EachHook[];
   beforeAll?: AllHook[];
   afterAll?: AllHook[];
+  /** The `test.use()` calls written in this scope, in order; they apply to every test below */
+  use?: UseOptions[];
 }
 
 export interface RegisteredTestCase extends TestCaseBase {

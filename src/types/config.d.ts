@@ -1,5 +1,6 @@
 import type { StepDefinition } from "../flows/steps/define.js";
 import type { SupportedBrowser } from "./browser.js";
+import type { UseOptions } from "./use.js";
 
 interface SamuraiTest {
   /** Path relative to srcDir, e.g. 'checkout/coupons.spec.ts' */
@@ -129,8 +130,8 @@ export interface SamuraiTestConfig {
    * @default "files"
    */
   filesDir?: string;
-  /** How pages are opened */
-  use?: {
+  /** How pages are opened, and what the browser pretends: the options of `test.use()` apply to every test */
+  use?: UseOptions & {
     /**
      * Size of the page's viewport, so screenshots and layout are the same on every machine.
      * `null` keeps the browser's own size

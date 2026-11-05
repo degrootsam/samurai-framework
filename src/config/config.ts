@@ -3,6 +3,7 @@ import path from "path";
 import logger from "../logger/index.js";
 import { pathToFileURL } from "url";
 import { validateBrowserConfig } from "./browsers.js";
+import { validateUseConfig } from "./use-options.js";
 import { validateForbidOnlyConfig } from "./forbid-only.js";
 import { validateRetriesConfig } from "./retries.js";
 import { validateWorkersConfig } from "./workers.js";
@@ -47,6 +48,7 @@ export function validateConfig(config: SamuraiTestConfig): void {
   validateWorkersConfig(config);
   validateForbidOnlyConfig(config);
   validateRetriesConfig(config);
+  validateUseConfig(config);
 }
 
 /** The whole `samurai.config.ts` of the project (the working directory unless a project is active) */

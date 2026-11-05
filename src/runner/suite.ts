@@ -1,4 +1,5 @@
 import type { EachHook, Modifier, Suite } from "../types/test.js";
+import type { UseOptions } from "../types/use.js";
 
 /** The four hook lists a suite can hold */
 export type HookKind = "beforeEach" | "afterEach" | "beforeAll" | "afterAll";
@@ -110,4 +111,14 @@ export function addHook<K extends HookKind>(
   hook: NonNullable<Suite[K]>[number],
 ): void {
   ((suite[kind] ??= []) as unknown[]).push(hook);
+}
+
+/** Adds the options of a `test.use()` to the suite being registered */
+export function addUse(suite: Suite, options: UseOptions): void {
+  (suite.use ??= []).push(options);
+}
+
+/** The `test.use()` options that apply to a test, outermost suite first: merge them in this order */
+export function useOf(suite: Suite): UseOptions[] {
+  return suiteChain(suite).flatMap((s) => s.use ?? []);
 }
