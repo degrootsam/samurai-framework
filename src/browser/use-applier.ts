@@ -6,7 +6,8 @@ import type { BrowserContext } from "./browser-context.js";
 import { cdpSend, sendRaw } from "./cdp.js";
 import type { EmulationOptions } from "./emulation.js";
 import type Page from "./page.js";
-import { cookiesOf, loadStorageState } from "./storage-state.js";
+import { cookiesOf } from "./storage-state.js";
+import { loadStorageState } from "../config/storage-state-file.js";
 import type { StorageState } from "../types/use.js";
 
 /** The `use` options a browser applies to its contexts and pages, by what each browser can do (see the wiki's support matrix) */
@@ -68,6 +69,10 @@ export class UseApplier {
         options.javaScriptEnabled === false && { javaScriptEnabled: false }),
     };
     if (Object.keys(emulation).length > 0) await context.emulate(emulation);
+    context.setRequestDefaults({
+      extraHTTPHeaders: options.extraHTTPHeaders,
+      ignoreHTTPSErrors: options.acceptInsecureCerts,
+    });
     if (options.extraHTTPHeaders)
       await sendRaw(this.connector, "network.setExtraHeaders", {
         headers: Object.entries(options.extraHTTPHeaders).map(

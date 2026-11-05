@@ -1,3 +1,4 @@
+import type { APIRequestContext } from "../request/api-request-context.js";
 import Locator from "../locator/locator.js";
 import type { FilterOptions } from "../locator/filter-step.js";
 import type { RoleOptions } from "../locator/role-locator.js";
@@ -528,6 +529,11 @@ export default class Page {
         "this page has no browser context: open it with browser.newPage() or context.newPage()",
       );
     return this.browserContext;
+  }
+
+  /** Makes HTTP requests from the test with this page's cookies; the same as `page.context().request` */
+  public get request(): APIRequestContext {
+    return this.context().request;
   }
 
   /** @internal Called when the page is opened in a context */

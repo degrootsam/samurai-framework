@@ -8,6 +8,11 @@ import type {
   PartialCookie,
   PartitionDescriptor,
 } from "../types/bidi-modules/storage.js";
+import {
+  APIRequestContext,
+  type RequestContextOptions,
+} from "../request/api-request-context.js";
+import { ContextCookieStore } from "./context-cookie-store.js";
 import { applyEmulation, type EmulationOptions } from "./emulation.js";
 import type Page from "./page.js";
 
@@ -60,6 +65,8 @@ export interface ContextHost {
 export class BrowserContext {
   private opened: Page[] = [];
   private isClosed = false;
+  private requestContext: APIRequestContext | undefined;
+  private readonly requestDefaults: RequestContextOptions = {};
 
   constructor(
     private host: ContextHost,
@@ -92,6 +99,24 @@ export class BrowserContext {
   public register(page: Page): void {
     this.opened.push(page);
     page.setContext(this);
+  }
+
+  /**
+   * Makes HTTP requests from the test that share this context's cookies: they send the cookies the pages hold,
+   * and the cookies the responses set are in the pages' `document.cookie` afterwards. Its `extraHTTPHeaders`
+   * and `ignoreHTTPSErrors` follow the run's `use` options.
+   */
+  public get request(): APIRequestContext {
+    this.assertOpen();
+    return (this.requestContext ??= new APIRequestContext(
+      this.requestDefaults,
+      new ContextCookieStore(this),
+    ));
+  }
+
+  /** @internal What `request` starts from: the run's `use.extraHTTPHeaders` and `acceptInsecureCerts` */
+  public setRequestDefaults(defaults: RequestContextOptions): void {
+    Object.assign(this.requestDefaults, defaults);
   }
 
   /** Adds cookies to this context's storage. Every cookie is checked before any is stored */
@@ -173,6 +198,7 @@ export class BrowserContext {
         throw err;
     }
     this.isClosed = true;
+    await this.requestContext?.dispose();
     const pages = this.opened;
     this.opened = [];
     await Promise.all(pages.map((page) => page.detach()));

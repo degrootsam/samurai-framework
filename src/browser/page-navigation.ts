@@ -1,4 +1,5 @@
 import logger from "../logger/index.js";
+import { RELATIVE_URL, resolveRelativeURL } from "../config/base-url.js";
 import { peekRunSettings } from "../config/run-settings.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
@@ -38,14 +39,6 @@ export interface NavigationDeps {
   url(): Promise<string>;
   /** Waits for a quiet network, for the "networkidle" load state */
   waitForNetworkIdle(options: { timeout: number }): Promise<void>;
-}
-
-/** A URL starting with "/", "./" or "../" */
-const RELATIVE_URL = /^\.{0,2}\//;
-
-/** Resolves a slash-led `url` against `base`; any other URL is returned as given */
-export function resolveRelativeURL(url: string, base: string): string {
-  return RELATIVE_URL.test(url) ? new URL(url, base).href : url;
 }
 
 /** Navigating one page: `goto`, `navigateTo`, `reload` and the wait for a load state */

@@ -2,6 +2,7 @@ import type { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import type { BrowserContext } from "../browser/browser-context.js";
 import type Locator from "../locator/locator.js";
+import type { APIRequestContext } from "../request/api-request-context.js";
 import type { SupportedBrowser } from "./browser.js";
 import type { UseOptions } from "./use.js";
 
@@ -25,6 +26,11 @@ export interface TestFixtures {
   context: BrowserContext;
   /** The run's `baseURL` (the environment's, else the project's); `undefined` when none is set */
   baseURL: string | undefined;
+  /**
+   * Makes HTTP requests without a browser: its own cookies, the run's `baseURL`, `use.extraHTTPHeaders` and
+   * `use.acceptInsecureCerts`. For requests that share the page's cookies use `page.request`.
+   */
+  request: APIRequestContext;
   /** About the running test: its title, retry, attachments; same as `test.info()` */
   testInfo: TestInfo;
   /** Whether the page runs as a phone (`use.isMobile`); always false on Firefox, which cannot do it */

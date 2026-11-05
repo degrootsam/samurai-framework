@@ -30,6 +30,7 @@ export const BUILT_IN_FIXTURES: ReadonlySet<string> = new Set([
   "outputs",
   "context",
   "baseURL",
+  "request",
   "testInfo",
   "isMobile",
   "hasTouch",

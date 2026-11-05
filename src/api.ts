@@ -6,6 +6,13 @@ export {
   beforeAll,
   afterAll,
 } from "./runner/registry.js";
+export { request, type NewRequestContextOptions } from "./request/request.js";
+export type {
+  APIRequestContext,
+  RequestOptions,
+} from "./request/api-request-context.js";
+export type { APIResponse } from "./request/api-response.js";
+export type { FilePayload } from "./request/request-body.js";
 export { expect } from "./assert/expect.js";
 export { defineConfig } from "./config/config.js";
 export {

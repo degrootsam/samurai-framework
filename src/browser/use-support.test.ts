@@ -13,7 +13,8 @@ import {
 import { cdpSend } from "./cdp.js";
 import { ensureBrowserProfile } from "./launch-flags.js";
 import { sessionCapabilities } from "./session-capabilities.js";
-import { cookiesOf, loadStorageState } from "./storage-state.js";
+import { cookiesOf } from "./storage-state.js";
+import { loadStorageState } from "../config/storage-state-file.js";
 import { UseApplier } from "./use-applier.js";
 import { applyViewport } from "./viewport.js";
 

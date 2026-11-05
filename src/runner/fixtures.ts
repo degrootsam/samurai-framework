@@ -9,6 +9,7 @@ import type {
   TestFixtures,
   TestInfo,
 } from "../types/test.js";
+import type { RequestFixture } from "./request-fixture.js";
 import type { RunnerOptions } from "./options.js";
 import type { PreparedRun } from "./prepare-run.js";
 import { createInputsFixture, createOutputsFixture } from "./test-io.js";
@@ -39,12 +40,14 @@ export interface FixtureSources {
   options: RunnerOptions;
   sink: OutputSink;
   info: TestInfo;
+  /** The test's `request` fixture, made on first use */
+  request: RequestFixture;
   /** What the `use` options came to in this browser */
   device: { isMobile: boolean; hasTouch: boolean };
 }
 
 /**
- * The fixtures a test body and its each-hooks receive. `context`, `baseURL` and `testInfo` are getters: nothing
+ * The fixtures a test body and its each-hooks receive. `context`, `baseURL`, `request` and `testInfo` are getters: nothing
  * is looked up until a test reads one (and `page.context()` throws for a page without one, which only a test
  * that asks for it should see).
  */
@@ -59,6 +62,7 @@ export function buildTestFixtures(from: FixtureSources): TestFixtures {
     sink,
     info,
     device,
+    request,
   } = from;
   const { settings, secrets } = run;
   const fixtures = {
@@ -76,6 +80,7 @@ export function buildTestFixtures(from: FixtureSources): TestFixtures {
   return Object.defineProperties(fixtures, {
     context: { enumerable: true, get: () => launched.page.context() },
     baseURL: { enumerable: true, get: () => settings.baseURL },
+    request: { enumerable: true, get: () => request.get() },
     testInfo: { enumerable: true, get: () => info },
   }) as TestFixtures;
 }

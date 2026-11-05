@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import Page from "../browser/page.js";
-import { resolveRelativeURL } from "../browser/page-navigation.js";
+import { resolveRelativeURL } from "../config/base-url.js";
 import { expect, takePendingAssertions } from "./expect.js";
 import { AssertionError } from "./assertion-error.js";
 import { PageAssertions } from "./page-assertions.js";

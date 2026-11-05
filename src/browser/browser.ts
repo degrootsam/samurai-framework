@@ -318,6 +318,9 @@ export class Browser {
         throw err;
       }
     }
+    // The option of this context wins over the run's `use.acceptInsecureCerts`
+    if (insecure !== undefined)
+      context.setRequestDefaults({ ignoreHTTPSErrors: insecure });
     return context;
   }
 

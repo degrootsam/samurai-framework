@@ -30,6 +30,7 @@ import { ioOfAttempt, missingOutputs } from "./test-io.js";
 import { buildTestFixtures } from "./fixtures.js";
 import type { FixtureLayers } from "./fixture-defs.js";
 import { FixtureScope } from "./fixture-scope.js";
+import { RequestFixture } from "./request-fixture.js";
 import { effectiveUse } from "./use-options.js";
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
@@ -130,6 +131,7 @@ export async function runOneTest(
   let browser: Browser | undefined;
   let page: Page | undefined;
   let customFixtures: FixtureScope | undefined;
+  let requestFixture: RequestFixture | undefined;
   let onRunAborted: (() => void) | undefined;
   const timeoutController = new AbortController();
   let browserGone: () => void = () => {};
@@ -213,7 +215,9 @@ export async function runOneTest(
       });
       outcome.info = info;
       applyDeclaredMarks(info, test);
+      requestFixture = new RequestFixture(settings.baseURL, use);
       const built = buildTestFixtures({
+        request: requestFixture,
         info,
         launched,
         browserName,
@@ -305,6 +309,7 @@ export async function runOneTest(
     // A test cut short (timeout, abort) did not get to its own cleanup: its fixtures are torn down before the browser
     const late = await customFixtures?.teardown(timeout);
     if (late) logger.debug("A fixture failed after the test ended", { late });
+    await requestFixture?.dispose();
     endOutputs();
   }
 
