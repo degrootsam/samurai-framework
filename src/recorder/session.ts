@@ -41,7 +41,7 @@ export interface RecordSpecOptions extends ProjectOptions {
   browser?: SupportedBrowser;
   /** The browser's debugging port. @default DEFAULT_PORT (9223) */
   port?: number;
-  /** Run the browser without a window. A person can't use it then; for tests and machines without a display. @default the config's `use.headless`, else headless on CI and a window otherwise */
+  /** Run the browser without a window. A person can't use it then, so this is only for tests of the recorder itself. Never read from the config, the environment or `CI`: a recording always opens a window. @default false */
   headless?: boolean;
   /** Aborting ends the recording, like closing the browser window */
   signal?: AbortSignal;
@@ -111,7 +111,7 @@ export async function recordSpec(
 
     const { browser, page } = await launchRecordingBrowser(browserName, {
       ...options,
-      headless: options.headless ?? settings.headless,
+      headless: options.headless ?? false,
     });
     const loaded = await loadRawConfig();
     const folder = filesFolder(projectDir(), loaded.filesDir);

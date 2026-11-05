@@ -34,7 +34,7 @@ Options for run:
                               --shard=2/4 runs the second of four. Whole files (and serial
                               blocks) go to one shard; an empty shard succeeds
 
-Options for record (also --env, --port, --json, --headless, --no-headless):
+Options for record (also --env, --port, --json; always with a window):
   --browser <name>            Record in this browser (default: the first of the config's browsers)
   --new <title>               Add a test with this title (creates the spec file if needed)
   --test <name|index>         Record into this test; not needed when the file has one

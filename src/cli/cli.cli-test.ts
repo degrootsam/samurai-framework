@@ -265,39 +265,44 @@ test.fixme("broken", { reason: "flaky on CI" }, async () => {});`,
     }
   });
 
-  it("record passes --headless and --no-headless to the browser", async () => {
+  it("record always opens a window: CI and use.headless do not change that, and --headless is refused", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "samurai-cli-"));
-    writeFileSync(path.join(dir, "samurai.config.ts"), "export default {};");
+    // The project asks for headless everywhere, and CI is set: a recording still gets a window
+    writeFileSync(
+      path.join(dir, "samurai.config.ts"),
+      "export default { use: { headless: true } };",
+    );
     writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
     // A "browser" that writes the flags it was started with and exits, so the launch fails right after
     const browser = path.join(dir, "fake-firefox.sh");
-    writeFileSync(
-      browser,
-      `#!/bin/sh\necho "$@" >> "${path.join(dir, "args.txt")}"\nexit 1\n`,
-      { mode: 0o755 },
-    );
+    const argsFile = path.join(dir, "args.txt");
+    writeFileSync(browser, `#!/bin/sh\necho "$@" >> "${argsFile}"\nexit 1\n`, {
+      mode: 0o755,
+    });
     const saved = {
       path: process.env.SAMURAI_FIREFOX_PATH,
       ci: process.env.CI,
     };
     process.env.SAMURAI_FIREFOX_PATH = browser;
-    process.env.CI = "1"; // headless by default, so only --no-headless gives a window
+    process.env.CI = "1";
     const previous = process.cwd();
     process.chdir(dir);
     try {
-      for (const flag of ["--no-headless", "--headless"]) {
+      for (const flags of [[], ["--no-headless"]]) {
         const { target } = io();
-        const argv = ["record", "a.spec.ts", "--new", "t", flag];
+        const argv = ["record", "a.spec.ts", "--new", "t", ...flags];
         assert.equal(await main(argv, target), 2);
       }
-      const [windowed, headless] = readFileSync(
-        path.join(dir, "args.txt"),
-        "utf8",
-      )
-        .trim()
-        .split("\n");
-      assert.doesNotMatch(windowed!, /--headless/);
-      assert.match(headless!, /--headless/);
+      const started = readFileSync(argsFile, "utf8").trim().split("\n");
+      assert.equal(started.length, 2);
+      for (const args of started) assert.doesNotMatch(args, /--headless/);
+
+      // --headless is a usage error, and no browser is started for it
+      const refused = io();
+      const argv = ["record", "a.spec.ts", "--new", "t", "--headless"];
+      assert.equal(await main(argv, refused.target), 2);
+      assert.match(refused.err(), /--headless: a recording needs a window/);
+      assert.equal(readFileSync(argsFile, "utf8").trim().split("\n").length, 2);
     } finally {
       process.chdir(previous);
       for (const [key, value] of [

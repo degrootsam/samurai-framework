@@ -95,6 +95,10 @@ export async function recordCommand(
   if (at !== undefined && (!Number.isInteger(at) || at < 0))
     throw new Error(`--at must be a step number, got "${values.at}"`);
   const flags = parseRunnerFlags(values);
+  if (flags.headless === true)
+    throw new Error(
+      "--headless: a recording needs a window; the recorder never runs without one",
+    );
   if (flags.browsers && flags.browsers.length > 1)
     throw new Error("--browser: a recording uses one browser");
   const test =
@@ -111,7 +115,7 @@ export async function recordCommand(
     ...(values.new !== undefined && { create: values.new }),
     ...(at !== undefined && { at }),
     ...(values.url !== undefined && { url: values.url }),
-    ...(flags.headless !== undefined && { headless: flags.headless }),
+    headless: false,
     ...(flags.port !== undefined && { port: flags.port }),
     ...(flags.browsers && { browser: flags.browsers[0]! }),
     ...(io.signal && { signal: io.signal }),

@@ -330,6 +330,8 @@ Whether the browser runs without a window. The first that is set wins:
 4. the `CI` environment variable: set (and not empty, `0` or `false`) means headless, which is what GitHub Actions and most CI systems provide
 5. otherwise a window
 
+This applies to running tests and flows. **Recording ignores all of it and always opens a window** (see [Command line](Command-line)).
+
 So a CI pipeline needs no flag, and a `ci` environment or `use.headless` makes it explicit:
 
 ```ts
