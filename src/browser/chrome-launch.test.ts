@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach } from "node:test";
@@ -113,6 +119,21 @@ describe("chromeUsingProfile", () => {
         );
         return true;
       },
+    );
+  });
+  it("launchChrome says what chromedriver wrote when it exits before it is ready", async () => {
+    const driver = path.join(dir, "fake-chromedriver.sh");
+    writeFileSync(driver, "#!/bin/sh\necho 'bind() failed' >&2\nexit 1\n");
+    chmodSync(driver, 0o755);
+    await assert.rejects(
+      launchChrome({
+        executablePath: "/nope",
+        driverPath: driver,
+        profileDir: path.join(dir, "profile"),
+        headless: true,
+        commandTimeout: undefined,
+      }),
+      /chromedriver exited with code 1 before it was ready\. Its last output:\nbind\(\) failed/,
     );
   });
 });

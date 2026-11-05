@@ -160,19 +160,29 @@ export async function launchChrome(launch: ChromeLaunch): Promise<{
   }
 }
 
+/** How many of chromedriver's last lines the error carries when it exits before it is ready */
+const OUTPUT_TAIL_LINES = 10;
+
 function driverPort(driver: ReturnType<typeof spawn>): Promise<number> {
   return new Promise((resolve, reject) => {
+    const tail: string[] = [];
     const onData = (data: Buffer) => {
       logger.debug(`chromedriver: ${data}`);
       const match = String(data).match(/started successfully on port (\d+)/);
       if (match) resolve(Number(match[1]));
+      for (const line of String(data).split("\n"))
+        if (line.trim() !== "") tail.push(line);
+      tail.splice(0, Math.max(0, tail.length - OUTPUT_TAIL_LINES));
     };
     driver.stdout?.on("data", onData);
     driver.stderr?.on("data", onData);
     driver.once("error", reject);
-    driver.once("exit", (code) =>
+    driver.once("exit", (code, signal) =>
       reject(
-        new Error(`chromedriver exited with code ${code} before it was ready`),
+        new Error(
+          `chromedriver exited with code ${code ?? signal} before it was ready` +
+            (tail.length > 0 ? `. Its last output:\n${tail.join("\n")}` : ""),
+        ),
       ),
     );
   });
