@@ -126,9 +126,135 @@ test("adds to the cart", async ({ shop }) => {
 - **Values.** A fixture that is not a function is handed over as it is (`answer: 42`). To use a function or an array as the value, set it up with `use`: an array of two with an options object second is read as `[fixture, options]`.
 - **Overriding.** A fixture with the name of a built-in one replaces it for the tests of that `test` (`baseURL: "http://localhost:3000"`); inside, asking for the same name gets the one it replaces, so `page: async ({ page }, use) => ...` wraps the built-in page. This works the same when you extend an extended `test`.
 - **Chaining.** `base.extend(...)` can be extended again. The result has the whole API (`describe`, `beforeEach`, `skip`, `use`, `info`, ...), and its tests are registered like any other, so `samurai list`, groups and the recorder find them. Hooks written on an extended `test` get its custom fixtures.
-- **Only per test.** `{ scope: "test" }` is the only scope; worker-scoped fixtures are not supported (`extend()` throws). Share expensive setup between tests with `beforeAll`.
+- **Scope.** A fixture lives as long as one test (`{ scope: "test" }`, the default) or as long as one worker (`{ scope: "worker" }`, see [Worker scope](#worker-scope)).
 
 The types follow: give `extend` the fixtures' types as its generic, and the destructured names are typed in the body and the hooks. Put the extended `test` in a module of its own and import it in the specs.
+
+### Describing a fixture for the catalog
+
+The options object of `[fixture, options]` takes, next to `auto` and `scope`, what an editor or the command line needs to show the fixture without running anything:
+
+| Key           | Meaning                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `label`       | The name to show (the fixture's name by default)                                                                   |
+| `icon`        | A design-system icon name                                                                                          |
+| `description` | One sentence                                                                                                       |
+| `outputs`     | `{ name, label?, secret? }[]`: the keys of the value. A `secret` output reaches the test but never the report      |
+| `timeout`     | Milliseconds a setup or a teardown may take. Default: the test timeout (a setup is also bound by the test timeout) |
+
+`outputs` are the keys of a value that is a flat record of strings, numbers and booleans. A declared output that is not one of those fails the setup.
+
+List the extended tests in the config and the catalog can be read without running a test:
+
+```ts
+// samurai.config.ts
+import { test as shop } from "./fixtures/shop";
+
+export default defineConfig({ fixtures: [shop] });
+```
+
+`listFixtures({ projectDir })` (from `@itmetsam/samurai-framework/runner`) returns, for each fixture, its `name`, `label`, `icon`, `description`, `scope`, `auto`, the fixtures it destructures (`dependencies`), its option fixture (below) and its non-secret `outputs`. The run is refused before any test starts when two listed tests define a fixture of the same name (the message names both places), when a name does not match `/^[a-z][A-Za-z0-9]*$/`, or when the list holds something that is not an extended `test`. A fixture named like a built-in one (`page`, `baseURL`, ...) is listed with `overridesBuiltIn: true`.
+
+### Option fixtures
+
+The settings of a fixture are an option fixture: a value fixture named `<name>Options`, marked `option: true`, that `use` can override. Its optional `fields` describe the form an editor shows, with the field types of flows (`text`, `code`, `expression`, `number`, `select`, `segmented`, `switch`), paths relative to the option object, and two more: `secret` holds the **name** of a secret and `variable` the name of a variable. The fixture receives the resolved value, never the name.
+
+```ts
+export const test = base.extend<{
+  orderOptions: { items: number; paid: boolean };
+  order: { id: string; total: number };
+}>({
+  orderOptions: [
+    { items: 1, paid: true }, // the defaults
+    {
+      option: true,
+      fields: [
+        { path: "items", type: "number", label: "Items", default: 1 },
+        { path: "paid", type: "switch", label: "Paid", default: true },
+      ],
+    },
+  ],
+  order: [
+    async ({ request, orderOptions }, use) => {
+      const res = await request.post("/orders", { data: orderOptions });
+      const order = await res.json();
+      await use({ id: order.id, total: order.total });
+      await request.delete(`/orders/${order.id}`);
+    },
+    {
+      label: "Seeded order",
+      icon: "package",
+      description: "Creates a paid order and deletes it afterwards.",
+      outputs: [
+        { name: "id", label: "Order id" },
+        { name: "total", label: "Total" },
+      ],
+    },
+  ],
+});
+```
+
+The pairing is checked when `extend` is called, and every message starts with `extend():`. It refuses an `orderOptions` without an `order`, `fields` on a fixture that is not an option fixture, `option: true` on a name that does not end in `Options`, and an option fixture that is not a plain object value, naming both fixtures.
+
+Set the options with `use`, under the name of the option fixture: `test.use({ orderOptions: { items: 2 } })`, in config `use`, an environment's `use` or a group's `use`. The layers merge key by key (config, then environment, then group, then `test.use()`; the later one wins), over the defaults of the option fixture.
+
+### Attaching fixtures with `use.fixtures`
+
+A fixture a test does not destructure is not set up. The reserved `use` key `fixtures` sets one up anyway, by name, like an `auto` fixture (before the `beforeEach` hooks, in the order it was attached):
+
+```ts
+groups: [
+  {
+    name: "checkout",
+    use: { fixtures: { customer: true, order: true }, orderOptions: { items: 2 } },
+  },
+],
+```
+
+`fixtures: { order: false }` removes the attachment in a later layer. The key works in config `use`, `environments[name].use`, a group's `use` and `test.use()`. A name that is not in `config.fixtures` (or, in `test.use()`, not defined by that `test`'s own `extend`) is an error that lists the known ones. A test written with the plain `test`, or with an extended `test` that does not define the fixture, is not affected by an attachment for it.
+
+**An environment can turn a fixture off.** `environments: { production: { use: { fixtures: { order: false } } } }` makes every test that needs the fixture (by destructuring it, as a dependency, or because a layer attaches it) skipped, with the reason `Fixture order is turned off in production`. That `false` always wins: a group or `test.use()` cannot switch the fixture back on for that environment. Nothing broke; the test just cannot run there.
+
+### Worker scope
+
+`{ scope: "worker" }` sets a fixture up once per worker instead of once per test, for expensive setup that tests only read: a seeded account, a started service.
+
+```ts
+const test = base.extend<{ account: { id: string } }>({
+  account: [
+    async ({ request }, use) => {
+      const created = await createAccount();
+      await use({ id: created.id });
+      await deleteAccount(created.id);
+    },
+    { scope: "worker" },
+  ],
+});
+```
+
+- It is **shared by the tests of one worker** that use it with the same resolved options and in the same environment. Different options (`test.use({ accountOptions: { plan: "pro" } })`) get an instance of their own.
+- It is set up **lazily**, by the first test that needs it, and torn down **when the worker exits** (in-process runs: when the last test is done), last set up first and within the fixture's `timeout`. A failing teardown is logged; it cannot fail a test that is already reported.
+- A failed setup fails the test that triggered it and is not kept: the next test tries again.
+- A test-scoped fixture may depend on a worker-scoped one. A worker-scoped one may use `browserName`, `workerIndex`, `env`, `secrets`, `baseURL`, other worker fixtures, option fixtures and plain values, but not `page`, `context`, `request`, `browser`, `testInfo`, `inputs`, `outputs` or a test-scoped fixture: `extend()` throws `extend(): worker fixture "x" cannot use "page"`.
+- With `workers: n` each worker has its own instance, so there can be up to `n`. A test file with `describe.serial` stays on one worker.
+
+### Fixtures in the report
+
+Every test result that set up at least one custom fixture (hand-written ones included) has a `fixtures` list in `report.json` and in the `test-end` event. It is absent for a test that used none.
+
+```jsonc
+"fixtures": [
+  {
+    "name": "order",
+    "scope": "test",
+    "setup": { "status": "passed", "durationMs": 41 },
+    "teardown": { "status": "passed", "durationMs": 12 },
+    "outputs": { "id": "o-17", "total": 20 }
+  }
+]
+```
+
+`setup.status` is `passed`, `failed` (with an `error`) or `skipped` (a worker fixture another test of the worker had already set up). `teardown` is `passed` or `failed`, and is absent for a worker fixture, which is torn down after the test's result is written. `outputs` has the declared outputs that are not `secret`; a secret output never reaches the report. Fixtures that are plain values (no setup function, option fixtures included) are not listed. A fixture does not have a `log` function yet, so there is no `logs` list.
 
 ## Test info
 

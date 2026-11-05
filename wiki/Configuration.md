@@ -58,6 +58,7 @@ export default defineConfig({
 | `globalSetup`, `globalTeardown`                                                                                                                                                                                                                                     | none                                     | A module (or function) that runs once before / after all tests; see [Global setup and teardown](#global-setup-and-teardown)                                         |
 | `groups`                                                                                                                                                                                                                                                            | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option, each with its own `browsers` and `use` (see below)                                       |
 | `steps`                                                                                                                                                                                                                                                             | none                                     | Flow steps of this project, made with `defineStep`; see [Writing a step](Writing-a-step#steps-of-your-own)                                                          |
+| `fixtures`                                                                                                                                                                                                                                                          | none                                     | The tests made with `test.extend()` whose fixtures `use.fixtures`, groups and the app can name; see [Fixtures](#fixtures)                                           |
 
 ### Use options
 
@@ -74,6 +75,18 @@ export default defineConfig({
 ```
 
 The options, what they do and what each browser supports are on [Writing tests](Writing-tests#use-options). A wrong value stops the run with `use(): what is wrong`. A group can add its own on top: [Group use](#group-use).
+
+### Fixtures
+
+`fixtures` lists the extended tests of the project:
+
+```ts
+import { test as shop } from "./fixtures/shop";
+
+export default defineConfig({ fixtures: [shop] });
+```
+
+The fixtures are read from the list without running a test (`listFixtures()` of `@itmetsam/samurai-framework/runner`), and `use.fixtures` may name only these. A name defined twice in the list, or not matching `/^[a-z][A-Za-z0-9]*$/`, stops the run before any test with a message that names both places. Describing fixtures, option fixtures, `use.fixtures`, worker scope and the report: [Your own fixtures](Writing-tests#your-own-fixtures).
 
 ### Browsers
 
@@ -119,13 +132,16 @@ On the command line that is exit code 2 with the message on stderr; `runTests` r
 
 Each entry of `environments` can set:
 
-| Option           | Meaning                                                                            |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| `baseURL`        | Overrides the project `baseURL`                                                    |
-| `timeout`        | Overrides the project `timeout`                                                    |
-| `expect.timeout` | Overrides `expect.timeout`                                                         |
-| `variables`      | Test data available as `env.<name>` in tests. Never put secrets here               |
-| `headless`       | Overrides `use.headless` for this environment (e.g. `true` for a `ci` environment) |
+| Option           | Meaning                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `baseURL`        | Overrides the project `baseURL`                                                                   |
+| `timeout`        | Overrides the project `timeout`                                                                   |
+| `expect.timeout` | Overrides `expect.timeout`                                                                        |
+| `variables`      | Test data available as `env.<name>` in tests. Never put secrets here                              |
+| `headless`       | Overrides `use.headless` for this environment (e.g. `true` for a `ci` environment)                |
+| `use`            | `use` options (and `fixtures`, option fixtures) for every test run in this environment, see below |
+
+An environment's `use` is a layer between config `use` and a group's `use`: config, then environment, then group, then `test.use()`, the later winning key by key. It takes what a group's `use` takes (see [Group use](#group-use)), and a wrong value stops the run with `config.environments.production.use.locale: ...`. Its `fixtures: { name: false }` turns a fixture off for that environment for good: a test that needs it is skipped with `Fixture name is turned off in production`, whatever a group or `test.use()` says (see [Writing tests](Writing-tests#attaching-fixtures-with-usefixtures)).
 
 ### Workers
 
@@ -259,7 +275,7 @@ groups: [
 ],
 ```
 
-The options of a test layer from the outside in, the inner one winning key by key: the config's `use`, then the `use` of the group the test is being run for, then `test.use()` of the file and of each `describe` around the test. `extraHTTPHeaders` is replaced as a whole, not merged. A test in several groups takes the group that is being run. When no group is selected, the group's `use` is not applied. Group `use` is not applied by flow Group nodes (a flow runs the tests of a group by name).
+The options of a test layer from the outside in, the inner one winning key by key: the config's `use`, then the `use` of the run's environment, then the `use` of the group the test is being run for, then `test.use()` of the file and of each `describe` around the test. `extraHTTPHeaders` is replaced as a whole, not merged. A test in several groups takes the group that is being run. When no group is selected, the group's `use` is not applied. Group `use` is not applied by flow Group nodes (a flow runs the tests of a group by name).
 
 A bad option stops the run before any test with the key it is at, for example `config.groups[1].use.locale: invalid locale "xx!"`. Inside a run, `testInfo.project.name` is the group's name (the browser's when no group is run) and screenshots and attachments of a group run go to a folder of the group inside the browser's.
 
