@@ -173,27 +173,94 @@ console.log(save.matchedBy); // { index: 1, selector: 'role=button[name="Save"]'
 
 Actions wait until the element is **actionable** before they act, then fail with a message that says which check was failing.
 
-| Action                           | Waits for                                                    | Does                                                                                                                                                                                                                              |
-| -------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `click(options?)`                | attached, visible, stable (not moving), enabled, not covered | Scrolls into view, clicks the centre with real pointer input                                                                                                                                                                      |
-| `fill(value, options?)`          | attached, visible, enabled, editable, not covered            | Clicks the field, selects its content and types `value`; `""` clears it                                                                                                                                                           |
-| `check(options?)`                | attached, visible, stable, enabled, not covered              | Checks a checkbox, radio or switch. Does nothing when it is already checked. A hidden input behind a `<label>` is checked by clicking the label                                                                                   |
-| `uncheck(options?)`              | the same as `check`                                          | Unchecks a checkbox or switch; does nothing when it is already unchecked                                                                                                                                                          |
-| `setChecked(checked, options?)`  | the same as `check`                                          | `check()` or `uncheck()`, whichever brings the element to `checked`                                                                                                                                                               |
-| `selectOption(values, options?)` | attached, visible, enabled                                   | Selects options of a `<select>`; see below                                                                                                                                                                                        |
-| `focus(options?)`                | attached                                                     | Focuses the element                                                                                                                                                                                                               |
-| `press(key, options?)`           | attached, visible, enabled                                   | Focuses the element and presses one key with real keyboard input. Named keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Home`, `End`, `PageUp`, `PageDown`, the arrows; anything else must be a single character |
-| `setInputFiles(files, options?)` | attached, enabled (need not be visible)                      | Sets the files of an `<input type=file>`; `[]` clears them. Paths are relative to the project folder; `generatedFile(…)` entries are allowed                                                                                      |
-| `dropFiles(files, options?)`     | attached, visible                                            | Drops files on the element with synthetic `dragenter`, `dragover` and `drop` events (`isTrusted` is false, so a page that only accepts trusted drops rejects them). Same file entries as `setInputFiles`                          |
-| `screenshot(options?)`           | attached, visible                                            | Screenshot of just this element                                                                                                                                                                                                   |
+| Action                                      | Waits for                                                          | Does                                                                                                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `click(options?)`                           | attached, visible, stable (not moving), enabled, not covered       | Scrolls into view, clicks the centre (or `position`) with real pointer input; `button`, `clickCount`, `modifiers`, `delay` shape the click, see below                                                    |
+| `fill(value, options?)`                     | attached, visible, enabled, editable, not covered                  | Clicks the field, selects its content and types `value`; `""` clears it                                                                                                                                  |
+| `check(options?)`                           | attached, visible, stable, enabled, not covered                    | Checks a checkbox, radio or switch. Does nothing when it is already checked. A hidden input behind a `<label>` is checked by clicking the label                                                          |
+| `uncheck(options?)`                         | the same as `check`                                                | Unchecks a checkbox or switch; does nothing when it is already unchecked                                                                                                                                 |
+| `setChecked(checked, options?)`             | the same as `check`                                                | `check()` or `uncheck()`, whichever brings the element to `checked`                                                                                                                                      |
+| `selectOption(values, options?)`            | attached, visible, enabled                                         | Selects options of a `<select>`; see below                                                                                                                                                               |
+| `focus(options?)`                           | attached                                                           | Focuses the element                                                                                                                                                                                      |
+| `press(key, options?)`                      | attached, visible, enabled                                         | Focuses the element and presses a key or a chord (`Control+a`) with real keyboard input; see [Keys](#keys-and-chords)                                                                                    |
+| `dblclick(options?)`                        | the same as `click`                                                | `click` with two presses: `mousedown`, `mouseup`, `click` twice, then `dblclick`                                                                                                                         |
+| `hover(options?)`                           | attached, visible, stable, not covered (enabled is not needed)     | Moves the mouse onto the element: `:hover`, `mouseover`, `mouseenter`, menus and tooltips that show on hover                                                                                             |
+| `tap(options?)`                             | the same as `click`                                                | Touches the element with a touch pointer: `pointerdown` with `pointerType: "touch"`, `touchstart`, `touchend`, then the mouse events a tap ends in                                                       |
+| `dragTo(target, options?)`                  | source like `click`, target attached, visible, stable, not covered | Presses on the element, moves to `target` in steps and releases there; see [Drag and drop](#drag-and-drop)                                                                                               |
+| `dispatchEvent(type, eventInit?, options?)` | attached                                                           | Fires a synthetic event at the element, even a hidden one; see below                                                                                                                                     |
+| `blur(options?)`                            | attached                                                           | Removes focus from the element                                                                                                                                                                           |
+| `clear(options?)`                           | the same as `fill`                                                 | Empties an input, textarea or editable element, as `fill("")` does                                                                                                                                       |
+| `pressSequentially(text, options?)`         | attached, visible, enabled                                         | Focuses the element and types `text` one key press at a time, `delay` ms apart; unlike `fill` it does not select or replace what is there                                                                |
+| `setInputFiles(files, options?)`            | attached, enabled (need not be visible)                            | Sets the files of an `<input type=file>`; `[]` clears them. Paths are relative to the project folder; `generatedFile(…)` entries are allowed                                                             |
+| `dropFiles(files, options?)`                | attached, visible                                                  | Drops files on the element with synthetic `dragenter`, `dragover` and `drop` events (`isTrusted` is false, so a page that only accepts trusted drops rejects them). Same file entries as `setInputFiles` |
+| `screenshot(options?)`                      | attached, visible                                                  | Screenshot of just this element                                                                                                                                                                          |
 
-Options for `click`, `fill`, `focus`, `check`, `uncheck`, `setChecked` and `selectOption`:
+Options for `click`, `dblclick`, `hover`, `tap`, `dragTo`, `fill`, `clear`, `focus`, `blur`, `press`, `pressSequentially`, `dispatchEvent`, `check`, `uncheck`, `setChecked` and `selectOption`:
 
 ```ts
 await button.click({ timeout: 10_000 }); // ms to keep trying; default: expect.timeout (5000)
 await button.click({ force: true }); // skip every check except "attached"
 await button.click({ timeout: 0 }); // check once, don't wait
 ```
+
+### Click, hover and tap options
+
+`click`, `dblclick`, `hover` and `tap` also take:
+
+```ts
+await button.click({ position: { x: 10, y: 5 } }); // pixels from the element's top left corner (default: the centre); that point must be uncovered
+await button.click({ button: "right" }); // "left" (default), "middle" or "right"
+await button.click({ clickCount: 3 }); // presses in a row; 2 is a double click
+await button.click({ delay: 200 }); // ms between press and release (a long press)
+await row.click({ modifiers: ["Shift"] }); // "Alt", "Control", "ControlOrMeta" (Meta on macOS), "Meta", "Shift": held during the action
+await menu.hover(); // reveals what shows on :hover
+await item.tap(); // a touch pointer instead of the mouse
+```
+
+`button`, `clickCount` and `delay` are for `click` and `dblclick` (`dblclick` is `click` with `clickCount: 2`); `hover` and `tap` take `position`, `modifiers`, `timeout` and `force`. A bad option throws before the page is touched: `click(): unknown button "back"`. On Chrome a tap is followed by the mouse events and a `contextmenu` with `detail` -1, as Chrome's own touch input does; Firefox sends `mousedown`, `mouseup` and `click` only.
+
+### Keys and chords
+
+`press(key)` takes a key, or a chord: modifiers joined to a key with `+`.
+
+```ts
+await field.press("Enter");
+await field.press("Control+a"); // select all
+await field.press("Shift+Tab");
+await field.press("ControlOrMeta+Enter"); // Meta on macOS, Control elsewhere
+await field.press("Control++"); // the plus key itself
+await field.press("a", { delay: 100 }); // ms between key down and key up
+```
+
+Named keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `F1` to `F12`, the arrows, and the modifiers `Control`, `Shift`, `Alt` and `Meta`. `KeyA` and `Digit1` mean `a` and `1`. Anything else must be a single character. An unknown key throws `press(): unknown key "Hyper"`. For keys not tied to an element, use [`page.keyboard`](Pages-and-browsers#keyboard-and-mouse).
+
+### Drag and drop
+
+```ts
+await page.getByText("Card 1").dragTo(page.getByTestId("done-column"));
+await handle.dragTo(page.locator("div[@id='area']"), {
+  sourcePosition: { x: 5, y: 5 },
+  targetPosition: { x: 300, y: 200 },
+  steps: 20, // pointer moves between the two points (default 10)
+});
+```
+
+`dragTo` waits for both ends (the source like a click, the target to be visible, stable and uncovered), presses on the source, moves to the target in steps and releases, with real pointer input. That is enough for drags a page builds from `mousedown` / `mousemove` / `mouseup` or pointer events.
+
+HTML5 drag and drop (`draggable="true"`, `dragstart`, `dragover`, `drop`) differs per browser:
+
+- **Chrome** runs a real drag: `dragstart`, `drag`, `dragenter`, `dragover`, `drop` and `dragend` are trusted events.
+- **Firefox** starts the drag (`dragstart`, `dragenter` and `dragover` are real) but never drops it from synthetic pointer input: no `drop`, no `dragend`. After the gesture `dragTo` fires them itself as synthetic events (`isTrusted` is false) on the target and the source, with a `DataTransfer` that holds what the page's `dragstart` handler stored. As in a real drag, `drop` only fires when the page cancelled `dragover`. A page that accepts only trusted drops does not see the drop on Firefox. When the browser started no drag at all but the source is `draggable="true"`, the whole sequence is fired synthetically.
+
+### dispatchEvent
+
+```ts
+await page.getByTestId("card").dispatchEvent("dragstart"); // a DragEvent with a fresh DataTransfer
+await field.dispatchEvent("keydown", { key: "k" }); // a KeyboardEvent
+await widget.dispatchEvent("ping", { detail: 3 }); // any other type: a plain Event
+```
+
+The event class follows the type: mouse types (`click`, `mousedown`, ...) make a `MouseEvent`, `pointer*` a `PointerEvent`, `keydown` / `keyup` a `KeyboardEvent`, `focus` / `blur` a `FocusEvent`, `input` an `InputEvent`, `wheel`, drag, composition, touch, animation and transition types their own classes, anything else an `Event`. `eventInit` is plain data merged over `bubbles`, `cancelable` and `composed`, which are all true. The event is synthetic (`isTrusted` is false) and no visibility, enabled or hit checks apply; use `click` for what a user does.
 
 `fill` types key by key, so the page's `input` and `keydown` handlers run. `setInputFiles` and `dropFiles` paths are relative to the project folder (absolute paths are used as they are) and must exist on the machine the browser runs on:
 
