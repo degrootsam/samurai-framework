@@ -12,8 +12,6 @@ import {
   textSelector,
 } from "../locator/selector.js";
 import EventEmitter from "node:events";
-import path from "node:path";
-import { projectDir } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { NetworkRequest } from "../network/network-tracker.js";
 import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
@@ -25,11 +23,10 @@ import type { RuntimeUseOptions } from "../types/use.js";
 import type { Download } from "./download.js";
 import type { FileChooser } from "./file-chooser.js";
 import {
-  takeScreenshot,
-  writeOutput,
+  screenshotWithEvidence,
   type ScreenshotOptions,
 } from "./screenshot.js";
-import { Evidence } from "./evidence.js";
+import type { Evidence } from "./evidence.js";
 import type { LogRecord, PageError } from "./page-logs.js";
 import { PageLogging } from "./page-logging.js";
 import { Lazy } from "./lazy.js";
@@ -82,8 +79,8 @@ import { HelperRealm } from "../locator/helper-realm.js";
 import type { PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import { callFunction, type PageFunction } from "../script/call-function.js";
-import { readContent } from "./page-content.js";
+import type { PageFunction } from "../script/call-function.js";
+import { readContent, readTitle, readUrl } from "./page-content.js";
 import { evaluateInPage } from "./page-evaluate.js";
 import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js";
 
@@ -367,13 +364,7 @@ export default class Page {
   /** The URL of the page now */
   public async url(): Promise<string> {
     this.assertOpen();
-    return callFunction<string>(
-      this.biDiConnector,
-      this.id,
-      "() => location.href",
-      [],
-      { awaitPromise: false },
-    );
+    return readUrl(this.biDiConnector, this.id);
   }
 
   /**
@@ -412,13 +403,7 @@ export default class Page {
   /** The title of the document now */
   public async title(): Promise<string> {
     this.assertOpen();
-    return callFunction<string>(
-      this.biDiConnector,
-      this.id,
-      "() => document.title",
-      [],
-      { awaitPromise: false },
-    );
+    return readTitle(this.biDiConnector, this.id);
   }
 
   /**
@@ -492,16 +477,12 @@ export default class Page {
    */
   public async screenshot(options: ScreenshotOptions = {}): Promise<Buffer> {
     this.assertOpen();
-    const image = await takeScreenshot(this.biDiConnector, this.id, options);
-    if (options.name !== undefined) {
-      const evidence =
-        this.evidence ?? new Evidence(path.join(projectDir(), "result"));
-      await writeOutput(
-        evidence.fileFor(options.name, options.type).file,
-        image,
-      );
-    }
-    return image;
+    return screenshotWithEvidence(
+      this.biDiConnector,
+      this.id,
+      options,
+      this.evidence,
+    );
   }
 
   /** @internal The runner gives each test its own evidence folder */
