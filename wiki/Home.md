@@ -12,6 +12,7 @@ Every guide and the code it describes. Start with the [Getting Started](Getting-
 | Pages, contexts, emulation | [Pages and browsers](Pages-and-browsers)                     | `src/browser/`                                                           |
 | Downloaded browsers        | [Which browser runs](Pages-and-browsers#which-browser-runs)  | `src/browsers/`, `src/cli/browsers.ts`                                   |
 | Network                    | [Network](Network)                                           | `src/network/`                                                           |
+| API requests               | [API requests](API-requests)                                 | `src/request/`, `src/browser/context-cookie-store.ts`                    |
 | Configuration              | [Configuration](Configuration)                               | `src/types/config.d.ts`, `src/config/run-settings.ts`                    |
 | Environments and secrets   | [Environments and secrets](Environments-and-secrets)         | `src/config/secrets.ts`, `src/config/variables.ts`, `src/config/mask.ts` |
 | Running, reports           | [Running tests and reports](Running-tests-and-reports)       | `src/runner/`                                                            |

@@ -28,21 +28,22 @@ describe("Checkout", () => {
 
 The test function receives one object:
 
-| Fixture       | Type                    | What it is                                                                                                                                      |
-| ------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `page`        | `Page`                  | The tab the test drives. See [Locators](Locators) and [Pages and browsers](Pages-and-browsers)                                                  |
-| `browser`     | `Browser`               | The browser process. Use it for extra [contexts and pages](Pages-and-browsers#contexts)                                                         |
-| `browserName` | `"firefox" \| "chrome"` | The browser this run of the test is in. With several [`browsers`](Configuration#browsers) the test runs once in each                            |
-| `workerIndex` | `number`                | The worker process running the test, from 0. It is 0 when the run has one worker or none; use it to give each worker its own account or data    |
-| `env`         | read-only object        | The chosen environment's `variables`. Reading a name that is not defined throws                                                                 |
-| `secrets`     | read-only object        | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](Environments-and-secrets#secrets)                         |
-| `inputs`      | read-only object        | The test's declared [inputs](#inputs-and-outputs): the value the run supplies, else the default. Reading a name the test did not declare throws |
-| `outputs`     | `{ save }`              | Saves the text values the test declared as [outputs](#inputs-and-outputs)                                                                       |
-| `context`     | `BrowserContext`        | The browser context of `page` (cookies, storage); the same object as `page.context()`                                                           |
-| `baseURL`     | `string \| undefined`   | The run's `baseURL` (the environment's, else the project's); `undefined` when none is set                                                       |
-| `testInfo`    | `TestInfo`              | About the running test, see [Test info](#test-info)                                                                                             |
-| `isMobile`    | `boolean`               | Whether the page runs as a phone (`use.isMobile`, [Chrome only](#use-options)); always `false` on Firefox                                       |
-| `hasTouch`    | `boolean`               | Whether the page has touch input (`use.hasTouch`, [Chrome only](#use-options)); always `false` on Firefox                                       |
+| Fixture       | Type                    | What it is                                                                                                                                                                           |
+| ------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `page`        | `Page`                  | The tab the test drives. See [Locators](Locators) and [Pages and browsers](Pages-and-browsers)                                                                                       |
+| `browser`     | `Browser`               | The browser process. Use it for extra [contexts and pages](Pages-and-browsers#contexts)                                                                                              |
+| `browserName` | `"firefox" \| "chrome"` | The browser this run of the test is in. With several [`browsers`](Configuration#browsers) the test runs once in each                                                                 |
+| `workerIndex` | `number`                | The worker process running the test, from 0. It is 0 when the run has one worker or none; use it to give each worker its own account or data                                         |
+| `env`         | read-only object        | The chosen environment's `variables`. Reading a name that is not defined throws                                                                                                      |
+| `secrets`     | read-only object        | Secrets by `UPPER_SNAKE_CASE` name. Reading one that is not set throws. See [secrets](Environments-and-secrets#secrets)                                                              |
+| `inputs`      | read-only object        | The test's declared [inputs](#inputs-and-outputs): the value the run supplies, else the default. Reading a name the test did not declare throws                                      |
+| `outputs`     | `{ save }`              | Saves the text values the test declared as [outputs](#inputs-and-outputs)                                                                                                            |
+| `context`     | `BrowserContext`        | The browser context of `page` (cookies, storage); the same object as `page.context()`                                                                                                |
+| `baseURL`     | `string \| undefined`   | The run's `baseURL` (the environment's, else the project's); `undefined` when none is set                                                                                            |
+| `request`     | `APIRequestContext`     | Makes HTTP requests without the browser, with its own cookies: `await request.get("/api/users")`. See [API requests](API-requests); `page.request` shares the page's cookies instead |
+| `testInfo`    | `TestInfo`              | About the running test, see [Test info](#test-info)                                                                                                                                  |
+| `isMobile`    | `boolean`               | Whether the page runs as a phone (`use.isMobile`, [Chrome only](#use-options)); always `false` on Firefox                                                                            |
+| `hasTouch`    | `boolean`               | Whether the page has touch input (`use.hasTouch`, [Chrome only](#use-options)); always `false` on Firefox                                                                            |
 
 Tests may run at the same time, each in its own worker process and browser (see [Parallel runs](Running-tests-and-reports#parallel-runs)). Do not let two tests depend on the same account or data; give each its own, or pick one by `workerIndex`.
 

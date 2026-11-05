@@ -13,6 +13,7 @@
 - [Assertions](Assertions)
 - [Pages and browsers](Pages-and-browsers)
 - [Network](Network)
+- [API requests](API-requests)
 - [Environments and secrets](Environments-and-secrets)
 
 **Running**
