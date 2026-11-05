@@ -110,3 +110,63 @@ export function waitForPageEvent<E extends PageEventName>(
     }
   });
 }
+
+/** The waits `waitForEvent` hands its event to; `download` and `filechooser` take the predicate too */
+export interface EventWaiters {
+  request(
+    accepts: (item: unknown) => boolean,
+    options: WaitOptions,
+  ): Promise<unknown>;
+  response(
+    accepts: (item: unknown) => boolean,
+    options: WaitOptions,
+  ): Promise<unknown>;
+  download(
+    options: WaitOptions,
+    accepts: (item: unknown) => boolean,
+  ): Promise<unknown>;
+  filechooser(
+    options: WaitOptions,
+    accepts: (item: unknown) => boolean,
+  ): Promise<unknown>;
+}
+
+/** `page.waitForEvent`: picks the named wait for `event`, with the predicate given as a function or in the options */
+export async function waitForEventOn<E extends WaitableEventName>(
+  waiters: EventWaiters,
+  event: E,
+  optionsOrPredicate:
+    | ((item: PageEvents[E][0]) => boolean)
+    | WaitForEventOptions<PageEvents[E][0]>,
+): Promise<PageEvents[E][0]> {
+  const { predicate, ...options } =
+    typeof optionsOrPredicate === "function"
+      ? { predicate: optionsOrPredicate }
+      : optionsOrPredicate;
+  const accepts = (predicate ?? (() => true)) as (item: unknown) => boolean;
+  switch (event) {
+    case "request":
+      return waiters.request(accepts, options) as Promise<PageEvents[E][0]>;
+    case "response":
+      return waiters.response(accepts, options) as Promise<PageEvents[E][0]>;
+    case "download":
+      return waiters.download(options, accepts) as Promise<PageEvents[E][0]>;
+    case "filechooser":
+      return waiters.filechooser(options, accepts) as Promise<PageEvents[E][0]>;
+    default:
+      throw new Error(
+        `waitForEvent(): "${String(event)}" is not supported; use page.on()`,
+      );
+  }
+}
+
+/** Starts the parts `event` needs; a failure is reported to `onError`, not thrown */
+export function startSources(
+  event: PageEventName,
+  start: Record<EventSource, () => Promise<unknown>>,
+  onError: (err: unknown) => void,
+): void {
+  Promise.all(sourcesFor(event).map((source) => start[source]())).catch(
+    onError,
+  );
+}

@@ -12,9 +12,6 @@ import {
   textSelector,
 } from "../locator/selector.js";
 import EventEmitter from "node:events";
-import path from "node:path";
-import { projectDir } from "../config/config.js";
-import { DEFAULT_VIEWPORT } from "../config/defaults.js";
 import logger from "../logger/index.js";
 import type { NetworkRequest } from "../network/network-tracker.js";
 import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
@@ -26,12 +23,12 @@ import type { RuntimeUseOptions } from "../types/use.js";
 import type { Download } from "./download.js";
 import type { FileChooser } from "./file-chooser.js";
 import {
-  takeScreenshot,
-  writeOutput,
+  screenshotWithEvidence,
   type ScreenshotOptions,
 } from "./screenshot.js";
-import { Evidence } from "./evidence.js";
-import { PageLogs, type LogRecord, type PageError } from "./page-logs.js";
+import type { Evidence } from "./evidence.js";
+import type { LogRecord, PageError } from "./page-logs.js";
+import { PageLogging } from "./page-logging.js";
 import { Lazy } from "./lazy.js";
 import type { RouteHandler } from "../network/router.js";
 import { Response } from "../network/response.js";
@@ -54,7 +51,8 @@ import { PageLocators } from "./page-locators.js";
 import Keyboard from "./keyboard.js";
 import Mouse from "./mouse.js";
 import {
-  sourcesFor,
+  startSources,
+  waitForEventOn,
   waitForPageEvent,
   type EventSource,
   type PageEventName,
@@ -75,13 +73,14 @@ import {
   type ReadinessState,
 } from "./page-settings.js";
 export type { PageSettings, ReadinessState };
-import { applyViewport, type Viewport } from "./viewport.js";
+import type { Viewport } from "./viewport.js";
+import { PageViewport } from "./page-viewport.js";
 import { HelperRealm } from "../locator/helper-realm.js";
 import type { PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import { callFunction, type PageFunction } from "../script/call-function.js";
-import { readContent } from "./page-content.js";
+import type { PageFunction } from "../script/call-function.js";
+import { readContent, readTitle, readUrl } from "./page-content.js";
 import { evaluateInPage } from "./page-evaluate.js";
 import type { BrowsingContext } from "../types/bidi-modules/browsing-context.js";
 
@@ -104,15 +103,12 @@ export default class Page {
   private nav: PageNavigation;
   private net: PageNetwork;
   private dialogs: DialogHandling;
-  private lazyLogs = new Lazy<PageLogs>();
-  private errorsAllowed = false;
+  private logging: PageLogging;
   private isClosed = false;
   private browserContext: BrowserContext | undefined;
   private transfers: PageTransfers;
   private evidence: Evidence | undefined;
-  private knownViewport: { width: number; height: number } | null = null;
-  /** Chrome's phone layout is on (`setMobileLayout`): viewport changes keep it */
-  private mobile = false;
+  private viewport: PageViewport;
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
   constructor(
@@ -136,6 +132,13 @@ export default class Page {
     );
     this.mouse = new Mouse(biDiConnector, contextId, () => this.assertOpen());
     this.documents = new DocumentWatcher(biDiConnector, contextId);
+    this.viewport = new PageViewport(biDiConnector, contextId, this.pageConfig);
+    this.logging = new PageLogging(
+      biDiConnector,
+      contextId,
+      () => this.tree(),
+      this.pageEvents,
+    );
     this.net = new PageNetwork(biDiConnector, contextId, {
       config: this.pageConfig,
       tree: { ensure: () => this.tree(), peek: () => this.lazyTree.peek() },
@@ -277,7 +280,7 @@ export default class Page {
       this.net.disposeTracker(),
     ]);
     const tree = this.lazyTree.take();
-    const pageLogs = this.lazyLogs.take();
+    const pageLogs = this.logging.take();
     results.push(
       ...(await Promise.allSettled([
         tree?.then((resolved) => resolved.dispose()),
@@ -361,13 +364,7 @@ export default class Page {
   /** The URL of the page now */
   public async url(): Promise<string> {
     this.assertOpen();
-    return callFunction<string>(
-      this.biDiConnector,
-      this.id,
-      "() => location.href",
-      [],
-      { awaitPromise: false },
-    );
+    return readUrl(this.biDiConnector, this.id);
   }
 
   /**
@@ -406,13 +403,7 @@ export default class Page {
   /** The title of the document now */
   public async title(): Promise<string> {
     this.assertOpen();
-    return callFunction<string>(
-      this.biDiConnector,
-      this.id,
-      "() => document.title",
-      [],
-      { awaitPromise: false },
-    );
+    return readTitle(this.biDiConnector, this.id);
   }
 
   /**
@@ -440,17 +431,12 @@ export default class Page {
    */
   public async setViewport(viewport: Viewport | null): Promise<void> {
     this.assertOpen();
-    await applyViewport(this.biDiConnector, this.id, viewport, this.mobile);
-    this.knownViewport = viewport && {
-      width: viewport.width,
-      height: viewport.height,
-    };
+    await this.viewport.set(viewport);
   }
 
   /** @internal Chrome: lays this page out like a phone from now on (`use.isMobile`), including the size it has now */
   public async setMobileLayout(): Promise<void> {
-    this.mobile = true;
-    await this.setViewport(this.knownViewport);
+    await this.viewport.setMobileLayout();
   }
 
   /** Playwright's name for `setViewport` */
@@ -463,14 +449,12 @@ export default class Page {
    * browser opened it), read at once; null before one is known, after `setViewport(null)` and when config turns the viewport off.
    */
   public viewportSize(): { width: number; height: number } | null {
-    return this.knownViewport && { ...this.knownViewport };
+    return this.viewport.size();
   }
 
   /** Gives the page the size from config `use.viewport` (1280x720 by default); the browser does this when it opens a page */
   public async applyDefaultViewport(): Promise<void> {
-    const { viewport } = await this.pageConfig.use();
-    if (viewport === null) return;
-    await this.setViewport(viewport ?? DEFAULT_VIEWPORT);
+    await this.viewport.applyDefault();
   }
 
   /**
@@ -493,16 +477,12 @@ export default class Page {
    */
   public async screenshot(options: ScreenshotOptions = {}): Promise<Buffer> {
     this.assertOpen();
-    const image = await takeScreenshot(this.biDiConnector, this.id, options);
-    if (options.name !== undefined) {
-      const evidence =
-        this.evidence ?? new Evidence(path.join(projectDir(), "result"));
-      await writeOutput(
-        evidence.fileFor(options.name, options.type).file,
-        image,
-      );
-    }
-    return image;
+    return screenshotWithEvidence(
+      this.biDiConnector,
+      this.id,
+      options,
+      this.evidence,
+    );
   }
 
   /** @internal The runner gives each test its own evidence folder */
@@ -690,8 +670,8 @@ export default class Page {
       network: () => this.startNetworkTracking(),
       bodies: () => this.startBodyCollection(),
     };
-    Promise.all(sourcesFor(event).map((source) => start[source]())).catch(
-      (err) => logger.error("Could not start listening for %s", event, { err }),
+    startSources(event, start, (err) =>
+      logger.error("Could not start listening for %s", event, { err }),
     );
   }
 
@@ -745,35 +725,22 @@ export default class Page {
       | ((item: PageEvents[E][0]) => boolean)
       | WaitForEventOptions<PageEvents[E][0]> = {},
   ): Promise<PageEvents[E][0]> {
-    const { predicate, ...options } =
-      typeof optionsOrPredicate === "function"
-        ? { predicate: optionsOrPredicate }
-        : optionsOrPredicate;
-    const accepts = (predicate ?? (() => true)) as (item: unknown) => boolean;
-    switch (event) {
-      case "request":
-        return this.waitForRequest(accepts, options) as Promise<
-          PageEvents[E][0]
-        >;
-      case "response":
-        return this.waitForResponse(accepts, options) as Promise<
-          PageEvents[E][0]
-        >;
-      case "download":
-        this.assertOpen();
-        return this.transfers.waitForDownload(options, accepts) as Promise<
-          PageEvents[E][0]
-        >;
-      case "filechooser":
-        this.assertOpen();
-        return this.transfers.waitForFileChooser(options, accepts) as Promise<
-          PageEvents[E][0]
-        >;
-      default:
-        throw new Error(
-          `waitForEvent(): "${String(event)}" is not supported; use page.on()`,
-        );
-    }
+    return waitForEventOn(
+      {
+        request: (accepts, options) => this.waitForRequest(accepts, options),
+        response: (accepts, options) => this.waitForResponse(accepts, options),
+        download: (options, accepts) => {
+          this.assertOpen();
+          return this.transfers.waitForDownload(options, accepts);
+        },
+        filechooser: (options, accepts) => {
+          this.assertOpen();
+          return this.transfers.waitForFileChooser(options, accepts);
+        },
+      },
+      event,
+      optionsOrPredicate,
+    );
   }
 
   /**
@@ -866,35 +833,26 @@ export default class Page {
    * early output is kept; `page.on("console" | "pageerror")` starts it when needed.
    */
   public async startLogging(): Promise<void> {
-    await this.lazyLogs.get(async () => {
-      const logs = await PageLogs.start(
-        this.biDiConnector,
-        await this.tree(),
-        this.id,
-      );
-      logs.on("console", (message) => this.pageEvents.emit("console", message));
-      logs.on("pageerror", (error) => this.pageEvents.emit("pageerror", error));
-      return logs;
-    });
+    await this.logging.start();
   }
 
   /** The newest console and error entries of this page (empty until logging started), oldest first */
   public getLogs(): readonly LogRecord[] {
-    return this.lazyLogs.peek()?.entries ?? [];
+    return this.logging.entries();
   }
 
   /** Uncaught exceptions of the page since logging started or `clearLogs()` */
   public pageErrors(): readonly PageError[] {
-    return this.lazyLogs.peek()?.errors ?? [];
+    return this.logging.errors();
   }
 
   /** How many entries fell out of the page's log buffer */
   public get logsDropped(): number {
-    return this.lazyLogs.peek()?.dropped ?? 0;
+    return this.logging.dropped;
   }
 
   public clearLogs(): void {
-    this.lazyLogs.peek()?.clear();
+    this.logging.clear();
   }
 
   /** Resolves once everything the page logged before the call has arrived: events and replies share one ordered connection */
@@ -904,11 +862,11 @@ export default class Page {
 
   /** Tells the runner not to fail this test on uncaught page exceptions (config `logs.failOnPageError`) */
   public allowPageErrors(): void {
-    this.errorsAllowed = true;
+    this.logging.allowErrors();
   }
 
   public get pageErrorsAllowed(): boolean {
-    return this.errorsAllowed;
+    return this.logging.errorsAreAllowed;
   }
 
   /** Starts watching for dialogs; the browser does this when it opens a page, `page.on("dialog")` when needed */

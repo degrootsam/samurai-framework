@@ -55,3 +55,23 @@ export function writeContent(
     timeout,
   ]);
 }
+
+/** The URL of the document now */
+export function readUrl(
+  connector: BiDiConnector,
+  context: string,
+): Promise<string> {
+  return callFunction<string>(connector, context, "() => location.href", [], {
+    awaitPromise: false,
+  });
+}
+
+/** The title of the document now */
+export function readTitle(
+  connector: BiDiConnector,
+  context: string,
+): Promise<string> {
+  return callFunction<string>(connector, context, "() => document.title", [], {
+    awaitPromise: false,
+  });
+}

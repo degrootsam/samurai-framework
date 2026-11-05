@@ -3,6 +3,8 @@ import path from "node:path";
 import { callFunction } from "../script/call-function.js";
 import { ElementHandle } from "../script/element-handle.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
+import { projectDir } from "../config/config.js";
+import { Evidence } from "./evidence.js";
 
 export interface ScreenshotOptions {
   /** Also write the image here (folders are created) */
@@ -101,4 +103,22 @@ export async function writeOutput(
   if (!file) return;
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, data);
+}
+
+/**
+ * `page.screenshot`: `takeScreenshot`, then, with `options.name`, a copy in the evidence folder (the test's own,
+ * or `result/` of the project when the page has none)
+ */
+export async function screenshotWithEvidence(
+  connector: BiDiConnector,
+  context: string,
+  options: ScreenshotOptions,
+  evidence: Evidence | undefined,
+): Promise<Buffer> {
+  const image = await takeScreenshot(connector, context, options);
+  if (options.name !== undefined) {
+    const folder = evidence ?? new Evidence(path.join(projectDir(), "result"));
+    await writeOutput(folder.fileFor(options.name, options.type).file, image);
+  }
+  return image;
 }
