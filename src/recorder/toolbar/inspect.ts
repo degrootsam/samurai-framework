@@ -2,7 +2,12 @@ import type Page from "../../browser/page.js";
 import { callFunction } from "../../script/call-function.js";
 import type { ElementHandle } from "../../script/element-handle.js";
 import { locatorFromSpec } from "../../steps/build.js";
-import type { LocatorCall, LocatorSpec } from "../../steps/model.js";
+import { callToSource } from "../../steps/emit.js";
+import type {
+  LocatorCall,
+  LocatorSpec,
+  TextMatcher,
+} from "../../steps/model.js";
 import type { BiDiConnector } from "../../transport/bidi-connection.js";
 import { CANDIDATES_JS } from "../candidates.js";
 import { expectationFor } from "../expectation.js";
@@ -66,19 +71,27 @@ function describeCall(call: LocatorCall): string {
     case "getByRole":
       return call.name === undefined
         ? call.role
-        : `${call.role} "${call.name}"`;
+        : `${call.role} ${quoted(call.name)}`;
     case "getByLabel":
-      return `label "${call.text}"`;
+      return `label ${quoted(call.text)}`;
     case "getByText":
-      return `text "${call.text}"`;
+      return `text ${quoted(call.text)}`;
     case "getByTestId":
       return `test id "${call.testId}"`;
     case "getByCss":
       return call.css;
     case "locator":
       return call.xpath;
+    default:
+      return callToSource(call);
   }
 }
+
+/** A text as the panel shows it: in quotes, a RegExp as written */
+const quoted = (text: TextMatcher) =>
+  typeof text === "string"
+    ? `"${text}"`
+    : `/${text.regex.source}/${text.regex.flags}`;
 
 const sameCall = (a: LocatorCall, b: LocatorCall) =>
   JSON.stringify(a) === JSON.stringify(b);

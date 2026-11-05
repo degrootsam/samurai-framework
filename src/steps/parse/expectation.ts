@@ -41,7 +41,7 @@ export function readRegex(
   return { source: node.text.slice(1, end), flags: node.text.slice(end + 1) };
 }
 
-function readTextMatcher(
+export function readTextMatcher(
   node: ts.Expression | undefined,
 ): TextMatcher | undefined {
   if (!node) return undefined;

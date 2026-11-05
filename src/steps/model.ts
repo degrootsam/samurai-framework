@@ -1,23 +1,47 @@
 import type { Modifier } from "../types/test.js";
 
-/** One call of a locator expression, as written in a spec: `page.getByRole("button", { name: "Save" })` */
+/**
+ * One call of a locator expression, as written in a spec: `page.getByRole("button", { name: "Save" })`.
+ * A RegExp text or name is tested as written, so it never comes with `exact`, `match` or `ignoreCase`.
+ * `nth`, `first`, `last` and `filter` narrow the calls before them, so they never start a chain
+ */
 export type LocatorCall =
   | { method: "locator"; xpath: string }
   | { method: "getByCss"; css: string }
   | {
-      method: "getByText";
-      text: string;
+      method: "getByText" | "getByLabel";
+      text: TextMatcher;
+      /** `false`: a case-insensitive substring. Absent: the framework's default, a full case-sensitive match */
+      exact?: boolean;
       match?: "full" | "partial";
       ignoreCase?: boolean;
     }
   | {
-      method: "getByLabel";
-      text: string;
-      match?: "full" | "partial";
-      ignoreCase?: boolean;
+      method: "getByPlaceholder" | "getByAltText" | "getByTitle";
+      text: TextMatcher;
+      exact?: boolean;
     }
-  | { method: "getByRole"; role: string; name?: string }
-  | { method: "getByTestId"; testId: string };
+  | {
+      method: "getByRole";
+      role: string;
+      name?: TextMatcher;
+      exact?: boolean;
+      /** The heading level */
+      level?: number;
+      checked?: boolean | "mixed";
+      pressed?: boolean | "mixed";
+      expanded?: boolean;
+      selected?: boolean;
+      disabled?: boolean;
+      includeHidden?: boolean;
+    }
+  | { method: "getByTestId"; testId: string }
+  /** The n-th match, 0-based; a negative index counts from the end */
+  | { method: "nth"; index: number }
+  | { method: "first" }
+  | { method: "last" }
+  /** Keeps the matches whose text contains the string (case-insensitive) or matches the RegExp */
+  | { method: "filter"; hasText: TextMatcher };
 
 /** A chain of locator calls on `page`, and the locators `withFallbacks` falls back to, most preferred first */
 export interface LocatorSpec {

@@ -269,7 +269,7 @@ describe("step codec", () => {
     const source = wrap(
       'const link = page.locator("a");',
       "await link.click();",
-      "await page.getByRole('button', { name: 'Go', exact: true }).click();",
+      "await page.getByRole('button', { name: 'Go', hidden: true }).click();",
       "await page.goto(url);",
       "await page.getByCss('x').fill(`a${b}`);",
       "await expect(page.getByCss('x')).toHaveCount(n);",

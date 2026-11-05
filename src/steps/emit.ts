@@ -31,16 +31,34 @@ export function filesToSource(files: readonly FileEntry[]): string {
 /** A name that can follow a `.` or stand as an object key unquoted */
 export const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
-function textOptions(call: {
-  match?: "full" | "partial";
-  ignoreCase?: boolean;
-}): string {
-  const parts = [
-    call.match !== undefined && `match: ${str(call.match)}`,
-    call.ignoreCase !== undefined && `ignoreCase: ${call.ignoreCase}`,
-  ].filter(Boolean);
+/** `, { a: 1, b: "x" }` from key and source pairs; a pair without source is left out, and so is an empty object */
+function optionsToSource(
+  pairs: readonly (readonly [string, string | undefined])[],
+): string {
+  const parts = pairs
+    .filter(([, source]) => source !== undefined)
+    .map(([key, source]) => `${key}: ${source}`);
   return parts.length ? `, { ${parts.join(", ")} }` : "";
 }
+
+/** A string, number or boolean as source, or undefined when it isn't set */
+const literal = (value: string | number | boolean | undefined) =>
+  value === undefined
+    ? undefined
+    : typeof value === "string"
+      ? str(value)
+      : String(value);
+
+const ROLE_OPTIONS = [
+  "exact",
+  "level",
+  "checked",
+  "pressed",
+  "expanded",
+  "selected",
+  "disabled",
+  "includeHidden",
+] as const;
 
 export function callToSource(call: LocatorCall): string {
   switch (call.method) {
@@ -50,11 +68,32 @@ export function callToSource(call: LocatorCall): string {
       return `getByCss(${str(call.css)})`;
     case "getByText":
     case "getByLabel":
-      return `${call.method}(${str(call.text)}${textOptions(call)})`;
+      return `${call.method}(${matcherToSource(call.text)}${optionsToSource([
+        ["exact", literal(call.exact)],
+        ["match", literal(call.match)],
+        ["ignoreCase", literal(call.ignoreCase)],
+      ])})`;
+    case "getByPlaceholder":
+    case "getByAltText":
+    case "getByTitle":
+      return `${call.method}(${matcherToSource(call.text)}${optionsToSource([["exact", literal(call.exact)]])})`;
     case "getByRole":
-      return `getByRole(${str(call.role)}${call.name === undefined ? "" : `, { name: ${str(call.name)} }`})`;
+      return `getByRole(${str(call.role)}${optionsToSource([
+        [
+          "name",
+          call.name === undefined ? undefined : matcherToSource(call.name),
+        ],
+        ...ROLE_OPTIONS.map((key) => [key, literal(call[key])] as const),
+      ])})`;
     case "getByTestId":
       return `getByTestId(${str(call.testId)})`;
+    case "nth":
+      return `nth(${call.index})`;
+    case "first":
+    case "last":
+      return `${call.method}()`;
+    case "filter":
+      return `filter({ hasText: ${matcherToSource(call.hasText)} })`;
   }
 }
 
