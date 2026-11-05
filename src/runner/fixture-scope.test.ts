@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TestFixtures } from "../types/test.js";
 import { extendLayers } from "./fixture-defs.js";
-import { FixtureScope, FixtureSetupError } from "./fixture-scope.js";
+import { FixtureScope } from "./fixture-scope.js";
+import { FixtureSetupError } from "./fixture-start.js";
 import { runWithEachHooks } from "./hooks.js";
 import { addHook, newSuite } from "./suite.js";
 
