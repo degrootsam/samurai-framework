@@ -24,6 +24,7 @@ export type {
   TestOptions,
   TestOutputs,
 } from "./types/test.js";
+export type { FixtureOptions } from "./types/extend.js";
 export type {
   ColorScheme,
   StorageState,

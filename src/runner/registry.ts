@@ -12,6 +12,12 @@ import type {
   TestOptions,
 } from "../types/test.js";
 import type { UseOptions } from "../types/use.js";
+import type {
+  FixtureDefinitions,
+  FixturesOf,
+  MergeFixtures,
+} from "../types/extend.js";
+import { extendLayers, type FixtureLayers } from "./fixture-defs.js";
 import { validateUseOptions } from "../config/use-options.js";
 import { currentTestInfo, skipFromCondition } from "./test-info.js";
 import { validateTestIO } from "./test-io.js";
@@ -25,22 +31,30 @@ import {
   resetSuites,
 } from "./suite.js";
 
+/** What the registry keeps of a test body; the fixtures it gets are those of the test it was written for */
 type Body = TestCaseBase["function"];
+
+/** The fixtures of tests made by `test.extend()`: none for the plain `test` */
+type NoFixtures = Record<never, never>;
+
+/** A test body or hook that gets the built-in fixtures and the custom ones `X` */
+type BodyOf<X> = (fixtures: FixturesOf<X>) => Promise<void>;
+type HookOf<X> = (fixtures: FixturesOf<X>) => Promise<void> | void;
 
 const registered: RegisteredTestCase[] = [];
 
 /** `test(title, fn)`, `test.skip(title, fn)`, `test.skip(condition, reason)` and the other forms */
-export interface TestFunction {
-  (title: string, fn: Body): void;
-  (title: string, options: TestOptions, fn: Body): void;
+export interface TestFunction<X = NoFixtures> {
+  (title: string, fn: BodyOf<X>): void;
+  (title: string, options: TestOptions, fn: BodyOf<X>): void;
   /** Registers a test that is not run */
-  skip: SkipFunction;
+  skip: SkipFunction<X>;
   /** Registers a test that is not run because it is known to be broken */
-  fixme: SkipFunction;
+  fixme: SkipFunction<X>;
   /** Runs only this test (and the other `only` ones) */
   only: {
-    (title: string, fn: Body): void;
-    (title: string, options: TestOptions, fn: Body): void;
+    (title: string, fn: BodyOf<X>): void;
+    (title: string, options: TestOptions, fn: BodyOf<X>): void;
   };
   /** The running test's info, in the test and its hooks; throws outside one */
   info: () => TestInfo;
@@ -53,25 +67,34 @@ export interface TestFunction {
   /** `describe`, under the name other frameworks use */
   describe: DescribeFunction;
   /** `beforeEach`, as `test.beforeEach` */
-  beforeEach: typeof beforeEach;
+  beforeEach: (hook: HookOf<X>) => void;
   /** `afterEach`, as `test.afterEach` */
-  afterEach: typeof afterEach;
+  afterEach: (hook: HookOf<X>) => void;
   /** `beforeAll`, as `test.beforeAll` */
   beforeAll: typeof beforeAll;
   /** `afterAll`, as `test.afterAll` */
   afterAll: typeof afterAll;
+  /**
+   * A `test` that also has the fixtures you define: each is a value, or a function `async ({ page }, use) => {
+   * ...set up; await use(value); ...clean up }` that may use the built-in fixtures and the other ones. A fixture is
+   * set up when a test or hook destructures it, and cleaned up after the test and its `afterEach` hooks. Write
+   * `[fixture, { auto: true }]` to set it up for every test. A fixture with the name of a built-in one replaces it.
+   */
+  extend<T extends object>(
+    fixtures: FixtureDefinitions<T, X>,
+  ): TestFunction<MergeFixtures<X, T>>;
 }
 
 /**
  * With a title and a body it registers a skipped test, `{ reason }` saying why; with a condition it skips the
  * running test when the condition is true
  */
-interface SkipFunction {
-  (title: string, fn: Body): void;
-  (title: string, options: TestOptions, fn: Body): void;
+interface SkipFunction<X> {
+  (title: string, fn: BodyOf<X>): void;
+  (title: string, options: TestOptions, fn: BodyOf<X>): void;
   /** A function gets the test's fixtures (`({ browserName }) => browserName === "firefox"`) */
   (
-    condition: boolean | ((fixtures: TestFixtures) => boolean),
+    condition: boolean | ((fixtures: FixturesOf<X>) => boolean),
     reason?: string,
   ): void;
 }
@@ -114,6 +137,8 @@ function openDescribe(
 
 /** What a test declares besides its title and body */
 interface TestExtras {
+  /** The custom fixtures of the `test` the test was written with */
+  extension?: FixtureLayers;
   reason?: string;
   inputs?: Record<string, string>;
   outputs?: string[];
@@ -126,7 +151,7 @@ function add(
   modifier?: Modifier,
   extras: TestExtras = {},
 ): void {
-  const { reason, inputs, outputs } = extras;
+  const { reason, inputs, outputs, extension } = extras;
   const suite = currentSuite(file);
   const titlePath = [...titlesOf(suite), title];
   const name = titlePath.join(" > ");
@@ -140,6 +165,7 @@ function add(
     ...modifierOf({ modifier, ...(reason !== undefined && { reason }) }, suite),
     ...(inputs && { inputs }),
     ...(outputs && { outputs }),
+    ...(extension && { extension }),
   });
   logger.debug("Registered test %s", name);
 }
@@ -181,7 +207,11 @@ function bodyAndOptions<F>(
 }
 
 /** `test()` and `test.only()`: a reason only makes sense with skip and fixme */
-function registering(call: string, modifier?: Modifier): TestFunction["only"] {
+function registering(
+  call: string,
+  modifier?: Modifier,
+  extension?: FixtureLayers,
+): TestFunction["only"] {
   return ((title: string, second: unknown, third?: unknown) => {
     const { fn, reason, ...io } = bodyAndOptions<Body>(
       call,
@@ -192,12 +222,18 @@ function registering(call: string, modifier?: Modifier): TestFunction["only"] {
     if (reason !== undefined)
       throw new Error(`${call}(): reason only applies to skip and fixme`);
     // Frames: Error, callerFile, this function, the spec
-    add(callerLocation(), title, fn, modifier, io);
+    add(callerLocation(), title, fn, modifier, {
+      ...io,
+      ...(extension && { extension }),
+    });
   }) as TestFunction["only"];
 }
 
 /** `test.skip` and `test.fixme`: a title and a body register a test with the modifier; a condition skips the running test */
-function skipping(annotation: "skip" | "fixme"): SkipFunction {
+function skipping(
+  annotation: "skip" | "fixme",
+  extension?: FixtureLayers,
+): SkipFunction<NoFixtures> {
   return ((
     first: string | boolean | ((fixtures: TestFixtures) => boolean),
     second?: unknown,
@@ -211,11 +247,14 @@ function skipping(annotation: "skip" | "fixme"): SkipFunction {
         third,
       );
       // Frames: Error, callerFile, this function, the spec
-      add(callerLocation(), first, fn, annotation, extras);
+      add(callerLocation(), first, fn, annotation, {
+        ...extras,
+        ...(extension && { extension }),
+      });
       return;
     }
     skipFromCondition(annotation, first, second as string | undefined);
-  }) as SkipFunction;
+  }) as SkipFunction<NoFixtures>;
 }
 
 /** `describe.skip` and `describe.fixme`, with or without `{ reason }` */
@@ -267,21 +306,26 @@ function use(options: UseOptions): void {
 }
 
 /**
- * The aliases are the same functions as the named exports: they find the spec file from the stack, so they
- * must not be wrapped
+ * A `test` that registers its tests with the custom fixtures `extension`. The aliases are the same functions as
+ * the named exports: they find the spec file from the stack, so they must not be wrapped.
  */
-export const test: TestFunction = Object.assign(registering("test"), {
-  skip: skipping("skip"),
-  fixme: skipping("fixme"),
-  only: registering("test.only", "only"),
-  info: currentTestInfo,
-  use,
-  describe,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-});
+function makeTest(extension?: FixtureLayers): TestFunction<never> {
+  return Object.assign(registering("test", undefined, extension), {
+    skip: skipping("skip", extension),
+    fixme: skipping("fixme", extension),
+    only: registering("test.only", "only", extension),
+    info: currentTestInfo,
+    use,
+    describe,
+    beforeEach,
+    afterEach,
+    beforeAll,
+    afterAll,
+    extend: (fixtures: unknown) => makeTest(extendLayers(extension, fixtures)),
+  }) as unknown as TestFunction<never>;
+}
+
+export const test: TestFunction = makeTest() as unknown as TestFunction;
 
 export function registeredTests(): readonly RegisteredTestCase[] {
   return registered;

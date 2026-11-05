@@ -1,4 +1,5 @@
-import type { Suite, TestFixtures } from "../types/test.js";
+import type { EachHook, Suite, TestFixtures } from "../types/test.js";
+import type { FixtureScope } from "./fixture-scope.js";
 import { isSkipSignal } from "./skip.js";
 import { afterEachOf, beforeEachOf, type HookKind } from "./suite.js";
 
@@ -64,12 +65,22 @@ export async function runWithEachHooks(
   body: () => Promise<void>,
   /** Called once the body (or a `beforeEach` hook) is over, before the `afterEach` hooks, with what it threw */
   onBodyDone?: (error: unknown) => void,
+  /** The custom fixtures: the `auto` ones are set up first, and a hook gets the ones it destructures */
+  custom?: FixtureScope,
 ): Promise<void> {
+  const withFixtures = (hook: EachHook): EachHook =>
+    custom
+      ? async (given) => {
+          await custom.prepare(hook);
+          return hook(given);
+        }
+      : hook;
   let primary: unknown;
   let failed = false;
   try {
+    await custom?.prepareAuto();
     for (const hook of beforeEachOf(suite))
-      await runHook("beforeEach", hook, fixtures);
+      await runHook("beforeEach", withFixtures(hook), fixtures);
     await body();
   } catch (error) {
     primary = error;
@@ -81,7 +92,7 @@ export async function runWithEachHooks(
   if (!signal.aborted) {
     for (const hook of afterEachOf(suite)) {
       try {
-        await runHook("afterEach", hook, fixtures);
+        await runHook("afterEach", withFixtures(hook), fixtures);
       } catch (error) {
         if (!afterFailed) afterError = error;
         afterFailed = true;

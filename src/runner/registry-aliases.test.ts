@@ -79,3 +79,55 @@ test("test.skip with a function outside a test says it needs one", () => {
   });
   assert.equal(registeredTests().length, 0, "it registers no test");
 });
+
+test("test.extend registers into the same registry, chains, and keeps the API", () => {
+  const first = samuraiTest.extend<{ one: number }>({ one: 1 });
+  const second = first.extend<{ two: number }>({ two: 2 });
+  samuraiTest("plain", noop);
+  first("with one", noop);
+  second.describe("group", () =>
+    second("with two", async ({ one, two }) => void (one + two)),
+  );
+  second.beforeEach(async ({ one }) => void one);
+  second.skip("skipped", noop);
+  const tests = registeredTests();
+  assert.deepEqual(
+    tests.map((t) => t.name),
+    ["plain", "with one", "group > with two", "skipped"],
+  );
+  assert.equal(tests[0]!.extension, undefined);
+  assert.deepEqual([...tests[1]!.extension!.keys()], ["one"]);
+  assert.deepEqual([...tests[2]!.extension!.keys()], ["one", "two"]);
+  assert.equal(tests[3]!.modifier, "skip");
+  assert.equal(tests[1]!.line !== undefined, true);
+});
+
+test("test.extend throws extend() errors at the call", () => {
+  assert.throws(
+    () =>
+      samuraiTest.extend({ a: [async () => {}, { scope: "worker" }] } as never),
+    /^Error: extend\(\): /,
+  );
+});
+
+test("test.extend types the custom fixtures in the body, the hooks and the setup functions", () => {
+  const typed = samuraiTest.extend<{ n: number; label: string }>({
+    n: async ({ page, baseURL }, use) => {
+      void page.url;
+      const url: string | undefined = baseURL;
+      await use(url ? 1 : 2);
+    },
+    label: [async ({ n }, use) => use(`n${n.toFixed()}`), { auto: true }],
+  });
+  typed("typed", async ({ n, label, page }) => {
+    const total: number = n;
+    const text: string = label;
+    void [total, text, page.url];
+    // @ts-expect-error not a fixture
+    void ({} as Parameters<Parameters<typeof typed>[1]>[0]).missing;
+  });
+  typed.beforeEach(async ({ n }) => void n.toFixed());
+  assert.equal(registeredTests().length, 1);
+  // @ts-expect-error the value has the wrong type
+  samuraiTest.extend<{ n: number }>({ n: "text" });
+});

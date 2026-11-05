@@ -167,6 +167,8 @@ export interface RegisteredTestCase extends TestCaseBase {
   inputs?: Record<string, string>;
   /** The names of the outputs the test declared */
   outputs?: string[];
+  /** The custom fixtures of the `test` it was written with (`test.extend()`); absent for the plain `test` */
+  extension?: ReadonlyMap<string, readonly unknown[]>;
 }
 
 export interface TestCaseBase {

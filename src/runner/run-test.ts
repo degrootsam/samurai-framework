@@ -26,6 +26,8 @@ import { toTestError } from "./test-error.js";
 import { runInTestScope, TestInfoImpl } from "./test-info.js";
 import { ioOfAttempt, missingOutputs } from "./test-io.js";
 import { buildTestFixtures } from "./fixtures.js";
+import type { FixtureLayers } from "./fixture-defs.js";
+import { FixtureScope } from "./fixture-scope.js";
 import { effectiveUse } from "./use-options.js";
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
@@ -120,6 +122,7 @@ export async function runOneTest(
 
   let browser: Browser | undefined;
   let page: Page | undefined;
+  let customFixtures: FixtureScope | undefined;
   let timeoutTimer: NodeJS.Timeout | undefined;
   let onRunAborted: (() => void) | undefined;
   const timeoutController = new AbortController();
@@ -199,7 +202,7 @@ export async function runOneTest(
         ),
       });
       outcome.info = info;
-      const fixtures = buildTestFixtures({
+      const built = buildTestFixtures({
         info,
         launched,
         browserName,
@@ -213,15 +216,35 @@ export async function runOneTest(
           hasTouch: applied?.hasTouch ?? false,
         },
       });
-      await runInTestScope({ info, fixtures }, () =>
-        runWithEachHooks(
-          test.suite,
-          fixtures,
-          timeoutController.signal,
-          () => test.function(fixtures),
-          (error) => info.bodyDone(error),
-        ),
-      );
+      // A test written with `test.extend()` gets its custom fixtures set up on demand, and torn down below
+      const custom = test.extension
+        ? new FixtureScope(test.extension as FixtureLayers, built)
+        : undefined;
+      customFixtures = custom;
+      const fixtures = custom?.fixtures ?? built;
+      let failure: unknown;
+      let failed = false;
+      try {
+        await runInTestScope({ info, fixtures }, () =>
+          runWithEachHooks(
+            test.suite,
+            fixtures,
+            timeoutController.signal,
+            async () => {
+              await custom?.prepare(test.function);
+              return test.function(fixtures);
+            },
+            (error) => info.bodyDone(error),
+            custom,
+          ),
+        );
+      } catch (err) {
+        failure = err;
+        failed = true;
+      }
+      const cleanup = await custom?.teardown(timeout);
+      if (cleanup && (!failed || isSkipSignal(failure))) throw cleanup;
+      if (failed) throw failure;
       // Already reported as timed out
       if (timeoutController.signal.aborted) return;
       const unawaited = takePendingAssertions();
@@ -266,6 +289,9 @@ export async function runOneTest(
   try {
     await Promise.race([limit, gone, runBody()]);
   } finally {
+    // A test cut short (timeout, abort) did not get to its own cleanup: its fixtures are torn down before the browser
+    const late = await customFixtures?.teardown(timeout);
+    if (late) logger.debug("A fixture failed after the test ended", { late });
     endOutputs();
   }
 
