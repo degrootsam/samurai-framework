@@ -17,6 +17,7 @@ Every guide and the code it describes. Start with the [Getting Started](Getting-
 | Environments and secrets   | [Environments and secrets](Environments-and-secrets)         | `src/config/secrets.ts`, `src/config/variables.ts`, `src/config/mask.ts` |
 | Running, reports           | [Running tests and reports](Running-tests-and-reports)       | `src/runner/`                                                            |
 | Command line               | [Command line](Command-line)                                 | `bin/samurai.mjs`, `src/cli/`                                            |
+| Porting from Playwright    | [Porting from Playwright](Porting-from-Playwright)           | `src/config/group-use.ts`, `src/runner/select.ts`                        |
 | Flows                      | [Flows](Flows)                                               | `src/flows/core/`, `src/flows/run/`, `src/cli/flow.ts`                   |
 | Flow steps                 | [Writing a step](Writing-a-step)                             | `src/flows/steps/`                                                       |
 | Step codec                 | [Steps and the recorder](Steps-and-the-recorder#steps)       | `src/steps/`                                                             |

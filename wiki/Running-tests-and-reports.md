@@ -119,6 +119,7 @@ samurai run --shard=3/3
 
 - Run `status` is `"success"` when no test failed, in any browser. Skipped tests do not count as failed (see [Skipped tests](#skipped-tests)).
 - `browsers` on the summary lists the browsers the run used, in the order they ran. A test that ran in two browsers has two entries, each with its own `browser` (`"firefox"` or `"chrome"`), status and times: a result is per test and browser. All tests run in the first browser, then all in the second.
+- A run of [groups](Configuration#selecting-several-groups) (`--group`) gives each entry a `group` (the group's name), and a test that is in two selected groups has an entry per group (and per browser). Without `--group` the key is absent. The `test-start` and `test-end` events carry the same `group`.
 - Times are milliseconds (`startTime` is relative to the process start).
 - A failed test carries the error flat on its entry: `type` (`"error"`, `"assertion"` or `"timeout"`), `message`, `stack`, and for assertions `expected` and `actual`.
 - A failing [hook](Writing-tests#hooks) fails the test it belongs to, with `<hook> hook failed: <message>` as the message (`beforeEach hook failed: …`, `afterEach hook failed: …`, `beforeAll hook failed: …`). The `type` is the one of what the hook threw, or `"error"` for a hook that ran out of time.

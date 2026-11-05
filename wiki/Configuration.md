@@ -56,7 +56,7 @@ export default defineConfig({
 | `logs.ignoreErrors`                                                                                                                                                                                | `[]`                                     | Strings or RegExps; matching exceptions never fail a test                                                                                                           |
 | `webServer`                                                                                                                                                                                        | none                                     | Servers the run starts before the first test and stops after the last; see [Web server](#web-server)                                                                |
 | `globalSetup`, `globalTeardown`                                                                                                                                                                    | none                                     | A module (or function) that runs once before / after all tests; see [Global setup and teardown](#global-setup-and-teardown)                                         |
-| `groups`                                                                                                                                                                                           | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option (see below)                                                                               |
+| `groups`                                                                                                                                                                                           | none                                     | Named sets of tests, selected with `--group <name>` or the `group` option, each with its own `browsers` and `use` (see below)                                       |
 | `steps`                                                                                                                                                                                            | none                                     | Flow steps of this project, made with `defineStep`; see [Writing a step](Writing-a-step#steps-of-your-own)                                                          |
 
 ### Use options
@@ -73,7 +73,7 @@ export default defineConfig({
 });
 ```
 
-The options, what they do and what each browser supports are on [Writing tests](Writing-tests#use-options). A wrong value stops the run with `use(): what is wrong`.
+The options, what they do and what each browser supports are on [Writing tests](Writing-tests#use-options). A wrong value stops the run with `use(): what is wrong`. A group can add its own on top: [Group use](#group-use).
 
 ### Browsers
 
@@ -239,9 +239,29 @@ groups: [
 | `testMatch` | Glob matched against the spec path below `src`; default `**/*.spec.ts`                                                                                                                                                      |
 | `tests`     | Tests picked by hand: `file` relative to `srcDir`, `title` the full name (`describe` titles joined with `>`). Overrides `src` and `testMatch`; a picked test that no longer exists is reported as `missing` by `listGroups` |
 | `browsers`  | The browsers this group's tests run in, instead of the project's `browsers` (see [Browsers](#browsers))                                                                                                                     |
+| `use`       | Options for this group's tests, over the config's `use`: see [Group use](#group-use)                                                                                                                                        |
 | `workers`   | `1`: the group's tests never run at the same time as each other (see [Workers](#workers))                                                                                                                                   |
 
 A test's id is `<file relative to srcDir, with />::<full name>`. An unknown group name is an error that lists the groups.
+
+#### Selecting several groups
+
+`--group` can be repeated (`--group phone --group tablet`), and `runTests({ group })` takes a name or a list of names. The run holds the union of the groups' tests. A test that is in two selected groups runs **once per group**, each run with that group's `use` and `browsers`, and its report entry and events carry the `group`. Without `--group` nothing is a group run: results have no `group` and no group `use` applies.
+
+#### Group use
+
+A group's `use` takes the options of the config's `use` that make sense for one set of tests: `locale`, `timezoneId`, `userAgent`, `javaScriptEnabled`, `acceptInsecureCerts`, `hasTouch`, `isMobile`, `storageState`, `extraHTTPHeaders`, `colorScheme` (see [Use options](Writing-tests#use-options)) and `viewport`. `headless` and `strictSelectors` are for the whole run and are not accepted here. It is how a Playwright `project` is ported: [Porting from Playwright](Porting-from-Playwright).
+
+```ts
+groups: [
+  { name: "phone", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+  { name: "desktop", browsers: ["firefox", "chrome"], use: { viewport: { width: 1440, height: 900 } } },
+],
+```
+
+The options of a test layer from the outside in, the inner one winning key by key: the config's `use`, then the `use` of the group the test is being run for, then `test.use()` of the file and of each `describe` around the test. `extraHTTPHeaders` is replaced as a whole, not merged. A test in several groups takes the group that is being run. When no group is selected, the group's `use` is not applied. Group `use` is not applied by flow Group nodes (a flow runs the tests of a group by name).
+
+A bad option stops the run before any test with the key it is at, for example `config.groups[1].use.locale: invalid locale "xx!"`. Inside a run, `testInfo.project.name` is the group's name (the browser's when no group is run) and screenshots and attachments of a group run go to a folder of the group inside the browser's.
 
 ## Command-line flags
 

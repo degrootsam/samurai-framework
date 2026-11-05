@@ -22,6 +22,7 @@
 - [Command line](Command-line)
 - [Running tests and reports](Running-tests-and-reports)
 - [Flows](Flows)
+- [Porting from Playwright](Porting-from-Playwright)
 
 **Recorder**
 

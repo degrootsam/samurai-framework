@@ -27,6 +27,7 @@ This page is the overview of what is built and what is open.
 - **Hooks.** `beforeEach` and `afterEach` around every test (in the test's browser, with its page), `beforeAll` and `afterAll` once per worker and scope; a failing hook fails its test with the hook's name (see [Hooks](Writing-tests#hooks)).
 - **Retries.** `retries` in the config, `--retries` and `SAMURAI_RETRIES`: a failing test is run again with a fresh browser, up to that many times. A test that passes on a retry is one result marked `flaky`, with the errors of the failed attempts in `previousAttempts`, and does not fail the run; `test-start` is emitted per attempt and `test-end` once (see [Retries](Writing-tests#retries)).
 - **Parallel runs.** `workers` in the config (default half the CPUs), `--workers` and `SAMURAI_WORKERS`: tests run at the same time in worker processes, each with its own browser, port and profile, and a flow's Parallel node runs its branches concurrently on the same pool (see [Parallel runs](Running-tests-and-reports#parallel-runs)).
+- **Groups as projects.** `groups[].use` (the config's `use` options and `viewport`, over the config's and under `test.use()`), a repeatable `--group` that runs a test once per selected group, an optional `group` on every result and test event, and `testInfo.project.name` equal to the group (see [Group use](Configuration#group-use) and [Porting from Playwright](Porting-from-Playwright)).
 - **Several browsers.** `browsers: ["firefox", "chrome"]` in the config and on each group, `--browser` on the command line: every test runs once per browser, with a result, events and a screenshot folder per browser.
 - **Chrome.** Runs, records and replays on Chrome 155 through its chromedriver (BiDi over the `webSocketUrl` capability); the browser tests run on both browsers (`SAMURAI_TEST_BROWSER`). See [Chrome support](Pages-and-browsers#chrome).
 - **App-facing API (0.16.0).** What the Electron app used to work out itself, the framework now states: a `capabilities` entry point with feature flags, test ids from `listTests`, whole-test ranges, a `remove-test` edit and a list of unreadable tests in the codec, `loadConfig` with every default resolved, and the recorder's first status; in 0.17.0 also the config as written next to the resolved one, and `outputDir` for a folder per run (see [Embedding](Embedding-the-framework#capabilities-and-the-resolved-config)).
@@ -83,6 +84,6 @@ What the framework still lacks next to Playwright, grouped; the order here is no
 
 - **Page and locator reads.** `evaluateHandle`, and a public export of `ScriptError`, `ElementHandle` and `RemoteObject`, which `evaluate` raises and returns.
 - **More matchers.** `toHaveScreenshot`, `expect(promise).rejects`, `expect.not.*`, the `useInnerText` option of the text matchers.
-- **Test API.** A `projects` matrix, and `use` options per project; a way to save a `storageState` from a logged-in context.
+- **Test API.** A way to save a `storageState` from a logged-in context.
 - **Waiting and input.** A fake clock.
-- **Runner and config.** `projects`, and more reporters (see also the runner list above).
+- **Runner and config.** More reporters (see also the runner list above). A `projects` matrix is not planned: a group with its own `use` and `browsers` does the job (see [Porting from Playwright](Porting-from-Playwright)).
