@@ -22,7 +22,7 @@ describe("capabilities", () => {
       outputDir: true,
       flowNodeFolders: 2,
       nodeFolder: 2,
-      assertionMatchers: 2,
+      assertionMatchers: 3,
       pageAssertions: true,
       testInputsOutputs: true,
       flowPerBrowser: true,

@@ -3,7 +3,7 @@ import type Page from "../browser/page.js";
 import type { LocatorCall, LocatorSpec, TextMatcher } from "./model.js";
 
 /** The RegExp or string a matcher stands for */
-export function textFromMatcher(matcher: TextMatcher): string | RegExp {
+function textFromMatcher(matcher: TextMatcher): string | RegExp {
   return typeof matcher === "string"
     ? matcher
     : new RegExp(matcher.regex.source, matcher.regex.flags);
