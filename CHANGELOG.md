@@ -1,3 +1,21 @@
+## 0.22.2 (2026-11-05)
+
+### 🚀 Features
+
+- **framework:** advertise the typed steps, matchers and locator forms in capabilities
+- **framework:** record check, uncheck and selectOption steps
+- **framework:** type the plain matchers toBeFocused to toHaveAccessibleDescription
+- **framework:** type the check, uncheck, selectOption, hover, dblclick and clear steps
+- **framework:** type the locator forms the framework shipped since 0.21
+
+### 🩹 Fixes
+
+- **framework:** assertionMatchers 3 in the capabilities test, textFromMatcher stays private
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.1 (2026-11-05)
 
 ### 🚀 Features
