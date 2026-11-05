@@ -29,6 +29,7 @@ export default defineConfig({
 | `browsers`                                                                                                                                                                                         | `["firefox"]`                            | Browsers every test runs in, one after the other: `firefox`, `chrome` or both; a group can name its own, see [Browsers](#browsers)                                  |
 | `workers`                                                                                                                                                                                          | half the CPUs                            | Tests that run at the same time, each in its own worker process: a number from 1 or a share like `"50%"`; see [Workers](#workers)                                   |
 | `retries`                                                                                                                                                                                          | `0`                                      | Times a failing test is run again, each with a fresh browser; see [Retries](#retries)                                                                               |
+| `fullyParallel`                                                                                                                                                                                    | not set                                  | Whether the tests of one file may run on different workers; see [Fully parallel](#fully-parallel)                                                                   |
 | `forbidOnly`                                                                                                                                                                                       | `true` when `CI` is set, else `false`    | Stop a run that contains `test.only`; see [forbidOnly](#forbidonly)                                                                                                 |
 | `timeout`                                                                                                                                                                                          | `30000`                                  | Time (ms) one test may take                                                                                                                                         |
 | `baseURL`                                                                                                                                                                                          | none                                     | What `page.goto("/…")` resolves against                                                                                                                             |
@@ -138,6 +139,21 @@ workers: "50%",    // half the CPUs
 A group can hold back its own tests: `{ name: "checkout", workers: 1 }` means no two tests of that group run at the same time, even when the run uses more workers (for tests that share an account or data). Only `1` has an effect on a group; any other whole number is accepted and ignored. Tests outside the group still run beside it.
 
 The first that is set wins: `--workers`, then `SAMURAI_WORKERS`, then `workers` in the config, then the default. A run with one test, or with a config passed as an object (not read from `samurai.config.ts`), stays on one worker. See [Parallel runs](Running-tests-and-reports#parallel-runs).
+
+### Fully parallel
+
+`fullyParallel` says whether the tests of one file may run on different workers.
+
+```ts
+fullyParallel: false,   // the tests of a file stay together, in order, on one worker
+```
+
+- **Not set** (the default) is what the runner has always done: the unit of work is one test, and a free worker takes the next test, whatever file it is in. Playwright's default is the file; SAMURAI keeps its own, so a config without the option behaves as before. `true` says the same.
+- **`false`** makes the file the unit, as in Playwright: all the tests of a file run one after the other on one worker, and different files go to different workers. A file's `beforeAll` hooks run on that one worker, not on every worker that would have got one of its tests. `test.describe.configure({ mode: "parallel" })` (or `describe.parallel`) frees the tests of one block again.
+- **A serial block** ([Serial mode](Writing-tests#serial-mode)) is never split, whatever this says.
+- It also decides what `--shard` keeps together: with `true`, single tests are dealt out; otherwise whole files ([Sharding](Running-tests-and-reports#sharding)).
+
+A value that is not `true` or `false` is an error: `fullyParallel must be true or false, got "yes"`.
 
 ### Retries
 

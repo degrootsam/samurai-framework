@@ -22,7 +22,36 @@ describe("Checkout", () => {
 - `test(title, fn)` registers a test. `fn` is an async function that receives the [fixtures](#fixtures).
 - `describe(title, fn)` groups tests. The callback runs immediately, must be synchronous and only registers tests; it nests.
 - The test's full name is the titles joined with `>`: `Checkout > as a guest > applies a coupon`. Results are keyed by file and full name, so equal titles in different files stay apart.
-- Tests run one after the other, in the order the files are found and the tests are registered. Each test gets its own browser, started fresh and closed afterwards, so no cookies or storage carry over.
+- Tests run one after the other, in the order the files are found and the tests are registered. Each test gets its own browser, started fresh and closed afterwards, so no cookies or storage carry over. Tests that depend on each other can be put in a [serial block](#serial-mode).
+
+## Serial mode
+
+Tests that build on each other (create, edit, delete) belong in a serial block. Its tests run in order on the same worker, and when one fails the rest of the block is not run:
+
+```ts
+test.describe.serial("order", () => {
+  test.beforeAll(() => {
+    /* once for the block */
+  });
+
+  test("creates", async ({ page }) => {
+    /* ... */
+  });
+  test("pays", async ({ page }) => {
+    /* ... */
+  });
+  test("ships", async ({ page }) => {
+    /* ... */
+  });
+});
+```
+
+- **Ways to write it.** `test.describe.serial(title, fn)`, or `test.describe.configure({ mode: "serial" })` as the first line of a `describe` block. At the top of a file the same call makes the whole file one block. `test.describe.parallel(title, fn)` and `mode: "parallel"` are the other way round (see [Parallel runs](Running-tests-and-reports#parallel-runs)); `mode: "default"` takes a block back to what the config says. `describe.configure` accepts only `mode`; anything else is an error (`describe.configure(): unknown option "retries"`).
+- **A failure skips the rest.** The tests after the failed one are reported as `skipped` (`annotation: "skip"`) with the reason `serial: an earlier test failed`, and they never start a browser. The run fails because of the test that failed. A test that skips itself (`test.skip(condition)`) or is marked `skip` does not stop the block.
+- **Retries run the whole block again.** With `retries` ([Retries](#retries)), a failing test in a serial block does not run alone again: the block starts over from its first test, with a new worker (the old one leaves and runs its `afterAll` hooks), so state left by the first attempt is gone. Each test is still one result, from the last attempt, with `retry` saying which attempt that was, and `previousAttempts` holding the errors of the test that failed before. A test in the block that passed before the failure and again after it is marked `retry` but not `flaky`. The console and the report show a test of a block once the block's last attempt is known; without retries each test is shown as it ends.
+- **Hooks.** `beforeAll` and `afterAll` of the block run once per attempt at the block, on the worker that runs it. `beforeEach` and `afterEach` run for every test as usual.
+- **Nesting.** A `describe` inside a serial block is part of the block; the outermost serial block counts. A block is never split over workers or [shards](Running-tests-and-reports#sharding), also not with `fullyParallel`.
+- **Groups and filters.** A block is made of the tests that are selected: `--grep`, `--group` and a `test.only` can leave tests out, and the rest still run in order. A group with `workers: 1` and a serial block combine: nothing in the group runs beside the block.
 
 ## Fixtures
 
@@ -258,7 +287,7 @@ Skipped tests count in the run (`run-start.total`) and in the report, never as f
 
 ## Hooks
 
-`beforeEach`, `afterEach`, `beforeAll` and `afterAll` come from the package, like `test`. They are also reachable as `test.beforeEach`, `test.afterEach`, `test.beforeAll` and `test.afterAll`, and `describe` as `test.describe` (with `.skip`, `.fixme` and `.only`); both spellings are the same functions:
+`beforeEach`, `afterEach`, `beforeAll` and `afterAll` come from the package, like `test`. They are also reachable as `test.beforeEach`, `test.afterEach`, `test.beforeAll` and `test.afterAll`, and `describe` as `test.describe` (with `.skip`, `.fixme`, `.only`, `.serial`, `.parallel` and `.configure`); both spellings are the same functions:
 
 ```ts
 import {
@@ -389,6 +418,7 @@ samurai run --retries 2    # a failing test gets up to three runs in all
 
 - **What is run again.** Every failure: an error, a failed assertion, a timeout. Not an aborted run, and not a test that skips itself (`test.skip(condition)`): it ends there. A worker process that dies during a test fails the test without a retry (the pool starts a new worker for the next test).
 - **Hooks.** `beforeEach` and `afterEach` run again with every attempt. `beforeAll` and `afterAll` belong to the worker and do not run again.
+- **Serial blocks** are run again as a whole, see [Serial mode](#serial-mode).
 - **Flaky.** A test that passes after a failed attempt is a pass: the run does not fail. Its result says `flaky: true` and keeps the errors of the failed attempts (`previousAttempts`), so flaky tests can be found. See [Retries in the report](Running-tests-and-reports#retries).
 - **A test that fails every attempt** is reported once, as failed, with the last attempt's error and the earlier ones in `previousAttempts`.
 - **Screenshots** of a retry go to a `retry-<n>` folder next to the first attempt's, so no attempt overwrites another.

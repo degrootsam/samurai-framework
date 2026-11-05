@@ -4,7 +4,7 @@
 
 ```sh
 bun run dev [--env <name>] [--timeout <ms>] [--expect-timeout <ms>]
-        [--headless | --no-headless] [--port <n>] [--workers <n|n%>] [--grep <text>] [--group <name>] [--file <spec>]... [--browser <name>]... [--json]
+        [--headless | --no-headless] [--port <n>] [--workers <n|n%>] [--shard <current/total>] [--grep <text>] [--group <name>] [--file <spec>]... [--browser <name>]... [--json]
 ```
 
 1. Reads `samurai.config.ts`, picks the [environment](Environments-and-secrets), loads its secrets and registers them for masking.
@@ -29,9 +29,10 @@ samurai run --workers 1      # one after the other, in this process
 
 How it works:
 
-- The unit of work is one test in one browser. A test in two browsers is two items.
+- The unit of work is one test in one browser. A test in two browsers is two items. That is the default: the tests of one file may go to different workers (so unlike Playwright, whose unit is the file, unless `fullyParallel` is on). [`fullyParallel: false`](Configuration#fully-parallel) makes the file the unit, and a [serial block](Writing-tests#serial-mode) is always one unit.
 - The main process starts up to `workers` child processes (never more than there are items) and hands each free worker the next item in the queue, so a slow test does not hold up the others. A worker imports the specs once, then runs one test at a time with its own browser.
 - Results come back as tests end. The console prints each line then, and `onEvent` gets the events then, so the order can differ from the order of the tests. The summary and `result/report.json` list the tests in the usual order, and each result has a `worker` (the index of the worker that ran it).
+- The items of one unit (a file with `fullyParallel: false`, a serial block) go to one worker, one after the other, in the order of the tests. No other worker takes them. Retries of a serial block are done by the main process: it asks the worker to leave and queues the block again for a new one (see [Serial mode](Writing-tests#serial-mode)).
 - Retries happen inside the worker that ran the test: it runs the attempts one after the other with a fresh browser each, and reports the test once, at the end (see [Retries](#retries)). A worker that dies fails the test without a retry.
 - Each worker has its own browser debugging port (the run's [`--port`](Command-line#samurai-run) plus the worker's index) and, from the second worker on, its own browser profile folder (`browsers/profiles/<browser>-w<index>`). Downloads and screenshots already have a folder per test.
 
@@ -43,6 +44,8 @@ When something goes wrong:
 
 `beforeAll` and `afterAll` [hooks](Writing-tests#hooks) run once per worker: a worker runs the `beforeAll` of a block before the first test of it that it gets, and its `afterAll` when it is told to leave at the end of the run. The run waits for the workers to finish their `afterAll` hooks (up to a minute each) before it ends.
 
+`describe.configure({ mode: "parallel" })` (or `describe.parallel`) lets the tests of a block go to different workers even with `fullyParallel: false`.
+
 A run stays in this process, with no workers, when `workers` is 1, when there is only one test to run, or when the config is passed as an object (`runTests({ config })`): a worker reads `samurai.config.ts` from the project folder, and an object with functions in it cannot be sent to another process. If you asked for more than one worker in that case, a warning says `workers needs samurai.config.ts in the project folder; running on one worker`.
 
 Tests that run side by side need to be independent:
@@ -50,6 +53,24 @@ Tests that run side by side need to be independent:
 - They must not share an account, a cart or other data. Give each test its own, or use the `workerIndex` [fixture](Writing-tests#fixtures) (0, 1, 2, …) to pick one per worker.
 - A group whose tests have to run one at a time can say so with `workers: 1` ([Groups](Configuration#groups)).
 - A flow's Parallel node uses the same workers, see [Flows](Flows#parallel).
+
+## Sharding
+
+`--shard=current/total` runs one slice of the selected tests, so a CI job can split a suite over several machines:
+
+```sh
+samurai run --shard=1/3     # machine 1 of 3
+samurai run --shard=2/3
+samurai run --shard=3/3
+```
+
+- **What is split.** The tests that are selected (after `--group`, `--grep`, `--file` and `test.only`). Each test is in exactly one shard: the shards are disjoint and together hold everything. The order of the tests inside a shard is the usual one.
+- **Whole files and blocks.** A file goes to one shard, and a [serial block](Writing-tests#serial-mode) is never split. With [`fullyParallel: true`](Configuration#fully-parallel), or in a `describe` in `"parallel"` mode, single tests are dealt out instead. The groups are taken in order and cut where the tests, counted in order, fall into `total` equal ranges, as Playwright does: a group goes to the shard that holds its first test. The split depends only on the tests and the config, so it is the same on every machine.
+- **Browsers.** The tests are split, not the browsers: every shard runs its tests in all browsers of the run.
+- **The report** of a shard has `"shard": { "current": 1, "total": 3 }` next to `environment` and `browsers`, and the `run-start` event has it too. Merging the reports of the shards is up to you.
+- **A shard without tests** (more shards than files or blocks) succeeds, starts no browser and says so: `Shard 3/3 has no tests to run`. Its report has an empty `tests` list.
+- **Exit code and summary** are those of the tests in the shard. `--shard` applies to `samurai run`; `samurai list` ignores it. A value that is not `current/total` with `1 <= current <= total` is exit code 2: `--shard: expected current/total with 1 <= current <= total, got "4/3"`.
+- From code: `runTests({ shard: { current: 1, total: 3 } })`.
 
 ## The report
 
@@ -201,7 +222,7 @@ A test that failed every attempt (`retries: 2`) is `failed`, with the last attem
 
 A run reports what happens as events (`--json` prints them, `onEvent` receives them, see [Command line](Command-line#--json) and [Embedding](Embedding-the-framework)). With more than one browser the numbers and the labels change:
 
-- `run-start` has `total`, which counts every test in every browser (3 tests in 2 browsers: 6), and `browsers`. It has `workers` when the run uses more than one.
+- `run-start` has `total`, which counts every test in every browser (3 tests in 2 browsers: 6), and `browsers`. It has `workers` when the run uses more than one, and `shard` when the run is a [shard](#sharding).
 - `test-start` and `test-end` have `browser`, and `test-end`'s `result` has it too. A skipped test emits both, one after the other.
 - A test that is run again emits `test-start` **once per attempt**, with `retry: n` (from 1) on the attempts after the first, and `test-end` **once**, with the final result. A test with `retries: 2` that passes on its third run emits `test-start`, `test-start` (`retry: 1`), `test-start` (`retry: 2`) and then one `test-end`. Do not match starts to ends one for one: a row is a test, keyed by `file`, `name` and `browser`.
 - The console output ends each test line with its browser (`[chrome]`) when a run has more than one browser, and names the browsers in its header. A run with one browser prints no label.
