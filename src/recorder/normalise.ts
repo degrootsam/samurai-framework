@@ -3,6 +3,7 @@ import type {
   FileEntry,
   LocatorSpec,
   PageExpectation,
+  SelectChoice,
   Step,
   TestInput,
 } from "../steps/model.js";
@@ -17,7 +18,16 @@ export type RecorderEvent =
 
 /** A page event whose element already has its locators */
 export type Observation =
-  | { type: "click"; key: string; locator: LocatorSpec; textEntry: boolean }
+  | {
+      type: "click";
+      key: string;
+      locator: LocatorSpec;
+      textEntry: boolean;
+      /** Of a checkbox or radio: whether the click leaves it checked. Recorded as `check` or `uncheck` */
+      checked?: boolean;
+    }
+  /** A `<select>` changed to this option */
+  | { type: "select"; key: string; locator: LocatorSpec; option: SelectChoice }
   | {
       type: "input";
       key: string;
@@ -98,7 +108,7 @@ export class Normaliser {
   private lastAction = -Infinity;
   private lastStep: Step | undefined;
   /** The last click, so a picker it opened can take its place */
-  private lastClick: { index: number; at: number } | undefined;
+  private lastClick: { index: number; at: number; key: string } | undefined;
   /** The click that opened the file picker that is open now */
   private picker: number | undefined;
   private readonly window: number;
@@ -204,6 +214,8 @@ export class Normaliser {
         return this.filesSet(observation, at);
       case "click":
         return this.clicked(observation, at);
+      case "select":
+        return this.selected(observation, at);
       case "press":
         return this.pressed(observation, at);
       case "assert":
@@ -272,11 +284,43 @@ export class Normaliser {
     if (observation.textEntry) return []; // focusing a field: the fill that follows needs no click
     this.lastFill = undefined;
     this.lastAction = at;
+    if (observation.checked !== undefined)
+      return [
+        this.insert({
+          kind: observation.checked ? "check" : "uncheck",
+          locator: observation.locator,
+        }),
+      ];
     const events = [
       this.insert({ kind: "click", locator: observation.locator }),
     ];
-    this.lastClick = { index: this.next - 1, at };
+    this.lastClick = { index: this.next - 1, at, key: observation.key };
     return events;
+  }
+
+  /** A choice in a `<select>`; the click that opened it, just before, is the same step */
+  private selected(
+    observation: Extract<Observation, { type: "select" }>,
+    at: number,
+  ): RecorderEvent[] {
+    this.lastFill = undefined;
+    this.lastAction = at;
+    const step: Step = {
+      kind: "selectOption",
+      locator: observation.locator,
+      option: observation.option,
+    };
+    const click = this.lastClick;
+    if (
+      click &&
+      click.key === observation.key &&
+      click.index === this.next - 1
+    ) {
+      this.lastClick = undefined;
+      this.lastStep = step;
+      return [{ op: "replace", index: click.index, step }];
+    }
+    return [this.insert(step)];
   }
 
   private pressed(

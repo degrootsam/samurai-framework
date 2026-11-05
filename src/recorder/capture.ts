@@ -17,6 +17,9 @@ const RUN_KEY = "samurai.recorder.run";
  *
  * - `{ type: "click", target, candidates, unique, textEntry }`: a click, retargeted to the nearest interactive
  *   element (a label click reports its control; the click the browser forwards to the control is dropped).
+ *   On a checkbox or radio it also carries `checked`, the state the click leaves.
+ * - `{ type: "select", target, candidates, option }`: a trusted `change` of a single-choice `<select>`; `option` is
+ *   `{ value }`, else `{ label }`, else `{ index }` of the chosen option.
  * - `{ type: "input", target, candidates, value, secret, secretName }`: text typed into a field. Password
  *   values never leave the page: `secret` is set and `value` is left out.
  * - `{ type: "press", target, candidates, unique, pressed }`: Enter, Tab or Escape (Enter in a button, link or textarea is a
@@ -79,7 +82,21 @@ export const CAPTURE_SOURCE = String.raw`(send) => {
     if (event.detail === 0 && el.form && el.form === lastEnter.form && now - lastEnter.at < 150) return;
     lastClick = { el, at: now };
     const candidates = candidatesOf(el);
-    report({ type: "click", target: el, candidates, unique: uniqueOf(el, candidates), textEntry: isTextEntry(el) });
+    // A checkbox or radio click is a check or an uncheck, by the state it leaves: the browser has already flipped a
+    // control that is the click's own target, while a label's click flips its control only after this listener
+    const checkable = el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio");
+    const checked = checkable ? (el.type === "radio" ? true : event.target === el ? el.checked : !el.checked) : undefined;
+    report({ type: "click", target: el, candidates, unique: uniqueOf(el, candidates), textEntry: isTextEntry(el), ...(checked !== undefined && { checked }) });
+  }, true);
+
+  // A choice in a <select> (one that takes a single option; several are a list, which stays custom code)
+  document.addEventListener("change", (event) => {
+    if (inToolbar(event)) return;
+    const el = event.target;
+    if (off() || !event.isTrusted || !(el instanceof HTMLSelectElement) || el.multiple || !el.selectedOptions.length) return;
+    const chosen = el.selectedOptions[0];
+    const option = chosen.value !== "" ? { value: chosen.value } : chosen.label !== "" ? { label: chosen.label } : { index: chosen.index };
+    report({ type: "select", target: el, candidates: candidatesOf(el), option });
   }, true);
 
   document.addEventListener("input", (event) => {
