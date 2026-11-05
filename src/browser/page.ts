@@ -14,7 +14,6 @@ import {
 import EventEmitter from "node:events";
 import path from "node:path";
 import { projectDir } from "../config/config.js";
-import { DEFAULT_VIEWPORT } from "../config/defaults.js";
 import logger from "../logger/index.js";
 import type { NetworkRequest } from "../network/network-tracker.js";
 import type { Recorder, RecorderOptions } from "../recorder/recorder.js";
@@ -77,7 +76,8 @@ import {
   type ReadinessState,
 } from "./page-settings.js";
 export type { PageSettings, ReadinessState };
-import { applyViewport, type Viewport } from "./viewport.js";
+import type { Viewport } from "./viewport.js";
+import { PageViewport } from "./page-viewport.js";
 import { HelperRealm } from "../locator/helper-realm.js";
 import type { PreloadHandle } from "../script/preload.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
@@ -111,9 +111,7 @@ export default class Page {
   private browserContext: BrowserContext | undefined;
   private transfers: PageTransfers;
   private evidence: Evidence | undefined;
-  private knownViewport: { width: number; height: number } | null = null;
-  /** Chrome's phone layout is on (`setMobileLayout`): viewport changes keep it */
-  private mobile = false;
+  private viewport: PageViewport;
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
   constructor(
@@ -137,6 +135,7 @@ export default class Page {
     );
     this.mouse = new Mouse(biDiConnector, contextId, () => this.assertOpen());
     this.documents = new DocumentWatcher(biDiConnector, contextId);
+    this.viewport = new PageViewport(biDiConnector, contextId, this.pageConfig);
     this.logging = new PageLogging(
       biDiConnector,
       contextId,
@@ -447,17 +446,12 @@ export default class Page {
    */
   public async setViewport(viewport: Viewport | null): Promise<void> {
     this.assertOpen();
-    await applyViewport(this.biDiConnector, this.id, viewport, this.mobile);
-    this.knownViewport = viewport && {
-      width: viewport.width,
-      height: viewport.height,
-    };
+    await this.viewport.set(viewport);
   }
 
   /** @internal Chrome: lays this page out like a phone from now on (`use.isMobile`), including the size it has now */
   public async setMobileLayout(): Promise<void> {
-    this.mobile = true;
-    await this.setViewport(this.knownViewport);
+    await this.viewport.setMobileLayout();
   }
 
   /** Playwright's name for `setViewport` */
@@ -470,14 +464,12 @@ export default class Page {
    * browser opened it), read at once; null before one is known, after `setViewport(null)` and when config turns the viewport off.
    */
   public viewportSize(): { width: number; height: number } | null {
-    return this.knownViewport && { ...this.knownViewport };
+    return this.viewport.size();
   }
 
   /** Gives the page the size from config `use.viewport` (1280x720 by default); the browser does this when it opens a page */
   public async applyDefaultViewport(): Promise<void> {
-    const { viewport } = await this.pageConfig.use();
-    if (viewport === null) return;
-    await this.setViewport(viewport ?? DEFAULT_VIEWPORT);
+    await this.viewport.applyDefault();
   }
 
   /**
