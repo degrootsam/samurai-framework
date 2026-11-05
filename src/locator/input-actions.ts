@@ -8,8 +8,8 @@ import type {
 export const DEFAULT_PAUSE_MS = 300;
 
 // Input source ids: BiDi keeps the pointer position and pressed keys per id, so each kind of input reuses one
-const POINTER_ID = "samurai-pointer";
-const KEYBOARD_ID = "samurai-keyboard";
+export const POINTER_ID = "samurai-pointer";
+export const KEYBOARD_ID = "samurai-keyboard";
 const PAUSE_ID = "samurai-sleep";
 
 /** WebDriver code points of the named keys `press()` accepts; any other single character is typed as is */

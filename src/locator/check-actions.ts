@@ -1,6 +1,6 @@
 import type { ActionOptions } from "./actionability.js";
 import { callOnExistingElement, type ElementAccess } from "./element-access.js";
-import { clickRect } from "./input-actions.js";
+import { clickRect } from "./pointer-actions.js";
 import { ATTACHED_ONLY, CLICK_CHECKS } from "./page-scripts.js";
 
 export interface CheckOptions extends ActionOptions {

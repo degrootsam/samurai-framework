@@ -49,6 +49,8 @@ import { PageTransfers } from "./page-transfers.js";
 import { InitScripts } from "./init-script.js";
 import { grantPermission } from "./page-permissions.js";
 import { PageLocators } from "./page-locators.js";
+import Keyboard from "./keyboard.js";
+import Mouse from "./mouse.js";
 import {
   sourcesFor,
   waitForPageEvent,
@@ -91,6 +93,10 @@ export default class Page {
   private initScripts = new InitScripts();
   private pageConfig: PageConfig;
   private locators: PageLocators;
+  /** Real key input to whatever has focus: `press` (also chords such as `Control+a`), `down`, `up`, `type`, `insertText` */
+  public readonly keyboard: Keyboard;
+  /** Real pointer input at viewport coordinates: `move`, `down`, `up`, `click`, `dblclick`, `wheel` */
+  public readonly mouse: Mouse;
   private pageEvents = new EventEmitter();
   private documents: DocumentWatcher;
   private nav: PageNavigation;
@@ -123,6 +129,10 @@ export default class Page {
       this.pageConfig,
       () => this.assertOpen(),
     );
+    this.keyboard = new Keyboard(biDiConnector, contextId, () =>
+      this.assertOpen(),
+    );
+    this.mouse = new Mouse(biDiConnector, contextId, () => this.assertOpen());
     this.documents = new DocumentWatcher(biDiConnector, contextId);
     this.net = new PageNetwork(biDiConnector, contextId, {
       config: this.pageConfig,
