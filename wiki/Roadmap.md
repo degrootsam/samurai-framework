@@ -17,6 +17,7 @@ This page is the overview of what is built and what is open.
 - **Browser management.** `samurai browsers install|list|uninstall` downloads pinned Firefox and Chrome for Testing builds into a per-user cache.
 - **Test modifiers.** `test.skip`, `test.fixme` and `test.only`, also on `describe`, and `test.skip(condition, reason)` from inside a test (the condition may be a function of the fixtures); skipped tests are reported with the status `skipped`, and `forbidOnly` (on by default on CI) refuses a committed `.only` (see [Writing tests](Writing-tests#skipping-focusing-and-fixing-later)).
 - **Test info and aliases.** `test.describe`, `test.beforeEach`, `test.afterEach`, `test.beforeAll` and `test.afterAll` next to the named exports; `testInfo` / `test.info()` with attachments and annotations; the `context` and `baseURL` fixtures (see [Test info](Writing-tests#test-info)).
+- **Steps, expected failures and timeouts.** `test.step` with nesting and a report field, `test.fail` (also `test.fail("title", fn)` and in a `describe`), `test.slow`, and `test.setTimeout` / `testInfo.setTimeout` that re-arm the limit from the start of the test (see [Steps, expected failures and timeouts](Writing-tests#steps-expected-failures-and-timeouts)).
 - **Custom fixtures.** `test.extend` with fixtures that depend on each other and on the built-in ones, set up lazily, `auto` fixtures, overriding built-ins and chaining; test scope only (see [Your own fixtures](Writing-tests#your-own-fixtures)).
 - **Use options.** `use` in the config and `test.use({...})` per file or `describe`: `locale`, `timezoneId`, `userAgent`, `javaScriptEnabled`, `acceptInsecureCerts`, `hasTouch`, `isMobile`, `storageState`, `extraHTTPHeaders` and `colorScheme`, applied to the test's page and to every context it opens, plus the `isMobile` and `hasTouch` fixtures. `isMobile` and `hasTouch` are Chrome only (ignored with a one-time warning on Firefox). See [Use options](Writing-tests#use-options).
 - **Hooks.** `beforeEach` and `afterEach` around every test (in the test's browser, with its page), `beforeAll` and `afterAll` once per worker and scope; a failing hook fails its test with the hook's name (see [Hooks](Writing-tests#hooks)).
@@ -78,7 +79,7 @@ What the framework still lacks next to Playwright, grouped; the order here is no
 
 - **Page and locator reads.** `evaluateHandle`, and a public export of `ScriptError`, `ElementHandle` and `RemoteObject`, which `evaluate` raises and returns.
 - **More matchers.** `toHaveScreenshot`, `expect(promise).rejects`, `expect.not.*`, the `useInnerText` option of the text matchers.
-- **Test API.** `test.step`, a `projects` matrix, and `use` options per project; a way to save a `storageState` from a logged-in context.
+- **Test API.** A `projects` matrix, and `use` options per project; a way to save a `storageState` from a logged-in context.
 - **Waiting and input.** A fake clock, keyboard and mouse as page-level APIs.
 - **Network.** `page.request`.
 - **Runner and config.** `webServer`, `globalSetup`, serial mode and sharding, `projects`, and more reporters (see also the runner list above).

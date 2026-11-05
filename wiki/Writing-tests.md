@@ -104,20 +104,22 @@ The types follow: give `extend` the fixtures' types as its generic, and the dest
 
 `testInfo` (a fixture) and `test.info()` (callable in the test body and in `beforeEach` / `afterEach` hooks, and the same object) tell a test about itself. `test.info()` throws `info(): no test is running` anywhere else, such as in `beforeAll`.
 
-| Field                                       | What it is                                                                                                                                                                                            |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `title`, `titlePath`                        | The test's title, and the `describe` titles followed by it                                                                                                                                            |
-| `file`, `line`, `column`                    | Absolute path of the spec and where `test(...)` is written (`line` and `column` are left out when unknown)                                                                                            |
-| `retry`                                     | The attempt, from 0: 1 is the first run again (see [Retries](#retries))                                                                                                                               |
-| `workerIndex`                               | Same as the fixture                                                                                                                                                                                   |
-| `project.name`                              | The browser name. There is no `projects` matrix yet, so for now a "project" is the browser the test runs in                                                                                           |
-| `config`                                    | `{ baseURL, timeout }` of the run                                                                                                                                                                     |
-| `annotations`                               | An array you can push `{ type, description? }` to; the notes are listed in the report entry                                                                                                           |
-| `status`, `expectedStatus`                  | `status` is `undefined` while the body runs, then `"passed"`, `"failed"` or `"skipped"` before the `afterEach` hooks; `expectedStatus` is always `"passed"`                                           |
-| `errors`                                    | The errors of the body or of a `beforeEach` hook, filled before the `afterEach` hooks (same shape as an error in the report)                                                                          |
-| `duration`                                  | Milliseconds since the attempt started; fixed once the body is done                                                                                                                                   |
-| `outputDir`                                 | The folder for this attempt's attachments, `attachments/<browser>/<spec>/<test>[/retry-n]` in the result folder                                                                                       |
-| `attach(name, { body, path, contentType })` | Saves a string or `Buffer` `body`, or copies the file at `path`, into `outputDir` and lists it in the report entry. Give one of `body` and `path`. String bodies are masked like the rest of a report |
+| Field                                       | What it is                                                                                                                                                                                                                       |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`, `titlePath`                        | The test's title, and the `describe` titles followed by it                                                                                                                                                                       |
+| `file`, `line`, `column`                    | Absolute path of the spec and where `test(...)` is written (`line` and `column` are left out when unknown)                                                                                                                       |
+| `retry`                                     | The attempt, from 0: 1 is the first run again (see [Retries](#retries))                                                                                                                                                          |
+| `workerIndex`                               | Same as the fixture                                                                                                                                                                                                              |
+| `project.name`                              | The browser name. There is no `projects` matrix yet, so for now a "project" is the browser the test runs in                                                                                                                      |
+| `config`                                    | `{ baseURL, timeout }` of the run                                                                                                                                                                                                |
+| `annotations`                               | An array you can push `{ type, description? }` to; the notes are listed in the report entry                                                                                                                                      |
+| `status`, `expectedStatus`                  | `status` is `undefined` while the body runs, then `"passed"`, `"failed"` or `"skipped"` before the `afterEach` hooks; `expectedStatus` is `"passed"`, or `"failed"` after [`test.fail()`](#steps-expected-failures-and-timeouts) |
+| `errors`                                    | The errors of the body or of a `beforeEach` hook, filled before the `afterEach` hooks (same shape as an error in the report)                                                                                                     |
+| `timeout`, `setTimeout(ms)`                 | The time limit in milliseconds (0: none), and a way to change it; see [timeouts](#steps-expected-failures-and-timeouts)                                                                                                          |
+| `slow()`, `fail()`, `skip()`, `fixme()`     | The same as `test.slow()`, `test.fail()`, `test.skip()` and `test.fixme()`, each taking an optional `condition` boolean (default `true`) and a `description`                                                                     |
+| `duration`                                  | Milliseconds since the attempt started; fixed once the body is done                                                                                                                                                              |
+| `outputDir`                                 | The folder for this attempt's attachments, `attachments/<browser>/<spec>/<test>[/retry-n]` in the result folder                                                                                                                  |
+| `attach(name, { body, path, contentType })` | Saves a string or `Buffer` `body`, or copies the file at `path`, into `outputDir` and lists it in the report entry. Give one of `body` and `path`. String bodies are masked like the rest of a report                            |
 
 ```ts
 test.afterEach(async ({ page, testInfo }) => {
@@ -130,6 +132,32 @@ test.afterEach(async ({ page, testInfo }) => {
 ```
 
 A test that attached files has `attachments: [{ name, contentType, path }]` in its report entry (`path` is relative to the result folder), and one that pushed annotations has `annotations`. Both fields are absent otherwise, so existing reports read the same.
+
+## Steps, expected failures and timeouts
+
+**`test.step(title, body, { timeout? })`** runs `body` as a named step of the running test and returns its value. Steps nest. A step that throws is marked failed and rethrows, so the test fails as it would without the step. With `timeout` (milliseconds), a step that takes longer fails with `step "title" timed out after N ms`; its body keeps running, as nothing can stop it. `test.step` works on a `test` made by `test.extend` too, and throws `step(): no test is running` outside a test or hook.
+
+```ts
+const total = await test.step("add to the cart", async () => {
+  await test.step("open the shop", () => page.navigateTo("/shop"));
+  await page.getByRole("button", { name: "Add" }).click();
+  return page.locator("#total").textContent();
+});
+```
+
+The report entry of a test that ran steps has `steps: [{ title, status, duration, error?, steps? }]` (`status` is `"passed"`, `"failed"` or `"skipped"`; `error` is the message of what the step threw; `steps` holds the nested ones). A step still running when the test ended is listed as failed with the error `the test ended before the step finished`. The field is absent when a test ran no steps.
+
+**`test.fail()`** says the test is expected to fail. A test that fails is then reported as passed, and one that passes is reported as failed with `expected to fail, but passed`. A timeout is not the failure it was waiting for and is reported as usual. Forms:
+
+- `test.fail("title", fn)` or `test.fail("title", { reason }, fn)` registers a test expected to fail.
+- `test.fail()` inside a test or a `beforeEach` hook marks the running test; `test.fail(condition, reason)` does it when the condition is true. The condition is a boolean or a synchronous function of the fixtures, as with `test.skip`.
+- `test.fail(true, reason)` in a `describe` block (or at the top of a file) marks every test in it. There the condition must be a boolean.
+
+A marked test has the annotation `{ type: "fail" }` (with the reason as `description`) in its report entry, and `testInfo.expectedStatus` is `"failed"`.
+
+**`test.slow()`** triples the timeout of the test, once, and adds the annotation `slow`. It takes the same arguments as `test.fail()` without a title: `test.slow()`, `test.slow(condition, reason)`, and `test.slow(true)` in a `describe` block for every test in it.
+
+**`test.setTimeout(ms)`** (or `testInfo.setTimeout(ms)`) sets the timeout of the running test, in a test body or a hook; `0` removes it. The new limit counts from the start of the test, so the time already spent counts against it: lowering it below the time spent ends the test at once. `testInfo.timeout` is the limit in force. Errors read `setTimeout(): ...`, `fail(): ...`, `slow(): ...` and `step(): ...`.
 
 ## Inputs and outputs
 
@@ -178,7 +206,7 @@ A URL starting with `/`, `./` or `../` needs a `baseURL` (config, environment, o
 
 - **Passes** when the function resolves and nothing below applies.
 - **Fails** when the function throws. The error, its type (`error`, `assertion` or `timeout`) and a stack go into the [report](Running-tests-and-reports).
-- **Times out** after the environment's/project's `timeout` (default 30 s). The test is reported as timed out and its browser is closed.
+- **Times out** after the environment's/project's `timeout` (default 30 s), unless the test changes it with [`test.slow()` or `test.setTimeout()`](#steps-expected-failures-and-timeouts). The test is reported as timed out and its browser is closed.
 - **Fails when a declared output was never saved.** See [Inputs and outputs](#inputs-and-outputs).
 - **Fails on a forgotten `await`.** `expect(locator).toBeVisible()` returns a promise. A matcher that was never awaited is reported as `expect(locator).toBeVisible() was not awaited`.
 - **Can be run again.** With `retries` set, a failing test is run again with a fresh browser; see [Retries](#retries).

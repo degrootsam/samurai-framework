@@ -101,6 +101,7 @@ Tests that run side by side need to be independent:
 - A failed test carries the error flat on its entry: `type` (`"error"`, `"assertion"` or `"timeout"`), `message`, `stack`, and for assertions `expected` and `actual`.
 - A failing [hook](Writing-tests#hooks) fails the test it belongs to, with `<hook> hook failed: <message>` as the message (`beforeEach hook failed: …`, `afterEach hook failed: …`, `beforeAll hook failed: …`). The `type` is the one of what the hook threw, or `"error"` for a hook that ran out of time.
 - A test that called `page.screenshot({ name })` has `screenshots: [{ "name": "after-sign-in", "path": "screenshots/firefox/login/Login-signs-in/after-sign-in.png" }]`. `path` is relative to the `result/` folder and uses `/`. See [Screenshots](#screenshots).
+- A test that ran [`test.step`](Writing-tests#steps-expected-failures-and-timeouts) has `steps: [{ "title", "status", "duration", "error", "steps" }]`: `status` is `"passed"`, `"failed"` or `"skipped"`, `error` is present on a failed step and `steps` holds the nested ones. A test with no steps has no `steps` field. A test marked `test.fail()` or `test.slow()` has the matching entry in `annotations`.
 - Everything in the report is passed through [secret masking](Environments-and-secrets#masking).
 
 ### Page logs
