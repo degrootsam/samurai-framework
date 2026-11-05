@@ -1,3 +1,15 @@
+## 0.22.1 (2026-11-05)
+
+### 🚀 Features
+
+- **framework:** worker-scoped fixtures and a fixtures list in every test result
+- **framework:** attach fixtures and set option fixtures through use, per environment
+- **framework:** metadata, option fixtures and a fixture catalog on test.extend
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.0 (2026-11-05)
 
 ### 🚀 Features
