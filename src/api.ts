@@ -24,6 +24,12 @@ export type {
   TestOptions,
   TestOutputs,
 } from "./types/test.js";
+export type {
+  ColorScheme,
+  StorageState,
+  StorageStateCookie,
+  UseOptions,
+} from "./types/use.js";
 export {
   generatedFile,
   type GeneratedFile,

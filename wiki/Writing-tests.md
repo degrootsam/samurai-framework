@@ -41,6 +41,8 @@ The test function receives one object:
 | `context`     | `BrowserContext`        | The browser context of `page` (cookies, storage); the same object as `page.context()`                                                           |
 | `baseURL`     | `string \| undefined`   | The run's `baseURL` (the environment's, else the project's); `undefined` when none is set                                                       |
 | `testInfo`    | `TestInfo`              | About the running test, see [Test info](#test-info)                                                                                             |
+| `isMobile`    | `boolean`               | Whether the page runs as a phone (`use.isMobile`, [Chrome only](#use-options)); always `false` on Firefox                                       |
+| `hasTouch`    | `boolean`               | Whether the page has touch input (`use.hasTouch`, [Chrome only](#use-options)); always `false` on Firefox                                       |
 
 Tests may run at the same time, each in its own worker process and browser (see [Parallel runs](Running-tests-and-reports#parallel-runs)). Do not let two tests depend on the same account or data; give each its own, or pick one by `workerIndex`.
 
@@ -236,6 +238,80 @@ When a hook fails:
 - An `afterAll` error is written to `logs/combined.log`. It is not attached to a test, as those have ended.
 
 `beforeAll` and `afterAll` run once per worker, scope and browser, so with N workers a `beforeAll` can run up to N times (once in a run with one worker). `afterAll` runs when the worker is done, which is the end of the run, not right after its `describe`. See [Parallel runs](Running-tests-and-reports#parallel-runs).
+
+## Use options
+
+`test.use({...})` sets how the browser behaves for the `describe` block it is written in, or for the whole file when it is at the top level (before or after the tests, it makes no difference). The same options can be set for every test in the config's `use` (see [Configuration](Configuration#use-options)). An inner block wins over an outer one, and both win over the config, key by key; an option that is left out keeps the value from further out.
+
+```ts
+import { test } from "@itmetsam/samurai-framework";
+
+test.use({
+  locale: "nl-NL",
+  timezoneId: "Europe/Amsterdam",
+  colorScheme: "dark",
+});
+
+test.describe("as a customer", () => {
+  test.use({
+    storageState: "auth/customer.json",
+    extraHTTPHeaders: { "x-feature": "new-checkout" },
+  });
+
+  test("sees the order history", async ({ page }) => {
+    await page.goto("/orders");
+  });
+});
+```
+
+| Option                | Value                                  | What it does                                                                                                                                                            |
+| --------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `locale`              | BCP 47 tag, `"nl-NL"`                  | `navigator.language`, `Intl` formatting and the `Accept-Language` header                                                                                                |
+| `timezoneId`          | IANA name, `"Asia/Tokyo"`              | The timezone of `Date` and `Intl`                                                                                                                                       |
+| `userAgent`           | string                                 | The `User-Agent` header and `navigator.userAgent`                                                                                                                       |
+| `javaScriptEnabled`   | `boolean`                              | `false` runs pages without JavaScript                                                                                                                                   |
+| `acceptInsecureCerts` | `boolean`                              | Open sites with a self-signed, expired or mismatched certificate                                                                                                        |
+| `hasTouch`            | `boolean`                              | Touch input: `navigator.maxTouchPoints` is 1. **Chrome only**                                                                                                           |
+| `isMobile`            | `boolean`                              | A phone-like page: the layout viewport follows the page's `<meta name="viewport">`. **Chrome only**                                                                     |
+| `storageState`        | path or `{ cookies, origins }`         | Cookies and local storage to start with, in the format Playwright's `storageState` files use. A path is relative to the project folder; it is read when the test starts |
+| `extraHTTPHeaders`    | `Record<string, string>`               | Headers added to every request of the page. An inner value replaces the whole outer object, headers are not merged                                                      |
+| `colorScheme`         | `"light" \| "dark" \| "no-preference"` | What `prefers-color-scheme` reports. On Firefox `"no-preference"` means the browser's own setting                                                                       |
+
+A `storageState` object looks like this (`expires` is in seconds; `-1` or no value is a session cookie):
+
+```ts
+test.use({
+  storageState: {
+    cookies: [
+      {
+        name: "session",
+        value: "abc",
+        domain: "example.com",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+      },
+    ],
+    origins: [
+      {
+        origin: "https://example.com",
+        localStorage: [{ name: "token", value: "t-1" }],
+      },
+    ],
+  },
+});
+```
+
+Local storage can only be written once the browser is on its origin, so the framework opens a scratch tab on each origin of the state (the request is answered by the framework and never reaches the network), writes the entries and closes the tab before the test starts.
+
+The options apply to the test's `page`, to every page opened in its `context`, and to the contexts the test creates with `browser.newContext()`; options passed to `newContext` win. A wrong value is refused with `use(): what is wrong`, for example `use(): invalid locale "xx!"`, `use(): isMobile must be true or false, got "yes"` or `use(): storageState file "auth.json" could not be read: ...`. `test.use` itself refuses an option it does not know.
+
+A test without `use` options, in a project without them in the config, runs exactly as before.
+
+### What each browser can do
+
+`isMobile` and `hasTouch` work on Chrome only. On Firefox they are ignored with a warning that is printed once per process, and the `isMobile` and `hasTouch` fixtures are `false`: check them if a test depends on a phone layout, or skip it with `test.skip(({ browserName }) => browserName === "firefox")`. Every other option works on both browsers. The table of how each is done is in [Pages and browsers](Pages-and-browsers#use-options-per-browser).
 
 ## Retries
 

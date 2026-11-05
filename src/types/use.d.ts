@@ -10,7 +10,7 @@ export interface UseOptions {
   javaScriptEnabled?: boolean;
   /** Accept certificates that are self-signed, expired or for another host. Fixed when the browser starts. */
   acceptInsecureCerts?: boolean;
-  /** Touch input: `navigator.maxTouchPoints` and touch events. Chrome only. */
+  /** Touch input: `navigator.maxTouchPoints` is 1. Chrome only. */
   hasTouch?: boolean;
   /** A phone-like browser (the layout viewport follows the page's `<meta name="viewport">`). Chrome only. */
   isMobile?: boolean;

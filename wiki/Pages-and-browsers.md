@@ -288,10 +288,31 @@ Put `"chrome"` in `browsers` in `samurai.config.ts` (`browsers: ["chrome"]`, or 
 
 - Headless Chrome hides its scrollbars, so the viewport is the size you asked for. Headed Chrome keeps them.
 - `port` is ignored: chromedriver picks the port.
-- `touch` and `javaScriptEnabled` emulation work on Chrome and throw `UnsupportedOperationError` on Firefox.
+- `touch` and `javaScriptEnabled` emulation work on Chrome and throw `UnsupportedOperationError` on Firefox. The `use` options `hasTouch` and `isMobile` are Chrome only too, see [Use options per browser](#use-options-per-browser).
 - A download that finishes under a name that is taken is saved as `name(1).ext`, as on Firefox.
 - `SAMURAI_CHROMEDRIVER_PATH` points a launch at another chromedriver. It must match the major version of the Chrome it starts; with `SAMURAI_CHROME_PATH` or `browserPaths.chrome` set to a different Chrome, set this too.
 - A Chrome that is still running on the project's profile (`browsers/profiles/chrome`, for instance left by a killed run) stops the next launch at once with `Chrome is already running on the profile … (process <pid>)`; close it or end that process. The check reads Chrome's `SingletonLock` link, so it works on Linux and macOS; on Windows the launch still waits for the start timeout.
+
+### Use options per browser
+
+How each [`use` option](Writing-tests#use-options) reaches the browser, found by trying each command on Firefox 158 and Chrome 155:
+
+| Option                              | Firefox 158                                                                                                                                                | Chrome 155                                                                                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `locale`, `timezoneId`, `userAgent` | BiDi `emulation.setLocaleOverride`, `setTimezoneOverride`, `setUserAgentOverride`                                                                          | the same                                                                                                                        |
+| `extraHTTPHeaders`                  | BiDi `network.setExtraHeaders`                                                                                                                             | the same                                                                                                                        |
+| `acceptInsecureCerts`               | session capability                                                                                                                                         | session capability                                                                                                              |
+| `storageState`                      | BiDi `storage.setCookie`, local storage through a scratch tab                                                                                              | the same                                                                                                                        |
+| `javaScriptEnabled`                 | profile pref `javascript.enabled`, set when the browser starts (BiDi has no command)                                                                       | BiDi `emulation.setScriptingEnabled`                                                                                            |
+| `colorScheme`                       | profile pref `layout.css.prefers-color-scheme.content-override`, set when the browser starts (`emulation.setForcedColorsModeThemeOverride` does not exist) | CDP `Emulation.setEmulatedMedia` through `goog:cdp`, per page (`emulation.setForcedColorsModeThemeOverride` is not implemented) |
+| `hasTouch`                          | not supported: ignored with a one-time warning, fixture `false`                                                                                            | BiDi `emulation.setTouchOverride`                                                                                               |
+| `isMobile`                          | not supported: ignored with a one-time warning, fixture `false`                                                                                            | CDP `Emulation.setDeviceMetricsOverride` with `mobile: true` through `goog:cdp`, per page                                       |
+
+Things to know:
+
+- The Firefox profile prefs are written to the profile on every launch (with Firefox's own values when nothing is chosen), so a test with `javaScriptEnabled: false` does not leak into the next run. They are browser-wide, which is fine as each test has its own browser.
+- Chrome's phone layout is per page: the framework sets it on the test's page and on every page opened through it. A page that opens in another way (a popup the page itself opens, a cross-site iframe in its own process) does not get it. `page.setViewport` keeps the phone layout, because the framework sizes such a page through CDP.
+- `acceptInsecureCerts` is fixed when the browser starts, so it is the same for the whole test.
 
 A run picks its browsers from `--browser`, the group being run, the config's `browsers` and then Firefox (see [Browsers](Configuration#browsers)); `Browser.launch("chrome")` and `Browser.launch("firefox")` in your own code name the browser directly. A launch picks the executable of a browser in this order:
 
