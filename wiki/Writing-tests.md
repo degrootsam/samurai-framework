@@ -343,7 +343,7 @@ import { test } from "@itmetsam/samurai-framework";
 
 test.use({
   locale: "nl-NL",
-  timezoneId: "Europe/Amsterdam",
+  timezone: "Europe/Amsterdam",
   colorScheme: "dark",
 });
 
@@ -359,18 +359,22 @@ test.describe("as a customer", () => {
 });
 ```
 
-| Option                | Value                                  | What it does                                                                                                                                                            |
-| --------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `locale`              | BCP 47 tag, `"nl-NL"`                  | `navigator.language`, `Intl` formatting and the `Accept-Language` header                                                                                                |
-| `timezoneId`          | IANA name, `"Asia/Tokyo"`              | The timezone of `Date` and `Intl`                                                                                                                                       |
-| `userAgent`           | string                                 | The `User-Agent` header and `navigator.userAgent`                                                                                                                       |
-| `javaScriptEnabled`   | `boolean`                              | `false` runs pages without JavaScript                                                                                                                                   |
-| `acceptInsecureCerts` | `boolean`                              | Open sites with a self-signed, expired or mismatched certificate                                                                                                        |
-| `hasTouch`            | `boolean`                              | Touch input: `navigator.maxTouchPoints` is 1. **Chrome only**                                                                                                           |
-| `isMobile`            | `boolean`                              | A phone-like page: the layout viewport follows the page's `<meta name="viewport">`. **Chrome only**                                                                     |
-| `storageState`        | path or `{ cookies, origins }`         | Cookies and local storage to start with, in the format Playwright's `storageState` files use. A path is relative to the project folder; it is read when the test starts |
-| `extraHTTPHeaders`    | `Record<string, string>`               | Headers added to every request of the page. An inner value replaces the whole outer object, headers are not merged                                                      |
-| `colorScheme`         | `"light" \| "dark" \| "no-preference"` | What `prefers-color-scheme` reports. On Firefox `"no-preference"` means the browser's own setting                                                                       |
+| Option                | Value                                                                      | What it does                                                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `locale`              | BCP 47 tag, `"nl-NL"`                                                      | `navigator.language`, `Intl` formatting and the `Accept-Language` header                                                                                                |
+| `timezone`            | IANA name, `"Asia/Tokyo"`                                                  | The timezone of `Date` and `Intl`                                                                                                                                       |
+| `userAgent`           | string                                                                     | The `User-Agent` header and `navigator.userAgent`                                                                                                                       |
+| `geolocation`         | `{ latitude, longitude, accuracy? }`                                       | The position `navigator.geolocation` reports; it answers once the permission is granted (`page.grantPermission("geolocation")`)                                         |
+| `offline`             | `boolean`                                                                  | `true`: no network, `navigator.onLine` is false and requests fail                                                                                                       |
+| `orientation`         | `"portrait" \| "landscape"` or a full type such as `"landscape-secondary"` | What `screen.orientation` reports                                                                                                                                       |
+| `screen`              | `{ width, height }`                                                        | What `screen.width` and `screen.height` report                                                                                                                          |
+| `javaScriptEnabled`   | `boolean`                                                                  | `false` runs pages without JavaScript                                                                                                                                   |
+| `acceptInsecureCerts` | `boolean`                                                                  | Open sites with a self-signed, expired or mismatched certificate                                                                                                        |
+| `hasTouch`            | `boolean`                                                                  | Touch input: `navigator.maxTouchPoints` is 1. **Chrome only**                                                                                                           |
+| `isMobile`            | `boolean`                                                                  | A phone-like page: the layout viewport follows the page's `<meta name="viewport">`. **Chrome only**                                                                     |
+| `storageState`        | path or `{ cookies, origins }`                                             | Cookies and local storage to start with, in the format Playwright's `storageState` files use. A path is relative to the project folder; it is read when the test starts |
+| `extraHTTPHeaders`    | `Record<string, string>`                                                   | Headers added to every request of the page. An inner value replaces the whole outer object, headers are not merged                                                      |
+| `colorScheme`         | `"light" \| "dark" \| "no-preference"`                                     | What `prefers-color-scheme` reports. On Firefox `"no-preference"` means the browser's own setting                                                                       |
 
 A `storageState` object looks like this (`expires` is in seconds; `-1` or no value is a session cookie):
 
@@ -402,11 +406,15 @@ Local storage can only be written once the browser is on its origin, so the fram
 
 The options apply to the test's `page`, to every page opened in its `context`, and to the contexts the test creates with `browser.newContext()`; options passed to `newContext` win. A wrong value is refused with `use(): what is wrong`, for example `use(): invalid locale "xx!"`, `use(): isMobile must be true or false, got "yes"` or `use(): storageState file "auth.json" could not be read: ...`. `test.use` itself refuses an option it does not know.
 
+The options marked run time in [Settings](Pages-and-browsers#settings-use-and-pageuse) (`locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientation`, `screen`, `hasTouch`, `javaScriptEnabled`) can also be changed while a test runs, with `page.use({...})` and `context.use({...})`: the same names, applied now. `test.use()` is the declarative form (the value holds before the test starts), `page.use()` the run-time form. In `test.use()` and config `use`, `null` cancels a value from further out.
+
+A renamed option is refused with the name to use: `use(): unknown option "timezoneId"; use "timezone"`.
+
 A test without `use` options, in a project without them in the config, runs exactly as before.
 
 ### What each browser can do
 
-`isMobile` and `hasTouch` work on Chrome only. On Firefox they are ignored with a warning that is printed once per process, and the `isMobile` and `hasTouch` fixtures are `false`: check them if a test depends on a phone layout, or skip it with `test.skip(({ browserName }) => browserName === "firefox")`. Every other option works on both browsers. The table of how each is done is in [Pages and browsers](Pages-and-browsers#use-options-per-browser).
+`isMobile` and `hasTouch` work on Chrome only. On Firefox they are ignored with a warning that is printed once per process (any other option the browser does not support is skipped the same way; `page.use()` throws instead), and the `isMobile` and `hasTouch` fixtures are `false`: check them if a test depends on a phone layout, or skip it with `test.skip(({ browserName }) => browserName === "firefox")`. Every other option works on both browsers. The table of how each is done is in [Pages and browsers](Pages-and-browsers#use-options-per-browser).
 
 ## Retries
 

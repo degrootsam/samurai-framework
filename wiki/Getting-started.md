@@ -98,23 +98,23 @@ Read it in a test as `secrets.TEST_PASSWORD`. Real environment variables win ove
 
 # Documentation
 
-| Guide                                                  | What it covers                                                                                        |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| [Writing tests](Writing-tests)                         | `test`, `describe`, fixtures, how a test passes or fails                                              |
-| [Locators](Locators)                                   | Finding elements, chaining, fallbacks, actions and their auto-waiting                                 |
-| [Assertions](Assertions)                               | `expect` for elements and for plain values                                                            |
-| [Pages and browsers](Pages-and-browsers)               | Navigation, waits, screenshots, PDF, viewport, emulation, dialogs, downloads, contexts, cookies       |
-| [Network](Network)                                     | Waiting for traffic, mocking, blocking, response bodies                                               |
-| [Configuration](Configuration)                         | Every option in `samurai.config.ts`, CLI flags and precedence                                         |
-| [Environments and secrets](Environments-and-secrets)   | Per-environment settings, variables, secrets and masking                                              |
-| [Command line](Command-line)                           | `samurai run`, `list`, `record` and `init`, options, output, exit codes, `--json`                     |
-| [Flows](Flows)                                         | `samurai flow list`, `check` and `run`: graphs of tests, groups and steps, reports, CI                |
-| [Writing a step](Writing-a-step)                       | `defineStep`: flow steps of your own, the built-in steps                                              |
-| [Running tests and reports](Running-tests-and-reports) | What a run does, `report.json`, page logs, timeouts                                                   |
-| [Steps and the recorder](Steps-and-the-recorder)       | The step codec, the recording engine and the recorder toolbar                                         |
-| [Embedding the framework](Embedding-the-framework)     | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events |
-| [Contributing](Contributing)                           | Project layout, running the framework's own tests, conventions                                        |
-| [Roadmap](Roadmap)                                     | What is built and what is still open                                                                  |
+| Guide                                                  | What it covers                                                                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| [Writing tests](Writing-tests)                         | `test`, `describe`, fixtures, how a test passes or fails                                                      |
+| [Locators](Locators)                                   | Finding elements, chaining, fallbacks, actions and their auto-waiting                                         |
+| [Assertions](Assertions)                               | `expect` for elements and for plain values                                                                    |
+| [Pages and browsers](Pages-and-browsers)               | Navigation, waits, screenshots, PDF, viewport, settings (`page.use()`), dialogs, downloads, contexts, cookies |
+| [Network](Network)                                     | Waiting for traffic, mocking, blocking, response bodies                                                       |
+| [Configuration](Configuration)                         | Every option in `samurai.config.ts`, CLI flags and precedence                                                 |
+| [Environments and secrets](Environments-and-secrets)   | Per-environment settings, variables, secrets and masking                                                      |
+| [Command line](Command-line)                           | `samurai run`, `list`, `record` and `init`, options, output, exit codes, `--json`                             |
+| [Flows](Flows)                                         | `samurai flow list`, `check` and `run`: graphs of tests, groups and steps, reports, CI                        |
+| [Writing a step](Writing-a-step)                       | `defineStep`: flow steps of your own, the built-in steps                                                      |
+| [Running tests and reports](Running-tests-and-reports) | What a run does, `report.json`, page logs, timeouts                                                           |
+| [Steps and the recorder](Steps-and-the-recorder)       | The step codec, the recording engine and the recorder toolbar                                                 |
+| [Embedding the framework](Embedding-the-framework)     | Using the package from another app (such as the Electron UI): build, entry points, `runTests`, events         |
+| [Contributing](Contributing)                           | Project layout, running the framework's own tests, conventions                                                |
+| [Roadmap](Roadmap)                                     | What is built and what is still open                                                                          |
 
 The [documentation index](Home) lists every guide by topic.
 

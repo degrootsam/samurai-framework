@@ -67,7 +67,7 @@ await page.setViewport(null); // browser's own size
 console.log(page.viewportSize()); // { width: 390, height: 844 }, or null
 ```
 
-`viewportSize()` is synchronous: the page remembers the last size it applied, whether through `setViewport`, `setViewportSize` or the default it gets when the browser opens it. It is `null` before a size is known, after `setViewport(null)` (the browser's own size is not read back) and when config `use.viewport` is `null`. It returns a copy and does not read the page, so a size changed by the page itself or by `emulate` is not reflected.
+`viewportSize()` is synchronous: the page remembers the last size it applied, whether through `setViewport`, `setViewportSize` or the default it gets when the browser opens it. It is `null` before a size is known, after `setViewport(null)` (the browser's own size is not read back) and when config `use.viewport` is `null`. It returns a copy and does not read the page, so a size changed by the page itself or by `screen` is not reflected.
 
 ## Running code in the page
 
@@ -178,18 +178,29 @@ Coordinates are CSS pixels from the top left of the visible page. `keyboard.down
 
 Firefox quirks: a headless Firefox window has no system focus, so `focus` and `blur` events do not fire there (the focus itself moves; `document.activeElement` changes). And when the page under a pointer that has not moved is replaced, Firefox hit-tests the next `mouse.wheel` against the old page: move the mouse to a new point first. Errors read `keyboard.press(): unknown key "Hyper"` and `mouse.click(): unknown button "back"`.
 
-## Emulation
+## Settings: use and page.use()
 
-Pretend things about the browser. `undefined` leaves an option alone, `null` restores the real value.
+One vocabulary sets how the browser behaves: the `use` options. In the config, in a group and in `test.use()` they are fixed before the test starts ([Use options](Writing-tests#use-options)). While a test runs, `page.use()` and `context.use()` take the same names and apply them now. Same options, different timing.
 
 ```ts
-await page.emulate({ locale: "nl-NL", timezone: "Europe/Amsterdam" });
-await page.emulate({ offline: true });
+await page.use({ locale: "nl-NL", timezone: "Europe/Amsterdam" });
+await page.use({ offline: true });
 await page.grantPermission("geolocation");
-await page.emulate({ geolocation: { latitude: 52.37, longitude: 4.9 } });
+await page.use({ geolocation: { latitude: 52.37, longitude: 4.9 } });
 ```
 
-Options: `locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientation`, `screen`, `touch`, `javaScriptEnabled`. An option the browser doesn't support throws `EmulationUnsupportedError`: Firefox 158 does not support `touch` and `javaScriptEnabled`, Chrome 155 supports every option above; if a later option fails, the earlier ones stay applied and `EmulationError` lists which. Geolocation only answers once the permission is granted. `page.emulate` wins over the context's emulation.
+`undefined` leaves an option alone, `null` restores the real value. `page.use()` changes that page; `context.use()` changes every page of the context, including pages opened later; a page's own `use()` wins over its context's. `browser.newContext()` takes the same options.
+
+Run-time options: `locale`, `timezone`, `userAgent`, `geolocation`, `offline`, `orientation`, `screen`, `hasTouch`, `javaScriptEnabled`. The others (`acceptInsecureCerts`, `isMobile`, `storageState`, `extraHTTPHeaders`, `colorScheme`) are fixed when the browser or context starts and are refused by `page.use()` with `use(): colorScheme can only be set before the browser starts: ...`. A renamed option is refused with the new name (`use(): unknown option "timezoneId"; use "timezone"`). Values are checked before anything is sent, with the same messages as config `use`.
+
+An option the browser does not support is handled by where it was set:
+
+| Where                                                 | Browser lacks the option                                                                                             |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| config `use`, a group's `use`, `test.use()`           | Skipped with a warning, printed once per process (`isMobile` and `hasTouch` on Firefox); the rest is applied         |
+| `page.use()`, `context.use()`, `browser.newContext()` | Throws `UseUnsupportedError` naming the option and what was applied before it; `newContext` leaves no context behind |
+
+Firefox 158 does not support `hasTouch` and `javaScriptEnabled` at run time (`javaScriptEnabled` is a profile setting there: put it in config `use`, a group's `use` or `test.use()`); Chrome 155 supports every run-time option. If a later option fails, the earlier ones stay applied and `UseError` lists which. Geolocation only answers once the permission is granted.
 
 ## Console output and page errors
 
@@ -313,7 +324,7 @@ Put `"chrome"` in `browsers` in `samurai.config.ts` (`browsers: ["chrome"]`, or 
 
 - Headless Chrome hides its scrollbars, so the viewport is the size you asked for. Headed Chrome keeps them.
 - `port` is ignored: chromedriver picks the port.
-- `touch` and `javaScriptEnabled` emulation work on Chrome and throw `UnsupportedOperationError` on Firefox. The `use` options `hasTouch` and `isMobile` are Chrome only too, see [Use options per browser](#use-options-per-browser).
+- `hasTouch` and `javaScriptEnabled` work at run time on Chrome (`page.use()`) and throw `UseUnsupportedError` on Firefox. The `use` options `hasTouch` and `isMobile` are Chrome only too, see [Use options per browser](#use-options-per-browser).
 - A download that finishes under a name that is taken is saved as `name(1).ext`, as on Firefox.
 - `SAMURAI_CHROMEDRIVER_PATH` points a launch at another chromedriver. It must match the major version of the Chrome it starts; with `SAMURAI_CHROME_PATH` or `browserPaths.chrome` set to a different Chrome, set this too.
 - A Chrome that is still running on the project's profile (`browsers/profiles/chrome`, for instance left by a killed run) stops the next launch at once with `Chrome is already running on the profile … (process <pid>)`; close it or end that process. The check reads Chrome's `SingletonLock` link, so it works on Linux and macOS; on Windows the launch still waits for the start timeout.
@@ -322,16 +333,17 @@ Put `"chrome"` in `browsers` in `samurai.config.ts` (`browsers: ["chrome"]`, or 
 
 How each [`use` option](Writing-tests#use-options) reaches the browser, found by trying each command on Firefox 158 and Chrome 155:
 
-| Option                              | Firefox 158                                                                                                                                                | Chrome 155                                                                                                                      |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `locale`, `timezoneId`, `userAgent` | BiDi `emulation.setLocaleOverride`, `setTimezoneOverride`, `setUserAgentOverride`                                                                          | the same                                                                                                                        |
-| `extraHTTPHeaders`                  | BiDi `network.setExtraHeaders`                                                                                                                             | the same                                                                                                                        |
-| `acceptInsecureCerts`               | session capability                                                                                                                                         | session capability                                                                                                              |
-| `storageState`                      | BiDi `storage.setCookie`, local storage through a scratch tab                                                                                              | the same                                                                                                                        |
-| `javaScriptEnabled`                 | profile pref `javascript.enabled`, set when the browser starts (BiDi has no command)                                                                       | BiDi `emulation.setScriptingEnabled`                                                                                            |
-| `colorScheme`                       | profile pref `layout.css.prefers-color-scheme.content-override`, set when the browser starts (`emulation.setForcedColorsModeThemeOverride` does not exist) | CDP `Emulation.setEmulatedMedia` through `goog:cdp`, per page (`emulation.setForcedColorsModeThemeOverride` is not implemented) |
-| `hasTouch`                          | not supported: ignored with a one-time warning, fixture `false`                                                                                            | BiDi `emulation.setTouchOverride`                                                                                               |
-| `isMobile`                          | not supported: ignored with a one-time warning, fixture `false`                                                                                            | CDP `Emulation.setDeviceMetricsOverride` with `mobile: true` through `goog:cdp`, per page                                       |
+| Option                                            | Firefox 158                                                                                                                                                | Chrome 155                                                                                                                      |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `locale`, `timezone`, `userAgent`                 | BiDi `emulation.setLocaleOverride`, `setTimezoneOverride`, `setUserAgentOverride`                                                                          | the same                                                                                                                        |
+| `geolocation`, `offline`, `orientation`, `screen` | BiDi `emulation.setGeolocationOverride`, `setNetworkConditions`, `setScreenOrientationOverride`, `setScreenSettingsOverride`                               | the same                                                                                                                        |
+| `extraHTTPHeaders`                                | BiDi `network.setExtraHeaders`                                                                                                                             | the same                                                                                                                        |
+| `acceptInsecureCerts`                             | session capability                                                                                                                                         | session capability                                                                                                              |
+| `storageState`                                    | BiDi `storage.setCookie`, local storage through a scratch tab                                                                                              | the same                                                                                                                        |
+| `javaScriptEnabled`                               | profile pref `javascript.enabled`, set when the browser starts (BiDi has no command)                                                                       | BiDi `emulation.setScriptingEnabled`                                                                                            |
+| `colorScheme`                                     | profile pref `layout.css.prefers-color-scheme.content-override`, set when the browser starts (`emulation.setForcedColorsModeThemeOverride` does not exist) | CDP `Emulation.setEmulatedMedia` through `goog:cdp`, per page (`emulation.setForcedColorsModeThemeOverride` is not implemented) |
+| `hasTouch`                                        | not supported: ignored with a one-time warning, fixture `false`                                                                                            | BiDi `emulation.setTouchOverride`                                                                                               |
+| `isMobile`                                        | not supported: ignored with a one-time warning, fixture `false`                                                                                            | CDP `Emulation.setDeviceMetricsOverride` with `mobile: true` through `goog:cdp`, per page                                       |
 
 Things to know:
 
@@ -480,7 +492,7 @@ test("two users", async ({ browser }) => {
 });
 ```
 
-`browser.close()` removes contexts that are still open. `newContext` accepts the emulation options above plus `acceptInsecureCerts` and `unhandledPromptBehavior`.
+`browser.close()` removes contexts that are still open. `newContext` accepts the run-time `use` options (see [Settings](#settings-use-and-pageuse)) plus `acceptInsecureCerts` and `unhandledPromptBehavior`.
 
 On a context:
 
@@ -490,7 +502,7 @@ await context.addCookies([
 ]);
 const cookies = await context.cookies({ name: "session" });
 await context.clearCookies();
-await context.emulate({ timezone: "Asia/Tokyo" }); // every page, including later ones
+await context.use({ timezone: "Asia/Tokyo" }); // every page, including later ones
 await context.setPermission("geolocation", "granted", "https://example.com");
 context.pages();
 await context.close(); // the default context can't be closed
