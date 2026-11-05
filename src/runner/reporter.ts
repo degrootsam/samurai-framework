@@ -4,6 +4,7 @@ import { projectDir } from "../config/config.js";
 import { maskDeep } from "../config/mask.js";
 import type {
   TestAnnotation,
+  TestFixtureEntry,
   TestStepEntry,
   TestAttachmentEntry,
   PartialTestResult,
@@ -115,6 +116,8 @@ export interface TestEndExtras extends TestRetries {
   annotations?: TestAnnotation[];
   /** The steps the test ran with `test.step` */
   steps?: TestStepEntry[];
+  /** The fixtures the test set up, when it set any up */
+  fixtures?: TestFixtureEntry[];
 }
 
 export default class TestReporter implements TestSink {
@@ -317,6 +320,7 @@ export default class TestReporter implements TestSink {
       ...(extras?.attachments && { attachments: extras.attachments }),
       ...(extras?.annotations && { annotations: extras.annotations }),
       ...(extras?.steps && { steps: extras.steps }),
+      ...(extras?.fixtures?.length && { fixtures: extras.fixtures }),
       ...(extras?.retry && { retry: extras.retry }),
       ...(extras?.flaky && { flaky: true }),
       ...(extras?.previousAttempts?.length && {

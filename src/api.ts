@@ -31,9 +31,14 @@ export type {
   TestInfo,
   TestOptions,
   TestOutputs,
+  TestFixtureEntry,
   TestStepEntry,
 } from "./types/test.js";
-export type { FixtureOptions } from "./types/extend.js";
+export type {
+  FixtureField,
+  FixtureOptions,
+  FixtureOutput,
+} from "./types/extend.js";
 export type {
   ColorScheme,
   StorageState,

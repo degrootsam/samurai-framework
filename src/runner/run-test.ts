@@ -10,6 +10,7 @@ import type { SupportedBrowser } from "../types/browser.js";
 import type {
   RegisteredTestCase,
   TestError,
+  TestFixtureEntry,
   TestLogEntry,
 } from "../types/test.js";
 import type { RunnerOptions } from "./options.js";
@@ -30,6 +31,7 @@ import { ioOfAttempt, missingOutputs } from "./test-io.js";
 import { buildTestFixtures } from "./fixtures.js";
 import type { FixtureLayers } from "./fixture-defs.js";
 import { FixtureScope } from "./fixture-scope.js";
+import type { WorkerFixtures } from "./fixture-worker.js";
 import { RequestFixture } from "./request-fixture.js";
 import { effectiveUse } from "./use-options.js";
 import { effectiveFixtureUse } from "./fixture-use.js";
@@ -54,6 +56,8 @@ class TestOutcome {
   public io: () => TestEndExtras = () => ({});
   /** The test's info: its attachments and annotations are listed in the report entry */
   public info: TestInfoImpl | undefined;
+  /** The fixtures the test set up, as they stand when it ends */
+  public fixtures: () => TestFixtureEntry[] = () => [];
 
   constructor(
     private readonly reporter: TestSink,
@@ -88,6 +92,7 @@ class TestOutcome {
       screenshots: this.evidence?.screenshots,
       ...this.info?.reportExtras(),
       ...this.io(),
+      fixtures: this.fixtures(),
     });
   }
 }
@@ -104,6 +109,8 @@ export interface WorkerResources {
   attempt?: number;
   /** The `beforeAll` / `afterAll` hooks of this worker: kept across tests, closed when the worker is done */
   allHooks?: AllHooks;
+  /** The worker-scoped fixtures of this worker: kept across tests, closed when the worker is done */
+  workerFixtures?: WorkerFixtures;
 }
 
 /** Runs one test in one browser and reports it: launch, run the body, judge the page's logs, close the browser */
@@ -237,9 +244,16 @@ export async function runOneTest(
       });
       // A test written with `test.extend()` gets its custom fixtures set up on demand, and torn down below
       const custom = test.extension
-        ? new FixtureScope(test.extension as FixtureLayers, built, fixtureUse)
+        ? new FixtureScope(test.extension as FixtureLayers, built, {
+            ...fixtureUse,
+            environment: settings.environment,
+            ...(resources.workerFixtures && {
+              workers: resources.workerFixtures,
+            }),
+          })
         : undefined;
       customFixtures = custom;
+      if (custom) outcome.fixtures = () => custom.report();
       const fixtures = custom?.fixtures ?? built;
       let failure: unknown;
       let failed = false;

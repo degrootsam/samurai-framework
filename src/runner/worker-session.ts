@@ -3,6 +3,7 @@ import logger from "../logger/index.js";
 import { withProject } from "./project.js";
 import TestReporter from "./reporter.js";
 import { AllHooks } from "./all-hooks.js";
+import { WorkerFixtures } from "./fixture-worker.js";
 import { allHookFixtures } from "./fixtures.js";
 import { runOneTest } from "./run-test.js";
 import { runWithRetries } from "./retry.js";
@@ -43,6 +44,8 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
           timeout: run.settings.timeout,
           fixtures: (browser) => allHookFixtures(run, browser, workerIndex),
         });
+        // The worker-scoped fixtures this worker set up: torn down when it closes
+        const workerFixtures = new WorkerFixtures(run.settings.timeout);
         resolve({
           tests: loaded.all,
           async runTest(test, browser, signal, onEvent, perTest = {}) {
@@ -75,6 +78,7 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
                   profileDir: workerProfileDir(browser, workerIndex),
                   workerIndex,
                   allHooks,
+                  workerFixtures,
                   attempt,
                 }),
               reporter,
@@ -82,6 +86,8 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
           },
           async close() {
             for (const error of await allHooks.closeAll())
+              logger.error("%s", error.message);
+            for (const error of await workerFixtures.closeAll())
               logger.error("%s", error.message);
             release();
             await finished;

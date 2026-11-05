@@ -9,6 +9,7 @@ import type { SupportedBrowser } from "../types/browser.js";
 import type { SamuraiTestConfig } from "../types/config.js";
 import type { RegisteredTestCase } from "../types/test.js";
 import { AllHooks } from "./all-hooks.js";
+import { WorkerFixtures } from "./fixture-worker.js";
 import { assertNoOnly, narrowToOnly } from "./focus.js";
 import { DEFAULT_SRC_DIR, DEFAULT_TEST_MATCH } from "../config/defaults.js";
 import type { ResolvedGroup } from "./groups.js";
@@ -239,6 +240,8 @@ export default class TestRunner {
       timeout: this.run.settings.timeout,
       fixtures: (browser) => allHookFixtures(this.run, browser),
     });
+    // The worker-scoped fixtures of the run: torn down when the last test is done
+    const workerFixtures = new WorkerFixtures(this.run.settings.timeout);
     try {
       for (const browser of browsers) {
         const forBrowser = selected.filter((test) => runsIn(test, browser));
@@ -251,7 +254,7 @@ export default class TestRunner {
               this.options,
               loaded.srcDir,
               sink,
-              { allHooks, attempt },
+              { allHooks, workerFixtures, attempt },
             );
           if (chunk.block) {
             const { suite } = chunk.block;
@@ -296,6 +299,8 @@ export default class TestRunner {
       }
     } finally {
       for (const error of await allHooks.closeAll())
+        logger.error("%s", error.message);
+      for (const error of await workerFixtures.closeAll())
         logger.error("%s", error.message);
     }
     return reporter.onEnd();

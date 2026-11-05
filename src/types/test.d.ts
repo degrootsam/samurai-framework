@@ -74,6 +74,26 @@ export interface TestStepEntry {
   steps?: TestStepEntry[];
 }
 
+/** How a fixture's setup or teardown went in one test */
+export interface TestFixturePhase {
+  /** `"skipped"`: a worker fixture another test of this worker already set up */
+  status: "passed" | "failed" | "skipped";
+  /** Milliseconds */
+  durationMs: number;
+  error?: TestError;
+}
+
+/** A fixture that set up for a test (hand-written `test.extend` ones too), as the report lists it */
+export interface TestFixtureEntry {
+  name: string;
+  scope: "test" | "worker";
+  setup: TestFixturePhase;
+  /** Absent for a worker fixture: it is torn down when the worker is done, after the test's result is written */
+  teardown?: Omit<TestFixturePhase, "status"> & { status: "passed" | "failed" };
+  /** The declared outputs that are not secret */
+  outputs?: Record<string, string | number | boolean>;
+}
+
 /** What `testInfo` and `test.info()` tell about the running test (hooks included) */
 export interface TestInfo {
   /** The test's own title */
@@ -245,6 +265,8 @@ interface TestResultSuccess extends TestResultIdentity, TestRetries {
   annotations?: TestAnnotation[];
   /** The steps the test ran with `test.step`; absent when it ran none */
   steps?: TestStepEntry[];
+  /** The fixtures the test set up and how each went; absent when it used none */
+  fixtures?: TestFixtureEntry[];
 }
 
 /** The error sits flat on the entry, as in the report: `message`, `type`, `stack`, and for assertions `expected` and `actual` */
@@ -265,6 +287,8 @@ interface TestResultFailed extends TestResultIdentity, TestError, TestRetries {
   annotations?: TestAnnotation[];
   /** The steps the test ran with `test.step`; absent when it ran none */
   steps?: TestStepEntry[];
+  /** The fixtures the test set up and how each went; absent when it used none */
+  fixtures?: TestFixtureEntry[];
 }
 
 /** What a result says about the retries of its test; absent when it passed or failed on the first attempt */
