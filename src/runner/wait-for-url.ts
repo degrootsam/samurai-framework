@@ -6,7 +6,7 @@ import net from "node:net";
 const POLL_MS = 100;
 
 /** Resolves true once `url` answers with a status from 200 to 403 (a server that is up but wants a login counts) */
-export function urlAnswers(
+function urlAnswers(
   url: string,
   options: { ignoreHTTPSErrors?: boolean } = {},
 ): Promise<boolean> {
@@ -31,7 +31,7 @@ export function urlAnswers(
 }
 
 /** Resolves true when something on this machine accepts a TCP connection on `port` (IPv4 or IPv6 `localhost`) */
-export function portAnswers(port: number): Promise<boolean> {
+function portAnswers(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = net.connect({ port, host: "localhost", timeout: 2000 });
     socket.once("connect", () => {

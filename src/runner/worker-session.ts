@@ -35,6 +35,8 @@ export function openSession(init: WorkerInit): Promise<WorkerSession> {
         ...(headless !== undefined && { headless }),
       },
       async (run) => {
+        if (run.settings.baseURL === undefined && init.baseURL !== undefined)
+          run.settings.baseURL = init.baseURL;
         const loaded = await loadSpecs(init.files);
         // The `beforeAll` hooks this worker ran: their `afterAll` hooks run when it closes
         const allHooks = new AllHooks({

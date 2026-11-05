@@ -5,6 +5,7 @@ import { projectBrowser } from "../browsers/resolve.js";
 import { loadRawConfig, projectDir, readConfig } from "../config/config.js";
 import { forbidsOnly } from "../config/forbid-only.js";
 import logger from "../logger/index.js";
+import type { SamuraiTestConfig } from "../types/config.js";
 import type { RegisteredTestCase } from "../types/test.js";
 import { AllHooks } from "./all-hooks.js";
 import { assertNoOnly, narrowToOnly } from "./focus.js";
@@ -30,6 +31,7 @@ import { resolveRetries } from "./retries-option.js";
 import { runWithRetries } from "./retry.js";
 import { resolveWorkers } from "../config/workers-option.js";
 import { runOutput } from "./output.js";
+import { withRunHooks } from "./run-hooks.js";
 import { WorkerPool, type PoolOptions } from "./worker-pool.js";
 import { processWorkerFactory } from "./worker-process.js";
 
@@ -121,10 +123,23 @@ export default class TestRunner {
    * was also written to the report. With more than one worker the tests run at the same time in worker processes.
    */
   public async start() {
+    const config = await loadRawConfig();
+    // Web servers and `globalSetup` come first and `globalTeardown` last, around everything below
+    return withRunHooks(
+      {
+        config,
+        settings: this.run.settings,
+        projectDir: projectDir(),
+        signal: this.options.signal,
+      },
+      () => this.execute(config),
+    );
+  }
+
+  private async execute(config: SamuraiTestConfig) {
     const { onEvent, signal } = this.options;
     // The specs are imported once: their top-level code runs once per run
     const loaded = await loadSpecs(this.testFiles);
-    const config = await loadRawConfig();
     // A focused test the config refuses stops the run before anything starts; else only the focused ones run
     assertNoOnly(loaded.all, forbidsOnly(config), loaded.srcDir);
     const selected = narrowToOnly(selectTests(loaded, this.options));
@@ -261,6 +276,7 @@ export default class TestRunner {
           dataDir: this.project.dataDir,
         }),
         environment: settings.environment,
+        ...(settings.baseURL !== undefined && { baseURL: settings.baseURL }),
         timeout: settings.timeout,
         expectTimeout: settings.expectTimeout,
         ...(headless !== undefined && { headless }),

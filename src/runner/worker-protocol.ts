@@ -23,6 +23,8 @@ export interface WorkerInit {
   projectDir: string;
   dataDir?: string;
   environment?: string;
+  /** The run's base URL when no config sets one (it came from a web server): used where the config has none */
+  baseURL?: string;
   timeout?: number;
   expectTimeout?: number;
   headless?: boolean;
