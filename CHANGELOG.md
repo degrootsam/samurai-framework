@@ -1,3 +1,13 @@
+## 0.22.3 (2026-11-05)
+
+### 🩹 Fixes
+
+- **framework:** the recorder always opens a window
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.2 (2026-11-05)
 
 ### 🚀 Features
