@@ -1,4 +1,5 @@
 import { callFunction } from "../script/call-function.js";
+import { cdpSend } from "./cdp.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 
 /** Time (ms) without a `resize` event after which a viewport reset counts as done */
@@ -41,13 +42,25 @@ export function validateViewport({
 
 /**
  * Gives the context this size (and optionally this device pixel ratio); `null` puts the browser's own size back
- * and waits until the page has really got it.
+ * and waits until the page has really got it. A `mobile` page (Chrome's phone layout, `use.isMobile`) is sized
+ * through CDP, as BiDi's `setViewport` would turn the phone layout off again.
  */
 export async function applyViewport(
   connector: BiDiConnector,
   context: string,
   viewport: Viewport | null,
+  mobile = false,
 ): Promise<void> {
+  if (mobile) {
+    if (viewport) validateViewport(viewport);
+    await cdpSend(connector, context, "Emulation.setDeviceMetricsOverride", {
+      width: viewport?.width ?? 0,
+      height: viewport?.height ?? 0,
+      deviceScaleFactor: viewport ? (viewport.devicePixelRatio ?? 1) : 0,
+      mobile: true,
+    });
+    return;
+  }
   if (viewport === null) {
     await untilResized(connector, context, () =>
       connector.send("browsingContext.setViewport", {

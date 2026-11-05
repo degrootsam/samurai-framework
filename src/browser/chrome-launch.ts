@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import logger from "../logger/index.js";
 import { BiDiConnector } from "../transport/bidi-connection.js";
-import { SESSION_CAPABILITIES } from "./session-capabilities.js";
+import type { UseOptions } from "../types/use.js";
+import { sessionCapabilities } from "./session-capabilities.js";
 
 /** What `Browser` needs of the thing it launched: the browser process, or for Chrome the chromedriver in front of it */
 export interface BrowserProcess {
@@ -21,6 +22,8 @@ interface ChromeLaunch {
   profileDir: string;
   headless: boolean;
   commandTimeout: number | undefined;
+  /** The `use` options that are fixed when the browser starts */
+  use?: UseOptions | undefined;
   signal?: AbortSignal | undefined;
 }
 
@@ -43,7 +46,7 @@ export const chromeCapabilities = (launch: ChromeLaunch) => ({
     alwaysMatch: {
       browserName: "chrome",
       webSocketUrl: true,
-      ...SESSION_CAPABILITIES.alwaysMatch,
+      ...sessionCapabilities(launch.use).alwaysMatch,
       "goog:chromeOptions": {
         binary: launch.executablePath,
         args: chromeFlags(launch),

@@ -39,6 +39,8 @@ export interface FixtureSources {
   options: RunnerOptions;
   sink: OutputSink;
   info: TestInfo;
+  /** What the `use` options came to in this browser */
+  device: { isMobile: boolean; hasTouch: boolean };
 }
 
 /**
@@ -47,8 +49,17 @@ export interface FixtureSources {
  * that asks for it should see).
  */
 export function buildTestFixtures(from: FixtureSources): TestFixtures {
-  const { launched, browserName, workerIndex, run, test, options, sink, info } =
-    from;
+  const {
+    launched,
+    browserName,
+    workerIndex,
+    run,
+    test,
+    options,
+    sink,
+    info,
+    device,
+  } = from;
   const { settings, secrets } = run;
   const fixtures = {
     page: launched.page,
@@ -59,6 +70,8 @@ export function buildTestFixtures(from: FixtureSources): TestFixtures {
     secrets: createSecretsFixture(settings.environment, secrets),
     inputs: createInputsFixture(test.inputs, options.inputs),
     outputs: createOutputsFixture(sink),
+    isMobile: device.isMobile,
+    hasTouch: device.hasTouch,
   };
   return Object.defineProperties(fixtures, {
     context: { enumerable: true, get: () => launched.page.context() },

@@ -26,6 +26,7 @@ import { toTestError } from "./test-error.js";
 import { runInTestScope, TestInfoImpl } from "./test-info.js";
 import { ioOfAttempt, missingOutputs } from "./test-io.js";
 import { buildTestFixtures } from "./fixtures.js";
+import { effectiveUse } from "./use-options.js";
 import { beginOutputs, endOutputs } from "../wait/output-sink.js";
 
 type Logs = { logs?: TestLogEntry[]; logsDropped?: number };
@@ -151,12 +152,14 @@ export async function runOneTest(
     try {
       // The `beforeAll` hooks come first, before a browser exists
       await resources.allHooks?.ensure(test, browserName);
+      const use = await effectiveUse(test);
       const launched = await Browser.launch(
         browserName,
         {
           port: resources.port ?? options.port ?? DEFAULT_PORT,
           ...(resources.profileDir && { profileDir: resources.profileDir }),
           headless: options.headless ?? settings.headless,
+          use,
         },
         timeoutController.signal,
       );
@@ -174,6 +177,11 @@ export async function runOneTest(
         browserGone();
       });
       page = launched.page;
+      // An empty `use` leaves the browser exactly as it was: no applier, nothing sent
+      const applied =
+        Object.keys(use).length > 0
+          ? await launched.browser.setUse(use, projectDir())
+          : undefined;
       const testFolder = `${browserName}/${testDirOf(test, srcDir)}${resources.attempt ? `/retry-${resources.attempt}` : ""}`;
       outcome.evidence = new Evidence(resultDir, testFolder);
       launched.page.setEvidence(outcome.evidence);
@@ -200,6 +208,10 @@ export async function runOneTest(
         test,
         options,
         sink,
+        device: {
+          isMobile: applied?.isMobile ?? false,
+          hasTouch: applied?.hasTouch ?? false,
+        },
       });
       await runInTestScope({ info, fixtures }, () =>
         runWithEachHooks(

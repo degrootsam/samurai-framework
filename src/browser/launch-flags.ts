@@ -3,6 +3,7 @@ import path from "node:path";
 import { browsersDir } from "../config/config.js";
 import logger from "../logger/index.js";
 import type { SupportedBrowser } from "../types/browser.js";
+import type { UseOptions } from "../types/use.js";
 
 export interface BrowserLaunchOptions {
   /** Which port to use for the WebDeveloper tools */
@@ -11,6 +12,8 @@ export interface BrowserLaunchOptions {
   profileDir: string;
   /** Start the browser in headless mode or in UI mode */
   headless: boolean;
+  /** The `use` options that can only be set when the browser starts (certificates, and Firefox's JavaScript and colour scheme) */
+  use?: UseOptions;
 }
 
 const browserProfilePath = (browserName: SupportedBrowser): string =>
@@ -108,10 +111,29 @@ const browserProfiles: Record<SupportedBrowser, string> = {
   `,
 };
 
+/**
+ * The prefs a Firefox run chooses. Always written, with the browser's own values when nothing is chosen: Firefox
+ * keeps a pref a user.js set in the profile, so a run without `use` would otherwise inherit the one before it.
+ */
+function usePrefs(use?: UseOptions): string {
+  const scheme = { light: 1, dark: 0, "no-preference": 2 }[
+    use?.colorScheme ?? "no-preference"
+  ];
+  return `
+    user_pref("javascript.enabled", ${use?.javaScriptEnabled !== false});
+    user_pref("layout.css.prefers-color-scheme.content-override", ${scheme});
+  `;
+}
+
+const profileText = (browserName: SupportedBrowser, use?: UseOptions) =>
+  browserProfiles[browserName] +
+  (browserName === "firefox" ? usePrefs(use) : "");
+
 /** Writes the browser's user.js unless it already holds the current prefs; an outdated one is replaced */
 export function ensureBrowserProfile(
   browserName: SupportedBrowser,
   profilePath: string | undefined = browserProfilePath(browserName),
+  use?: UseOptions,
 ) {
   logger.verbose("Checking browser profile for: %s", browserName);
   if (!profilePath) {
@@ -119,7 +141,7 @@ export function ensureBrowserProfile(
     return;
   }
   if (existsSync(profilePath)) {
-    if (readFileSync(profilePath, "utf8") === browserProfiles[browserName]) {
+    if (readFileSync(profilePath, "utf8") === profileText(browserName, use)) {
       logger.verbose("Browser profile is up to date at: %s", profilePath);
       return;
     }
@@ -131,12 +153,13 @@ export function ensureBrowserProfile(
     logger.verbose("No browser profile created yet for %s", browserName);
   }
 
-  createBrowserProfile(browserName, profilePath);
+  createBrowserProfile(browserName, profilePath, use);
 }
 
 function createBrowserProfile(
   browserName: SupportedBrowser,
   profilePath: string,
+  use?: UseOptions,
 ) {
   logger.verbose(
     "Creating browser profile for %s at %s",
@@ -145,7 +168,7 @@ function createBrowserProfile(
   );
   mkdirSync(path.dirname(profilePath), { recursive: true });
 
-  writeFileSync(profilePath, browserProfiles[browserName], {
+  writeFileSync(profilePath, profileText(browserName, use), {
     encoding: "utf8",
   });
   logger.verbose("Browser profile created");

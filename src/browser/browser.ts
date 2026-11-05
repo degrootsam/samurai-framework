@@ -9,6 +9,8 @@ import { launchChrome, type BrowserProcess } from "./chrome-launch.js";
 import { BrowserContext, type ContextHost } from "./browser-context.js";
 import type { UserPromptHandler } from "../types/bidi-modules/session.js";
 import { validateEmulation, type EmulationOptions } from "./emulation.js";
+import { UseApplier } from "./use-applier.js";
+import type { UseOptions } from "../types/use.js";
 import { prepareDownloadsDir, removeIfEmpty } from "./downloads-dir.js";
 import { ChromeDownloadFolders } from "./download-folders.js";
 import { launchFirefox } from "./launch-firefox.js";
@@ -50,6 +52,8 @@ export class Browser {
   public readonly downloadsDir: string | undefined;
   private exitedPromise: Promise<void> | undefined;
   private downloadFolders: ChromeDownloadFolders | undefined;
+  /** The `use` options of the run, once `setUse` has been called: what every context and page gets */
+  private use: UseApplier | undefined;
 
   constructor({
     browserProc,
@@ -103,6 +107,7 @@ export class Browser {
       browserName,
       launchOptions.profileDir &&
         path.join(launchOptions.profileDir, "user.js"),
+      launchOptions.use,
     );
     const commandTimeout = await readCommandTimeout();
 
@@ -119,6 +124,7 @@ export class Browser {
             headless:
               launchOptions.headless ?? defaultLaunchOptions("chrome").headless,
             commandTimeout,
+            use: launchOptions.use,
             signal,
           })
         : await launchFirefox({
@@ -195,6 +201,27 @@ export class Browser {
     return { browser, page };
   }
 
+  /**
+   * @internal The runner calls this after launch: the `use` options now apply to the default context and its pages,
+   * and to every context and page created later. Options passed to `newContext` win over them.
+   */
+  public async setUse(
+    options: UseOptions,
+    projectDir: string,
+  ): Promise<UseApplier> {
+    const name = this.biDiConnector.browserName ?? "firefox";
+    const applier = new UseApplier(
+      this.biDiConnector,
+      name,
+      options,
+      projectDir,
+    );
+    this.use = applier;
+    await applier.context(this.defaultContext);
+    for (const page of this.defaultContext.pages()) await applier.page(page);
+    return applier;
+  }
+
   /** Closes the browser via BiDi browser.close, then makes sure the process has exited */
   public async close() {
     await this.downloadFolders?.dispose();
@@ -248,6 +275,7 @@ export class Browser {
     const page = new Page(this.biDiConnector, createBrowserContext.context);
     this.contextFor(userContext).register(page);
     await page.startTracking();
+    await this.use?.page(page);
     return page;
   }
 
@@ -261,22 +289,25 @@ export class Browser {
   public async newContext(
     options: ContextOptions = {},
   ): Promise<BrowserContext> {
-    const { acceptInsecureCerts, unhandledPromptBehavior, ...emulation } =
-      options;
+    const { unhandledPromptBehavior, ...emulation } = options;
+    const insecure =
+      options.acceptInsecureCerts ?? this.use?.acceptInsecureCerts;
+    delete (emulation as ContextOptions).acceptInsecureCerts;
     // A wrong value must not leave a context behind, so it is refused before one is created
     validateEmulation(emulation);
     const { userContext } = await this.biDiConnector.send(
       "browser.createUserContext",
       {
-        ...(acceptInsecureCerts !== undefined && { acceptInsecureCerts }),
+        ...(insecure !== undefined && { acceptInsecureCerts: insecure }),
         ...(unhandledPromptBehavior && { unhandledPromptBehavior }),
       },
     );
     const context = new BrowserContext(this.host, userContext, false);
     this.userContexts.set(userContext, context);
-    if (Object.keys(emulation).length > 0) {
+    if (this.use || Object.keys(emulation).length > 0) {
       try {
-        await context.emulate(emulation);
+        await this.use?.context(context);
+        if (Object.keys(emulation).length > 0) await context.emulate(emulation);
       } catch (err) {
         // Firefox keeps a context in its profile until it is removed
         await context.close().catch((closeErr) =>

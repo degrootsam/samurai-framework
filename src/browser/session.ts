@@ -1,7 +1,8 @@
 import { DEFAULT_COMMAND_TIMEOUT } from "../config/defaults.js";
 import type { BiDiConnector } from "../transport/bidi-connection.js";
 import { BiDiError } from "../transport/bidi-error.js";
-import { SESSION_CAPABILITIES } from "./session-capabilities.js";
+import type { UseOptions } from "../types/use.js";
+import { sessionCapabilities } from "./session-capabilities.js";
 
 /** session.new waits at least this long (ms): the first start after an install can take a while (macOS checks the new app) */
 const SESSION_START_TIMEOUT = 120_000;
@@ -21,6 +22,7 @@ export async function startSession(
   connector: Pick<BiDiConnector, "send">,
   label: string,
   commandTimeout: number | undefined,
+  use?: UseOptions,
 ): Promise<void> {
   const timeout = Math.max(
     commandTimeout ?? DEFAULT_COMMAND_TIMEOUT,
@@ -29,7 +31,7 @@ export async function startSession(
   try {
     await connector.send(
       "session.new",
-      { capabilities: SESSION_CAPABILITIES },
+      { capabilities: sessionCapabilities(use) },
       { timeout },
     );
   } catch (err) {

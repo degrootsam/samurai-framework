@@ -85,7 +85,7 @@ export function launchFirefox(launch: FirefoxLaunch): Promise<{
         connector = await BiDiConnector.connect(url, { commandTimeout });
         const status = await connector.send("session.status", {});
         logger.verbose("Session status", status);
-        await startSession(connector, label, commandTimeout);
+        await startSession(connector, label, commandTimeout, launchOptions.use);
         logger.verbose("Session started successfully");
         settled();
         resolve({ proc, connector });

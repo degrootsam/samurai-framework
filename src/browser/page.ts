@@ -103,6 +103,8 @@ export default class Page {
   private transfers: PageTransfers;
   private evidence: Evidence | undefined;
   private knownViewport: { width: number; height: number } | null = null;
+  /** Chrome's phone layout is on (`emulateMobile`): viewport changes keep it */
+  private mobile = false;
 
   /** `settings` override what `samurai.config.ts` says; without them the config is read when needed */
   constructor(
@@ -426,11 +428,17 @@ export default class Page {
    */
   public async setViewport(viewport: Viewport | null): Promise<void> {
     this.assertOpen();
-    await applyViewport(this.biDiConnector, this.id, viewport);
+    await applyViewport(this.biDiConnector, this.id, viewport, this.mobile);
     this.knownViewport = viewport && {
       width: viewport.width,
       height: viewport.height,
     };
+  }
+
+  /** @internal Chrome: lays this page out like a phone from now on (`use.isMobile`), including the size it has now */
+  public async emulateMobile(): Promise<void> {
+    this.mobile = true;
+    await this.setViewport(this.knownViewport);
   }
 
   /** Playwright's name for `setViewport` */

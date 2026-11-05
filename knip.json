@@ -20,5 +20,6 @@
     "scripts/*.mjs"
   ],
   "project": ["src/**/*.ts"],
+  "ignoreBinaries": ["openssl"],
   "ignore": ["src/types/bidi-commands.test-d.ts", "src/tests/**"]
 }
