@@ -1,3 +1,38 @@
+## 0.22.0 (2026-11-05)
+
+### 🚀 Features
+
+- ⚠️ **framework:** replace emulate with use, one option set for config, tests and the page
+- **framework:** add groups[].use, layered between config use and test.use
+- **framework:** select several groups, and name the group in results
+- **framework:** add --shard to run one slice of the selected tests
+- **framework:** run serial blocks in order on one worker, and add fullyParallel
+- **framework:** add describe.configure, describe.serial and describe.parallel
+- **framework:** run globalSetup and globalTeardown around the web servers
+- **framework:** add the webServer config: start, wait for and stop servers
+- **framework:** add page.request, context.request, the request fixture and request.newContext
+- **framework:** add hover, dblclick, tap, dragTo, dispatchEvent, blur, clear and pressSequentially
+- **framework:** add page.keyboard and page.mouse
+
+### 🩹 Fixes
+
+- **framework:** show chromedriver's last output when it exits before it is ready
+
+### ⚠️ Breaking Changes
+
+- **framework:** replace emulate with use, one option set for config, tests and the page
+  page.emulate -> page.use, context.emulate -> context.use,
+  EmulationError -> UseError, EmulationUnsupportedError -> UseUnsupportedError.
+  Option renames: timezoneId -> timezone, emulate's touch (a number) -> hasTouch
+  (a boolean, maxTouchPoints 1). The old names are refused with an error that
+  names the new one. Invalid values are now TypeError (were RangeError) and
+  read use(): what is wrong. browser.newContext() takes the same run-time
+  options.
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.21.5 (2026-11-05)
 
 ### 🚀 Features
