@@ -4,7 +4,12 @@ import { track } from "../assert/pending-assertions.js";
 import { isPassthroughKey } from "../config/variables.js";
 import { isIoName } from "../flows/core/steps.js";
 import type Locator from "../locator/locator.js";
-import type { TestError, TestOptions, TestOutputs } from "../types/test.js";
+import type {
+  TestAnnotation,
+  TestError,
+  TestOptions,
+  TestOutputs,
+} from "../types/test.js";
 import type { OutputSink } from "../wait/output-sink.js";
 
 function checkName(call: string, kind: string, name: unknown): void {
@@ -55,6 +60,36 @@ export function validateTestIO(
     if (outputs.length > 0) result.outputs = [...outputs];
   }
   return result;
+}
+
+/** Checks the `annotations` of a `test()` options object and returns them, or nothing when absent or empty */
+export function validateTestAnnotations(
+  call: string,
+  options: TestOptions,
+): { annotations?: TestAnnotation[] } {
+  const { annotations } = options;
+  if (annotations === undefined) return {};
+  if (!Array.isArray(annotations))
+    throw new Error(`${call}(): annotations must be an array`);
+  for (const note of annotations as unknown[]) {
+    const entry = note as Partial<TestAnnotation> | null;
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry))
+      throw new Error(
+        `${call}(): each annotation must be an object with a type`,
+      );
+    if (typeof entry.type !== "string" || entry.type === "")
+      throw new Error(`${call}(): an annotation needs a non-empty type`);
+    if (
+      entry.description !== undefined &&
+      typeof entry.description !== "string"
+    )
+      throw new Error(
+        `${call}(): the description of annotation "${entry.type}" must be a string`,
+      );
+  }
+  return annotations.length > 0
+    ? { annotations: annotations.map((a) => ({ ...a })) }
+    : {};
 }
 
 /**

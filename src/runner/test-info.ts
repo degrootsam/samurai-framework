@@ -67,6 +67,7 @@ export class TestInfoImpl implements TestInfo {
     const { test } = from;
     this.title = test.titlePath[test.titlePath.length - 1] ?? test.name;
     this.titlePath = [...test.titlePath];
+    this.annotations = (test.annotations ?? []).map((a) => ({ ...a }));
     this.file = test.file;
     if (test.line !== undefined) this.line = test.line;
     if (test.column !== undefined) this.column = test.column;

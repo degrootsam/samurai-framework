@@ -170,6 +170,8 @@ export interface TestOptions extends TestDetails {
   inputs?: Record<string, string>;
   /** Names of the text values the test saves for later tests to use */
   outputs?: string[];
+  /** Notes on the test, such as `{ type: "plan", description: "plans/pay.plan.md" }`; the report lists them first */
+  annotations?: TestAnnotation[];
 }
 
 /** Runs before or after each test of a suite, in the test's browser, with the test's fixtures */
@@ -225,6 +227,8 @@ export interface RegisteredTestCase extends TestCaseBase {
   inputs?: Record<string, string>;
   /** The names of the outputs the test declared */
   outputs?: string[];
+  /** The annotations the test declared; every run of the test starts with them */
+  annotations?: TestAnnotation[];
   /** Registered with `test.fail("title", fn)`: expected to fail; `description` is the `{ reason }` given */
   expectedFail?: { description?: string };
   /** The custom fixtures of the `test` it was written with (`test.extend()`); absent for the plain `test` */

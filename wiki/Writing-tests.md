@@ -289,6 +289,8 @@ test.afterEach(async ({ page, testInfo }) => {
 
 A test that attached files has `attachments: [{ name, contentType, path }]` in its report entry (`path` is relative to the result folder), and one that pushed annotations has `annotations`. Both fields are absent otherwise, so existing reports read the same.
 
+A test can also declare annotations up front, in its options: `test("pays", { annotations: [{ type: "plan", description: "plans/pay.plan.md" }] }, async ({ page }) => { ... })`. Each entry is `{ type, description? }` (`type` is a non-empty string; anything else is a `test(): ...` error). Every run of the test starts with them, so the report lists them first, before notes the test pushes itself or `test.fail()` / `test.slow()` add. The recorder and the agent read, keep and write this option (a spec edited by them keeps it as written); `generate --plan` uses it to record which plan made a test.
+
 ## Steps, expected failures and timeouts
 
 **`test.step(title, body, { timeout? })`** runs `body` as a named step of the running test and returns its value. Steps nest. A step that throws is marked failed and rethrows, so the test fails as it would without the step. With `timeout` (milliseconds), a step that takes longer fails with `step "title" timed out after N ms`; its body keeps running, as nothing can stop it. `test.step` works on a `test` made by `test.extend` too, and throws `step(): no test is running` outside a test or hook.

@@ -6,6 +6,7 @@ import type {
   Modifier,
   SuiteMode,
   RegisteredTestCase,
+  TestAnnotation,
   TestFixtures,
   TestOptions,
 } from "../types/test.js";
@@ -32,7 +33,7 @@ import {
 } from "./test-info.js";
 import { runStep } from "./steps.js";
 import { markTests } from "./test-annotations.js";
-import { validateTestIO } from "./test-io.js";
+import { validateTestAnnotations, validateTestIO } from "./test-io.js";
 import {
   addHook,
   addUse,
@@ -76,6 +77,7 @@ interface TestExtras {
   reason?: string;
   inputs?: Record<string, string>;
   outputs?: string[];
+  annotations?: TestAnnotation[];
   /** Registered with `test.fail("title", fn)` */
   expectedFail?: { description?: string };
 }
@@ -87,7 +89,8 @@ function add(
   modifier?: Modifier,
   extras: TestExtras = {},
 ): void {
-  const { reason, inputs, outputs, extension, expectedFail } = extras;
+  const { reason, inputs, outputs, annotations, extension, expectedFail } =
+    extras;
   const suite = currentSuite(file);
   const titlePath = [...titlesOf(suite), title];
   const name = titlePath.join(" > ");
@@ -101,6 +104,7 @@ function add(
     ...modifierOf({ modifier, ...(reason !== undefined && { reason }) }, suite),
     ...(inputs && { inputs }),
     ...(outputs && { outputs }),
+    ...(annotations && { annotations }),
     ...(extension && { extension }),
     ...(expectedFail && { expectedFail }),
   });
@@ -126,6 +130,7 @@ function bodyAndOptions<F>(
   reason?: string;
   inputs?: Record<string, string>;
   outputs?: string[];
+  annotations?: TestAnnotation[];
 } {
   const [options, fn] =
     typeof second === "function"
@@ -140,6 +145,9 @@ function bodyAndOptions<F>(
     fn: fn as F,
     ...(reason !== undefined && { reason }),
     ...(options && call.startsWith("test") && validateTestIO(call, options)),
+    ...(options &&
+      call.startsWith("test") &&
+      validateTestAnnotations(call, options)),
   };
 }
 
