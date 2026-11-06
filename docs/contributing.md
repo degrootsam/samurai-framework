@@ -26,6 +26,7 @@ src/
   cli/                   the `samurai` command (see the rule below)
   steps/                 step model, parser, emitter, minimal-diff editor
   recorder/              capture script, locator ranking, normaliser, Recorder, recordSpec
+  agent/                 the AI agent (`@itmetsam/samurai-framework/agent`): model glue, page snapshot, tools that write typed steps through the recorder's path
   recorder/toolbar/      the toolbar shown in the recorded page and its controller
   project/               writing to a project: config edits, variables, .env secrets
   flows/core/            the pure flow model: schema, graph, expressions, checks (no Node APIs)
@@ -81,22 +82,23 @@ bun run typecheck                 # typecheck, including unused locals
 
 The table reads top to bottom: a folder mostly uses the ones below it. It is taken from the imports (`npx madge --json src`, with the exclusions in `.madgerc`), the real picture today is:
 
-| Folder                     | Imports from (values; `import type` is not counted)                                                                                              |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `cli`                      | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)                                                                  |
-| `runner`                   | `browser`, `browsers`, `request`, `assert`, `config`, `transport`, `logger`, `flows/core` (`isIoName`, and the `Field` type for option fixtures) |
-| `recorder`                 | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`, `flows/core` (`isIoName` only)                                         |
-| `flows/run`, `flows/steps` | `flows/core`, `runner`, `config` (and each other: handlers and steps)                                                                            |
-| `browser`                  | `network`, `request`, `locator`, `script`, `steps`, `browsers`, `transport`, `wait`, `config`                                                    |
-| `assert`                   | `locator`, `wait`, `config`                                                                                                                      |
-| `locator`                  | `script`, `browser` (screenshots, generated files), `transport`, `wait`, `config`                                                                |
-| `network`, `script`        | `transport`, `wait`, `logger`                                                                                                                    |
-| `request`                  | `config` (the run's `baseURL`, storage state files), `logger`                                                                                    |
-| `transport`                | `wait`, `logger`                                                                                                                                 |
-| `config`, `logger`         | each other only                                                                                                                                  |
-| `project`, `browsers`      | `config`, `logger`                                                                                                                               |
-| `steps`                    | `flows/core` (`isIoName` only, so the editor applies the runtime's name rules)                                                                   |
-| `wait`, `flows/core`       | nothing (`flows/core` is pure, no Node APIs; a test bundles it to prove that)                                                                    |
+| Folder                     | Imports from (values; `import type` is not counted)                                                                                                                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cli`                      | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)                                                                                                                                                        |
+| `agent`                    | `browser`, `locator`, `steps`, `recorder` (its normaliser, spec writer and locator ranking, by file), `assert`, `script`, `config`, `runner` (`project.ts`); never `cli`. The only folder that imports `ai` and `zod` (optional peers) |
+| `runner`                   | `browser`, `browsers`, `request`, `assert`, `config`, `transport`, `logger`, `flows/core` (`isIoName`, and the `Field` type for option fixtures)                                                                                       |
+| `recorder`                 | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`, `flows/core` (`isIoName` only)                                                                                                                               |
+| `flows/run`, `flows/steps` | `flows/core`, `runner`, `config` (and each other: handlers and steps)                                                                                                                                                                  |
+| `browser`                  | `network`, `request`, `locator`, `script`, `steps`, `browsers`, `transport`, `wait`, `config`                                                                                                                                          |
+| `assert`                   | `locator`, `wait`, `config`                                                                                                                                                                                                            |
+| `locator`                  | `script`, `browser` (screenshots, generated files), `transport`, `wait`, `config`                                                                                                                                                      |
+| `network`, `script`        | `transport`, `wait`, `logger`                                                                                                                                                                                                          |
+| `request`                  | `config` (the run's `baseURL`, storage state files), `logger`                                                                                                                                                                          |
+| `transport`                | `wait`, `logger`                                                                                                                                                                                                                       |
+| `config`, `logger`         | each other only                                                                                                                                                                                                                        |
+| `project`, `browsers`      | `config`, `logger`                                                                                                                                                                                                                     |
+| `steps`                    | `flows/core` (`isIoName` only, so the editor applies the runtime's name rules)                                                                                                                                                         |
+| `wait`, `flows/core`       | nothing (`flows/core` is pure, no Node APIs; a test bundles it to prove that)                                                                                                                                                          |
 
 `wait/output-sink.ts` holds the outputs a running test saves (the current sink and `bindOutput`). It sits in `wait/` because `assert` and `locator` both save into it and neither may import `runner`.
 

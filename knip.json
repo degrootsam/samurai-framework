@@ -6,6 +6,7 @@
     "src/runner/run.ts",
     "src/steps/index.ts",
     "src/recorder/index.ts",
+    "src/agent/index.ts",
     "src/cli/init.ts",
     "src/browsers/index.ts",
     "src/browser/index.ts",
