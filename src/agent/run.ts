@@ -5,27 +5,26 @@ import {
   launchRecordingBrowser,
   prepareRecordingBrowser,
 } from "../recorder/session-browser.js";
-import { resultSecrets } from "../recorder/session-secrets.js";
 import { fixtureCatalog } from "../runner/fixture-registry.js";
 import { withProject } from "../runner/project.js";
 import { loadInstructions } from "./instructions.js";
 import { resolveLimits } from "./limits.js";
 import { runLoop, type RunTally } from "./loop.js";
 import { assertModelObject } from "./model.js";
-import { buildSystemPrompt } from "./prompt.js";
-import { StepRecorder } from "./recording.js";
+import { generateKind } from "./generate-kind.js";
+import type { RunKind, RunSink } from "./run-kind.js";
 import { toSdkTools, type AiModule } from "./sdk-tools.js";
 import { AgentController } from "./session.js";
 import { Snapshotter } from "./snapshot.js";
-import { createTools } from "./tools/index.js";
 import { OriginPolicy } from "./tools/origins.js";
 import type { ToolContext } from "./tools/context.js";
-import { personRecording, type PersonRecording } from "./take-over.js";
+import type { PersonRecording } from "./take-over.js";
 import type {
   AgentEndReason,
   AgentOptions,
   AgentResult,
   AgentSession,
+  BaseAgentOptions,
 } from "./types.js";
 
 /** What a run needs from outside, replaced in tests */
@@ -51,7 +50,7 @@ async function loadAi(deps: RunDeps): Promise<AiModule> {
 }
 
 /** The fixtures of the project's config, for the prompt; the agent works without them */
-async function fixturesOf(options: AgentOptions) {
+async function fixturesOf(options: BaseAgentOptions) {
   try {
     const config = options.config ?? (await loadRawConfig());
     return fixtureCatalog(config.fixtures ?? []);
@@ -73,10 +72,17 @@ function endReason(
   return limit ?? "finished";
 }
 
-/** Starts a run; its work goes on in the background and `result` settles when it ends */
-export function startAgent(
-  options: AgentOptions,
+/**
+ * Starts a run; its work goes on in the background and `result` settles when it ends. The kind says what the run
+ * records, which tools it has and what guards the page; the default writes a spec.
+ */
+export function startAgent<
+  O extends BaseAgentOptions = AgentOptions,
+  S extends RunSink = RunSink,
+>(
+  options: O,
   deps: RunDeps = {},
+  kind: RunKind<O, S> = generateKind as unknown as RunKind<O, S>,
 ): AgentSession {
   assertModelObject(options.model);
   const limits = resolveLimits(options.limits);
@@ -94,7 +100,7 @@ export function startAgent(
   if (options.signal?.aborted) controller.stop();
   const tally: RunTally = { modelCalls: 0, tokens: 0, finished: false };
   const done: {
-    steps?: StepRecorder;
+    steps?: S;
     summary?: string;
     error?: string;
     limit?: "step-limit" | "token-limit";
@@ -112,18 +118,9 @@ export function startAgent(
         ...(options.port !== undefined && { port: options.port }),
         signal: controller.signal,
       });
-      const steps = new StepRecorder({
-        file: options.file,
-        create: options.create,
-        test: options.test,
+      const steps = kind.sink(options, {
         baseURL: settings.baseURL,
-        onStep: (event, code, source) =>
-          controller.emit({
-            type: "step",
-            event,
-            ...(code !== undefined && { code }),
-            source,
-          }),
+        emit: (event) => controller.emit(event),
       });
       done.steps = steps;
       const { browser, page } = await launchRecordingBrowser(prepared, {
@@ -141,15 +138,14 @@ export function startAgent(
         const snapshots = new Snapshotter(page, {
           secretFields: options.secretFields ?? [],
         });
-        if (onWeb && steps.count === 0)
-          steps.observe({ type: "goto", url: current });
+        if (onWeb) kind.opened?.(steps, current);
         const origins = new OriginPolicy([
           ...(options.allowedOrigins ?? []),
           ...(onWeb ? [current] : startUrl ? [startUrl] : []),
         ]);
-        person.hooks = personRecording({
+        person.hooks = kind.person({
           page,
-          steps,
+          sink: steps,
           snapshots,
           ...(settings.baseURL !== undefined && { baseURL: settings.baseURL }),
         });
@@ -172,17 +168,21 @@ export function startAgent(
           emit: (event) => controller.emit(event),
           secretOnScreen: false,
         };
-        const system = buildSystemPrompt({
-          instructions: instructions.text,
-          fixtures: await fixturesOf(options),
-          secrets: options.secrets ?? [],
-          origins: origins.list(),
-          vision: options.vision === true,
-        });
+        await kind.guard?.(page, steps);
+        const system = kind.prompt(
+          {
+            instructions: instructions.text,
+            fixtures: await fixturesOf(options),
+            secrets: options.secrets ?? [],
+            origins: origins.list(),
+            vision: options.vision === true,
+          },
+          options,
+        );
         const first = onWeb
           ? `The browser is open on ${current}. This is the page now:\n\n${maskText((await snapshots.take()).text)}`
           : "No page is open yet: start with navigate.";
-        const tools = toSdkTools(ai, createTools(context), {
+        const tools = toSdkTools(ai, kind.tools(context, steps), {
           wait: () => controller.gate(),
           note: async () => controller.takeNote(),
         });
@@ -190,7 +190,7 @@ export function startAgent(
           ai,
           model: options.model,
           system,
-          prompt: `Goal: ${options.goal}\n\n${first}`,
+          prompt: kind.opening(options, first),
           tools,
           controller,
           limits,
@@ -225,10 +225,10 @@ export function startAgent(
         ...(reason === "finished" && summary !== undefined && { summary }),
         ...(reason === "error" &&
           done.error !== undefined && { error: done.error }),
-        file: steps?.file ?? options.file,
+        file: steps?.file ?? kind.file(options),
         test: steps?.testName ?? "",
         steps: steps?.count ?? 0,
-        secrets: steps ? resultSecrets(steps.events, []) : [],
+        secrets: steps ? kind.secrets(steps) : [],
         tokens: tally.tokens,
       });
       controller.end(ended);

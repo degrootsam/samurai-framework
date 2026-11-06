@@ -4,7 +4,7 @@ import { maskDeep } from "../../config/mask.js";
 import type { Snapshotter } from "../snapshot.js";
 import type { AgentEvent } from "../types.js";
 import type { OriginPolicy } from "./origins.js";
-import type { StepRecorder } from "../recording.js";
+import type { Observation, RecorderEvent } from "../../recorder/normalise.js";
 
 /** Secrets the agent may use: it knows the names; values are read here and go no further than the page */
 interface SecretAccess {
@@ -13,11 +13,19 @@ interface SecretAccess {
   get(name: string): string | undefined;
 }
 
+/** What the shared tools need from the run's record of what was done: a spec writer, or the planner's tally */
+export interface ToolSink {
+  /** Takes note of one thing done on the page and returns the events it wrote (none when nothing is written) */
+  observe(observation: Observation): RecorderEvent[];
+  /** Takes the last `count` steps back and returns how many went */
+  undo(count: number): number;
+}
+
 /** What the tools of one run share */
 export interface ToolContext {
   page: Page;
   snapshots: Snapshotter;
-  steps: StepRecorder;
+  steps: ToolSink;
   origins: OriginPolicy;
   secrets: SecretAccess;
   /** The model takes images, so `screenshot` works */
@@ -52,11 +60,11 @@ export interface AgentTool {
   run(args: unknown): Promise<ToolResult>;
 }
 
-interface ToolSpec<S extends z.ZodType> {
+interface ToolSpec<S extends z.ZodType, C extends ToolContext> {
   name: string;
   description: string;
   inputSchema: S;
-  execute(input: z.infer<S>, context: ToolContext): Promise<ToolResult>;
+  execute(input: z.infer<S>, context: C): Promise<ToolResult>;
 }
 
 /** The first lines of an error message: enough for the model, without a long call log */
@@ -68,8 +76,11 @@ export function shortMessage(error: unknown, max = 500): string {
 }
 
 /** A tool bound to a run. Wraps `execute` so every tool validates, reports and fails the same way */
-export function defineTool<S extends z.ZodType>(spec: ToolSpec<S>) {
-  return (context: ToolContext): AgentTool => ({
+export function defineTool<
+  S extends z.ZodType,
+  C extends ToolContext = ToolContext,
+>(spec: ToolSpec<S, C>) {
+  return (context: C): AgentTool => ({
     name: spec.name,
     description: spec.description,
     inputSchema: spec.inputSchema,

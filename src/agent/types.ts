@@ -21,6 +21,8 @@ export type AgentEvent =
       outputTokens: number;
       totalTokens: number;
     }
+  /** A planning run recorded step `n` of the plan file */
+  | { type: "plan-step"; n: number; text: string }
   | { type: "ended"; result: AgentResult };
 
 export type AgentEndReason =
@@ -47,17 +49,12 @@ export interface AgentResult {
   tokens: number;
 }
 
-export interface AgentOptions extends ProjectOptions {
+/** What every kind of run takes: the model, the goal, the browser and the limits */
+export interface BaseAgentOptions extends ProjectOptions {
   /** The model, as an object from an AI SDK provider package. A string is refused */
   model: AgentModel;
   /** What the test should do, in the person's words */
   goal: string;
-  /** The spec file, absolute or relative to the project folder */
-  file: string;
-  /** Add a test with this title to the file (creating it) instead of writing into an existing one */
-  create?: string;
-  /** The existing test to write into (title or index), as for `recordSpec` */
-  test?: string | number;
   /** Where the browser starts. @default the environment's base URL */
   url?: string;
   browser?: SupportedBrowser;
@@ -76,6 +73,17 @@ export interface AgentOptions extends ProjectOptions {
   limits?: Partial<AgentLimits>;
   signal?: AbortSignal;
   onEvent?: (event: AgentEvent) => void;
+}
+
+export interface AgentOptions extends BaseAgentOptions {
+  /** The spec file, absolute or relative to the project folder */
+  file: string;
+  /** Add a test with this title to the file (creating it) instead of writing into an existing one */
+  create?: string;
+  /** The existing test to write into (title or index), as for `recordSpec` */
+  test?: string | number;
+  /** The text of a plan written earlier (see `runPlan`): a draft to follow and check on the live page */
+  plan?: string;
 }
 
 /** A run in progress */

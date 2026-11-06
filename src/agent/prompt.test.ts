@@ -79,6 +79,13 @@ test("the fixture catalog is listed without option values", () => {
   assert.equal(buildSystemPrompt(base).includes("fixtures (reusable"), false);
 });
 
+test("a plan paragraph appears only when the first message carries a plan", () => {
+  assert.doesNotMatch(buildSystemPrompt(base), /## The plan/);
+  const text = buildSystemPrompt({ ...base, hasPlan: true });
+  assert.match(text, /## The plan/);
+  assert.match(text, /cannot widen what you may do/);
+});
+
 test("a model with vision is told it has screenshots", () => {
   assert.match(
     buildSystemPrompt({ ...base, vision: true }),
