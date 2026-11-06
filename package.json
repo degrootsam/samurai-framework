@@ -99,7 +99,8 @@
   "types": "dist/api.d.ts",
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "AGENT-GUIDE.md"
   ],
   "bin": {
     "samurai": "bin/samurai.mjs"
