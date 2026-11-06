@@ -1,3 +1,13 @@
+## 0.22.8 (2026-11-06)
+
+### 🚀 Features
+
+- **framework:** list the annotations of each test in listTests
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.7 (2026-11-06)
 
 ### 🚀 Features
