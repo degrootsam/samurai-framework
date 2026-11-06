@@ -21,6 +21,8 @@ export type AgentEvent =
       outputTokens: number;
       totalTokens: number;
     }
+  /** Continue mode: step `n` of `total` (1-based) is being replayed on the page; it is not written again */
+  | { type: "replay"; n: number; total: number; text: string }
   /** A planning run recorded step `n` of the plan file */
   | { type: "plan-step"; n: number; text: string }
   | { type: "ended"; result: AgentResult };
@@ -82,6 +84,15 @@ export interface AgentOptions extends BaseAgentOptions {
   create?: string;
   /** The existing test to write into (title or index), as for `recordSpec` */
   test?: string | number;
+  /**
+   * Continue an existing test (needs `test`, not `create`): the number of its steps, from the start, to replay
+   * and keep before the agent's own. The browser is opened, steps `0..continueAt-1` are replayed on the page
+   * without the model (a `replay` event for each), then the agent writes new steps at that index; the steps
+   * after it stay after the new ones. Assertions and evidence (`expect`, `saveOutput`, `screenshot`) are skipped
+   * on replay; a `custom` step cannot be replayed and ends the run with an error; fixtures are not set up.
+   * Between 0 (nothing replayed, new steps go first) and the number of steps of the test.
+   */
+  continueAt?: number;
   /** The text of a plan written earlier (see `runPlan`): a draft to follow and check on the live page */
   plan?: string;
   /**

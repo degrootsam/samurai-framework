@@ -118,6 +118,33 @@ Every tool checks its arguments and answers with one sentence the model can act 
 - the agent cannot write a `custom` statement: there is no tool for it.
 - tool calls run **one at a time**, in the order the model made them, even when it asks for several in one turn: they share one page and one spec file, so two actions never race each other.
 
+## Continuing a test
+
+`continueAt` (in code only, for now) makes the agent add to a test that already exists instead of starting a new one. Give `test` (not `create`) and the number of steps to keep before the new ones:
+
+```ts
+runAgent({
+  model,
+  goal: "Add the payment",
+  file: "tests/shop.spec.ts",
+  test: "checkout",
+  continueAt: 3,
+});
+```
+
+1. The browser opens, and steps `0..continueAt-1` are **replayed** on the live page, in order, without the model. Each one is reported as `{ type: "replay", n, total, text }`; nothing is written for it, the steps are already in the file.
+2. The agent then runs as usual, and its steps are written at index `continueAt`. The test's later steps stay where they are, after the new ones, and `undo` only removes steps the agent wrote.
+3. The first message tells the model what was replayed and which steps follow the new ones (their statements, with secrets as names only), so it does not repeat what they cover.
+
+`continueAt` is between 0 (nothing replayed, new steps go first) and the number of steps in the test; anything else, or no `test`, or `create` together with it, is refused before the browser opens. What the replay does:
+
+- It plays the actions (`goto`, `click`, `fill`, `press`, `selectOption`, `check`, `uncheck`, `hover`, `dblclick`, `clear`, `setInputFiles`, `dropFiles`) and the waits. A `fill` reads its value as the test does: a literal, an environment variable, a secret (resolved locally, never shown to the model, in an event or in an error) or the test's declared input default.
+- **Assertions and evidence are skipped**: `expect`, `expectPage`, `saveOutput` and `screenshot` do not change the page, so they are not run (and a replayed `fill` or `expect` does not save outputs).
+- **A `custom` step cannot be replayed.** The run ends with `reason: "error"` and `step 4 is custom code and cannot be replayed`, before anything is played.
+- **Fixtures are not set up.** The agent run has none, so a test that depends on a fixture (a signed-in session, seeded data) needs that state some other way, or the replay fails where the page differs.
+- A step that fails ends the run with `reason: "error"` and `step 2 (await page.getByLabel("Email").fill(...);) failed: ...`; the spec is untouched.
+- The sites that replayed `goto` steps open are allowed for the agent too, and no others.
+
 ## Planning a test
 
 `samurai generate` explores and writes the spec in one pass, and every step it takes is written at once. On a form with a few traps it can end with a spec that holds a failed first attempt. A second command splits the work: `samurai plan` explores a page on purpose and writes a **plan**, a Markdown file you can read and fix, and `generate --plan` writes the spec from it.
@@ -232,6 +259,7 @@ A running session (`runAgent` returns it at once) can be controlled:
 | `plan`      | The agent's own words about what it intends                                                                            |
 | `tool-call` | The tool and its arguments (secret values removed)                                                                     |
 | `step`      | The recorder event, the statement it wrote and the file's new content                                                  |
+| `replay`    | Continue mode: step `n` of `total` is being replayed, with its statement (nothing is written for it)                   |
 | `plan-step` | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)       |
 | `question`  | An `id`, the question and optional answers                                                                             |
 | `usage`     | Tokens of one model call                                                                                               |

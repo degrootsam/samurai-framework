@@ -46,6 +46,7 @@ test("the generator's first message carries the questions after the plan", () =>
   const opening = generateKind.opening(
     { goal: "g", file: "a.spec.ts", model: {} as never, plan: PLAN },
     "FIRST",
+    { continuing: false } as never,
   );
   assert.match(opening, /Does it email\?[^]*Questions still open[^]*FIRST$/);
 });

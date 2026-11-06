@@ -89,6 +89,8 @@ export function prepareSpec(
     create?: string | undefined;
     test?: string | number | undefined;
     at?: number | undefined;
+    /** How the option is called in the error: `--at` for the command line */
+    atName?: string | undefined;
   },
 ): RecordingSpec {
   let source = existing ?? "";
@@ -106,7 +108,7 @@ export function prepareSpec(
   const at = options.at ?? test.steps.length;
   if (!Number.isInteger(at) || at < 0 || at > test.steps.length) {
     throw new RangeError(
-      `--at must be between 0 and ${test.steps.length} (the test has ${test.steps.length} steps)`,
+      `${options.atName ?? "--at"} must be between 0 and ${test.steps.length} (the test has ${test.steps.length} steps)`,
     );
   }
   return { source, testIndex, testName: test.name, at };

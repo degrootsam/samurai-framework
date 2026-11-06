@@ -91,32 +91,35 @@ export function agentRunFixture(port: number) {
     on?: (event: AgentEvent, session: () => AgentSession) => void,
     onPage?: (page: Page) => void,
   ) {
-    const dir = mkdtempSync(path.join(os.tmpdir(), "agent-run-"));
+    const dir =
+      extra.projectDir ?? mkdtempSync(path.join(os.tmpdir(), "agent-run-"));
     const events: AgentEvent[] = [];
     const model = scriptedModel(turns);
     let session!: AgentSession;
-    session = startAgent(
-      {
-        model,
-        goal: "Fill in the shop form",
-        projectDir: dir,
-        config: browserConfig(),
-        dataDir: path.join(dir, "data"),
-        file: `tests/run-${++counter}.spec.ts`,
-        create: "fills the form",
-        url: `${appOrigin}/`,
-        headless: true,
-        port,
-        secrets: ["PASSWORD"],
-        ...extra,
-        onEvent: (event) => {
-          events.push(event);
-          on?.(event, () => session);
-        },
+    const relative = extra.file ?? `tests/run-${++counter}.spec.ts`;
+    const options: AgentOptions = {
+      model,
+      goal: "Fill in the shop form",
+      projectDir: dir,
+      config: browserConfig(),
+      dataDir: path.join(dir, "data"),
+      file: relative,
+      create: "fills the form",
+      url: `${appOrigin}/`,
+      headless: true,
+      port,
+      secrets: ["PASSWORD"],
+      ...extra,
+      onEvent: (event) => {
+        events.push(event);
+        on?.(event, () => session);
       },
-      onPage ? { onPage } : {},
-    );
-    const file = path.join(dir, `tests/run-${counter}.spec.ts`);
+    };
+    // Continuing an existing test names it instead of creating one
+    if (extra.test !== undefined && extra.create === undefined)
+      delete options.create;
+    session = startAgent(options, onPage ? { onPage } : {});
+    const file = path.join(dir, relative);
     const steps = () =>
       parseSpec(readFileSync(file, "utf8"))[0]!.steps.map(({ step }) => step);
     return { session, events, model, file, steps, dir };

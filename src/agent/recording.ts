@@ -8,6 +8,8 @@ import {
 import { prepareSpec, readSpec, SpecWriter } from "../recorder/spec-source.js";
 import { linkPlan } from "./plan-link.js";
 import { stepToSource } from "../steps/emit.js";
+import { parseSpec } from "../steps/parse.js";
+import type { Step, TestInput } from "../steps/model.js";
 
 export interface StepRecorderOptions {
   /** The spec file, absolute or relative to the project folder */
@@ -18,6 +20,8 @@ export interface StepRecorderOptions {
   test?: string | number | undefined;
   /** The plan the test is made from, as `AgentOptions.planFile`: written on the test as a `plan` annotation */
   planFile?: string | undefined;
+  /** Continue the test: the steps are written at this index, and the ones from it on stay after them */
+  at?: number | undefined;
   /** Relative URLs are written against this */
   baseURL?: string | undefined;
   /** Called after each event is written, with the statement it produced and the file's new content */
@@ -52,10 +56,27 @@ export class StepRecorder {
   /** The test the steps go into, by its full name */
   public readonly testName: string;
   public readonly file: string;
+  /** The test's steps before the index the agent writes at, in order: what continue mode replays */
+  public readonly before: readonly Step[];
+  /** The test's steps from that index on, which stay after the agent's */
+  public readonly after: readonly Step[];
+  /** The agent continues an existing test: `before` was replayed, `after` stays behind its steps */
+  public readonly continuing: boolean;
+  /** The inputs the test declares, with their defaults */
+  public readonly inputs: readonly TestInput[];
 
   constructor(private readonly options: StepRecorderOptions) {
     this.file = path.resolve(projectDir(), options.file);
-    const spec = prepareSpec(this.file, readSpec(this.file, options), options);
+    const spec = prepareSpec(this.file, readSpec(this.file, options), {
+      ...options,
+      atName: "continueAt",
+    });
+    const test = parseSpec(spec.source)[spec.testIndex]!;
+    const written = test.steps.map(({ step }) => step);
+    this.before = written.slice(0, spec.at);
+    this.after = written.slice(spec.at);
+    this.inputs = test.inputs ?? [];
+    this.continuing = options.at !== undefined;
     this.testName = spec.testName;
     this.writer = new SpecWriter(spec.source, this.file, spec.testIndex);
     const planFile = options.planFile;

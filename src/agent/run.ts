@@ -59,6 +59,18 @@ async function fixturesOf(options: BaseAgentOptions) {
   }
 }
 
+/** The http(s) URLs among `urls`, relative ones against `base`: the sites replayed steps opened */
+function webOrigins(urls: readonly string[], base: string | undefined) {
+  return urls.flatMap((url) => {
+    try {
+      const resolved = new URL(url, base).href;
+      return /^https?:/.test(resolved) ? resolved : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 function endReason(
   controller: AgentController,
   tally: RunTally,
@@ -133,6 +145,12 @@ export function startAgent<
         if (options.url !== undefined) await page.goto(options.url);
         else if (settings.baseURL !== undefined)
           await page.navigateTo(settings.baseURL);
+        const replayed = await kind.replay?.(steps, {
+          page,
+          variables: settings.variables,
+          secret: (name) => run.secrets.get(name),
+          emit: (event) => controller.emit(event),
+        });
         const current = await page.url();
         const onWeb = /^https?:/.test(current);
         const snapshots = new Snapshotter(page, {
@@ -142,6 +160,7 @@ export function startAgent<
         const origins = new OriginPolicy([
           ...(options.allowedOrigins ?? []),
           ...(onWeb ? [current] : startUrl ? [startUrl] : []),
+          ...webOrigins(replayed ?? [], settings.baseURL),
         ]);
         person.hooks = kind.person({
           page,
@@ -190,7 +209,7 @@ export function startAgent<
           ai,
           model: options.model,
           system,
-          prompt: kind.opening(options, first),
+          prompt: kind.opening(options, first, steps),
           tools,
           controller,
           limits,
