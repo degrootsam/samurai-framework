@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { stepToSource } from "./emit.js";
+import type { TestAnnotation } from "../types/test.js";
 import type { ParsedTest, Step, TestInput } from "./model.js";
 import { parseSpec } from "./parse.js";
 import { OUTPUT_MATCHERS } from "./parse/expectation.js";
@@ -21,7 +22,7 @@ export type StepEdit =
    */
   | { op: "remove-test"; test: number }
   /**
-   * Sets the test's `inputs` and `outputs` in its options object: a given list replaces that list, one left out
+   * Sets the test's `inputs`, `outputs` and `annotations` in its options object: a given list replaces that list, one left out
    * stays. When both end up empty the options object goes, unless it holds a `reason`
    */
   | {
@@ -29,6 +30,7 @@ export type StepEdit =
       test: number;
       inputs?: TestInput[];
       outputs?: string[];
+      annotations?: TestAnnotation[];
     };
 
 function pickTest(source: string, test: number): ParsedTest {
@@ -233,7 +235,7 @@ export function applyEdit(source: string, edit: StepEdit): string {
       );
     case "declare": {
       let next = source;
-      for (const key of ["inputs", "outputs"] as const) {
+      for (const key of ["inputs", "outputs", "annotations"] as const) {
         const list = edit[key];
         if (list)
           next = declareList(next, pickTest(next, edit.test), key, list);

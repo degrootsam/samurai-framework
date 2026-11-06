@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { isIoName } from "../flows/core/steps.js";
-import type { Modifier } from "../types/test.js";
+import type { Modifier, TestAnnotation } from "../types/test.js";
 import { IDENTIFIER } from "./emit.js";
 import type { ParsedTest, TestInput } from "./model.js";
 import { stringOf } from "./parse/literals.js";
@@ -11,9 +11,11 @@ export interface TestOptionsRead {
   reason?: string;
   inputs?: TestInput[];
   outputs?: string[];
+  annotations?: TestAnnotation[];
 }
 
-type ListKey = "inputs" | "outputs";
+type ListKey = "inputs" | "outputs" | "annotations";
+type ListValue = TestInput[] | string[] | TestAnnotation[];
 
 function keyOf(name: ts.PropertyName): string | undefined {
   return ts.isIdentifier(name) || ts.isStringLiteral(name)
@@ -42,6 +44,28 @@ function readOutputs(node: ts.Expression): string[] | undefined {
   return names.every((name) => name !== undefined)
     ? (names as string[])
     : undefined;
+}
+
+/** `[{ type: "plan", description: "…" }, …]`; undefined for anything but string literals under those two keys */
+function readAnnotations(node: ts.Expression): TestAnnotation[] | undefined {
+  if (!ts.isArrayLiteralExpression(node)) return undefined;
+  const notes: TestAnnotation[] = [];
+  for (const element of node.elements) {
+    if (!ts.isObjectLiteralExpression(element)) return undefined;
+    const note: Partial<TestAnnotation> = {};
+    for (const property of element.properties) {
+      if (!ts.isPropertyAssignment(property)) return undefined;
+      const key = keyOf(property.name);
+      const value = stringOf(property.initializer);
+      if (value === undefined) return undefined;
+      if (key === "type") note.type = value;
+      else if (key === "description") note.description = value;
+      else return undefined;
+    }
+    if (note.type === undefined || note.type === "") return undefined;
+    notes.push(note as TestAnnotation);
+  }
+  return notes;
 }
 
 /**
@@ -73,6 +97,10 @@ export function readTestOptions(
       const outputs = readOutputs(value);
       if (!outputs) return undefined;
       if (outputs.length > 0) read.outputs = outputs;
+    } else if (kind === "test" && key === "annotations") {
+      const annotations = readAnnotations(value);
+      if (!annotations) return undefined;
+      if (annotations.length > 0) read.annotations = annotations;
     } else return undefined;
   }
   return read;
@@ -80,7 +108,15 @@ export function readTestOptions(
 
 const str = (value: string) => JSON.stringify(value);
 
-function listToSource(key: ListKey, list: TestInput[] | string[]): string {
+function annotationToSource(note: TestAnnotation): string {
+  return note.description === undefined
+    ? `{ type: ${str(note.type)} }`
+    : `{ type: ${str(note.type)}, description: ${str(note.description)} }`;
+}
+
+function listToSource(key: ListKey, list: ListValue): string {
+  if (key === "annotations")
+    return `[${(list as TestAnnotation[]).map(annotationToSource).join(", ")}]`;
   if (key === "outputs") return `[${(list as string[]).map(str).join(", ")}]`;
   const entries = (list as TestInput[]).map(
     ({ name, default: value }) =>
@@ -93,10 +129,16 @@ const sameList = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);
 
 /** Throws for a list the runtime's `test()` would reject: a name that isn't valid, a name twice, a default that isn't text */
-function checkList(key: ListKey, list: TestInput[] | string[]): void {
+function checkList(key: ListKey, list: ListValue): void {
+  if (key === "annotations") {
+    for (const note of list as TestAnnotation[])
+      if (typeof note.type !== "string" || note.type === "")
+        throw new Error(`applyEdit(): an annotation needs a non-empty type`);
+    return;
+  }
   const kind = key === "inputs" ? "input" : "output";
   const seen = new Set<string>();
-  for (const entry of list) {
+  for (const entry of list as (TestInput | string)[]) {
     const name = typeof entry === "string" ? entry : entry.name;
     if (!isIoName(name))
       throw new Error(
@@ -149,7 +191,7 @@ export function declareList(
   source: string,
   parsed: ParsedTest,
   key: ListKey,
-  list: TestInput[] | string[],
+  list: ListValue,
 ): string {
   checkList(key, list);
   if (list.length > 0 && sameList(parsed[key], list)) return source;

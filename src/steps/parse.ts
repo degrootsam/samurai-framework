@@ -204,7 +204,7 @@ export function parseSpecFile(source: string): {
         return;
       }
       const { callback, options = {}, range } = args;
-      const { reason, inputs, outputs } = options;
+      const { reason, inputs, outputs, annotations } = options;
       const body = callbackBody(callback);
       if (!body) {
         unparsed.push(unreadable(node, kind, "not-inline"));
@@ -233,6 +233,7 @@ export function parseSpecFile(source: string): {
           ...effectiveMark(mark, describes),
           ...(inputs && { inputs }),
           ...(outputs && { outputs }),
+          ...(annotations && { annotations }),
           ...(range && { options: range }),
           titleEnd: node.arguments[0]!.end,
         });

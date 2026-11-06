@@ -1,4 +1,4 @@
-import type { Modifier } from "../types/test.js";
+import type { Modifier, TestAnnotation } from "../types/test.js";
 
 /**
  * One call of a locator expression, as written in a spec: `page.getByRole("button", { name: "Save" })`.
@@ -204,6 +204,8 @@ export interface ParsedTest {
   inputs?: TestInput[];
   /** The `outputs` of the test's options object; undefined without the key */
   outputs?: string[];
+  /** The `annotations` of the test's options object; undefined without the key or with an empty list */
+  annotations?: TestAnnotation[];
   /** The range of the test's options object (`test(title, { … }, fn)`), when it has one */
   options?: { start: number; end: number };
   /** Offset just after the title argument, where an options object goes */
