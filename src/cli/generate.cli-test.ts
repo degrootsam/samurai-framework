@@ -17,6 +17,36 @@ function io(env: Partial<NodeJS.ProcessEnv> = {}) {
 
 const KEY = "sk-cli-test-key-456";
 
+describe("samurai plan", () => {
+  it("is in the usage, with the options of both commands", () => {
+    assert.match(USAGE, /samurai plan "<goal>"/);
+    assert.match(USAGE, /--out <plan\.md>/);
+    assert.match(USAGE, /--plan <plan\.md>/);
+  });
+
+  it("exits 2 without a goal, a plan file or a model", async () => {
+    for (const [argv, message] of [
+      [["plan"], /Which goal\?/],
+      [["plan", "sign in"], /Give the plan file with --out/],
+      [["plan", "sign in", "--out", "p.md"], /No model: pass --model/],
+    ] as const) {
+      const run = io();
+      assert.equal(await main([...argv], run.target), 2);
+      assert.match(run.err(), message);
+    }
+  });
+
+  it("exits 2 for a missing key and never prints one", async () => {
+    const run = io();
+    const code = await main(
+      ["plan", "x", "--out", "p.md", "--model", "anthropic:claude-x"],
+      run.target,
+    );
+    assert.equal(code, 2);
+    assert.match(run.err(), /ANTHROPIC_API_KEY/);
+  });
+});
+
 describe("samurai generate", () => {
   it("is in the usage", () => {
     assert.match(USAGE, /samurai generate "<goal>"/);

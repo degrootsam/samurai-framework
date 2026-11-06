@@ -32,6 +32,17 @@ function fakeAgent(events: AgentEvent[], final: AgentResult = result()) {
   const entry = {
     defaultModelSpec: async () => undefined as string | undefined,
     modelFromSpec: async (spec: string) => ({ spec }) as never,
+    readPlan: (file: string) => {
+      if (file === "missing.md")
+        throw new Error("readPlan(): missing.md cannot be read");
+      if (file === "big.md")
+        throw new Error("readPlan(): big.md is 40 KB, over the 32 KB limit");
+      if (file === "nosteps.md")
+        throw new Error(
+          'readPlan(): nosteps.md: the plan has no "## Steps" heading',
+        );
+      return `PLAN TEXT of ${file}`;
+    },
     runAgent: (options: AgentOptions) => {
       seen.options = options;
       return {
@@ -280,4 +291,28 @@ test("in a terminal the question is asked and the answer goes to the run", async
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.match(out(), /\? Which account\? \(a\/b\)/);
   assert.deepEqual(agent.seen.answers, [["q1", "b"]]);
+});
+
+test("--plan reads the plan and hands its text to the run", async () => {
+  const agent = fakeAgent([{ type: "ended", result: result() }]);
+  const { code } = await run([...ARGS, "--plan", "plans/a.md"], agent);
+  assert.equal(code, 0);
+  assert.equal(agent.seen.options?.plan, "PLAN TEXT of plans/a.md");
+  const without = fakeAgent([{ type: "ended", result: result() }]);
+  await run(ARGS, without);
+  assert.equal("plan" in (without.seen.options ?? {}), false);
+});
+
+test("a plan file that cannot be used is a usage error that names it", async () => {
+  for (const [file, message] of [
+    ["missing.md", /--plan: missing\.md cannot be read/],
+    ["big.md", /--plan: big\.md is 40 KB, over the 32 KB limit/],
+    ["nosteps.md", /--plan: nosteps\.md: the plan has no "## Steps" heading/],
+  ] as const) {
+    const agent = fakeAgent([]);
+    await assert.rejects(run([...ARGS, "--plan", file], agent), message);
+    assert.equal(agent.seen.options, undefined, "no run was started");
+  }
+  const sink = io();
+  assert.equal(await main([...ARGS, "--plan", "x.md", "--bogus"], sink.io), 2);
 });

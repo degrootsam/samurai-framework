@@ -6,6 +6,7 @@ Usage:
   samurai run [options]       Run the tests (the default command)
   samurai list [options]      List the tests without running them
   samurai record <spec>       Open a browser and record what you do into a spec file
+  samurai plan "<goal>"       Let an AI agent explore a page and write a test plan (Markdown); it submits nothing
   samurai generate "<goal>"   Let an AI agent write a test into a spec file (needs ai, zod and a provider)
   samurai init [folder]       Scaffold a project: config, an example test, .env.example
   samurai flow <command>      List, check and run the flows in ./flows (see below)
@@ -43,8 +44,15 @@ Options for record (also --env, --port, --json; always with a window):
   --url <url>                 Page to start on (default: the environment's baseURL)
   Stop with Ctrl+C or by closing the browser window.
 
+Options for plan (also --env, --browser, --port, --headless, --json and the model, limit and
+origin options of generate below):
+  --out <plan.md>             The plan file to write (required); written after every step
+  --force                     Replace --out when it exists
+  The page is read-only while planning: every request that is not a GET is blocked.
+
 Options for generate (also --env, --browser, --port, --headless, --json):
   --file <spec>               The spec file to write into (required, once)
+  --plan <plan.md>            A plan from samurai plan: the agent follows it and checks each step
   --new <title>               Add a test with this title (creates the file if needed)
   --test <name|index>         Write into this test; not needed when the file has one
   --url <url>                 Page to start on (default: the environment's baseURL)
@@ -62,7 +70,7 @@ Options for generate (also --env, --browser, --port, --headless, --json):
   -h, --help                  Show this help
   -v, --version               Show the version
 
-Exit code: 0 when every test passed (generate: the agent finished), 1 when a test failed (generate: it ended at a limit, was stopped or failed), 2 for a usage or configuration error.
+Exit code: 0 when every test passed (generate, plan: the agent finished), 1 when a test failed (generate, plan: it ended at a limit, was stopped or failed), 2 for a usage or configuration error.
 
 samurai flow:
   list                        The flows in ./flows

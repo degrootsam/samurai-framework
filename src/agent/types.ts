@@ -94,6 +94,14 @@ export interface PlanOptions extends BaseAgentOptions {
   force?: boolean;
 }
 
+/** How a planning run ended: `file` is the plan, `steps` the plan steps */
+export type PlanResult = Omit<AgentResult, "test">;
+
+/** A planning run in progress; the same controls as an `AgentSession` */
+export type PlanSession = Omit<AgentSession, "result"> & {
+  readonly result: Promise<PlanResult>;
+};
+
 /** A run in progress */
 export interface AgentSession {
   readonly events: AsyncIterable<AgentEvent>;

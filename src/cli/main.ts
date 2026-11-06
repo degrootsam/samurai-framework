@@ -10,6 +10,7 @@ import { flowCommand } from "./flow.js";
 import { generateCommand } from "./generate.js";
 import { initProject } from "./init.js";
 import type { Io } from "./io.js";
+import { planCommand } from "./plan.js";
 import { recordCommand } from "./record.js";
 import { USAGE } from "./usage.js";
 import { frameworkVersion } from "./version.js";
@@ -49,6 +50,9 @@ export async function main(argv: string[], io: Io): Promise<number> {
 
     if (command === "generate")
       return await generateCommand({ values, positionals }, io);
+
+    if (command === "plan")
+      return await planCommand({ values, positionals }, io);
 
     if (command === "record")
       return await recordCommand({ values, positionals }, io);
