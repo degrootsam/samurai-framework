@@ -1,3 +1,13 @@
+## 0.22.9 (2026-11-06)
+
+### 🚀 Features
+
+- **framework:** continue an existing test from a step with the agent
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.8 (2026-11-06)
 
 ### 🚀 Features
