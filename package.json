@@ -52,6 +52,10 @@
       "types": "./dist/capabilities.d.ts",
       "default": "./dist/capabilities.js"
     },
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "default": "./dist/agent/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -80,10 +84,12 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "ai": "^7.0.0",
     "esbuild": "^0.28.2",
     "knip": "^6.42.1",
     "madge": "^8.0.0",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zod": "^4.1.8"
   },
   "dependencies": {
     "@puppeteer/browsers": "^3.2.4",
@@ -99,10 +105,18 @@
     "samurai": "bin/samurai.mjs"
   },
   "peerDependencies": {
-    "tsx": "^4.21.0"
+    "ai": "^7.0.0",
+    "tsx": "^4.21.0",
+    "zod": "^3.25.76 || ^4.1.8"
   },
   "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    },
     "tsx": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     }
   },
