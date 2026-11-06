@@ -162,3 +162,13 @@ test("createPlan makes the folder of the file", () => {
   createPlan({ goal: "g", start: "", out });
   assert.equal(existsSync(out), true);
 });
+
+test("setStart rewrites the Start line", () => {
+  const out = fresh();
+  const plan = createPlan({ goal: "g", start: "", out });
+  plan.setStart("http://localhost:5180/forms");
+  assert.equal(
+    parsePlan(readFileSync(out, "utf8")).start,
+    "http://localhost:5180/forms",
+  );
+});

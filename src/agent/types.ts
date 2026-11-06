@@ -86,6 +86,14 @@ export interface AgentOptions extends BaseAgentOptions {
   plan?: string;
 }
 
+/** A planning run: explores the page and writes a Markdown plan, never a spec, and never submits */
+export interface PlanOptions extends BaseAgentOptions {
+  /** The plan file, absolute or relative to the project folder */
+  out: string;
+  /** Overwrite `out` when it exists. @default false */
+  force?: boolean;
+}
+
 /** A run in progress */
 export interface AgentSession {
   readonly events: AsyncIterable<AgentEvent>;

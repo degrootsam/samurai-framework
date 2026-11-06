@@ -49,7 +49,7 @@ class PlanFile {
   constructor(
     public readonly file: string,
     private readonly goal: string,
-    private readonly start: string,
+    private start: string,
   ) {}
 
   /** The title, which is also what the run reports as the name of the test */
@@ -126,6 +126,12 @@ class PlanFile {
       throw error;
     }
     return this.steps.length;
+  }
+
+  /** Names the page the plan starts on, once the browser is there */
+  public setStart(url: string): void {
+    this.start = oneLine(url);
+    this.save();
   }
 
   public seen(text: string): void {
