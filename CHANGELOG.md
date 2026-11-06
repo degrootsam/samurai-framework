@@ -1,3 +1,18 @@
+## 0.22.4 (2026-11-06)
+
+### 🚀 Features
+
+- **framework:** add samurai generate and the model set-up per provider
+- **framework:** add the AI agent loop and its session
+- **framework:** add the agent's instruction files, system prompt and guide
+- **framework:** add the tools of the AI agent
+- **framework:** add the page snapshot of the AI agent
+- **framework:** add the agent entry with its types, model guard and limits
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.3 (2026-11-05)
 
 ### 🩹 Fixes
