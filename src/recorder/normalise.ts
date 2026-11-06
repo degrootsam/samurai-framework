@@ -57,6 +57,12 @@ export type Observation =
       name: string;
       pattern?: { source: string; flags: string };
     }
+  /** An action with no argument that a page event does not tell apart: the AI agent's hover, double click and clear */
+  | {
+      type: "action";
+      kind: "hover" | "dblclick" | "clear";
+      locator: LocatorSpec;
+    }
   /** The toolbar's Page panel: the page's URL or title */
   | { type: "expectPage"; not: boolean; expectation: PageExpectation }
   | {
@@ -178,6 +184,8 @@ export class Normaliser {
           locator: observation.locator,
           value: observation.value,
         };
+      case "action":
+        return { kind: observation.kind, locator: observation.locator };
       case "wait-idle":
         return { kind: "waitForNetworkIdle" };
       case "wait-time":

@@ -34,6 +34,8 @@ export interface Located {
   description: string;
   /** A password or a field the caller marked secret: its value is never shown or typed by the model */
   secret: boolean;
+  /** The page itself draws the value as dots (a password input), so even a screenshot does not show it */
+  dotted: boolean;
 }
 
 export interface SnapshotOptions {
@@ -52,6 +54,7 @@ type Resolved =
       target: ElementHandle;
       candidates: LocatorCall[];
       secret: boolean;
+      dotted: boolean;
       role: string;
       name: string;
     }
@@ -137,6 +140,7 @@ export class Snapshotter {
       locator: locatorFromSpec(this.page, spec),
       description: describe(found.role, found.name),
       secret: found.secret,
+      dotted: found.dotted,
     };
   }
 }

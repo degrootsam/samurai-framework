@@ -118,7 +118,7 @@ export const SNAPSHOT_SCRIPT = String.raw`(options) => {
 
 /**
  * Function declaration, called as `({ ref, focused, secretFields })` with the number of a reference, or `focused`
- * for the element that has focus. Answers `{ status: "ok", target, candidates, secret, role, name }`, or a status
+ * for the element that has focus. Answers `{ status: "ok", target, candidates, secret, dotted, role, name }`, or a status
  * that says why the reference does not resolve: `none` (no snapshot in this document), `unknown`, `older` (it was
  * in an earlier snapshot), `gone` (removed since), `nofocus`.
  */
@@ -143,6 +143,7 @@ export const RESOLVE_SCRIPT = String.raw`(options) => {
     target: el,
     candidates: candidates.candidatesOf(el),
     secret: isSecret(el, options.secretFields),
+    dotted: el.localName === "input" && (el.getAttribute("type") || "").toLowerCase() === "password",
     role: accessible.roleOf(el),
     name: accessible.accessibleName(el),
   };
