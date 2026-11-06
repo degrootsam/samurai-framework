@@ -83,7 +83,7 @@ test(
     assert.equal(early.ok, false);
     assert.equal(
       text(early),
-      "step(): nothing was done since the last step; act first",
+      "step(): all 0 actions so far are already recorded as steps; act first",
     );
 
     assert.equal(

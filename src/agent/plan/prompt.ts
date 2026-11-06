@@ -30,7 +30,7 @@ export function buildPlanPrompt(input: PromptInput): string {
 - snapshot: the page as text.
 - navigate(url): open a URL or a path. Allowed without asking: ${input.origins.length > 0 ? input.origins.join(", ") : "none"}. Any other site asks the person and may be refused.
 - act(kind, target, value?): click, fill, select, check, uncheck, hover, dblclick, clear, press. It writes nothing to the plan.
-- step(text, expect?): write a step you did. Refused when you did nothing since the last step.
+- step(text, expect?): write a step you did. Refused when every act or navigate so far is already a step.
 - seen(text), notDone(text): notes for the test writer.
 - question(question, options?): ask the person; it is kept in the plan.
 - finish(summary).`,

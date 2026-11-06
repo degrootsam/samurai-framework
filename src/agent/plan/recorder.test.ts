@@ -22,14 +22,37 @@ test("a step is refused until something was done on the page", () => {
   const { recorder } = setup();
   assert.throws(
     () => recorder.addStep("Click A."),
-    /nothing was done since the last step; act first/,
+    /all 0 actions so far are already recorded as steps; act first/,
   );
   recorder.observe({ type: "goto", url: "/" });
   assert.equal(recorder.addStep("Open the page."), 1);
   assert.throws(
     () => recorder.addStep("Click A."),
-    /nothing was done since the last step/,
+    /all 1 actions so far are already recorded as steps/,
   );
+});
+
+test("several actions in a row can be recorded as several steps", () => {
+  const { recorder } = setup();
+  for (let i = 0; i < 5; i++) recorder.observe({ type: "goto", url: `/${i}` });
+  for (let i = 1; i <= 5; i++) assert.equal(recorder.addStep(`Step ${i}.`), i);
+  assert.throws(
+    () => recorder.addStep("Step 6."),
+    /all 5 actions so far are already recorded as steps; act first/,
+  );
+  assert.equal(recorder.count, 5);
+});
+
+test("steps never exceed the actions done, in any order", () => {
+  const { recorder } = setup();
+  recorder.observe({ type: "goto", url: "/" });
+  recorder.observe({ type: "goto", url: "/a" });
+  recorder.addStep("One.");
+  recorder.addStep("Two.");
+  assert.throws(() => recorder.addStep("Three."), /act first/);
+  recorder.observe({ type: "goto", url: "/b" });
+  recorder.addStep("Three.");
+  assert.equal(recorder.count, 3);
 });
 
 test("a step is announced and counted, and the file holds it", () => {

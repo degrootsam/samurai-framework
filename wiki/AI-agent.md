@@ -159,7 +159,7 @@ Start: http://localhost:5180/forms
 - None.
 ```
 
-The four headings are fixed, so tools can read the file. Elements are named the way the snapshot shows them (role and accessible name), never by internal ids. A step is written only after the planner did it on the live page (the `step` tool refuses when nothing was done since the last step). Secrets appear as `secrets.NAME`, never as values. "Not done" lists what the planner did not try or could not see, so `generate` knows what is unverified. The file may not pass 32 KB. You can write or edit a plan by hand: only the `## Steps` heading is required.
+The four headings are fixed, so tools can read the file. Elements are named the way the snapshot shows them (role and accessible name), never by internal ids. A step is written only after the planner did it on the live page (the `step` tool refuses when every action so far is already a step: there are never more steps than things done). Secrets appear as `secrets.NAME`, never as values. "Not done" lists what the planner did not try or could not see, so `generate` knows what is unverified. The file may not pass 32 KB. You can write or edit a plan by hand: only the `## Steps` heading is required.
 
 ### The planner never submits
 

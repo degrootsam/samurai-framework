@@ -21,7 +21,7 @@ const step = defineTool({
   description:
     "Write one step into the plan, after you did it on the live page with act or navigate. Say what to do the way " +
     'snapshot names it (role and name, for example: Click "Create account" (button)), and in expect what showed ' +
-    "afterwards. It is refused when you did nothing since the last step. One step per thing done.",
+    "afterwards. It is refused when every act or navigate so far is already a step. One step per thing done.",
   inputSchema: z.object({
     text: z.string().min(1).max(600),
     expect: z.string().min(1).max(400).optional(),

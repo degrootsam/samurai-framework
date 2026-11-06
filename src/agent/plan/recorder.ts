@@ -3,12 +3,12 @@ import type { RunSink } from "../run-kind.js";
 import type { PlanFile } from "./plan-file.js";
 
 /**
- * What a planning run keeps: the plan file, whether something was done on the page since the last step, and the
+ * What a planning run keeps: the plan file, how many things were done on the page, and the
  * requests the guard stopped. `observe` is how the shared tools (`act`, `navigate`) report what they did; they
  * write nothing, a plan step is the agent's own words (`step`).
  */
 export class PlanRecorder implements RunSink {
-  private acted = false;
+  private done = 0;
   private blocked = new Set<string>();
 
   constructor(
@@ -29,7 +29,7 @@ export class PlanRecorder implements RunSink {
   }
 
   public observe(_observation: Observation): RecorderEvent[] {
-    this.acted = true;
+    this.done++;
     return [];
   }
 
@@ -37,12 +37,13 @@ export class PlanRecorder implements RunSink {
     return 0;
   }
 
-  /** Records a step the agent has done on the live page; refused when it did nothing since the last step */
+  /** Records a step the agent has done on the live page; refused when every action so far is already a step */
   public addStep(text: string, expect?: string): number {
-    if (!this.acted)
-      throw new Error("nothing was done since the last step; act first");
+    if (this.plan.count >= this.done)
+      throw new Error(
+        `all ${this.done} actions so far are already recorded as steps; act first`,
+      );
     const n = this.plan.addStep(text, expect);
-    this.acted = false;
     this.onStep(n, text);
     return n;
   }
