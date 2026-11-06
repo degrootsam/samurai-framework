@@ -1,3 +1,22 @@
+## 0.22.5 (2026-11-06)
+
+### 🚀 Features
+
+- **framework:** test the planner end to end and document it
+- **framework:** add samurai plan and generate --plan
+- **framework:** add the planner's tools, prompt and run kind
+- **framework:** add the request guard for the planner
+- **framework:** add the plan file writer and parser
+- **framework:** add the run-kind seam to the agent
+
+### 🩹 Fixes
+
+- **framework:** run the agent's tool calls in order and add undo
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.4 (2026-11-06)
 
 ### 🚀 Features
