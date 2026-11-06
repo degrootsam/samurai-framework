@@ -170,7 +170,9 @@ A plan may start with a YAML **front matter** block (a first line of `---`, a cl
   Answer: the Visa ending 4242
 ```
 
-`parsePlan` (exported from `@itmetsam/samurai-framework/agent`) returns `questions` (all of them) and `answers` (`{ question, answer }` for those with a non-empty answer). `generate --plan` repeats the answered questions after the plan, telling the agent to use the answers, and lists the unanswered ones as questions it may `ask` instead of guessing.
+`parsePlan` (exported from `@itmetsam/samurai-framework/agent`) returns `questions` (all of them) and `answers` (`{ question, answer }` for those with a non-empty answer). It also returns `questionList` (`{ text, answer? }` for every question, in order).
+
+Plan files can be read and written from code with the same format the planner uses, all from `@itmetsam/samurai-framework/agent`: `formatPlan(plan, front?)` renders a `PlanDocument` (`{ title, goal, start, steps: { text, expect? }[], seen, notDone, questions: { text, answer? }[] }`) as Markdown (texts are masked and made one line; an answer is an indented `Answer:` line under its question; an empty list is `- None.`; `front` is a raw front matter block placed first; it throws over `MAX_PLAN_BYTES`, 32 KB), and `parsePlan(formatPlan(plan))` gives the plan back. `splitFrontMatter(text)` returns `{ front, body }`, and `listPlans()` lists the `*.plan.md` files below `plansDir` (relative paths with `/`, sorted). `generate --plan` repeats the answered questions after the plan, telling the agent to use the answers, and lists the unanswered ones as questions it may `ask` instead of guessing.
 
 ### The planner never submits
 

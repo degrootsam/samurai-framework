@@ -10,6 +10,7 @@ export const MAX_PLAN_BYTES = 32 * 1024;
 const NONE = "None.";
 const TITLE_LENGTH = 80;
 
+/** One step of a plan, with what to check after it */
 interface PlanStep {
   text: string;
   expect?: string;
@@ -25,6 +26,8 @@ interface ParsedPlan {
   notDone: string[];
   /** Every open question, answered or not */
   questions: string[];
+  /** Every open question with its answer, if it has one; what `formatPlan` takes back */
+  questionList: PlanQuestion[];
   /** The questions that have an `Answer:` line, with the answer; a question with an empty answer is not here */
   answers: { question: string; answer: string }[];
 }
@@ -34,10 +37,72 @@ function oneLine(text: string): string {
   return maskText(text).replace(/\s+/g, " ").trim();
 }
 
+/** A plan as `formatPlan` writes it and `parsePlan` reads it back */
+interface PlanDocument {
+  title: string;
+  goal: string;
+  start: string;
+  steps: PlanStep[];
+  seen: string[];
+  notDone: string[];
+  /** An answered question is written with an indented `Answer:` line below it */
+  questions: PlanQuestion[];
+}
+
+interface PlanQuestion {
+  text: string;
+  answer?: string;
+}
+
 function bullets(items: readonly string[]): string {
   return items.length > 0
     ? items.map((item) => `- ${item}`).join("\n")
     : `- ${NONE}`;
+}
+
+/**
+ * Writes a plan as Markdown, the format the planner writes and `parsePlan` reads. Every text is masked and made one
+ * line. `front` is a raw front matter block (ending with a new line, as `splitFrontMatter` returns it) placed first.
+ * Throws when the result is larger than `MAX_PLAN_BYTES`.
+ */
+export function formatPlan(plan: PlanDocument, front = ""): string {
+  const steps = plan.steps.map((step, i) => {
+    const expect = step.expect === undefined ? "" : oneLine(step.expect);
+    return `${i + 1}. ${oneLine(step.text)}${expect !== "" ? `\n   Expect: ${expect}` : ""}`;
+  });
+  const questions = plan.questions.map((q) => {
+    const answer = q.answer === undefined ? "" : oneLine(q.answer);
+    return `- ${oneLine(q.text)}${answer !== "" ? `\n  Answer: ${answer}` : ""}`;
+  });
+  const text = [
+    ...(front === "" ? [] : [front.replace(/\n$/, "")]),
+    `# Plan: ${oneLine(plan.title)}`,
+    "",
+    `Goal: ${oneLine(plan.goal)}`,
+    `Start: ${oneLine(plan.start)}`,
+    "",
+    "## Steps",
+    "",
+    steps.length > 0 ? steps.join("\n") : `- ${NONE}`,
+    "",
+    "## Seen on the page",
+    "",
+    bullets(plan.seen.map(oneLine)),
+    "",
+    "## Not done",
+    "",
+    bullets(plan.notDone.map(oneLine)),
+    "",
+    "## Open questions",
+    "",
+    questions.length > 0 ? questions.join("\n") : `- ${NONE}`,
+    "",
+  ].join("\n");
+  if (Buffer.byteLength(text) > MAX_PLAN_BYTES)
+    throw new Error(
+      `the plan file is full (${MAX_PLAN_BYTES / 1024} KB); finish with what it holds, or shorten the next entry`,
+    );
+  return text;
 }
 
 /**
@@ -76,43 +141,23 @@ class PlanFile {
   }
 
   private render(front: string): string {
-    const steps = this.steps.map(
-      (step, i) =>
-        `${i + 1}. ${step.text}${step.expect !== undefined ? `\n   Expect: ${step.expect}` : ""}`,
+    return formatPlan(
+      {
+        title: this.title,
+        goal: this.goal,
+        start: this.start,
+        steps: this.steps,
+        seen: this.seenItems,
+        notDone: this.notDoneItems,
+        questions: this.questionItems.map((text) => ({ text })),
+      },
+      front,
     );
-    return [
-      ...(front === "" ? [] : [front.replace(/\n$/, "")]),
-      `# Plan: ${this.title}`,
-      "",
-      `Goal: ${this.goal}`,
-      `Start: ${this.start}`,
-      "",
-      "## Steps",
-      "",
-      steps.length > 0 ? steps.join("\n") : `- ${NONE}`,
-      "",
-      "## Seen on the page",
-      "",
-      bullets(this.seenItems),
-      "",
-      "## Not done",
-      "",
-      bullets(this.notDoneItems),
-      "",
-      "## Open questions",
-      "",
-      bullets(this.questionItems),
-      "",
-    ].join("\n");
   }
 
   /** Writes the file; refuses, and keeps the file as it was, when it would pass the size limit */
   private save(): void {
     const text = this.render(this.frontMatter());
-    if (Buffer.byteLength(text) > MAX_PLAN_BYTES)
-      throw new Error(
-        `the plan file is full (${MAX_PLAN_BYTES / 1024} KB); finish with what it holds, or shorten the next entry`,
-      );
     mkdirSync(path.dirname(this.file), { recursive: true });
     writeFileSync(this.file, text);
   }
@@ -166,7 +211,7 @@ class PlanFile {
   }
 }
 
-export type { PlanFile, ParsedPlan };
+export type { PlanFile, ParsedPlan, PlanDocument, PlanQuestion };
 
 /** Starts a plan file: the headings are written at once. An existing file is an error unless `force` is set */
 export function createPlan(input: {
@@ -216,6 +261,7 @@ export function parsePlan(text: string): ParsedPlan {
     seen: [],
     notDone: [],
     questions: [],
+    questionList: [],
     answers: [],
   };
   let section: Section | undefined;
@@ -257,12 +303,17 @@ export function parsePlan(text: string): ParsedPlan {
     const asked = plan.questions[plan.questions.length - 1];
     if (answer) {
       const text = answer[1]!.trim();
-      if (asked !== undefined && text !== "")
+      if (asked !== undefined && text !== "") {
         plan.answers.push({ question: asked, answer: text });
+        plan.questionList[plan.questionList.length - 1]!.answer = text;
+      }
       continue;
     }
     const item = BULLET.exec(line)?.[1]?.trim();
-    if (item !== undefined && item !== NONE) plan[section].push(item);
+    if (item !== undefined && item !== NONE) {
+      plan[section].push(item);
+      if (section === "questions") plan.questionList.push({ text: item });
+    }
   }
   if (!hasSteps)
     throw new Error('parsePlan(): the plan has no "## Steps" heading');

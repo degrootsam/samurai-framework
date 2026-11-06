@@ -1,10 +1,10 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setActiveProject } from "../../config/config.js";
-import { defaultPlanFile, slugOf } from "./plan-path.js";
+import { defaultPlanFile, listPlans, slugOf } from "./plan-path.js";
 
 after(() => setActiveProject(undefined));
 
@@ -41,4 +41,17 @@ test("plansDir of the config is used", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "plan-path-"));
   setActiveProject({ dir, config: { plansDir: "docs/plans" } });
   assert.equal(await defaultPlanFile("A b"), "docs/plans/a-b.plan.md");
+});
+
+test("listPlans finds the plan files below plansDir, sorted, with / paths", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "plan-list-"));
+  setActiveProject({ dir });
+  assert.deepEqual(await listPlans(), []);
+  mkdirSync(path.join(dir, "plans", "sub"), { recursive: true });
+  for (const f of ["b.plan.md", "sub/a.plan.md", "notes.md"])
+    writeFileSync(path.join(dir, "plans", f), "x");
+  assert.deepEqual(await listPlans(), [
+    "plans/b.plan.md",
+    "plans/sub/a.plan.md",
+  ]);
 });

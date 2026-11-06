@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { loadRawConfig, projectDir } from "../../config/config.js";
 import { DEFAULT_PLANS_DIR } from "../../config/defaults.js";
@@ -45,4 +45,22 @@ export async function defaultPlanFile(goal: string): Promise<string> {
         .split(path.sep)
         .join("/");
   }
+}
+
+/**
+ * The plan files (`*.plan.md`) below the config's `plansDir`, searched in all sub-folders: paths relative to the
+ * project folder, with `/` separators, sorted. A missing folder gives an empty list.
+ */
+export async function listPlans(): Promise<string[]> {
+  const folder = path.resolve(projectDir(), await plansDirOf());
+  if (!existsSync(folder)) return [];
+  return readdirSync(folder, { recursive: true, encoding: "utf8" })
+    .filter((name) => name.endsWith(".plan.md"))
+    .map((name) =>
+      path
+        .relative(projectDir(), path.join(folder, name))
+        .split(path.sep)
+        .join("/"),
+    )
+    .sort();
 }
