@@ -1,3 +1,22 @@
+## 0.22.6 (2026-11-06)
+
+### 🚀 Features
+
+- **framework:** mark tests made from a plan with a plan annotation
+- **framework:** read, write and keep annotations in the step codec
+- **framework:** add annotations to the test options
+- **framework:** add plansDir and write plans there by default
+- **framework:** read plan answers and give them to generate
+- **framework:** ignore and keep front matter in plan files
+
+### 🩹 Fixes
+
+- **framework:** let the planner record one step per action done
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.5 (2026-11-06)
 
 ### 🚀 Features
