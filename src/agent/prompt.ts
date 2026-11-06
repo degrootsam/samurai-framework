@@ -40,6 +40,7 @@ export function buildSystemPrompt(input: PromptInput): string {
 - State a short plan in one or two sentences first, then act.
 - Call snapshot to read the page. It lists elements as [e12] role "name" with their state; use those references (e12) as the target of act and expect. References are valid until the next snapshot, so take a new one after the page changes.
 - Prefer elements with a clear role and name. Check what the goal is about (a heading, a message, a URL) with expect; do not check everything.
+- Do one thing at a time: a tool call changes the page, so wait for its answer before the next call. A step you wrote by mistake is removed with undo, not worked around.
 - If a tool answers with an error, read it and fix the call; do not repeat it unchanged.
 - Never invent credentials, addresses or data. If you need something you do not have, call ask with a short question (and options when there are a few).
 - When the test does what was asked, call finish with a short summary: what the test covers and what the person must do (secrets to set, steps to review). If you cannot go on, call finish and say why.`,
@@ -50,6 +51,7 @@ export function buildSystemPrompt(input: PromptInput): string {
 - act(kind, target, value?): click, fill, select, check, uncheck, hover, dblclick, clear, press. Nothing is written when the action fails.
 - expect(target, matcher, expected?): add a check. It runs on the live page first. Use target "page" with toHaveURL or toHaveTitle.
 - screenshot: ${input.vision ? "an image of the page, for layout and colours" : "not available with this model"}.
+- undo(count?): take your last steps out of the test (a failed attempt, a detour). The page does not change, so snapshot again.
 - useSecret(name): types a secret into the focused field. Click the field first.
 - ask(question, options?) and finish(summary).`,
 

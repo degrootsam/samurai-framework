@@ -70,6 +70,35 @@ test(
   },
 );
 
+test(
+  "undo takes the agent\'s last steps out of the spec and leaves the page alone",
+  OPTIONS,
+  async () => {
+    const run = await setup();
+    await run.call("navigate", { url: "/" });
+    const email = await run.ref(/\[(e\d+)\] textbox "Email"/);
+    await run.call("act", {
+      kind: "fill",
+      target: email,
+      value: "ann@example.com",
+    });
+    assert.equal(run.steps().length, 2);
+    const undone = await run.call("undo", {});
+    assert.equal(undone.ok, true, text(undone));
+    assert.deepEqual(run.steps(), [{ kind: "goto", url: "/" }]);
+    assert.equal(
+      await page().getByLabel("Email").inputValue(),
+      "ann@example.com",
+    );
+    const more = await run.call("undo", { count: 5 });
+    assert.equal(more.ok, true, text(more));
+    assert.match(text(more), /only 1 were yours/);
+    assert.equal(run.steps().length, 0);
+    const none = await run.call("undo", {});
+    assert.equal(none.ok, false);
+  },
+);
+
 test("a step is only written when the action worked", OPTIONS, async () => {
   const run = await setup();
   await run.call("navigate", { url: "/" });

@@ -44,6 +44,8 @@ export class StepRecorder {
   private normaliser: Normaliser;
   private readonly writer: SpecWriter;
   private steps: number;
+  /** Steps the test had before the agent wrote any: `undo` never goes below them */
+  private readonly first: number;
   /** The test the steps go into, by its full name */
   public readonly testName: string;
   public readonly file: string;
@@ -54,6 +56,7 @@ export class StepRecorder {
     this.testName = spec.testName;
     this.writer = new SpecWriter(spec.source, this.file, spec.testIndex);
     this.steps = spec.at;
+    this.first = spec.at;
     this.normaliser = this.fresh();
   }
 
@@ -88,6 +91,15 @@ export class StepRecorder {
     const events = this.normaliser.observe(observation, Date.now());
     for (const event of events) this.write(event);
     return events;
+  }
+
+  /** Takes out the last `count` steps (at most the ones written in this run) and returns how many went */
+  public undo(count: number): number {
+    const removed = Math.max(0, Math.min(count, this.steps - this.first));
+    for (let i = 0; i < removed; i++)
+      this.write({ op: "remove", index: this.steps - 1 });
+    if (removed > 0) this.normaliser = this.fresh();
+    return removed;
   }
 
   /** Writes an event a person's recording produced while the agent was not acting (see `rebase`) */

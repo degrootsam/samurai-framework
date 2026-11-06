@@ -36,6 +36,14 @@ export function toSdkTools(
   tools: readonly AgentTool[],
   gate: ToolGate,
 ): Record<string, unknown> {
+  // A model may call several tools in one step and the SDK runs them at once. They share one page and one spec,
+  // so they run one after the other, in the order the model made them
+  let queue: Promise<unknown> = Promise.resolve();
+  const inOrder = <T>(work: () => Promise<T>): Promise<T> => {
+    const turn = queue.then(work, work);
+    queue = turn.catch(() => undefined);
+    return turn;
+  };
   const entries = tools.map((agentTool) => {
     const schema = ai.jsonSchema(
       () => ai.zodSchema(agentTool.inputSchema as never).jsonSchema,
@@ -48,12 +56,13 @@ export function toSdkTools(
       ai.tool({
         description: agentTool.description,
         inputSchema: schema,
-        execute: async (input: unknown): Promise<ToolResult> => {
-          await gate.wait();
-          const note = await gate.note();
-          if (note !== undefined) return { ok: false, error: note };
-          return agentTool.run(input);
-        },
+        execute: (input: unknown): Promise<ToolResult> =>
+          inOrder(async () => {
+            await gate.wait();
+            const note = await gate.note();
+            if (note !== undefined) return { ok: false, error: note };
+            return agentTool.run(input);
+          }),
         toModelOutput: ({ output }: { output: unknown }) =>
           modelOutput(output as ToolResult),
       } as never),

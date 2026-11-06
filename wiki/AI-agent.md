@@ -94,16 +94,17 @@ The names come from the same role and accessible-name engine as `getByRole`. Hid
 
 The agent has these tools and nothing else; none of them reaches anything but the browser, the spec file and the person.
 
-| Tool         | Does                                                                                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `snapshot`   | The page as text with references (above).                                                                                                                                      |
-| `navigate`   | Opens a URL or a path. Only `http` and `https`, and only the start page's origin (and your `--yes-origin`s) without asking; another origin asks the person and may be refused. |
-| `act`        | `click`, `fill`, `select`, `check`, `uncheck`, `hover`, `dblclick`, `clear` or `press` on a reference.                                                                         |
-| `expect`     | A check on a reference, or on the page (`toHaveURL`, `toHaveTitle`). Only matchers the step codec types. It runs on the live page first; a check that fails is not added.      |
-| `screenshot` | An image, for a model that takes images (`vision`). Not added to the test.                                                                                                     |
-| `useSecret`  | Types a secret into the focused field. See below.                                                                                                                              |
-| `ask`        | Asks the person a question and waits. The only way to get what the agent does not know.                                                                                        |
-| `finish`     | Ends the run with a summary.                                                                                                                                                   |
+| Tool         | Does                                                                                                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `snapshot`   | The page as text with references (above).                                                                                                                                                          |
+| `navigate`   | Opens a URL or a path. Only `http` and `https`, and only the start page's origin (and your `--yes-origin`s) without asking; another origin asks the person and may be refused.                     |
+| `act`        | `click`, `fill`, `select`, `check`, `uncheck`, `hover`, `dblclick`, `clear` or `press` on a reference.                                                                                             |
+| `expect`     | A check on a reference, or on the page (`toHaveURL`, `toHaveTitle`). Only matchers the step codec types. It runs on the live page first; a check that fails is not added.                          |
+| `screenshot` | An image, for a model that takes images (`vision`). Not added to the test.                                                                                                                         |
+| `undo`       | Takes the agent's last steps (default 1, at most 20) out of the test, for a failed attempt or a detour. Only the steps written in this run; the page is not changed, so the agent snapshots again. |
+| `useSecret`  | Types a secret into the focused field. See below.                                                                                                                                                  |
+| `ask`        | Asks the person a question and waits. The only way to get what the agent does not know.                                                                                                            |
+| `finish`     | Ends the run with a summary.                                                                                                                                                                       |
 
 Every tool checks its arguments and answers with one sentence the model can act on (`act(): fill needs a value: the text to type`); the model never sees a validation library's dump. A failing action is an answer, not a crash.
 
@@ -114,6 +115,7 @@ Every tool checks its arguments and answers with one sentence the model can act 
 - the locator is the best one the recorder would pick (test id, role and name, label, text, CSS, with fallbacks), not something the model typed;
 - a step is written **only after the action worked**, one edit at a time, so the spec file is valid after every call and stopping at any moment leaves a usable test;
 - the agent cannot write a `custom` statement: there is no tool for it.
+- tool calls run **one at a time**, in the order the model made them, even when it asks for several in one turn: they share one page and one spec file, so two actions never race each other.
 
 ## Instructions for the agent
 
