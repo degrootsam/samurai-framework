@@ -28,6 +28,7 @@
 
 - [Steps and the recorder](Steps-and-the-recorder)
 - [Writing a step](Writing-a-step)
+- [AI agent](AI-agent)
 
 **Project**
 

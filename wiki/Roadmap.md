@@ -51,9 +51,13 @@ This page is the overview of what is built and what is open.
 
 ### Later, not scheduled
 
-- AI-suggested assertions, self-healing (rewriting a stale primary locator from `locator.matchedBy`), AI agent recording. All build on the recording engine.
+- AI-suggested assertions and self-healing (rewriting a stale primary locator from `locator.matchedBy`). Both build on the recording engine.
 - `api.<name>` fixture: a per-environment HTTP client with authentication from a secret.
 - Masking secrets in screenshots, videos and traces (logs and reports are already masked).
+
+## In development: AI agent
+
+The `@itmetsam/samurai-framework/agent` entry (see [AI agent](AI-agent)). Done so far: the page snapshot with references and secret masking, the tools (`snapshot`, `navigate`, `act`, `expect`, `screenshot`, `useSecret`, `ask`, `finish`) that write typed steps through the recorder's path, the model guard (a model object, never a string id), the run limits and the types. Not done: the loop and session, project instructions, `samurai generate`, repairing a failing generated test.
 
 ## Open: embedding
 
