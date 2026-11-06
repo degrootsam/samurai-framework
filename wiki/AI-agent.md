@@ -163,6 +163,15 @@ The four headings are fixed, so tools can read the file. Elements are named the 
 
 A plan may start with a YAML **front matter** block (a first line of `---`, a closing line of `---`) that a tool keeps its own notes in, such as a status. The framework never reads it: any keys are fine, `generate --plan` leaves it out of what the agent sees, and when the planner rewrites a plan file it keeps the block as it finds it. A block that is opened and never closed is an error that names the file.
 
+**Answering open questions.** Under a bullet in `## Open questions`, a person (or a tool) can write an indented `Answer:` line:
+
+```markdown
+- Which card is saved?
+  Answer: the Visa ending 4242
+```
+
+`parsePlan` (exported from `@itmetsam/samurai-framework/agent`) returns `questions` (all of them) and `answers` (`{ question, answer }` for those with a non-empty answer). `generate --plan` repeats the answered questions after the plan, telling the agent to use the answers, and lists the unanswered ones as questions it may `ask` instead of guessing.
+
 ### The planner never submits
 
 While planning, the page is read-only. The framework stops every request that is not a `GET`, `HEAD` or `OPTIONS` (form submits, `fetch`, XHR, beacons) before it leaves the browser, and the tool answer says `blocked: the planner does not submit (POST /api/feedback)`; the planner then writes it under "Not done". This is enforced by the framework, not left to the model, and was checked on Firefox and Chrome with form submits (click and Enter), `fetch`, XHR and `sendBeacon`: the server saw none of them. A form submit is answered with an empty `204`, so the page stays where it is on both browsers.

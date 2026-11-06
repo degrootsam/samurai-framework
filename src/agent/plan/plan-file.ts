@@ -23,7 +23,10 @@ interface ParsedPlan {
   steps: PlanStep[];
   seen: string[];
   notDone: string[];
+  /** Every open question, answered or not */
   questions: string[];
+  /** The questions that have an `Answer:` line, with the answer; a question with an empty answer is not here */
+  answers: { question: string; answer: string }[];
 }
 
 /** One line, masked: a new line in a text must not be able to start a heading or a step */
@@ -163,7 +166,7 @@ class PlanFile {
   }
 }
 
-export type { PlanFile };
+export type { PlanFile, ParsedPlan };
 
 /** Starts a plan file: the headings are written at once. An existing file is an error unless `force` is set */
 export function createPlan(input: {
@@ -186,6 +189,7 @@ const HEADING = /^##\s+(.*?)\s*$/;
 const STEP = /^\s*\d+\.\s+(.*)$/;
 const BULLET = /^\s*[-*]\s+(.*)$/;
 const EXPECT = /^\s+Expect:\s*(.*)$/i;
+const ANSWER = /^\s+Answer:\s*(.*)$/i;
 const FIELD = /^(Goal|Start):\s*(.*)$/i;
 
 type Section = "steps" | "seen" | "notDone" | "questions" | "other";
@@ -212,6 +216,7 @@ export function parsePlan(text: string): ParsedPlan {
     seen: [],
     notDone: [],
     questions: [],
+    answers: [],
   };
   let section: Section | undefined;
   let hasSteps = false;
@@ -246,6 +251,14 @@ export function parsePlan(text: string): ParsedPlan {
       else if (last && expect) last.expect = expect[1]!.trim();
       else if (last && !BULLET.test(line) && /^\s/.test(line))
         last.text = `${last.text} ${line.trim()}`;
+      continue;
+    }
+    const answer = section === "questions" ? ANSWER.exec(line) : null;
+    const asked = plan.questions[plan.questions.length - 1];
+    if (answer) {
+      const text = answer[1]!.trim();
+      if (asked !== undefined && text !== "")
+        plan.answers.push({ question: asked, answer: text });
       continue;
     }
     const item = BULLET.exec(line)?.[1]?.trim();

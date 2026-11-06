@@ -1,5 +1,6 @@
 import { resultSecrets } from "../recorder/session-secrets.js";
 import { buildSystemPrompt } from "./prompt.js";
+import { questionsSection } from "./plan/questions.js";
 import { StepRecorder } from "./recording.js";
 import type { RunKind } from "./run-kind.js";
 import { personRecording } from "./take-over.js";
@@ -32,10 +33,11 @@ export const generateKind: RunKind<AgentOptions, StepRecorder> = {
       ...input,
       ...(options.plan !== undefined && { hasPlan: true }),
     }),
-  opening: (options, first) =>
-    options.plan !== undefined
-      ? `Goal: ${options.goal}\n\nPlan (written earlier by another agent; follow it, but check each step on the live page):\n${options.plan.trim()}\n\n${first}`
-      : `Goal: ${options.goal}\n\n${first}`,
+  opening: (options, first) => {
+    if (options.plan === undefined) return `Goal: ${options.goal}\n\n${first}`;
+    const questions = questionsSection(options.plan);
+    return `Goal: ${options.goal}\n\nPlan (written earlier by another agent; follow it, but check each step on the live page):\n${options.plan.trim()}\n\n${questions === "" ? "" : `${questions}\n\n`}${first}`;
+  },
   secrets: (steps) => resultSecrets(steps.events, []),
   person: ({ page, sink, snapshots, baseURL }) =>
     personRecording({
