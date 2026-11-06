@@ -84,6 +84,11 @@ export interface AgentOptions extends BaseAgentOptions {
   test?: string | number;
   /** The text of a plan written earlier (see `runPlan`): a draft to follow and check on the live page */
   plan?: string;
+  /**
+   * The plan file the `plan` text came from, relative to the project folder (an absolute path is made relative).
+   * The test is marked with `{ type: "plan", description: <this path> }` in its `annotations` option
+   */
+  planFile?: string;
 }
 
 /** A planning run: explores the page and writes a Markdown plan, never a spec, and never submits */

@@ -122,6 +122,16 @@ export class SpecWriter {
     private readonly testIndex: number,
   ) {}
 
+  /** Changes the source with `change` and writes the file when it differs; returns the new content */
+  public rewrite(change: (source: string) => string): string {
+    const next = change(this.source);
+    if (next !== this.source) {
+      this.source = next;
+      writeFileSync(this.file, this.source);
+    }
+    return this.source;
+  }
+
   /** Applies the event, writes the file and returns the file's new content */
   public write(event: RecorderEvent): string {
     this.source = applyRecorderEvent(this.source, this.testIndex, event);

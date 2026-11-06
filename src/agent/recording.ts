@@ -6,6 +6,7 @@ import {
   type RecorderEvent,
 } from "../recorder/normalise.js";
 import { prepareSpec, readSpec, SpecWriter } from "../recorder/spec-source.js";
+import { linkPlan } from "./plan-link.js";
 import { stepToSource } from "../steps/emit.js";
 
 export interface StepRecorderOptions {
@@ -15,6 +16,8 @@ export interface StepRecorderOptions {
   create?: string | undefined;
   /** The existing test to write into, as for `recordSpec` */
   test?: string | number | undefined;
+  /** The plan the test is made from, as `AgentOptions.planFile`: written on the test as a `plan` annotation */
+  planFile?: string | undefined;
   /** Relative URLs are written against this */
   baseURL?: string | undefined;
   /** Called after each event is written, with the statement it produced and the file's new content */
@@ -55,6 +58,11 @@ export class StepRecorder {
     const spec = prepareSpec(this.file, readSpec(this.file, options), options);
     this.testName = spec.testName;
     this.writer = new SpecWriter(spec.source, this.file, spec.testIndex);
+    const planFile = options.planFile;
+    if (planFile !== undefined)
+      this.writer.rewrite((source) =>
+        linkPlan(source, spec.testIndex, planFile),
+      );
     this.steps = spec.at;
     this.first = spec.at;
     this.normaliser = this.fresh();

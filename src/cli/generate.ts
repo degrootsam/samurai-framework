@@ -47,7 +47,7 @@ export async function generateCommand(
     file: files[0]!,
     ...(test !== undefined && { test }),
     ...(values.new !== undefined && { create: values.new }),
-    ...(plan !== undefined && { plan }),
+    ...(plan !== undefined && { plan, planFile: values.plan! }),
   });
   return followRun(session, io, values.json === true, (result) =>
     summarise(io, result),

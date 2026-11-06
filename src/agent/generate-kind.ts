@@ -16,6 +16,7 @@ export const generateKind: RunKind<AgentOptions, StepRecorder> = {
       create: options.create,
       test: options.test,
       baseURL,
+      planFile: options.planFile,
       onStep: (event, code, source) =>
         emit({
           type: "step",

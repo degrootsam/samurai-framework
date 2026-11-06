@@ -298,9 +298,11 @@ test("--plan reads the plan and hands its text to the run", async () => {
   const { code } = await run([...ARGS, "--plan", "plans/a.md"], agent);
   assert.equal(code, 0);
   assert.equal(agent.seen.options?.plan, "PLAN TEXT of plans/a.md");
+  assert.equal(agent.seen.options?.planFile, "plans/a.md");
   const without = fakeAgent([{ type: "ended", result: result() }]);
   await run(ARGS, without);
   assert.equal("plan" in (without.seen.options ?? {}), false);
+  assert.equal("planFile" in (without.seen.options ?? {}), false);
 });
 
 test("a plan file that cannot be used is a usage error that names it", async () => {
