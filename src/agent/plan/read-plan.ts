@@ -1,10 +1,11 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { projectDir } from "../../config/config.js";
+import { splitFrontMatter } from "./front-matter.js";
 import { MAX_PLAN_BYTES, parsePlan } from "./plan-file.js";
 
 /**
- * Reads a plan for `generate --plan`: the text goes to the agent as it is. A missing file, a file over 32 KB and a
+ * Reads a plan for `generate --plan`: the text goes to the agent as it is, without a front matter block. A missing file, a file over 32 KB and a
  * file without a `## Steps` heading are errors that name the file.
  */
 export function readPlan(file: string): string {
@@ -22,10 +23,10 @@ export function readPlan(file: string): string {
   const text = readFileSync(full, "utf8");
   try {
     parsePlan(text);
+    return splitFrontMatter(text).body;
   } catch (error) {
     throw new Error(
       `readPlan(): ${full}: ${(error as Error).message.replace(/^parsePlan\(\): /, "")}`,
     );
   }
-  return text;
 }

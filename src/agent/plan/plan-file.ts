@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { projectDir } from "../../config/config.js";
 import { maskText } from "../../config/mask.js";
+import { splitFrontMatter } from "./front-matter.js";
 
 /** A plan file may not be larger than this (bytes), for the planner and for `generate --plan` */
 export const MAX_PLAN_BYTES = 32 * 1024;
@@ -62,12 +63,22 @@ class PlanFile {
     return this.steps.length;
   }
 
-  private render(): string {
+  /** The front matter the file has now (the app may change it while the plan is written); kept as it is */
+  private frontMatter(): string {
+    try {
+      return splitFrontMatter(readFileSync(this.file, "utf8")).front;
+    } catch {
+      return "";
+    }
+  }
+
+  private render(front: string): string {
     const steps = this.steps.map(
       (step, i) =>
         `${i + 1}. ${step.text}${step.expect !== undefined ? `\n   Expect: ${step.expect}` : ""}`,
     );
     return [
+      ...(front === "" ? [] : [front.replace(/\n$/, "")]),
       `# Plan: ${this.title}`,
       "",
       `Goal: ${this.goal}`,
@@ -94,7 +105,7 @@ class PlanFile {
 
   /** Writes the file; refuses, and keeps the file as it was, when it would pass the size limit */
   private save(): void {
-    const text = this.render();
+    const text = this.render(this.frontMatter());
     if (Buffer.byteLength(text) > MAX_PLAN_BYTES)
       throw new Error(
         `the plan file is full (${MAX_PLAN_BYTES / 1024} KB); finish with what it holds, or shorten the next entry`,
@@ -189,7 +200,7 @@ function sectionOf(heading: string): Section {
 }
 
 /**
- * Reads a plan, the one `createPlan` wrote or one a person edited: blank lines, a missing title, missing sections
+ * Reads a plan, the one `createPlan` wrote or one a person edited. A leading front matter block is ignored. Blank lines, a missing title, missing sections
  * and `None.` placeholders are fine. Only the `## Steps` heading is needed.
  */
 export function parsePlan(text: string): ParsedPlan {
@@ -204,7 +215,13 @@ export function parsePlan(text: string): ParsedPlan {
   };
   let section: Section | undefined;
   let hasSteps = false;
-  for (const line of text.split(/\r?\n/)) {
+  let body: string;
+  try {
+    body = splitFrontMatter(text).body;
+  } catch (error) {
+    throw new Error(`parsePlan(): ${(error as Error).message}`);
+  }
+  for (const line of body.split(/\r?\n/)) {
     const heading = HEADING.exec(line);
     if (heading) {
       section = sectionOf(heading[1]!);
