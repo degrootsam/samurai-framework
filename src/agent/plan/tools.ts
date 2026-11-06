@@ -72,12 +72,24 @@ const question = defineTool({
   },
 });
 
+/** A click or a key can submit a form; the request reaches the guard a moment after the action returns (Chrome) */
+const SUBMIT_SETTLE_MS = 250;
+const MAY_SUBMIT = new Set(["click", "dblclick", "press"]);
+
+const settle = () =>
+  new Promise((resolve) => setTimeout(resolve, SUBMIT_SETTLE_MS));
+
 /** Says what the guard stopped after any call, so the agent writes it down and does not try again */
 function withBlockedNotice(tool: AgentTool, plan: PlanRecorder): AgentTool {
   return {
     ...tool,
     async run(args) {
       const result = await tool.run(args);
+      if (
+        tool.name === "act" &&
+        MAY_SUBMIT.has((args as { kind?: string })?.kind ?? "")
+      )
+        await settle();
       const blocked = plan.takeBlocked();
       if (blocked.length === 0) return result;
       const note = `blocked: the planner does not submit (${blocked.join(", ")}); note it with notDone`;

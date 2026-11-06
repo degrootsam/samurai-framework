@@ -60,6 +60,7 @@ samurai generate "sign in as the owner and check the dashboard" --file tests/sig
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `--file <spec>`                              | The spec to write into (required, once). With `--new <title>` the test is added (the file is created if needed) |
 | `--test <name\|index>`                       | Write into this existing test; not needed when the file has one                                                 |
+| `--plan <plan.md>`                           | A plan from [`samurai plan`](#planning-a-test): the agent follows it and checks each step on the live page      |
 | `--url <url>`                                | Where the browser starts. Default: the environment's base URL                                                   |
 | `--model <provider:name>`                    | See above                                                                                                       |
 | `--max-steps <n>`                            | Most model calls in the run (default 40)                                                                        |
@@ -117,6 +118,63 @@ Every tool checks its arguments and answers with one sentence the model can act 
 - the agent cannot write a `custom` statement: there is no tool for it.
 - tool calls run **one at a time**, in the order the model made them, even when it asks for several in one turn: they share one page and one spec file, so two actions never race each other.
 
+## Planning a test
+
+`samurai generate` explores and writes the spec in one pass, and every step it takes is written at once. On a form with a few traps it can end with a spec that holds a failed first attempt. A second command splits the work: `samurai plan` explores a page on purpose and writes a **plan**, a Markdown file you can read and fix, and `generate --plan` writes the spec from it.
+
+```bash
+samurai plan "register with the Pro plan" --out plans/register.md --url http://localhost:5180/forms --model anthropic:claude-sonnet-4-5
+# read plans/register.md, fix a sentence
+samurai generate "register with the Pro plan" --plan plans/register.md --file tests/register.spec.ts --new "owner registers" --model anthropic:claude-sonnet-4-5
+```
+
+`samurai plan` takes the same model, limit, origin and secret options as `generate` (see [the command](#the-command)) and `--out <plan.md>` (required), plus `--force` to replace an existing file (without it an existing file is an error, before a browser opens). The plan is written after every step it records, so a stopped or limited run leaves a usable file. In code: `runPlan(options)` from `@itmetsam/samurai-framework/agent`, with `out` and `force` instead of `file`, `create` and `test`; the events are those of `runAgent` plus `{ type: "plan-step", n, text }`, and the result has no `test`.
+
+### The plan file
+
+```markdown
+# Plan: register with the Pro plan
+
+Goal: register with the Pro plan
+Start: http://localhost:5180/forms
+
+## Steps
+
+1. Fill "Full name" (textbox) with `Sam`.
+   Expect: the field shows `Sam`.
+2. Select the "Pro" plan (radio).
+3. Click "Create account" (button).
+   Expect: a result block lists the name.
+
+## Seen on the page
+
+- Heading "Forms"; form "Registration" with Full name, Email, Plan, Terms.
+
+## Not done
+
+- Step 3 was not clicked: the planner never submits. The result was not seen.
+
+## Open questions
+
+- None.
+```
+
+The four headings are fixed, so tools can read the file. Elements are named the way the snapshot shows them (role and accessible name), never by internal ids. A step is written only after the planner did it on the live page (the `step` tool refuses when nothing was done since the last step). Secrets appear as `secrets.NAME`, never as values. "Not done" lists what the planner did not try or could not see, so `generate` knows what is unverified. The file may not pass 32 KB. You can write or edit a plan by hand: only the `## Steps` heading is required.
+
+### The planner never submits
+
+While planning, the page is read-only. The framework stops every request that is not a `GET`, `HEAD` or `OPTIONS` (form submits, `fetch`, XHR, beacons) before it leaves the browser, and the tool answer says `blocked: the planner does not submit (POST /api/feedback)`; the planner then writes it under "Not done". This is enforced by the framework, not left to the model, and was checked on Firefox and Chrome with form submits (click and Enter), `fetch`, XHR and `sendBeacon`: the server saw none of them. A form submit is answered with an empty `204`, so the page stays where it is on both browsers.
+
+What it does **not** guarantee:
+
+- A `GET` that changes data (a "delete" link, a "log out" URL) goes through. The prompt tells the planner not to open such pages; nothing enforces it.
+- Messages over a WebSocket are not requests the guard sees.
+- A blocked submit hides what comes after it (a result page, a validation message from the server). That part is "Not done" in the plan, and `generate` explores it.
+
+### Handing the plan to `generate`
+
+`--plan <file>` (or `plan` in the `runAgent` options) puts the plan's text in the first message, after the goal. The goal still rules: the plan is a draft by another agent, so the agent follows it but checks every step on the live page, and it **cannot widen what the agent may do**. The allowed sites, the secrets and every other limit are those of the run, and text in a plan that asks for more is treated as data like page text. Because a plan is written from page text, read it between the two commands. A plan file that is missing, over 32 KB or without a `## Steps` heading is a usage error (exit 2) that names the file.
+
 ## Instructions for the agent
 
 Put your conventions in plain Markdown files in the project folder; the agent reads them at the start of every run:
@@ -161,6 +219,7 @@ A running session (`runAgent` returns it at once) can be controlled:
 | `plan`      | The agent's own words about what it intends                                                                            |
 | `tool-call` | The tool and its arguments (secret values removed)                                                                     |
 | `step`      | The recorder event, the statement it wrote and the file's new content                                                  |
+| `plan-step` | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)       |
 | `question`  | An `id`, the question and optional answers                                                                             |
 | `usage`     | Tokens of one model call                                                                                               |
 | `ended`     | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens` |

@@ -188,6 +188,7 @@ samurai generate "sign in as the owner" --file tests/sign-in.spec.ts --new "owne
 | `--file <spec>`                              | The spec to write into (required, once)                                                   |
 | `--new <title>`                              | Add a test with this title (creates the file if needed)                                   |
 | `--test <name\|index>`                       | Write into this test; not needed when the file has one                                    |
+| `--plan <plan.md>`                           | A plan from `samurai plan`: followed, but each step is checked on the live page           |
 | `--url <url>`                                | Page to start on (default: the environment's `baseURL`)                                   |
 | `--model <provider:name>`                    | `anthropic`, `openai` or `openai-compatible`; default `SAMURAI_AI_MODEL`, then `ai.model` |
 | `--max-steps <n>`                            | Most model calls (default 40)                                                             |
@@ -198,6 +199,23 @@ samurai generate "sign in as the owner" --file tests/sign-in.spec.ts --new "owne
 | `--json`                                     | One JSON event per line (`plan`, `tool-call`, `step`, `question`, `usage`, `ended`)       |
 
 Keys come from `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or (for `openai-compatible`, with the endpoint in `SAMURAI_AI_BASE_URL`) `SAMURAI_AI_API_KEY`; a key is never printed. The questions the agent asks are asked in the terminal; without one, or with `--json`, a question about opening another site is refused and any other question ends the run. Exit code: 0 when the agent finished, 1 when it ended at a limit, was stopped with Ctrl+C or failed, 2 for a usage or configuration error (a missing package or key says what to install or set).
+
+## `samurai plan "<goal>"`
+
+Lets an AI agent explore a page and write a test plan (a Markdown file) without submitting anything: every request that is not a `GET` is blocked while it plans. Read the plan, fix it, then give it to `samurai generate --plan`. The workflow, the plan file format and what the guard does and does not cover are on [AI agent](AI-agent#planning-a-test).
+
+```sh
+samurai plan "register with the Pro plan" --out plans/register.md --url http://localhost:5180/forms --model anthropic:claude-sonnet-4-5
+```
+
+| Option                                                                          | Meaning                                                                       |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `--out <plan.md>`                                                               | The plan file to write (required); written after every step                   |
+| `--force`                                                                       | Replace `--out` when it exists (otherwise an existing file is an error)       |
+| `--url`, `--model`, `--max-steps`, `--yes-origin`, `--secret`, `--secret-field` | As for `samurai generate`                                                     |
+| `--env`, `--browser`, `--port`, `--headless`, `--json`                          | As for `samurai generate`; `--json` events add `plan-step` and have no `step` |
+
+Same exit codes as `generate`: 0 when the agent finished, 1 when it ended at a limit, was stopped or failed, 2 for a usage or configuration error. The same provider notice is printed before the first model call.
 
 ## `samurai flow`
 
