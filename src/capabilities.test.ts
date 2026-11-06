@@ -29,6 +29,7 @@ describe("capabilities", () => {
       actionSteps: true,
       locatorForms: true,
       recorderActionSteps: true,
+      aiAgent: true,
     });
   });
 

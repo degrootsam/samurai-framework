@@ -40,6 +40,7 @@ try {
 }
 
 const { main } = await import("../dist/cli/main.js");
+const { terminalPrompt } = await import("../dist/cli/prompt.js");
 // Ctrl+C (or a termination signal) ends a recording or a flow run cleanly (the browser is closed, the file is complete); a second one stops at once
 const interrupt = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -54,5 +55,6 @@ const code = await main(process.argv.slice(2), {
   color: Boolean(process.stdout.isTTY) && !process.env.NO_COLOR,
   env: process.env,
   signal: interrupt.signal,
+  ...(terminalPrompt() && { prompt: terminalPrompt() }),
 });
 process.exit(code);

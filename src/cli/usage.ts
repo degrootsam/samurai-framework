@@ -6,6 +6,7 @@ Usage:
   samurai run [options]       Run the tests (the default command)
   samurai list [options]      List the tests without running them
   samurai record <spec>       Open a browser and record what you do into a spec file
+  samurai generate "<goal>"   Let an AI agent write a test into a spec file (needs ai, zod and a provider)
   samurai init [folder]       Scaffold a project: config, an example test, .env.example
   samurai flow <command>      List, check and run the flows in ./flows (see below)
   samurai browsers [command]  List, install and remove the browsers SAMURAI launches
@@ -42,10 +43,26 @@ Options for record (also --env, --port, --json; always with a window):
   --url <url>                 Page to start on (default: the environment's baseURL)
   Stop with Ctrl+C or by closing the browser window.
 
+Options for generate (also --env, --browser, --port, --headless, --json):
+  --file <spec>               The spec file to write into (required, once)
+  --new <title>               Add a test with this title (creates the file if needed)
+  --test <name|index>         Write into this test; not needed when the file has one
+  --url <url>                 Page to start on (default: the environment's baseURL)
+  --model <provider:name>     anthropic, openai or openai-compatible, for example
+                              anthropic:claude-sonnet-4-5. Default: SAMURAI_AI_MODEL, then the
+                              config's ai.model. Keys: ANTHROPIC_API_KEY, OPENAI_API_KEY,
+                              SAMURAI_AI_API_KEY (+ SAMURAI_AI_BASE_URL for openai-compatible)
+  --max-steps <n>             Most model calls in the run (default 40)
+  --yes-origin <origin>       A site the agent may open without asking; repeatable
+  --secret <NAME>             A secret the agent may type (it never sees the value); repeatable
+  --secret-field <css>        A field whose value is never shown to the model; repeatable
+  Questions are asked in the terminal; without one (or with --json) an unknown site is refused
+  and any other question ends the run.
+
   -h, --help                  Show this help
   -v, --version               Show the version
 
-Exit code: 0 when every test passed, 1 when a test failed, 2 for a usage or configuration error.
+Exit code: 0 when every test passed (generate: the agent finished), 1 when a test failed (generate: it ended at a limit, was stopped or failed), 2 for a usage or configuration error.
 
 samurai flow:
   list                        The flows in ./flows

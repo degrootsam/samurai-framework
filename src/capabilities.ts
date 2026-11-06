@@ -64,6 +64,8 @@ export const CAPABILITIES = {
   locatorForms: true,
   /** The recorder writes a `check` / `uncheck` for a checkbox or radio click and a `selectOption` for a `<select>` choice. */
   recorderActionSteps: true,
+  /** The `./agent` entry point: `runAgent` and `samurai generate` (needs the optional packages `ai` and `zod`). */
+  aiAgent: true,
 } as const;
 
 /** The shape of {@link CAPABILITIES}. */

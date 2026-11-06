@@ -7,6 +7,7 @@ import { listTests, runTests, type RunTestsOptions } from "../runner/run.js";
 import { ConsoleReporter } from "./console-reporter.js";
 import { browsersCommand } from "./browsers.js";
 import { flowCommand } from "./flow.js";
+import { generateCommand } from "./generate.js";
 import { initProject } from "./init.js";
 import type { Io } from "./io.js";
 import { recordCommand } from "./record.js";
@@ -45,6 +46,9 @@ export async function main(argv: string[], io: Io): Promise<number> {
       );
       return 0;
     }
+
+    if (command === "generate")
+      return await generateCommand({ values, positionals }, io);
 
     if (command === "record")
       return await recordCommand({ values, positionals }, io);

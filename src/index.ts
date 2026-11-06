@@ -1,4 +1,5 @@
 import { main } from "./cli/main.js";
+import { terminalPrompt } from "./cli/prompt.js";
 
 // Development entry (`npm run dev`, which runs `tsx src/index.ts`): the same as `samurai run`, straight from the sources
 const interrupt = new AbortController();
@@ -14,5 +15,6 @@ process.exit(
     color: Boolean(process.stdout.isTTY) && !process.env.NO_COLOR,
     env: process.env,
     signal: interrupt.signal,
+    ...(terminalPrompt() && { prompt: terminalPrompt()! }),
   }),
 );

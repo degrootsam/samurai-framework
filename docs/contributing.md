@@ -26,7 +26,7 @@ src/
   cli/                   the `samurai` command (see the rule below)
   steps/                 step model, parser, emitter, minimal-diff editor
   recorder/              capture script, locator ranking, normaliser, Recorder, recordSpec
-  agent/                 the AI agent (`@itmetsam/samurai-framework/agent`): model glue, page snapshot, tools that write typed steps through the recorder's path
+  agent/                 the AI agent (`@itmetsam/samurai-framework/agent`): `run` and `session` (the loop on the AI SDK and what the person controls), `snapshot`, `tools/` (they write typed steps through the recorder's path), `instructions`, `prompt`, `providers` (loads a provider package from the user's project)
   recorder/toolbar/      the toolbar shown in the recorded page and its controller
   project/               writing to a project: config edits, variables, .env secrets
   flows/core/            the pure flow model: schema, graph, expressions, checks (no Node APIs)
@@ -84,7 +84,7 @@ The table reads top to bottom: a folder mostly uses the ones below it. It is tak
 
 | Folder                     | Imports from (values; `import type` is not counted)                                                                                                                                                                                    |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cli`                      | `runner`, `recorder`, `steps`, `browsers`, `flows/*` (public entry points only)                                                                                                                                                        |
+| `cli`                      | `runner`, `recorder`, `steps`, `browsers`, `flows/*`, `agent` (public entry points only; `agent` is loaded with `import()` by `samurai generate`, so the other commands never need `ai` and `zod`)                                     |
 | `agent`                    | `browser`, `locator`, `steps`, `recorder` (its normaliser, spec writer and locator ranking, by file), `assert`, `script`, `config`, `runner` (`project.ts`); never `cli`. The only folder that imports `ai` and `zod` (optional peers) |
 | `runner`                   | `browser`, `browsers`, `request`, `assert`, `config`, `transport`, `logger`, `flows/core` (`isIoName`, and the `Field` type for option fixtures)                                                                                       |
 | `recorder`                 | `browser`, `steps`, `project`, `runner`, `script`, `config`, `transport`, `flows/core` (`isIoName` only)                                                                                                                               |

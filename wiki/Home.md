@@ -23,7 +23,7 @@ Every guide and the code it describes. Start with the [Getting Started](Getting-
 | Step codec                | [Steps and the recorder](Steps-and-the-recorder#steps)       | `src/steps/`                                                             |
 | Recorder                  | [Steps and the recorder](Steps-and-the-recorder#recording)   | `src/recorder/`                                                          |
 | Recorder toolbar          | [Steps and the recorder](Steps-and-the-recorder#the-toolbar) | `src/recorder/toolbar/`, `src/project/`                                  |
-| AI agent (in development) | [AI agent](AI-agent)                                         | `src/agent/`                                                             |
+| AI agent                  | [AI agent](AI-agent)                                         | `src/agent/`                                                             |
 | Embedding                 | [Embedding the framework](Embedding-the-framework)           | `package.json` `exports`                                                 |
 | Protocol layer            | [Contributing](Contributing)                                 | `src/transport/`, `src/script/`, `src/types/bidi-modules/`               |
 | CI                        | [Contributing](Contributing)                                 | `.github/`                                                               |

@@ -204,6 +204,11 @@ export interface SamuraiTestConfig {
    * @default "files"
    */
   filesDir?: string;
+  /**
+   * The AI agent (`samurai generate`). `model` is a `provider:name` pair, such as `anthropic:claude-sonnet-4-5`;
+   * never a key (keys come from the environment). The `--model` flag and `SAMURAI_AI_MODEL` win over it
+   */
+  ai?: { model?: string };
   /** How pages are opened, and what the browser pretends: the options of `test.use()` apply to every test */
   use?: UseOptions &
     FixtureUse & {

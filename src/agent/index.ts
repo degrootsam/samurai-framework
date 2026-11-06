@@ -1,5 +1,10 @@
 export { DEFAULT_LIMITS, resolveLimits, type AgentLimits } from "./limits.js";
 export { assertModelObject, type AgentModel } from "./model.js";
+export {
+  defaultModelSpec,
+  ModelSetupError,
+  modelFromSpec,
+} from "./providers.js";
 export type {
   AgentEndReason,
   AgentEvent,

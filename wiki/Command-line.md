@@ -175,6 +175,30 @@ Details:
 - With `--at n` the window starts on `--url` or the base URL, **not** where steps `0…n-1` would leave it. Get the page to that state yourself before you act.
 - Recording always opens a window: a person has to use it. `use.headless`, the environment's `headless` and `CI` do not apply to it, and `--headless` is refused with a usage error (exit 2). `--no-headless` is accepted and changes nothing. `recordSpec` takes a `headless` option, which exists only for tests of the recorder itself.
 
+## `samurai generate "<goal>"`
+
+Lets an AI agent write a test into a spec file: it drives a real browser, writes typed steps as they succeed, and ends with a normal spec for you to review. It needs `ai`, `zod` and a provider package in the project, and a key in the environment. Everything about it (models, the instructions files, limits, what it may and may not do) is on [AI agent](AI-agent).
+
+```sh
+samurai generate "sign in as the owner" --file tests/sign-in.spec.ts --new "owner signs in" --model anthropic:claude-sonnet-4-5 --secret PASSWORD
+```
+
+| Option                                       | Meaning                                                                                   |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `--file <spec>`                              | The spec to write into (required, once)                                                   |
+| `--new <title>`                              | Add a test with this title (creates the file if needed)                                   |
+| `--test <name\|index>`                       | Write into this test; not needed when the file has one                                    |
+| `--url <url>`                                | Page to start on (default: the environment's `baseURL`)                                   |
+| `--model <provider:name>`                    | `anthropic`, `openai` or `openai-compatible`; default `SAMURAI_AI_MODEL`, then `ai.model` |
+| `--max-steps <n>`                            | Most model calls (default 40)                                                             |
+| `--yes-origin <origin>`                      | A site the agent may open without asking. Repeatable                                      |
+| `--secret <NAME>`                            | A secret the agent may type; it never sees the value. Repeatable                          |
+| `--secret-field <css>`                       | A field whose value is never shown to the model. Repeatable                               |
+| `--env`, `--browser`, `--port`, `--headless` | As for `samurai run`                                                                      |
+| `--json`                                     | One JSON event per line (`plan`, `tool-call`, `step`, `question`, `usage`, `ended`)       |
+
+Keys come from `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or (for `openai-compatible`, with the endpoint in `SAMURAI_AI_BASE_URL`) `SAMURAI_AI_API_KEY`; a key is never printed. The questions the agent asks are asked in the terminal; without one, or with `--json`, a question about opening another site is refused and any other question ends the run. Exit code: 0 when the agent finished, 1 when it ended at a limit, was stopped with Ctrl+C or failed, 2 for a usage or configuration error (a missing package or key says what to install or set).
+
 ## `samurai flow`
 
 ```sh
