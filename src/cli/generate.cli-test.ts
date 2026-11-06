@@ -24,10 +24,10 @@ describe("samurai plan", () => {
     assert.match(USAGE, /--plan <plan\.md>/);
   });
 
-  it("exits 2 without a goal, a plan file or a model", async () => {
+  it("exits 2 without a goal or a model", async () => {
     for (const [argv, message] of [
       [["plan"], /Which goal\?/],
-      [["plan", "sign in"], /Give the plan file with --out/],
+      [["plan", "sign in"], /No model: pass --model/],
       [["plan", "sign in", "--out", "p.md"], /No model: pass --model/],
     ] as const) {
       const run = io();

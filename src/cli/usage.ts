@@ -46,7 +46,7 @@ Options for record (also --env, --port, --json; always with a window):
 
 Options for plan (also --env, --browser, --port, --headless, --json and the model, limit and
 origin options of generate below):
-  --out <plan.md>             The plan file to write (required); written after every step
+  --out <plan.md>             The plan file to write; written after every step. Without it: <plansDir>/<goal-slug>.plan.md
   --force                     Replace --out when it exists
   The page is read-only while planning: every request that is not a GET is blocked.
 

@@ -27,6 +27,7 @@ function fakeAgent(events: AgentEvent[], final: PlanResult = result()) {
   const entry = {
     defaultModelSpec: async () => undefined as string | undefined,
     modelFromSpec: async (spec: string) => ({ spec }) as never,
+    defaultPlanFile: async (goal: string) => `plans/${goal}.plan.md`,
     runPlan: (options: PlanOptions) => {
       seen.options = options;
       return {
@@ -80,7 +81,6 @@ test("usage mistakes are errors, which the command line reports with exit code 2
   const agent = fakeAgent([]);
   for (const [argv, message] of [
     [["plan"], /Which goal\?/],
-    [["plan", "x", "--model", "anthropic:x"], /Give the plan file with --out/],
     [[...ARGS, "--max-steps", "0"], /--max-steps must be a whole number/],
     [[...ARGS, "--yes-origin", "nope"], /--yes-origin: "nope" is not a URL/],
   ] as const)
@@ -130,6 +130,16 @@ test("the options reach the run and a finished run exits 0 with the plan's path"
   assert.match(out(), /generate "<goal>" --plan plans\/a\.md/);
   assert.equal(err(), "");
   assert.equal((out() + err()).includes(KEY), false);
+});
+
+test("without --out the plan goes to the default file, which is printed", async () => {
+  const agent = fakeAgent([]);
+  const { out } = await run(
+    ["plan", "register", "--model", "anthropic:claude-x"],
+    agent,
+  );
+  assert.equal(agent.seen.options?.out, "plans/register.plan.md");
+  assert.match(out(), /will be written to plans\/register\.plan\.md/);
 });
 
 test("force is left out when not given", async () => {

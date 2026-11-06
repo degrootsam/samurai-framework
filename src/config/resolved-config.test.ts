@@ -13,6 +13,7 @@ import {
   DEFAULT_EXPECT_TIMEOUT,
   DEFAULT_FAIL_ON_PAGE_ERROR,
   DEFAULT_FILES_DIR,
+  DEFAULT_PLANS_DIR,
   DEFAULT_IDLE_TIME,
   DEFAULT_LOGS_CAPTURE,
   DEFAULT_MAX_BODY_SIZE,
@@ -52,6 +53,7 @@ describe("resolveConfig", () => {
       viewport: DEFAULT_VIEWPORT,
       downloadsDir: DEFAULT_DOWNLOADS_DIR,
       filesDir: DEFAULT_FILES_DIR,
+      plansDir: DEFAULT_PLANS_DIR,
       logs: {
         capture: DEFAULT_LOGS_CAPTURE,
         failOnPageError: DEFAULT_FAIL_ON_PAGE_ERROR,

@@ -210,10 +210,12 @@ samurai plan "register with the Pro plan" --out plans/register.md --url http://l
 
 | Option                                                                          | Meaning                                                                       |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `--out <plan.md>`                                                               | The plan file to write (required); written after every step                   |
+| `--out <plan.md>`                                                               | The plan file to write; written after every step. Default: see below          |
 | `--force`                                                                       | Replace `--out` when it exists (otherwise an existing file is an error)       |
 | `--url`, `--model`, `--max-steps`, `--yes-origin`, `--secret`, `--secret-field` | As for `samurai generate`                                                     |
 | `--env`, `--browser`, `--port`, `--headless`, `--json`                          | As for `samurai generate`; `--json` events add `plan-step` and have no `step` |
+
+Without `--out`, the plan is written to `<plansDir>/<slug-of-goal>.plan.md` (`plansDir` in [the config](Configuration), default `plans`): the slug is the goal in lower-case ascii, at most 60 characters, and `-2`, `-3` are added when the name is taken, so a plan made this way never replaces another. The folder is created when it is missing and the path is printed before the run starts. An explicit `--out` wins and still refuses an existing file unless `--force` is given.
 
 Same exit codes as `generate`: 0 when the agent finished, 1 when it ended at a limit, was stopped or failed, 2 for a usage or configuration error. The same provider notice is printed before the first model call.
 

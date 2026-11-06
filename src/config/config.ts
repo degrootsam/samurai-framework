@@ -9,6 +9,7 @@ import { validateForbidOnlyConfig } from "./forbid-only.js";
 import { validateRetriesConfig } from "./retries.js";
 import { validateFullyParallelConfig } from "./fully-parallel.js";
 import { validateWorkersConfig } from "./workers.js";
+import { validatePlansDirConfig } from "./plans-dir.js";
 import { validateWebServerConfig } from "./web-server-options.js";
 
 /** The project a run belongs to; without one, everything is relative to the working directory */
@@ -56,6 +57,7 @@ export function validateConfig(config: SamuraiTestConfig): void {
   validateGroupUse(config);
   validateEnvironmentUse(config);
   validateWebServerConfig(config);
+  validatePlansDirConfig(config);
 }
 
 /** The whole `samurai.config.ts` of the project (the working directory unless a project is active) */

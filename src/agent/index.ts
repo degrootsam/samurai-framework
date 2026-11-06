@@ -10,6 +10,7 @@ import type {
 export { DEFAULT_LIMITS, resolveLimits, type AgentLimits } from "./limits.js";
 export { assertModelObject, type AgentModel } from "./model.js";
 export { parsePlan, type ParsedPlan } from "./plan/plan-file.js";
+export { defaultPlanFile } from "./plan/plan-path.js";
 export { readPlan } from "./plan/read-plan.js";
 export {
   defaultModelSpec,

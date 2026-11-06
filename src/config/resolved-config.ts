@@ -9,6 +9,7 @@ import {
   DEFAULT_DOWNLOADS_DIR,
   DEFAULT_FAIL_ON_PAGE_ERROR,
   DEFAULT_FILES_DIR,
+  DEFAULT_PLANS_DIR,
   DEFAULT_IDLE_TIME,
   DEFAULT_LOGS_CAPTURE,
   DEFAULT_MAX_BODY_SIZE,
@@ -82,6 +83,7 @@ export interface ResolvedConfig {
   viewport: { width: number; height: number } | null;
   downloadsDir: string;
   filesDir: string;
+  plansDir: string;
   logs: {
     capture: "off" | "failures" | "all";
     failOnPageError: boolean;
@@ -199,6 +201,7 @@ export function resolveConfig(
     viewport: viewport === null ? null : { ...(viewport ?? DEFAULT_VIEWPORT) },
     downloadsDir: config.downloadsDir ?? DEFAULT_DOWNLOADS_DIR,
     filesDir: config.filesDir ?? DEFAULT_FILES_DIR,
+    plansDir: config.plansDir ?? DEFAULT_PLANS_DIR,
     logs: {
       capture: config.logs?.capture ?? DEFAULT_LOGS_CAPTURE,
       failOnPageError:

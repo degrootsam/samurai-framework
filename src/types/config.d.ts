@@ -205,6 +205,12 @@ export interface SamuraiTestConfig {
    */
   filesDir?: string;
   /**
+   * Folder, relative to the project folder, where test plans are kept; `samurai plan "<goal>"` without `--out`
+   * writes `<plansDir>/<slug-of-goal>.plan.md`
+   * @default "plans"
+   */
+  plansDir?: string;
+  /**
    * The AI agent (`samurai generate`). `model` is a `provider:name` pair, such as `anthropic:claude-sonnet-4-5`;
    * never a key (keys come from the environment). The `--model` flag and `SAMURAI_AI_MODEL` win over it
    */

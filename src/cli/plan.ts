@@ -11,9 +11,9 @@ import type { Io } from "./io.js";
 export type PlanDeps = AgentCommandDeps;
 
 const USAGE_LINE =
-  'Usage: samurai plan "<goal>" --out <plan.md> [--force] [--url <url>] [--model <provider:name>] [--max-steps <n>] [--yes-origin <origin>] [--secret <NAME>] [--json]';
+  'Usage: samurai plan "<goal>" [--out <plan.md>] [--force] [--url <url>] [--model <provider:name>] [--max-steps <n>] [--yes-origin <origin>] [--secret <NAME>] [--json]';
 
-/** `samurai plan "<goal>"`: lets the AI agent explore the page and write a test plan, without submitting anything */
+/** `samurai plan "<goal>"`: without `--out` the plan goes to `<plansDir>/<slug-of-goal>.plan.md`. Lets the AI agent explore the page and write a test plan, without submitting anything */
 export async function planCommand(
   parsed: ParsedCommandLine,
   io: Io,
@@ -22,19 +22,23 @@ export async function planCommand(
   const { values, positionals } = parsed;
   const goal = positionals[0];
   if (!goal) throw new Error(`Which goal? ${USAGE_LINE}`);
-  if (values.out === undefined || values.out === "")
-    throw new Error(`Give the plan file with --out <plan.md>. ${USAGE_LINE}`);
   const { agent, model, options } = await prepareAgentRun(
     parsed,
     io,
     deps,
     "plan",
   );
+  const out =
+    values.out === undefined || values.out === ""
+      ? await agent.defaultPlanFile(goal)
+      : values.out;
+  if (values.out === undefined && values.json !== true)
+    io.out(`The plan will be written to ${out}\n`);
   const session = agent.runPlan({
     ...options,
     model,
     goal,
-    out: values.out,
+    out,
     ...(values.force === true && { force: true }),
   });
   return followRun(session, io, values.json === true, (result) =>

@@ -128,7 +128,7 @@ samurai plan "register with the Pro plan" --out plans/register.md --url http://l
 samurai generate "register with the Pro plan" --plan plans/register.md --file tests/register.spec.ts --new "owner registers" --model anthropic:claude-sonnet-4-5
 ```
 
-`samurai plan` takes the same model, limit, origin and secret options as `generate` (see [the command](#the-command)) and `--out <plan.md>` (required), plus `--force` to replace an existing file (without it an existing file is an error, before a browser opens). The plan is written after every step it records, so a stopped or limited run leaves a usable file. In code: `runPlan(options)` from `@itmetsam/samurai-framework/agent`, with `out` and `force` instead of `file`, `create` and `test`; the events are those of `runAgent` plus `{ type: "plan-step", n, text }`, and the result has no `test`.
+`samurai plan` takes the same model, limit, origin and secret options as `generate` (see [the command](#the-command)) and `--out <plan.md>`, plus `--force` to replace an existing file (without it an existing file is an error, before a browser opens). Without `--out` the plan goes to `<plansDir>/<slug-of-goal>.plan.md` (`plansDir` in the config, default `plans`), numbered `-2`, `-3` when the name is taken; in code, `defaultPlanFile(goal)` from the agent entry returns that path. The plan is written after every step it records, so a stopped or limited run leaves a usable file. In code: `runPlan(options)` from `@itmetsam/samurai-framework/agent`, with `out` and `force` instead of `file`, `create` and `test`; the events are those of `runAgent` plus `{ type: "plan-step", n, text }`, and the result has no `test`.
 
 ### The plan file
 

@@ -30,6 +30,8 @@ export const DEFAULT_VIEWPORT = { width: 1280, height: 720 };
 export const DEFAULT_DOWNLOADS_DIR = "result/downloads";
 /** The files folder, relative to the project */
 export const DEFAULT_FILES_DIR = "files";
+/** Where test plans are written, relative to the project */
+export const DEFAULT_PLANS_DIR = "plans";
 /** How many times a failing test is run again */
 export const DEFAULT_RETRIES = 0;
 /** Which page log entries go in the report: those of failed tests */
