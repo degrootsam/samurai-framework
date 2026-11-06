@@ -24,6 +24,12 @@ export const screenshot = defineTool({
         error:
           "screenshot(): a secret was typed into a field the page shows in plain text, so images are off for this run; use snapshot",
       };
+    const marked = await context.snapshots.secretOnScreen();
+    if (marked !== undefined)
+      return {
+        ok: false,
+        error: `screenshot(): the page shows the value of a field marked secret (${marked}), so no image is taken; use snapshot`,
+      };
     const image = await context.page.screenshot({
       fullPage: fullPage === true,
     });

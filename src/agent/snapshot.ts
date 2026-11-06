@@ -4,7 +4,11 @@ import { rankLocator } from "../recorder/ranking.js";
 import type { ElementHandle } from "../script/element-handle.js";
 import { locatorFromSpec } from "../steps/build.js";
 import type { LocatorCall, LocatorSpec } from "../steps/model.js";
-import { RESOLVE_SCRIPT, SNAPSHOT_SCRIPT } from "./snapshot-script.js";
+import {
+  RESOLVE_SCRIPT,
+  SECRET_ON_SCREEN_SCRIPT,
+  SNAPSHOT_SCRIPT,
+} from "./snapshot-script.js";
 
 /** A reference does not point at an element of the latest snapshot; the text says why and what to do */
 export class SnapshotRefError extends Error {
@@ -101,6 +105,16 @@ export class Snapshotter {
       elements: found.count,
       omitted: found.omitted,
     };
+  }
+
+  /** The first caller-marked selector that matches a visible field showing its value in plain text, else undefined */
+  public async secretOnScreen(): Promise<string | undefined> {
+    if (this.secretFields.length === 0) return undefined;
+    const found = await this.page.evaluate<string, object>(
+      SECRET_ON_SCREEN_SCRIPT,
+      { secretFields: this.secretFields },
+    );
+    return found === "" ? undefined : found;
   }
 
   /** The element behind `ref`, with the best locator that matches only it. Throws `SnapshotRefError` */

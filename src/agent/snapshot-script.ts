@@ -148,3 +148,21 @@ export const RESOLVE_SCRIPT = String.raw`(options) => {
     name: accessible.accessibleName(el),
   };
 }`;
+
+/**
+ * Function declaration, called as `({ secretFields })`. Answers the first of the caller's selectors that matches a
+ * visible field showing a value in plain text (a password input draws dots and does not count), else "".
+ */
+export const SECRET_ON_SCREEN_SCRIPT = String.raw`(options) => {
+  for (const selector of options.secretFields) {
+    let found = [];
+    try { found = Array.from(document.querySelectorAll(selector)); } catch (error) { continue; }
+    for (const el of found) {
+      if (el.getClientRects().length === 0 || getComputedStyle(el).visibility === "hidden") continue;
+      if (el.localName === "input" && (el.getAttribute("type") || "").toLowerCase() === "password") continue;
+      const shown = typeof el.value === "string" ? el.value : (el.textContent || "");
+      if (shown.trim() !== "") return selector;
+    }
+  }
+  return "";
+}`;

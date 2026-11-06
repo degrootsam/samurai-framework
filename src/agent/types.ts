@@ -61,6 +61,10 @@ export interface AgentOptions extends ProjectOptions {
   /** Where the browser starts. @default the environment's base URL */
   url?: string;
   browser?: SupportedBrowser;
+  /** The browser's debugging port. @default DEFAULT_PORT (9223) */
+  port?: number;
+  /** Run the browser without a window. A person watching or taking over needs one. @default false */
+  headless?: boolean;
   /** Origins the agent may navigate to without asking. @default the origin of the start page */
   allowedOrigins?: string[];
   /** Secrets the agent may use, by name; their values are read locally and never sent to the model. @default none */

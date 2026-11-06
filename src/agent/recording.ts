@@ -41,26 +41,62 @@ export function writtenText(events: readonly RecorderEvent[]): string {
  * `SpecWriter`, so the file is a valid spec after every call and holds only typed steps.
  */
 export class StepRecorder {
-  private readonly normaliser: Normaliser;
+  private normaliser: Normaliser;
   private readonly writer: SpecWriter;
+  private steps: number;
+  /** The test the steps go into, by its full name */
+  public readonly testName: string;
+  public readonly file: string;
 
   constructor(private readonly options: StepRecorderOptions) {
-    const file = path.resolve(projectDir(), options.file);
-    const spec = prepareSpec(file, readSpec(file, options), options);
-    this.writer = new SpecWriter(spec.source, file, spec.testIndex);
-    this.normaliser = new Normaliser({
-      at: spec.at,
-      ...(options.baseURL !== undefined && { baseURL: options.baseURL }),
+    this.file = path.resolve(projectDir(), options.file);
+    const spec = prepareSpec(this.file, readSpec(this.file, options), options);
+    this.testName = spec.testName;
+    this.writer = new SpecWriter(spec.source, this.file, spec.testIndex);
+    this.steps = spec.at;
+    this.normaliser = this.fresh();
+  }
+
+  private fresh(): Normaliser {
+    return new Normaliser({
+      at: this.steps,
+      ...(this.options.baseURL !== undefined && {
+        baseURL: this.options.baseURL,
+      }),
     });
+  }
+
+  /** Steps in the test now */
+  public get count(): number {
+    return this.steps;
+  }
+
+  /** The events written so far */
+  public get events(): readonly RecorderEvent[] {
+    return this.writer.events;
+  }
+
+  private write(event: RecorderEvent): void {
+    const source = this.writer.write(event);
+    if (event.op === "insert") this.steps++;
+    else if (event.op === "remove") this.steps--;
+    this.options.onStep?.(event, codeOf(event), source);
   }
 
   /** Writes what `observation` makes of the spec and returns the events, which hold the statements */
   public observe(observation: Observation): RecorderEvent[] {
     const events = this.normaliser.observe(observation, Date.now());
-    for (const event of events) {
-      const source = this.writer.write(event);
-      this.options.onStep?.(event, codeOf(event), source);
-    }
+    for (const event of events) this.write(event);
     return events;
+  }
+
+  /** Writes an event a person's recording produced while the agent was not acting (see `rebase`) */
+  public external(event: RecorderEvent): void {
+    this.write(event);
+  }
+
+  /** Starts the agent's own normaliser again after the person's steps: it carries on after the last one */
+  public rebase(): void {
+    this.normaliser = this.fresh();
   }
 }

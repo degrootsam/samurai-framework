@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Observation } from "../../recorder/normalise.js";
 import type { Located } from "../snapshot.js";
 import { writtenText } from "../recording.js";
+import { leftAllowedOrigins } from "./origin-guard.js";
 import { defineTool, type ToolContext } from "./context.js";
 
 const KINDS = [
@@ -130,7 +131,10 @@ export const act = defineTool({
         error: `act(): ${located.ref} (${located.description}) holds a secret; focus it with a click and use useSecret, or ask the person`,
       };
     const text = value ?? "";
+    const before = await context.page.url();
     await perform(kind, text, located, context.actionTimeout);
+    const problem = await leftAllowedOrigins(context, before);
+    if (problem) return { ok: false, error: `act(): ${problem}` };
     const events = context.steps.observe(observationFor(kind, text, located));
     return {
       ok: true,

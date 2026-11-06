@@ -20,6 +20,8 @@ function* sources(dir: string): Generator<string> {
 test("only src/agent imports ai or zod, so the framework loads without them", () => {
   const offenders = [...sources(SRC)]
     .filter((file) => !file.startsWith(path.join(SRC, "agent") + path.sep))
+    // test helpers are not part of the build
+    .filter((file) => !file.startsWith(path.join(SRC, "testing") + path.sep))
     .filter((file) =>
       /from\s+["'](ai|zod)(\/[^"']*)?["']|import\(\s*["'](ai|zod)/.test(
         readFileSync(file, "utf8"),

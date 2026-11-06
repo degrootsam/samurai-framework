@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defineTool } from "./context.js";
 import { writtenText } from "../recording.js";
+import { leftAllowedOrigins } from "./origin-guard.js";
 
 const ASK_ALLOW = "allow";
 
@@ -46,7 +47,10 @@ export const navigate = defineTool({
         };
       context.origins.allow(target);
     }
+    const before = await context.page.url();
     await context.page.goto(target.href);
+    const problem = await leftAllowedOrigins(context, before);
+    if (problem) return { ok: false, error: `navigate(): ${problem}` };
     const events = context.steps.observe({ type: "goto", url: target.href });
     return {
       ok: true,
