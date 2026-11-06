@@ -135,3 +135,31 @@ test("io", { inputs: { a: "1", b: "2" }, outputs: ["o"] }, async () => {});`,
     assert.ok(!("inputs" in tests[0]!) && !("outputs" in tests[0]!));
   });
 });
+
+describe("listTests annotations", () => {
+  let noteDir: string;
+  before(() => {
+    noteDir = mkdtempSync(path.join(tmpdir(), "samurai-list-notes-"));
+    writeFileSync(path.join(noteDir, "package.json"), '{"type":"module"}');
+    mkdirSync(path.join(noteDir, "src"));
+    writeFileSync(
+      path.join(noteDir, "src/notes.spec.ts"),
+      `import { test } from ${API};
+test("plain", async () => {});
+test("noted", { annotations: [{ type: "plan", description: "plans/x.plan.md" }, { type: "issue" }] }, async () => {});`,
+    );
+  });
+  after(() => rmSync(noteDir, { recursive: true, force: true }));
+
+  it("lists the annotations a test declares, absent for a plain test", async () => {
+    const tests = await listTests({
+      projectDir: noteDir,
+      config: { srcDir: "./src" },
+    });
+    assert.deepEqual(tests[1]!.annotations, [
+      { type: "plan", description: "plans/x.plan.md" },
+      { type: "issue" },
+    ]);
+    assert.ok(!("annotations" in tests[0]!));
+  });
+});

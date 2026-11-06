@@ -86,6 +86,11 @@ export interface FoundTest {
   inputs?: { name: string; default: string }[];
   /** The names of the outputs the test declares; absent when it declares none */
   outputs?: string[];
+  /**
+   * The annotations the test declares with `annotations: [...]`, in declaration order (e.g. the `plan` annotation
+   * `{ type: "plan", description: "plans/x.plan.md" }`); absent when it declares none
+   */
+  annotations?: { type: string; description?: string }[];
 }
 
 /**
@@ -98,7 +103,8 @@ export async function listTests(
   return inProject(options, async (runner) => {
     const { tests, srcDir } = await runner.list();
     return tests.map((test) => {
-      const { name, file, modifier, reason, inputs, outputs } = test;
+      const { name, file, modifier, reason, inputs, outputs, annotations } =
+        test;
       const relativeFile = toPosix(path.relative(srcDir, file));
       return {
         id: testId(relativeFile, name),
@@ -114,6 +120,7 @@ export async function listTests(
           })),
         }),
         ...(outputs && { outputs }),
+        ...(annotations && { annotations }),
       };
     });
   });
