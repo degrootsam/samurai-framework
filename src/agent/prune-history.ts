@@ -49,10 +49,40 @@ function collectItems(
   return items;
 }
 
+const THINKING_PARTS = new Set(["reasoning", "reasoning-file"]);
+
+/**
+ * Removes the thinking blocks (`reasoning` parts, including redacted ones) from
+ * every assistant message. Text and tool calls stay. An assistant message that
+ * would end up empty is dropped, since providers reject empty content. Messages
+ * without thinking are returned as is; the input is never mutated.
+ */
+function withoutReasoning(messages: readonly ModelMessage[]): ModelMessage[] {
+  const out: ModelMessage[] = [];
+  for (const message of messages) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      out.push(message);
+      continue;
+    }
+    const kept = message.content.filter(
+      (part) => !THINKING_PARTS.has(part.type),
+    );
+    if (kept.length === message.content.length) out.push(message);
+    else if (kept.length > 0) out.push({ ...message, content: kept });
+  }
+  return out;
+}
+
 /**
  * Replaces every page dump except the latest of each kind (snapshots, screenshots)
  * with a short note, so the conversation does not resend stale pages. Returns new
  * objects for changed messages only; the input is never mutated.
+ *
+ * When it replaces anything it also drops all thinking blocks: Anthropic binds each
+ * thinking block (signature) to the exact content before it, so editing earlier
+ * content makes the next request fail with "Invalid signature in thinking block".
+ * With nothing replaced the messages are returned untouched, which keeps the
+ * prompt cache prefix intact.
  */
 export function pruneStalePages(
   messages: readonly ModelMessage[],
@@ -92,5 +122,5 @@ export function pruneStalePages(
           }
         : { ...old, text: STALE_SNAPSHOT_NOTE };
   }
-  return out;
+  return withoutReasoning(out);
 }

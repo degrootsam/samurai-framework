@@ -87,6 +87,27 @@ test("prepareStep returns pruned messages", async () => {
   assert.equal(out.messages[1]?.content[0]?.output.value, "B");
 });
 
+test("prepareStep drops reasoning once it prunes", async () => {
+  const { captured, input } = setup();
+  await runLoop(input());
+  const thinking = {
+    type: "reasoning",
+    text: "hmm",
+    providerOptions: { anthropic: { signature: "sig" } },
+  };
+  const out = (await captured.options!.prepareStep({
+    messages: [
+      snapResult("1", "A"),
+      { role: "assistant", content: [thinking, { type: "text", text: "x" }] },
+      snapResult("2", "B"),
+    ] as ModelMessage[],
+  })) as { messages: { content: { type: string }[] }[] };
+  assert.deepEqual(
+    out.messages[1]?.content.map((p) => p.type),
+    ["text"],
+  );
+});
+
 test("prepareStep still waits on the gate", async () => {
   let open!: () => void;
   const gate = () => new Promise<void>((resolve) => (open = resolve));

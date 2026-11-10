@@ -173,3 +173,78 @@ test("does not mutate the input", () => {
   ]);
   assert.doesNotThrow(() => pruneStalePages(messages, { openingPage: true }));
 });
+
+const thinking = (text = "hmm") => ({
+  type: "reasoning" as const,
+  text,
+  providerOptions: { anthropic: { signature: "sig-abc" } },
+});
+const redacted = {
+  type: "reasoning" as const,
+  text: "",
+  providerOptions: { anthropic: { redactedData: "opaque" } },
+};
+const call = (id: string) => ({
+  type: "tool-call" as const,
+  toolCallId: id,
+  toolName: "snapshot",
+  input: {},
+});
+const assistant = (...content: unknown[]): ModelMessage =>
+  ({ role: "assistant", content }) as unknown as ModelMessage;
+const types = (m: ModelMessage) =>
+  (m.content as { type: string }[]).map((p) => p.type);
+
+test("pruning strips reasoning and keeps text and tool calls", () => {
+  const text = { type: "text" as const, text: "looking" };
+  const messages = deepFreeze([
+    assistant(thinking(), redacted, text, call("1")),
+    toolMessage(snap("1", "page A")),
+    assistant(thinking("again"), call("2")),
+    toolMessage(snap("2", "page B")),
+  ]);
+  const out = pruneStalePages(messages);
+  assert.deepEqual(out[0], assistant(text, call("1")));
+  assert.deepEqual(out[2], assistant(call("2")));
+  assert.equal(
+    out.some((m) => types(m).includes("reasoning")),
+    false,
+  );
+  assert.deepEqual(outputs(out)[0], {
+    type: "text",
+    value: STALE_SNAPSHOT_NOTE,
+  });
+});
+
+test("without pruning the reasoning stays and messages are identical", () => {
+  const messages = deepFreeze([
+    assistant(thinking(), call("1")),
+    toolMessage(snap("1", "page A")),
+  ]);
+  assert.deepEqual(pruneStalePages(messages), messages);
+});
+
+test("pruning with reasoning is idempotent", () => {
+  const messages = [
+    assistant(thinking(), call("1")),
+    toolMessage(snap("1", "page A")),
+    assistant(thinking(), call("2")),
+    toolMessage(snap("2", "page B")),
+  ];
+  const once = pruneStalePages(messages);
+  assert.deepEqual(pruneStalePages(once), once);
+});
+
+test("an assistant message left empty is dropped", () => {
+  const messages = [
+    assistant(thinking()),
+    toolMessage(snap("1", "page A")),
+    toolMessage(snap("2", "page B")),
+  ];
+  const out = pruneStalePages(messages);
+  assert.equal(out.length, 2);
+  assert.equal(
+    out.some((m) => m.role === "assistant"),
+    false,
+  );
+});
