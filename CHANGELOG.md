@@ -1,3 +1,22 @@
+## 0.22.10 (2026-11-10)
+
+### 🚀 Features
+
+- **framework:** cache the agent's system prompt on Anthropic too
+- **framework:** make the agents write tersely
+- **framework:** cache the agent's prompt on Anthropic and report cached tokens
+- **framework:** send only the latest page snapshot to the model
+- **framework:** prune stale page snapshots from the agent conversation
+
+### 🩹 Fixes
+
+- **framework:** name the caller's timeout in the fetch timeout message
+- **framework:** drop thinking blocks when old page snapshots are pruned
+
+### ❤️ Thank You
+
+- Sam @degrootsam
+
 ## 0.22.9 (2026-11-06)
 
 ### 🚀 Features
