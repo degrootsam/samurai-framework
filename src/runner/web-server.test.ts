@@ -103,6 +103,10 @@ describe("startWebServers", () => {
       context,
     );
     await running.stop();
+    // The port closes a moment after stop() returns on some machines (seen in a container), so wait for it
+    const deadline = Date.now() + 2000;
+    while ((await answers({ port })) && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(await answers({ port }), false);
   });
 
