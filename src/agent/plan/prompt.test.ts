@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildPlanPrompt } from "./prompt.js";
+import { WRITING_RULES } from "../prompt.js";
 
 const base = {
   instructions: "",
@@ -49,4 +50,18 @@ test("project instructions are added, trusted", () => {
     instructions: "Use the staging site",
   });
   assert.match(text, /## Project instructions[\s\S]*Use the staging site/);
+});
+
+test("the planner's prompt includes WRITING_RULES and covers seen, notDone and question", () => {
+  const text = buildPlanPrompt(base);
+  assert.ok(text.includes(WRITING_RULES));
+  assert.match(text, /It also covers seen, notDone and question\./);
+  assert.doesNotMatch(text, /one or two sentences/);
+});
+
+test("it keeps steps in full sentences", () => {
+  assert.match(
+    buildPlanPrompt(base),
+    /A step \(step\) is written in full sentences: another agent and the person follow it\./,
+  );
 });

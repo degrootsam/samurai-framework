@@ -70,7 +70,7 @@ samurai generate "sign in as the owner and check the dashboard" --file tests/sig
 | `--env`, `--browser`, `--port`, `--headless` | As for [`samurai run`](Command-line#samurai-run)                                                                |
 | `--json`                                     | One JSON event per line (the events below) instead of the readable output                                       |
 
-The output shows the plan, each tool call and each step as it is written (`+ await page.goto("/login");`), then a summary, the secrets you still have to set and the tokens used. Before the first model call it prints which provider receives the pages. **Exit code:** 0 when the agent finished, 1 when the run ended at a limit, was stopped (Ctrl+C) or failed, 2 for a usage or configuration error.
+The output shows the plan, each tool call and each step as it is written (`+ await page.goto("/login");`), then a summary (the agent writes its own text tersely), the secrets you still have to set and the tokens used. Before the first model call it prints which provider receives the pages. **Exit code:** 0 when the agent finished, 1 when the run ended at a limit, was stopped (Ctrl+C) or failed, 2 for a usage or configuration error.
 
 **Questions.** When the agent asks something, the CLI asks you in the terminal. Without a terminal (a pipe, CI) or with `--json`, a question about opening another site is answered "deny" and any other question ends the run with a message, because nobody can answer it.
 

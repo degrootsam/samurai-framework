@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FixtureCatalogEntry } from "../runner/run.js";
-import { buildSystemPrompt } from "./prompt.js";
+import { buildSystemPrompt, WRITING_RULES } from "./prompt.js";
 
 const fixture = {
   name: "loggedIn",
@@ -91,4 +91,21 @@ test("a model with vision is told it has screenshots", () => {
     buildSystemPrompt({ ...base, vision: true }),
     /an image of the page/,
   );
+});
+
+test("the test agent's prompt includes WRITING_RULES", () => {
+  assert.ok(buildSystemPrompt(base).includes(WRITING_RULES));
+  assert.match(WRITING_RULES, /terse engineer/);
+});
+
+test("it says test code and act/expect/navigate values are exempt", () => {
+  assert.match(
+    buildSystemPrompt(base),
+    /It never covers test code or the values you pass to act, expect and navigate\./,
+  );
+});
+
+test('it no longer asks for "one or two sentences"', () => {
+  assert.doesNotMatch(buildSystemPrompt(base), /one or two sentences/);
+  assert.match(buildSystemPrompt(base), /plan in one terse line/);
 });
