@@ -150,8 +150,14 @@ test(
   OPTIONS,
   async () => {
     const run = start([{ calls: [{ name: "snapshot" }] }, { hang: true }]);
-    setTimeout(() => run.session.stop(), 1500);
+    // Stop once the first tool call has run, not after a fixed time: a slow machine needs longer to open the browser
+    const watch = setInterval(() => {
+      if (!run.events.some((e) => e.type === "tool-call")) return;
+      clearInterval(watch);
+      setTimeout(() => run.session.stop(), 200);
+    }, 20);
     const result = await run.session.result;
+    clearInterval(watch);
     ended(result, "stopped");
     assert.deepEqual(
       run.steps().map((s) => s.kind),
