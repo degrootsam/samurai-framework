@@ -88,6 +88,22 @@ test("the opening page counts as the first snapshot", () => {
   assert.equal(outputs(out)[0]?.value, "page A");
 });
 
+test("the opening page is found after a leading system message", () => {
+  const out = pruneStalePages(
+    [
+      { role: "system", content: "rules" },
+      opening(),
+      toolMessage(snap("1", "page A")),
+    ],
+    { openingPage: true },
+  );
+  assert.deepEqual(out[1]?.content, [
+    { type: "text", text: "Goal: x" },
+    { type: "text", text: STALE_SNAPSHOT_NOTE },
+  ]);
+  assert.deepEqual(out[0], { role: "system", content: "rules" });
+});
+
 test("without openingPage the first user message is left alone", () => {
   const messages = [opening(), toolMessage(snap("1", "page A"))];
   assert.deepEqual(pruneStalePages(messages), messages);

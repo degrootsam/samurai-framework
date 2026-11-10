@@ -29,9 +29,10 @@ function collectItems(
   openingPage: boolean,
 ): Item[] {
   const items: Item[] = [];
+  const firstUser = messages.findIndex((message) => message.role === "user");
   messages.forEach((message, m) => {
     if (
-      m === 0 &&
+      m === firstUser &&
       openingPage &&
       message.role === "user" &&
       Array.isArray(message.content)

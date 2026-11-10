@@ -1,6 +1,7 @@
 import type { ToolSet } from "ai";
 import type { AgentLimits } from "./limits.js";
 import type { AgentModel } from "./model.js";
+import { pruneStalePages } from "./prune-history.js";
 import type { AiModule } from "./sdk-tools.js";
 import type { AgentController } from "./session.js";
 
@@ -16,6 +17,8 @@ export interface LoopInput {
   model: AgentModel;
   system: string;
   prompt: string;
+  /** The opening page dump, sent as its own part so it can be pruned once the page moves on */
+  page?: string;
   tools: Record<string, unknown>;
   controller: AgentController;
   limits: AgentLimits;
@@ -39,7 +42,17 @@ export async function runLoop(input: LoopInput): Promise<LoopOutcome> {
   const result = await ai.generateText({
     model: input.model,
     system: input.system,
-    prompt: input.prompt,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: input.prompt },
+          ...(input.page === undefined
+            ? []
+            : [{ type: "text" as const, text: input.page }]),
+        ],
+      },
+    ],
     tools: input.tools as ToolSet,
     abortSignal: controller.signal,
     stopWhen: [
@@ -47,9 +60,13 @@ export async function runLoop(input: LoopInput): Promise<LoopOutcome> {
       ai.hasToolCall("finish"),
       () => tally.tokens >= limits.maxTokens,
     ],
-    prepareStep: async () => {
+    prepareStep: async ({ messages }) => {
       await controller.gate();
-      return undefined;
+      return {
+        messages: pruneStalePages(messages, {
+          openingPage: input.page !== undefined,
+        }),
+      };
     },
     onStepFinish: (step) => {
       tally.modelCalls++;

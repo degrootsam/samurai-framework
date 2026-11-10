@@ -35,6 +35,7 @@ export interface RunDeps {
 }
 
 const ACTION_TIMEOUT = 5000;
+const NO_PAGE_OPENING = "No page is open yet: start with navigate.";
 
 async function loadAi(deps: RunDeps): Promise<AiModule> {
   try {
@@ -198,9 +199,10 @@ export function startAgent<
           },
           options,
         );
-        const first = onWeb
+        const openingPage = onWeb
           ? `The browser is open on ${current}. This is the page now:\n\n${maskText((await snapshots.take()).text)}`
-          : "No page is open yet: start with navigate.";
+          : undefined;
+        const first = openingPage === undefined ? NO_PAGE_OPENING : "";
         const tools = toSdkTools(ai, kind.tools(context, steps), {
           wait: () => controller.gate(),
           note: async () => controller.takeNote(),
@@ -210,6 +212,7 @@ export function startAgent<
           model: options.model,
           system,
           prompt: kind.opening(options, first, steps),
+          ...(openingPage === undefined ? {} : { page: openingPage }),
           tools,
           controller,
           limits,
