@@ -1,4 +1,5 @@
 import type { ToolSet } from "ai";
+import { isAnthropic, withCacheBreakpoint } from "./cache-control.js";
 import type { AgentLimits } from "./limits.js";
 import type { AgentModel } from "./model.js";
 import { pruneStalePages } from "./prune-history.js";
@@ -62,10 +63,13 @@ export async function runLoop(input: LoopInput): Promise<LoopOutcome> {
     ],
     prepareStep: async ({ messages }) => {
       await controller.gate();
+      const pruned = pruneStalePages(messages, {
+        openingPage: input.page !== undefined,
+      });
       return {
-        messages: pruneStalePages(messages, {
-          openingPage: input.page !== undefined,
-        }),
+        messages: isAnthropic(input.model)
+          ? withCacheBreakpoint(pruned)
+          : pruned,
       };
     },
     onStepFinish: (step) => {
@@ -75,11 +79,13 @@ export async function runLoop(input: LoopInput): Promise<LoopOutcome> {
       tally.tokens += step.usage.totalTokens ?? inputTokens + outputTokens;
       if (step.text.trim() !== "")
         controller.emit({ type: "plan", text: step.text.trim() });
+      const cached = step.usage.inputTokenDetails?.cacheReadTokens;
       controller.emit({
         type: "usage",
         inputTokens,
         outputTokens,
         totalTokens: step.usage.totalTokens ?? inputTokens + outputTokens,
+        ...(typeof cached === "number" ? { cachedInputTokens: cached } : {}),
       });
     },
   });

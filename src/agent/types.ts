@@ -20,6 +20,8 @@ export type AgentEvent =
       inputTokens: number;
       outputTokens: number;
       totalTokens: number;
+      /** Input tokens the provider read from its prompt cache, when it reports them */
+      cachedInputTokens?: number;
     }
   /** Continue mode: step `n` of `total` (1-based) is being replayed on the page; it is not written again */
   | { type: "replay"; n: number; total: number; text: string }

@@ -254,16 +254,16 @@ A running session (`runAgent` returns it at once) can be controlled:
 
 `session.events` (and the `onEvent` option) carry the same stream for the app and the command line:
 
-| Event       | Holds                                                                                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `plan`      | The agent's own words about what it intends                                                                            |
-| `tool-call` | The tool and its arguments (secret values removed)                                                                     |
-| `step`      | The recorder event, the statement it wrote and the file's new content                                                  |
-| `replay`    | Continue mode: step `n` of `total` is being replayed, with its statement (nothing is written for it)                   |
-| `plan-step` | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)       |
-| `question`  | An `id`, the question and optional answers                                                                             |
-| `usage`     | Tokens of one model call                                                                                               |
-| `ended`     | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens` |
+| Event       | Holds                                                                                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan`      | The agent's own words about what it intends                                                                                                         |
+| `tool-call` | The tool and its arguments (secret values removed)                                                                                                  |
+| `step`      | The recorder event, the statement it wrote and the file's new content                                                                               |
+| `replay`    | Continue mode: step `n` of `total` is being replayed, with its statement (nothing is written for it)                                                |
+| `plan-step` | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)                                    |
+| `question`  | An `id`, the question and optional answers                                                                                                          |
+| `usage`     | Tokens of one model call: `inputTokens`, `outputTokens`, `totalTokens`, and `cachedInputTokens` when the provider reports input read from its cache |
+| `ended`     | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens`                              |
 
 ## Safety rules
 
