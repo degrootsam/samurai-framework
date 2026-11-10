@@ -16,6 +16,7 @@ const fx = agentRunFixture(9605);
 const { start } = fx;
 
 test("pause stops new model calls until resume", OPTIONS, async () => {
+  let paused = false;
   const run = start(
     [
       { calls: [{ name: "snapshot" }] },
@@ -29,11 +30,16 @@ test("pause stops new model calls until resume", OPTIONS, async () => {
         event.type === "usage" &&
         event.totalTokens === 15 &&
         run.model.doGenerateCalls.length === 1
-      )
+      ) {
         session().pause();
+        paused = true;
+      }
     },
   );
-  await pause(1500);
+  // Resume only once the pause has happened: a slow machine can take longer than a fixed wait to get there, and a
+  // resume before the pause would leave the run paused for good
+  while (!paused) await pause(20);
+  await pause(1000);
   const frozen = run.model.doGenerateCalls.length;
   assert.ok(frozen <= 2, `paused after ${frozen} calls`);
   await pause(600);
