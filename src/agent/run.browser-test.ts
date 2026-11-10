@@ -135,7 +135,8 @@ test(
     const timeLimit = start(
       [{ calls: [{ name: "snapshot" }] }, { hang: true }],
       {
-        limits: { timeoutMs: 3000 },
+        // Long enough for a slow machine to open the browser and write the first step inside it
+        limits: { timeoutMs: 10000 },
       },
     );
     const c = await timeLimit.session.result;
@@ -174,11 +175,11 @@ test(
     const run = start(
       [{ calls: [{ name: "ask", args: { question: "Ready?" } }] }],
       {
-        limits: { timeoutMs: 3000 },
+        limits: { timeoutMs: 10000 },
       },
     );
     // the question is open longer than the whole limit, and the run is still alive
-    setTimeout(() => run.session.stop(), 6000);
+    setTimeout(() => run.session.stop(), 20000);
     const result = await run.session.result;
     ended(result, "stopped");
   },
