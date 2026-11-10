@@ -23,7 +23,7 @@ export function buildPlanPrompt(input: PromptInput): string {
 - When the plan covers the goal, call finish with a short summary. If you cannot go on, call finish and say why.`,
 
     `${WRITING_RULES}
-- It also covers seen, notDone and question. A step (step) is written in full sentences: another agent and the person follow it.`,
+- It also covers seen, notDone and question. A step (step), its text and its expect, is written in full sentences: another agent and the person follow it.`,
 
     `## You never submit
 - The page you drive is read-only: the framework blocks every request that is not a GET, so a form submit, a save, a delete or a payment does nothing, and the tool answer says blocked. This is so that planning cannot change real data.

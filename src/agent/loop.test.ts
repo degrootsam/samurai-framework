@@ -6,6 +6,7 @@ import { STALE_SNAPSHOT_NOTE } from "./prune-history.js";
 
 type Options = {
   prompt?: unknown;
+  system?: unknown;
   messages: { role: string; content: { type: string; text: string }[] }[];
   prepareStep: (arg: { messages: ModelMessage[] }) => Promise<unknown>;
   onStepFinish: (step: Step) => void;
@@ -151,4 +152,20 @@ test("no cache field, no cachedInputTokens key", async () => {
     usage: { inputTokens: 5, outputTokens: 1, totalTokens: 6 },
   });
   assert.equal("cachedInputTokens" in events[0]!, false);
+});
+
+test("an Anthropic model gets the system prompt as a cached system message", async () => {
+  const { captured, input } = setup();
+  await runLoop(input(undefined, { provider: "anthropic.messages" }));
+  assert.deepEqual(captured.options!.system, {
+    role: "system",
+    content: "sys",
+    providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+  });
+});
+
+test("another model keeps the system prompt as a plain string", async () => {
+  const { captured, input } = setup();
+  await runLoop(input(undefined, { provider: "openai.chat" }));
+  assert.equal(captured.options!.system, "sys");
 });

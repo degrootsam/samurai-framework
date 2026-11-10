@@ -62,6 +62,6 @@ test("the planner's prompt includes WRITING_RULES and covers seen, notDone and q
 test("it keeps steps in full sentences", () => {
   assert.match(
     buildPlanPrompt(base),
-    /A step \(step\) is written in full sentences: another agent and the person follow it\./,
+    /A step \(step\), its text and its expect, is written in full sentences: another agent and the person follow it\./,
   );
 });

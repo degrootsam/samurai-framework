@@ -42,7 +42,15 @@ export async function runLoop(input: LoopInput): Promise<LoopOutcome> {
   const { ai, controller, limits, tally } = input;
   const result = await ai.generateText({
     model: input.model,
-    system: input.system,
+    system: isAnthropic(input.model)
+      ? {
+          role: "system" as const,
+          content: input.system,
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        }
+      : input.system,
     messages: [
       {
         role: "user",
