@@ -48,11 +48,12 @@ test("a timeout re-armed mid-test counts from the start of the test", async () =
   let expired = 0;
   const { limit } = infoWith(60_000, () => expired++);
   limit.start();
-  await wait(50);
-  limit.set(70); // 70 ms from the start: about 20 ms left
-  await wait(10);
+  await wait(300);
+  // 400 ms from the start, so it expires at about 400 ms. Counted from now it would expire at about 700 ms: the check
+  // at about 550 ms tells them apart, with 150 ms to spare on each side for a busy machine
+  limit.set(400);
   assert.equal(expired, 0);
-  await wait(60);
+  await wait(250);
   assert.equal(expired, 1);
   limit.stop();
 });
