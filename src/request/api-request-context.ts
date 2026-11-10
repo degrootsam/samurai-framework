@@ -152,7 +152,7 @@ export class APIRequestContext {
         sent.cookie = sent.cookie ? `${sent.cookie}; ${cookie}` : cookie;
       const remaining = deadline > 0 ? Math.max(1, deadline - Date.now()) : 0;
       const hop = await this.hop(
-        { url, method, headers: sent, body },
+        { url, method, headers: sent, body, budget: timeout },
         options,
         remaining,
         abort.signal,
@@ -198,6 +198,7 @@ export class APIRequestContext {
       method: string;
       headers: Record<string, string>;
       body: Buffer | undefined;
+      budget: number;
     },
     options: RequestOptions,
     timeout: number,

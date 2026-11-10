@@ -13,6 +13,8 @@ export interface HopRequest {
   ignoreHTTPSErrors: boolean;
   /** Milliseconds this hop may take; 0 is no limit */
   timeout: number;
+  /** The timeout the caller set for the whole request, which the timeout message names (`timeout` is what is left of it) */
+  budget?: number | undefined;
   signal: AbortSignal;
 }
 
@@ -144,7 +146,7 @@ export function sendHop(request: HopRequest): Promise<HopResponse> {
             req.destroy();
             finish(
               new TransportError(
-                `timed out after ${request.timeout}ms (${where})`,
+                `timed out after ${request.budget ?? request.timeout}ms (${where})`,
                 "ETIMEDOUT",
               ),
             );
