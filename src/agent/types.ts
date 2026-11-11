@@ -44,6 +44,14 @@ export interface AgentResult {
   summary?: string;
   /** The error text when `reason` is `error` */
   error?: string;
+  /**
+   * Set (to `"replay"`) when `reason` is `error` and the run failed while replaying the steps of an existing test
+   * (`continueAt`), before the agent wrote anything: the test file was not changed. Absent for every other result,
+   * including a failure after the replay.
+   */
+  failedIn?: "replay";
+  /** With `failedIn`: the 1-based number of the step that failed or cannot be replayed (as in "step N ..."), when known */
+  replayStep?: number;
   file: string;
   /** Full name of the test the steps went into */
   test: string;

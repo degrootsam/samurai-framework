@@ -117,6 +117,19 @@ async function perform(
   }
 }
 
+/**
+ * A failure while replaying the steps of an existing test, before the agent wrote anything. `step` is the 1-based
+ * number of the step that failed or cannot be replayed; the message is the text the run reports ("step 2 (...) failed")
+ */
+export class ReplayError extends Error {
+  constructor(
+    message: string,
+    readonly step?: number,
+  ) {
+    super(message);
+  }
+}
+
 /** The first lines of an error message, without a long call log */
 function reasonOf(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error);
@@ -141,7 +154,10 @@ export async function replaySteps(
 ): Promise<void> {
   const custom = steps.findIndex((step) => step.kind === "custom");
   if (custom >= 0)
-    throw new Error(`step ${custom + 1} is custom code and cannot be replayed`);
+    throw new ReplayError(
+      `step ${custom + 1} is custom code and cannot be replayed`,
+      custom + 1,
+    );
   for (const [index, step] of steps.entries()) {
     const n = index + 1;
     const text = stepToSource(step);
@@ -150,8 +166,9 @@ export async function replaySteps(
     try {
       await perform(page, step, ctx);
     } catch (error) {
-      throw new Error(
+      throw new ReplayError(
         maskText(`step ${n} (${text}) failed: ${reasonOf(error)}`),
+        n,
       );
     }
   }

@@ -52,3 +52,15 @@ test("without the ai package the run ends with an error that says what to instal
     ["ended"],
   );
 });
+
+test("a failure before any replay does not say the replay failed", async () => {
+  const session = startAgent(options(), {
+    importAi: async () => {
+      throw new Error("no ai");
+    },
+  });
+  const result = await session.result;
+  assert.equal(result.reason, "error");
+  assert.equal("failedIn" in result, false);
+  assert.equal("replayStep" in result, false);
+});

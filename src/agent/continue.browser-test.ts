@@ -114,5 +114,57 @@ test(
     );
     assert.equal(run.model.doGenerateCalls.length, 0);
     assert.equal(readFileSync(file, "utf8"), before);
+    assert.equal(result.failedIn, "replay");
+    assert.equal(result.replayStep, 2);
+  },
+);
+
+test(
+  "a custom step before the continue point fails the replay, naming its step",
+  OPTIONS,
+  async () => {
+    const { dir, file } = project();
+    const before = readFileSync(file, "utf8").replace(
+      'await page.getByLabel("Email")',
+      'await doThing();\n  await page.getByLabel("Email")',
+    );
+    writeFileSync(file, before);
+    const run = start([{ text: "never called" }], {
+      projectDir: dir,
+      file: "tests/existing.spec.ts",
+      test: "shop",
+      continueAt: 3,
+    });
+    const result = await run.session.result;
+    ended(result, "error");
+    assert.equal(result.failedIn, "replay");
+    assert.equal(result.replayStep, 2);
+    assert.equal(readFileSync(file, "utf8"), before);
+  },
+);
+
+test(
+  "a failure after the replay does not carry failedIn",
+  OPTIONS,
+  async () => {
+    const { dir } = project();
+    const run = start(
+      [
+        () => {
+          throw new Error("model down");
+        },
+      ],
+      {
+        projectDir: dir,
+        file: "tests/existing.spec.ts",
+        test: "shop",
+        continueAt: 2,
+      },
+    );
+    const result = await run.session.result;
+    ended(result, "error");
+    assert.match(result.error ?? "", /model down/);
+    assert.equal("failedIn" in result, false);
+    assert.equal("replayStep" in result, false);
   },
 );

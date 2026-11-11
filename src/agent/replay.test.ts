@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type Page from "../browser/page.js";
 import { registerSecret, resetSecrets } from "../config/mask.js";
 import type { LocatorSpec, Step } from "../steps/model.js";
-import { replaySteps, type ReplayContext } from "./replay.js";
+import { ReplayError, replaySteps, type ReplayContext } from "./replay.js";
 
 const at = (testId: string): LocatorSpec => ({
   chain: [{ method: "getByTestId", testId }],
@@ -217,4 +217,45 @@ test("an unknown env variable or input fails the step", async () => {
     ),
     /inputs\.x is not declared/,
   );
+});
+
+/** The error a replay of `steps` throws */
+async function failure(steps: Step[], page: Page = fakePage([])) {
+  try {
+    await replaySteps(page, steps, ctx());
+  } catch (error) {
+    return error;
+  }
+  throw new Error("the replay did not fail");
+}
+
+test("a failing step throws a ReplayError that carries its number", async () => {
+  const error = await failure([
+    { kind: "click", locator: at("a") },
+    { kind: "click", locator: at("broken") },
+  ]);
+  assert.ok(error instanceof ReplayError);
+  assert.equal(error.step, 2);
+  assert.match(error.message, /^step 2 \(/);
+});
+
+test("a custom step throws a ReplayError that carries its number", async () => {
+  const error = await failure([
+    { kind: "click", locator: at("a") },
+    { kind: "custom", code: "await doThing();" },
+  ]);
+  assert.ok(error instanceof ReplayError);
+  assert.equal(error.step, 2);
+});
+
+test("an engine failure while replaying is a ReplayError too, whatever it throws", async () => {
+  const page = {
+    goto: async () => {
+      throw "browsing context is gone";
+    },
+  } as unknown as Page;
+  const error = await failure([{ kind: "goto", url: "/shop" }], page);
+  assert.ok(error instanceof ReplayError);
+  assert.equal(error.step, 1);
+  assert.match(error.message, /^step 1 .*failed: browsing context is gone/);
 });

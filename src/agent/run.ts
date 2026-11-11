@@ -12,6 +12,7 @@ import { resolveLimits } from "./limits.js";
 import { runLoop, type RunTally } from "./loop.js";
 import { assertModelObject } from "./model.js";
 import { generateKind } from "./generate-kind.js";
+import { ReplayError } from "./replay.js";
 import type { RunKind, RunSink } from "./run-kind.js";
 import { toSdkTools, type AiModule } from "./sdk-tools.js";
 import { AgentController } from "./session.js";
@@ -117,6 +118,8 @@ export function startAgent<
     summary?: string;
     error?: string;
     limit?: "step-limit" | "token-limit";
+    /** Set when the replay of the existing steps threw: the step that failed, when the error names one */
+    replay?: { step?: number };
     text: string;
   } = { text: "" };
 
@@ -146,11 +149,19 @@ export function startAgent<
         if (options.url !== undefined) await page.goto(options.url);
         else if (settings.baseURL !== undefined)
           await page.navigateTo(settings.baseURL);
-        const replayed = await kind.replay?.(steps, {
-          page,
-          variables: settings.variables,
-          secret: (name) => run.secrets.get(name),
-          emit: (event) => controller.emit(event),
+        const replayed = await Promise.resolve(
+          kind.replay?.(steps, {
+            page,
+            variables: settings.variables,
+            secret: (name) => run.secrets.get(name),
+            emit: (event) => controller.emit(event),
+          }),
+        ).catch((error: unknown) => {
+          done.replay = {
+            ...(error instanceof ReplayError &&
+              error.step !== undefined && { step: error.step }),
+          };
+          throw error;
         });
         const current = await page.url();
         const onWeb = /^https?:/.test(current);
@@ -247,6 +258,13 @@ export function startAgent<
         ...(reason === "finished" && summary !== undefined && { summary }),
         ...(reason === "error" &&
           done.error !== undefined && { error: done.error }),
+        ...(reason === "error" &&
+          done.replay && {
+            failedIn: "replay" as const,
+            ...(done.replay.step !== undefined && {
+              replayStep: done.replay.step,
+            }),
+          }),
         file: steps?.file ?? kind.file(options),
         test: steps?.testName ?? "",
         steps: steps?.count ?? 0,
