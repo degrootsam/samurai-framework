@@ -186,6 +186,7 @@ test("set low", async ({ page }) => {
   await new Promise((r) => setTimeout(r, 5000));
 });
 test("set after time spent", async ({ page }) => {
+  test.setTimeout(30000); // the 4 s default must not run out while a slow machine opens the page
   await open(page);
   await new Promise((r) => setTimeout(r, 1500));
   test.setTimeout(100); // already past: ends now
