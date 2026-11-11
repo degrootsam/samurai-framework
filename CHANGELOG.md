@@ -1,3 +1,18 @@
+## 0.22.12 (2026-11-11)
+
+### 🚀 Features
+
+- **framework:** add --continue-at to samurai generate
+- **framework:** report a failed replay in the agent result
+
+### 🩹 Fixes
+
+- **framework:** let the AI agent write screenshot and wait steps
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.11 (2026-11-11)
 
 This was a version bump only for framework to align it with other projects, there were no code changes.
