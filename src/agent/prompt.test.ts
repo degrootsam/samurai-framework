@@ -93,6 +93,23 @@ test("a model with vision is told it has screenshots", () => {
   );
 });
 
+test("the prompt says what a test can contain and what the agent cannot write", () => {
+  for (const vision of [false, true]) {
+    const prompt = buildSystemPrompt({ ...base, vision });
+    assert.match(prompt, /## What a test can contain/);
+    assert.match(prompt, /screenshot \(addScreenshot\)/);
+    assert.match(prompt, /waitForNetworkIdle and waitForTimeout \(wait\)/);
+    assert.match(prompt, /file uploads, saved outputs or custom code/);
+    assert.match(prompt, /do not blame your model/);
+    assert.match(prompt, /- addScreenshot\(name, fullPage\?\)/);
+    assert.match(prompt, /- wait\(for, ms\?\)/);
+  }
+  assert.match(
+    buildSystemPrompt(base),
+    /not available with this model: you cannot look at images \(addScreenshot still works/,
+  );
+});
+
 test("the test agent's prompt includes WRITING_RULES", () => {
   assert.ok(buildSystemPrompt(base).includes(WRITING_RULES));
   assert.match(WRITING_RULES, /terse engineer/);
