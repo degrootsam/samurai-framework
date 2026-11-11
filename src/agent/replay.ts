@@ -145,7 +145,7 @@ function reasonOf(error: unknown): string {
  * `selectOption`, `check`, `uncheck`, `hover`, `dblclick`, `clear`, `setInputFiles`, `dropFiles`) and the waits.
  * Assertions and evidence (`expect`, `expectPage`, `saveOutput`, `screenshot`) are skipped: they do not change the
  * page. A `custom` step is code the framework cannot play, so it stops the replay. A step that fails throws an
- * error naming its number and statement, with secret values masked. Fixtures are not set up.
+ * error naming its number and statement, with secret values masked. The test's fixtures are set up before it.
  */
 export async function replaySteps(
   page: Page,

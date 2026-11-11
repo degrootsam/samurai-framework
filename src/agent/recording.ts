@@ -72,6 +72,8 @@ export class StepRecorder {
   public readonly continuing: boolean;
   /** The inputs the test declares, with their defaults */
   public readonly inputs: readonly TestInput[];
+  /** The fixtures its function destructures, as written */
+  public readonly fixtureNames: readonly string[];
 
   constructor(private readonly options: StepRecorderOptions) {
     this.file = path.resolve(projectDir(), options.file);
@@ -84,6 +86,7 @@ export class StepRecorder {
     this.before = written.slice(0, spec.at);
     this.after = written.slice(spec.at);
     this.inputs = test.inputs ?? [];
+    this.fixtureNames = test.fixtures?.names ?? [];
     this.continuing = options.at !== undefined;
     this.testName = spec.testName;
     this.writer = new SpecWriter(spec.source, this.file, spec.testIndex);

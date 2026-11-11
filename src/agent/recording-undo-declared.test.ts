@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { withProject } from "../runner/project.js";
+import type { LocatorSpec } from "../steps/model.js";
 import { StepRecorder } from "./recording.js";
 
 async function inProject(work: (steps: StepRecorder, file: string) => void) {
@@ -14,10 +15,10 @@ async function inProject(work: (steps: StepRecorder, file: string) => void) {
   });
 }
 
-const field = {
+const field: LocatorSpec = {
   chain: [{ method: "getByCss", css: "#name" }],
   fallbacks: [],
-} as const;
+};
 const goto = (steps: StepRecorder, url: string) =>
   steps.observe({ type: "goto", url });
 const insertInput = (steps: StepRecorder, name: string, value: string) =>

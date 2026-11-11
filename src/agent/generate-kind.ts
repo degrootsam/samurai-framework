@@ -3,7 +3,9 @@ import { buildSystemPrompt } from "./prompt.js";
 import { questionsSection } from "./plan/questions.js";
 import { StepRecorder } from "./recording.js";
 import type { RunKind } from "./run-kind.js";
-import { replaySteps } from "./replay.js";
+import { maskText } from "../config/mask.js";
+import { setUpPageFixtures } from "../runner/page-fixtures.js";
+import { ReplayError, replaySteps } from "./replay.js";
 import { stepToSource } from "../steps/emit.js";
 import { personRecording } from "./take-over.js";
 import { createTools } from "./tools/index.js";
@@ -55,6 +57,21 @@ export const generateKind: RunKind<AgentOptions, StepRecorder> = {
           source,
         }),
     });
+  },
+  fixtures: async (steps, input) => {
+    if (!steps.continuing) return undefined;
+    try {
+      return await setUpPageFixtures({
+        file: steps.file,
+        testName: steps.testName,
+        requested: steps.fixtureNames,
+        ...input,
+      });
+    } catch (error) {
+      throw new ReplayError(
+        maskText(error instanceof Error ? error.message : String(error)),
+      );
+    }
   },
   replay: async (steps, { page, variables, secret, emit }) => {
     if (!steps.continuing) return [];

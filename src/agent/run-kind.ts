@@ -1,4 +1,7 @@
+import type { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
+import type { PreparedRun } from "../runner/prepare-run.js";
+import type { SupportedBrowser } from "../types/browser.js";
 import type { PromptInput } from "./prompt.js";
 import type { PersonRecording } from "./take-over.js";
 import type { Snapshotter } from "./snapshot.js";
@@ -31,6 +34,16 @@ interface ReplayInput {
   emit(event: AgentEvent): void;
 }
 
+/** What setting up the test's fixtures needs from the run */
+interface FixturesInput {
+  page: Page;
+  browser: Browser;
+  browserName: SupportedBrowser;
+  run: PreparedRun;
+  /** Whether the project's config lists fixtures */
+  projectHasFixtures: boolean;
+}
+
 /**
  * What a run swaps for another kind of run: what it records, which tools it has, what the prompt says and what
  * guards the page. The browser, the limits, the origin policy, the controller and the event stream stay the same.
@@ -43,6 +56,15 @@ export interface RunKind<
   file(options: O): string;
   /** Makes the sink; throws a sentence when the file cannot be used. Runs before the browser opens */
   sink(options: O, input: SinkInput): S;
+  /**
+   * Runs once the browser is open, before the page goes to its start and before `replay`: sets up the fixtures the
+   * run's test relies on. Throws when one cannot be set up. `teardown` runs when the run ends and returns the first
+   * error of a cleanup that failed
+   */
+  fixtures?(
+    sink: S,
+    input: FixturesInput,
+  ): Promise<{ teardown(): Promise<Error | undefined> } | undefined>;
   /**
    * Runs after the page is open and before the first snapshot: brings the page to the state the run continues
    * from. Returns the absolute URLs it opened, whose origins the agent may then use too

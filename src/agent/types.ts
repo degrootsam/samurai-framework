@@ -99,7 +99,7 @@ export interface AgentOptions extends BaseAgentOptions {
    * and keep before the agent's own. The browser is opened, steps `0..continueAt-1` are replayed on the page
    * without the model (a `replay` event for each), then the agent writes new steps at that index; the steps
    * after it stay after the new ones. Assertions and evidence (`expect`, `saveOutput`, `screenshot`) are skipped
-   * on replay; a `custom` step cannot be replayed and ends the run with an error; fixtures are not set up.
+   * on replay; a `custom` step cannot be replayed and ends the run with an error; the test's fixtures are set up first.
    * Between 0 (nothing replayed, new steps go first) and the number of steps of the test.
    */
   continueAt?: number;

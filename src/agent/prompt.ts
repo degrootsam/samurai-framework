@@ -103,7 +103,7 @@ The goal comes with a plan, written earlier by another agent from the pages it s
   if (input.hasContinue)
     sections.push(
       `## Continuing a test
-The test already exists. Its first steps were replayed to bring the browser here; your steps are written after them, and the test's later steps stay after yours. Add only what the goal asks; undo removes only your own steps.`,
+The test already exists. Its fixtures (the project's reusable setup, such as a signed-in session) were set up first, as in a normal run, and its first steps were replayed to bring the browser here; your steps are written after them, and the test's later steps stay after yours. Add only what the goal asks; undo removes only your own steps.`,
     );
   const project = instructionsSection(input.instructions);
   if (project) sections.push(project);

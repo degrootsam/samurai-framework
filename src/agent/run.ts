@@ -144,8 +144,27 @@ export function startAgent<
         signal: controller.signal,
         headless: options.headless ?? false,
       });
+      let fixtures: { teardown(): Promise<Error | undefined> } | undefined;
       try {
         deps.onPage?.(page);
+        const catalog = await fixturesOf(options);
+        const inReplay = (error: unknown): never => {
+          done.replay = {
+            ...(error instanceof ReplayError &&
+              error.step !== undefined && { step: error.step }),
+          };
+          throw error;
+        };
+        // The test's fixtures first, as in a run: before the page goes anywhere
+        fixtures = await Promise.resolve(
+          kind.fixtures?.(steps, {
+            page,
+            browser,
+            browserName: prepared,
+            run,
+            projectHasFixtures: catalog.length > 0,
+          }),
+        ).catch(inReplay);
         if (options.url !== undefined) await page.goto(options.url);
         else if (settings.baseURL !== undefined)
           await page.navigateTo(settings.baseURL);
@@ -156,13 +175,7 @@ export function startAgent<
             secret: (name) => run.secrets.get(name),
             emit: (event) => controller.emit(event),
           }),
-        ).catch((error: unknown) => {
-          done.replay = {
-            ...(error instanceof ReplayError &&
-              error.step !== undefined && { step: error.step }),
-          };
-          throw error;
-        });
+        ).catch(inReplay);
         const current = await page.url();
         const onWeb = /^https?:/.test(current);
         const snapshots = new Snapshotter(page, {
@@ -203,7 +216,7 @@ export function startAgent<
         const system = kind.prompt(
           {
             instructions: instructions.text,
-            fixtures: await fixturesOf(options),
+            fixtures: catalog,
             secrets: options.secrets ?? [],
             origins: origins.list(),
             vision: options.vision === true,
@@ -233,6 +246,7 @@ export function startAgent<
         if (outcome.limit) done.limit = outcome.limit;
       } finally {
         await person.hooks?.dispose().catch(() => undefined);
+        await fixtures?.teardown().catch(() => undefined);
         await browser.close().catch(() => undefined);
       }
     });
