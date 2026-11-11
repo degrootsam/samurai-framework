@@ -56,19 +56,20 @@ samurai generate "sign in as the owner and check the dashboard" --file tests/sig
   --model anthropic:claude-sonnet-4-5 --secret PASSWORD --yes-origin https://login.shop.example
 ```
 
-| Option                                       | Meaning                                                                                                         |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `--file <spec>`                              | The spec to write into (required, once). With `--new <title>` the test is added (the file is created if needed) |
-| `--test <name\|index>`                       | Write into this existing test; not needed when the file has one                                                 |
-| `--plan <plan.md>`                           | A plan from [`samurai plan`](#planning-a-test): the agent follows it and checks each step on the live page      |
-| `--url <url>`                                | Where the browser starts. Default: the environment's base URL                                                   |
-| `--model <provider:name>`                    | See above                                                                                                       |
-| `--max-steps <n>`                            | Most model calls in the run (default 40)                                                                        |
-| `--yes-origin <origin>`                      | A site the agent may open without asking. Repeatable                                                            |
-| `--secret <NAME>`                            | A secret the agent may type (it never sees the value). Repeatable                                               |
-| `--secret-field <css>`                       | A field whose value is never shown to the model. Repeatable                                                     |
-| `--env`, `--browser`, `--port`, `--headless` | As for [`samurai run`](Command-line#samurai-run)                                                                |
-| `--json`                                     | One JSON event per line (the events below) instead of the readable output                                       |
+| Option                                       | Meaning                                                                                                                       |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--file <spec>`                              | The spec to write into (required, once). With `--new <title>` the test is added (the file is created if needed)               |
+| `--test <name\|index>`                       | Write into this existing test; not needed when the file has one                                                               |
+| `--continue-at <n>`                          | With `--test`: replay its first `n` steps, then add the agent's steps after them; see [Continuing a test](#continuing-a-test) |
+| `--plan <plan.md>`                           | A plan from [`samurai plan`](#planning-a-test): the agent follows it and checks each step on the live page                    |
+| `--url <url>`                                | Where the browser starts. Default: the environment's base URL                                                                 |
+| `--model <provider:name>`                    | See above                                                                                                                     |
+| `--max-steps <n>`                            | Most model calls in the run (default 40)                                                                                      |
+| `--yes-origin <origin>`                      | A site the agent may open without asking. Repeatable                                                                          |
+| `--secret <NAME>`                            | A secret the agent may type (it never sees the value). Repeatable                                                             |
+| `--secret-field <css>`                       | A field whose value is never shown to the model. Repeatable                                                                   |
+| `--env`, `--browser`, `--port`, `--headless` | As for [`samurai run`](Command-line#samurai-run)                                                                              |
+| `--json`                                     | One JSON event per line (the events below) instead of the readable output                                                     |
 
 The output shows the plan, each tool call and each step as it is written (`+ await page.goto("/login");`), then a summary (the agent writes its own text tersely), the secrets you still have to set and the tokens used. Before the first model call it prints which provider receives the pages. **Exit code:** 0 when the agent finished, 1 when the run ended at a limit, was stopped (Ctrl+C) or failed, 2 for a usage or configuration error.
 
@@ -120,7 +121,7 @@ Every tool checks its arguments and answers with one sentence the model can act 
 
 ## Continuing a test
 
-`continueAt` (in code only, for now) makes the agent add to a test that already exists instead of starting a new one. Give `test` (not `create`) and the number of steps to keep before the new ones:
+`continueAt` (`--continue-at <n>` on the command line) makes the agent add to a test that already exists instead of starting a new one. Give `test` (not `create`) and the number of steps to keep before the new ones:
 
 ```ts
 runAgent({
@@ -131,6 +132,8 @@ runAgent({
   continueAt: 3,
 });
 ```
+
+On the command line: `samurai generate "Add the payment" --file tests/shop.spec.ts --test checkout --continue-at 3`. `--continue-at` takes a whole number from 0 and needs `--test`; with `--new`, or without `--test`, it is refused (exit 2) with the same sentence the API gives, and a number past the end of the test is refused before the browser opens.
 
 1. The browser opens, and steps `0..continueAt-1` are **replayed** on the live page, in order, without the model. Each one is reported as `{ type: "replay", n, total, text }`; nothing is written for it, the steps are already in the file.
 2. The agent then runs as usual, and its steps are written at index `continueAt`. The test's later steps stay where they are, after the new ones, and `undo` only removes steps the agent wrote.
@@ -143,6 +146,7 @@ runAgent({
 - **A `custom` step cannot be replayed.** The run ends with `reason: "error"` and `step 4 is custom code and cannot be replayed`, before anything is played.
 - **Fixtures are not set up.** The agent run has none, so a test that depends on a fixture (a signed-in session, seeded data) needs that state some other way, or the replay fails where the page differs.
 - A step that fails ends the run with `reason: "error"` and `step 2 (await page.getByLabel("Email").fill(...);) failed: ...`; the spec is untouched.
+- **A run that fails while replaying says so in its result.** `reason` is `error`, `failedIn` is `"replay"` and, when a step is to blame (a step that failed, or a `custom` one), `replayStep` is its 1-based number. Both are absent for every other result, including a failure after the replay (the agent may have written steps by then), so a tool can tell "the test was not changed" without reading the message.
 - The sites that replayed `goto` steps open are allowed for the agent too, and no others.
 
 ## Planning a test

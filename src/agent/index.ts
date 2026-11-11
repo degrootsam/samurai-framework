@@ -7,6 +7,7 @@ import type {
   PlanSession,
 } from "./types.js";
 
+export { CONTINUE_NEEDS_TEST } from "./generate-kind.js";
 export { DEFAULT_LIMITS, resolveLimits, type AgentLimits } from "./limits.js";
 export { assertModelObject, type AgentModel } from "./model.js";
 export { splitFrontMatter } from "./plan/front-matter.js";

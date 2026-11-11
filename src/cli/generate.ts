@@ -11,7 +11,7 @@ import type { Io } from "./io.js";
 export type GenerateDeps = AgentCommandDeps;
 
 const USAGE_LINE =
-  'Usage: samurai generate "<goal>" --file <spec> [--new <title>] [--test <name|index>] [--plan <plan.md>] [--url <url>] [--model <provider:name>] [--max-steps <n>] [--yes-origin <origin>] [--secret <NAME>] [--json]';
+  'Usage: samurai generate "<goal>" --file <spec> [--new <title>] [--test <name|index> [--continue-at <n>]] [--plan <plan.md>] [--url <url>] [--model <provider:name>] [--max-steps <n>] [--yes-origin <origin>] [--secret <NAME>] [--json]';
 
 /** `samurai generate "<goal>"`: lets the AI agent write a test and prints what it does. Returns the exit code */
 export async function generateCommand(
@@ -32,12 +32,19 @@ export async function generateCommand(
         ? Number(values.test)
         : values.test;
 
+  const continueAt = parseContinueAt(values["continue-at"]);
+
   const { agent, model, options } = await prepareAgentRun(
     parsed,
     io,
     deps,
     "generate",
   );
+  if (
+    continueAt !== undefined &&
+    (test === undefined || values.new !== undefined)
+  )
+    throw new Error(agent.CONTINUE_NEEDS_TEST);
   const plan =
     values.plan === undefined ? undefined : readPlanFlag(agent, values.plan);
   const session = agent.runAgent({
@@ -46,12 +53,23 @@ export async function generateCommand(
     goal,
     file: files[0]!,
     ...(test !== undefined && { test }),
+    ...(continueAt !== undefined && { continueAt }),
     ...(values.new !== undefined && { create: values.new }),
     ...(plan !== undefined && { plan, planFile: values.plan! }),
   });
   return followRun(session, io, values.json === true, (result) =>
     summarise(io, result),
   );
+}
+
+/** `--continue-at <n>`: a whole number from 0 (how many steps are replayed before the agent starts) */
+function parseContinueAt(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  if (!/^\d+$/.test(raw))
+    throw new Error(
+      `--continue-at must be a whole number from 0, got "${raw}"`,
+    );
+  return Number(raw);
 }
 
 /** The text of `--plan <file>`; a file that cannot be used is a usage error that names it */

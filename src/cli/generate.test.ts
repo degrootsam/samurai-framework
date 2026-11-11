@@ -32,6 +32,8 @@ function fakeAgent(events: AgentEvent[], final: AgentResult = result()) {
   const entry = {
     defaultModelSpec: async () => undefined as string | undefined,
     modelFromSpec: async (spec: string) => ({ spec }) as never,
+    CONTINUE_NEEDS_TEST:
+      "continueAt needs an existing test to continue: give test, not create",
     readPlan: (file: string) => {
       if (file === "missing.md")
         throw new Error("readPlan(): missing.md cannot be read");
@@ -109,6 +111,26 @@ test("usage mistakes are errors, which the command line reports with exit code 2
     [
       [...ARGS, "--browser", "firefox", "--browser", "chrome"],
       /uses one browser/,
+    ],
+    [
+      [...ARGS, "--test", "1", "--continue-at", "x"],
+      /--continue-at must be a whole number from 0, got "x"/,
+    ],
+    [
+      [...ARGS, "--test", "1", "--continue-at", "1.5"],
+      /--continue-at must be a whole number from 0, got "1.5"/,
+    ],
+    [
+      [...ARGS, "--test", "1", "--continue-at=-1"],
+      /--continue-at must be a whole number from 0, got "-1"/,
+    ],
+    [
+      [...ARGS, "--continue-at", "2"],
+      /continueAt needs an existing test to continue: give test, not create/,
+    ],
+    [
+      [...ARGS, "--test", "1", "--new", "t", "--continue-at", "2"],
+      /continueAt needs an existing test to continue: give test, not create/,
     ],
   ] as const)
     await assert.rejects(run([...argv], agent), message);
@@ -317,4 +339,23 @@ test("a plan file that cannot be used is a usage error that names it", async () 
   }
   const sink = io();
   assert.equal(await main([...ARGS, "--plan", "x.md", "--bogus"], sink.io), 2);
+});
+
+test("--continue-at hands the number of replayed steps to the run, 0 included", async () => {
+  for (const [flag, expected] of [
+    ["3", 3],
+    ["0", 0],
+  ] as const) {
+    const agent = fakeAgent([{ type: "ended", result: result() }]);
+    const { code } = await run(
+      [...ARGS, "--test", "checkout", "--continue-at", flag],
+      agent,
+    );
+    assert.equal(code, 0);
+    assert.equal(agent.seen.options?.continueAt, expected);
+    assert.equal(agent.seen.options?.test, "checkout");
+  }
+  const plain = fakeAgent([{ type: "ended", result: result() }]);
+  await run(ARGS, plain);
+  assert.equal("continueAt" in (plain.seen.options ?? {}), false);
 });

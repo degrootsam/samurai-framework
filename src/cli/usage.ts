@@ -55,6 +55,8 @@ Options for generate (also --env, --browser, --port, --headless, --json):
   --plan <plan.md>            A plan from samurai plan: the agent follows it and checks each step
   --new <title>               Add a test with this title (creates the file if needed)
   --test <name|index>         Write into this test; not needed when the file has one
+  --continue-at <n>           With --test: replay the test's first n steps, then add the agent's after them
+                              (0 = at the start); the later steps stay. Not with --new
   --url <url>                 Page to start on (default: the environment's baseURL)
   --model <provider:name>     anthropic, openai or openai-compatible, for example
                               anthropic:claude-sonnet-4-5. Default: SAMURAI_AI_MODEL, then the

@@ -38,6 +38,7 @@ const FLAGS = {
   at: { type: "string" },
   new: { type: "string" },
   plan: { type: "string" },
+  "continue-at": { type: "string" },
   out: { type: "string" },
   force: { type: "boolean" },
   url: { type: "string" },

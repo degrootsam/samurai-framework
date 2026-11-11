@@ -12,6 +12,10 @@ import type { AgentOptions } from "./types.js";
 
 const REPLAY_TIMEOUT = 10000;
 
+/** What `continueAt` is refused with when there is no existing test to continue */
+export const CONTINUE_NEEDS_TEST =
+  "continueAt needs an existing test to continue: give test, not create";
+
 /** The first message in continue mode: what was replayed, what stays after the agent's steps, what to do */
 function continueSection(steps: StepRecorder): string {
   const list = (items: readonly Step[], from: number) =>
@@ -35,9 +39,7 @@ export const generateKind: RunKind<AgentOptions, StepRecorder> = {
       options.continueAt !== undefined &&
       (options.create !== undefined || options.test === undefined)
     )
-      throw new Error(
-        "continueAt needs an existing test to continue: give test, not create",
-      );
+      throw new Error(CONTINUE_NEEDS_TEST);
     return new StepRecorder({
       at: options.continueAt,
       file: options.file,

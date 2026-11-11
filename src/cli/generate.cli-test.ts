@@ -51,6 +51,7 @@ describe("samurai generate", () => {
   it("is in the usage", () => {
     assert.match(USAGE, /samurai generate "<goal>"/);
     assert.match(USAGE, /--model <provider:name>/);
+    assert.match(USAGE, /--continue-at <n>/);
   });
 
   it("exits 2 without a goal, a file or a model", async () => {
