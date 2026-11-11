@@ -7,6 +7,11 @@ import {
 } from "../recorder/normalise.js";
 import { prepareSpec, readSpec, SpecWriter } from "../recorder/spec-source.js";
 import { linkPlan } from "./plan-link.js";
+import {
+  declaredIn,
+  pruneDeclared,
+  type Declared,
+} from "./recording-declared.js";
 import { stepToSource } from "../steps/emit.js";
 import { parseSpec } from "../steps/parse.js";
 import type { Step, TestInput } from "../steps/model.js";
@@ -53,6 +58,9 @@ export class StepRecorder {
   private steps: number;
   /** Steps the test had before the agent wrote any: `undo` never goes below them */
   private readonly first: number;
+  /** What the test declared before the agent wrote anything: `undo` leaves these */
+  private readonly declared: Declared;
+  private readonly testIndex: number;
   /** The test the steps go into, by its full name */
   public readonly testName: string;
   public readonly file: string;
@@ -79,6 +87,8 @@ export class StepRecorder {
     this.continuing = options.at !== undefined;
     this.testName = spec.testName;
     this.writer = new SpecWriter(spec.source, this.file, spec.testIndex);
+    this.testIndex = spec.testIndex;
+    this.declared = declaredIn(spec.source, spec.testIndex);
     const planFile = options.planFile;
     if (planFile !== undefined)
       this.writer.rewrite((source) =>
@@ -122,12 +132,18 @@ export class StepRecorder {
     return events;
   }
 
-  /** Takes out the last `count` steps (at most the ones written in this run) and returns how many went */
+  /** Takes out the last `count` steps (at most the ones written in this run), and the inputs and outputs only they
+   * declared, and returns how many steps went */
   public undo(count: number): number {
     const removed = Math.max(0, Math.min(count, this.steps - this.first));
     for (let i = 0; i < removed; i++)
       this.write({ op: "remove", index: this.steps - 1 });
-    if (removed > 0) this.normaliser = this.fresh();
+    if (removed > 0) {
+      this.writer.rewrite((source) =>
+        pruneDeclared(source, this.testIndex, this.declared),
+      );
+      this.normaliser = this.fresh();
+    }
     return removed;
   }
 
