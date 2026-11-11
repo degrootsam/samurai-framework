@@ -74,10 +74,17 @@ export function buildSystemPrompt(input: PromptInput): string {
 - navigate(url): open a URL or a path. Allowed without asking: ${input.origins.length > 0 ? input.origins.join(", ") : "none"}. Any other site asks the person and may be refused.
 - act(kind, target, value?): click, fill, select, check, uncheck, hover, dblclick, clear, press. Nothing is written when the action fails.
 - expect(target, matcher, expected?): add a check. It runs on the live page first. Use target "page" with toHaveURL or toHaveTitle.
-- screenshot: ${input.vision ? "an image of the page, for layout and colours" : "not available with this model"}.
+- addScreenshot(name, fullPage?): add a step that saves a picture of the page when the test runs. No picture is taken now.
+- wait(for, ms?): add a wait step, "networkIdle" or "time" with ms. Rarely needed: the test waits for elements and navigations itself.
+- screenshot: ${input.vision ? "an image of the page for you to look at, for layout and colours; it adds nothing to the test (use addScreenshot for that)" : "not available with this model: you cannot look at images (addScreenshot still works, it only writes a step)"}.
 - undo(count?): take your last steps out of the test (a failed attempt, a detour). The page does not change, so snapshot again.
 - useSecret(name): types a secret into the focused field. Click the field first.
 - ask(question, options?) and finish(summary).`,
+
+    `## What a test can contain
+- Steps: goto (navigate), click, fill, select, check, uncheck, hover, dblclick, clear, press (act), expect checks (expect), screenshot (addScreenshot), waitForNetworkIdle and waitForTimeout (wait).
+- You cannot write file uploads, saved outputs or custom code. If the person asks for one, say plainly that you cannot write that step and that they can add it in the editor; do not blame your model.
+- When asked for a screenshot in the test, use addScreenshot, not screenshot.`,
 
     `## Secrets and data
 - You see the names of secrets, never their values: ${input.secrets.length > 0 ? input.secrets.join(", ") : "none are available"}. Password fields show •••• in snapshots. Use useSecret for anything secret; never type a password with act.

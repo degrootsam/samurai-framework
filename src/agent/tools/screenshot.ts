@@ -5,7 +5,7 @@ export const screenshot = defineTool({
   name: "screenshot",
   description:
     "Look at the page as an image, for what the text snapshot cannot tell (layout, colours, charts). " +
-    "It is not added to the test.",
+    "It is not added to the test: to have the test save a picture, write that step with addScreenshot.",
   inputSchema: z.object({
     fullPage: z
       .boolean()

@@ -287,6 +287,15 @@ test(
     assert.equal(shot.ok, true);
     assert.ok(shot.ok && shot.image?.data.startsWith("iVBOR"));
 
+    const added = await run.call("addScreenshot", { name: "signed-in" });
+    assert.equal(added.ok, true, text(added));
+    const waited = await run.call("wait", { for: "networkIdle" });
+    assert.equal(waited.ok, true, text(waited));
+    assert.deepEqual(run.steps().slice(-2), [
+      { kind: "screenshot", name: "signed-in", fullPage: false },
+      { kind: "waitForNetworkIdle" },
+    ]);
+
     const answer = await run.call("ask", {
       question: "Which account?",
       options: ["staging", "prod"],
