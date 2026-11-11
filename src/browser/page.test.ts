@@ -1187,11 +1187,14 @@ describe("Page network data", () => {
 
   test("waitForResponse resolves with a Response whose body can be read", async () => {
     const { page, stop, respond, commands } = dataPage();
-    const waiting = page.waitForResponse("**/api/users", { timeout: 1000 });
-    await tick(30); // tracking and body collection are set up first
-    respond("r1", "https://example.test/api/other");
-    respond("r2", "https://example.test/api/users", 201);
-    const response = await waiting;
+    // The trigger runs once tracking and body collection are set up and the wait is registered: no timing guess
+    const response = await page.waitForResponse("**/api/users", {
+      timeout: 5000,
+      trigger: async () => {
+        respond("r1", "https://example.test/api/other");
+        respond("r2", "https://example.test/api/users", 201);
+      },
+    });
     assert.equal(response.status, 201);
     assert.equal(response.url, "https://example.test/api/users");
     assert.deepEqual(await response.json(), { ok: true });
