@@ -1,3 +1,17 @@
+## 0.22.13 (2026-11-12)
+
+### 🚀 Features
+
+- **framework:** set up the test fixtures before the replay of a continue run
+
+### 🩹 Fixes
+
+- **framework:** undo removes the inputs and outputs only the removed steps declared
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.12 (2026-11-11)
 
 ### 🚀 Features
