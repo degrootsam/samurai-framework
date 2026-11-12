@@ -130,7 +130,7 @@ describe("checkFlow: inputs and outputs", () => {
       {
         level: "error",
         nodeId: "g",
-        message: 'g: Group nodes can\'t set inputs ("o")',
+        message: 'g: Group nodes can’t set inputs ("o")',
       },
     ]);
   });

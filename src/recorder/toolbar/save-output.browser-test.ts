@@ -162,7 +162,7 @@ test(
     await waitFor(
       async () =>
         (await panelText(".err")) ===
-        "pattern doesn't match the element's text",
+        "pattern doesn’t match the element’s text",
       "the pattern error",
     );
     assert.deepEqual(steps(), []);
@@ -197,7 +197,7 @@ test(
     await waitFor(
       async () =>
         (await panelText(".err")) ===
-        "pattern doesn't match the element's text",
+        "pattern doesn’t match the element’s text",
       "the pattern error",
     );
 

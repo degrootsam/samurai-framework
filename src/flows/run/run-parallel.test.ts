@@ -144,7 +144,7 @@ describe("runFlow", () => {
     assert.equal(summary.status, "failed");
     assert.equal(
       summary.error,
-      "This flow's shape can't run: a is reached twice.",
+      "This flow’s shape can’t run: a is reached twice.",
     );
   });
 

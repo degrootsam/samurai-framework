@@ -17,8 +17,8 @@ import type { FileRecording, MissingFile } from "./options.js";
 export function missingFileText(file: MissingFile, folder: string): string {
   const where = folder === "" ? "the project folder" : `${folder}/`;
   return file.reason === "too-big"
-    ? `${file.name} is ${humanSize(file.size)}. Files over 50 MB aren't saved: add it to ${where} yourself, or use a generated file.`
-    : `${file.name} couldn't be read, so it isn't saved: add it to ${where} yourself, or use a generated file.`;
+    ? `${file.name} is ${humanSize(file.size)}. Files over 50 MB aren’t saved: add it to ${where} yourself, or use a generated file.`
+    : `${file.name} couldn’t be read, so it isn’t saved: add it to ${where} yourself, or use a generated file.`;
 }
 
 /** What `FilesRecorder` tells the toolbar, when there is one */

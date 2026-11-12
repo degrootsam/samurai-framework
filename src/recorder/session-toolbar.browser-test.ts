@@ -161,7 +161,7 @@ test(
     assert.equal(result.filesFolder, "data/uploads");
     assert.equal(result.firstFiles, true);
     assert.deepEqual(warned, [
-      "big.bin is 50 MB. Files over 50 MB aren't saved: add it to data/uploads/ yourself, or use a generated file.",
+      "big.bin is 50 MB. Files over 50 MB aren’t saved: add it to data/uploads/ yourself, or use a generated file.",
     ]);
     assert.match(
       readFileSync(path.join(dir, "tests/up.spec.ts"), "utf8"),

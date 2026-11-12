@@ -30,7 +30,7 @@ function recordingPrinter(io: Io, json: boolean) {
       if (!status.toolbar && !toolbarWarned) {
         toolbarWarned = true;
         io.out(
-          "The toolbar couldn't load on this page. Alt+click still records assertions.\n",
+          "The toolbar couldn’t load on this page. Alt+click still records assertions.\n",
         );
       }
       if (status.state !== state) {
@@ -76,7 +76,7 @@ function summarise(io: Io, result: RecordResult, steps: number): void {
   const hasFiles = result.files.length + result.missingFiles.length > 0;
   const folder = result.filesFolder === "" ? "." : result.filesFolder;
   if (hasFiles && result.filesIgnored)
-    io.out(`${folder}/ is ignored by git; CI won't have these files.\n`);
+    io.out(`${folder}/ is ignored by git; CI won’t have these files.\n`);
   if (hasFiles && result.firstFiles)
     io.out(
       `Recorded files are stored in ${folder}/ and committed with your tests.\n`,

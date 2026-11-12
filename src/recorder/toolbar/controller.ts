@@ -363,7 +363,7 @@ export class ToolbarController {
         pageInfoOf(this.deps, this.secrets),
       );
     } catch {
-      found = { ok: false, error: "Couldn't read the page" };
+      found = { ok: false, error: "Couldn’t read the page" };
     }
     if (found === LEFT || page !== this.scope.current) return;
     this.reply(message.id, found);

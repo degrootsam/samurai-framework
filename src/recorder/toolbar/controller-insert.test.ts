@@ -56,7 +56,7 @@ describe("ToolbarController insert and add", () => {
     await controller.handle(insert(7, "env", "testUser"));
     assert.deepEqual(observed, []);
     assert.deepEqual(replies, [
-      { id: 7, result: { ok: false, error: "Couldn't type into that field" } },
+      { id: 7, result: { ok: false, error: "Couldn’t type into that field" } },
     ]);
   });
 
@@ -73,7 +73,7 @@ describe("ToolbarController insert and add", () => {
         id: 8,
         result: {
           ok: false,
-          error: "This element can't be identified uniquely",
+          error: "This element can’t be identified uniquely",
         },
       },
     ]);
@@ -189,7 +189,7 @@ describe("ToolbarController insert and add", () => {
         result: {
           ok: false,
           error:
-            "samurai.config.ts can't be changed automatically. Add adminUser to environments.dev.variables yourself.",
+            "samurai.config.ts can’t be changed automatically. Add adminUser to environments.dev.variables yourself.",
         },
       },
     ]);
@@ -263,11 +263,11 @@ describe("ToolbarController insert and add", () => {
   it("shows a toast when typing fails, since the panel is gone by then", async () => {
     const { controller, last, replies } = setup({}, failingType);
     await controller.handle(insert(40, "env", "testUser"));
-    assert.equal(last().toast?.text, "Couldn't type into that field");
+    assert.equal(last().toast?.text, "Couldn’t type into that field");
     assert.deepEqual(replies, [
       {
         id: 40,
-        result: { ok: false, error: "Couldn't type into that field" },
+        result: { ok: false, error: "Couldn’t type into that field" },
       },
     ]);
 
@@ -275,7 +275,7 @@ describe("ToolbarController insert and add", () => {
     await added.controller.handle(add(41, "env", "adminUser", "x"));
     assert.equal(
       added.last().toast?.text,
-      "Saved adminUser, but couldn't type into that field",
+      "Saved adminUser, but couldn’t type into that field",
     );
     assert.ok(
       added.last().variables.some((v) => v.name === "adminUser"),

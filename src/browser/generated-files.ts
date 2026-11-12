@@ -143,7 +143,7 @@ export async function resolveFileInputs(
       throw new Error(
         path.isAbsolute(file)
           ? `${operation}(): file not found: ${absolute}`
-          : `${operation}(): ${file.replace(/\\/g, "/")} doesn't exist in the project`,
+          : `${operation}(): ${file.replace(/\\/g, "/")} doesn’t exist in the project`,
       );
     }
     if (!info.isFile())

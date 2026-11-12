@@ -119,10 +119,10 @@ function checkInputs(parsed: ParsedTest, step: Step) {
 function checkOutput(step: Step) {
   if (step.kind !== "expect" || step.output === undefined) return;
   if (step.not)
-    throw new Error("applyEdit(): output can't be saved from a negated check");
+    throw new Error("applyEdit(): output can’t be saved from a negated check");
   if (!OUTPUT_MATCHERS.includes(step.expectation.matcher))
     throw new Error(
-      `applyEdit(): output can't be saved from ${step.expectation.matcher}`,
+      `applyEdit(): output can’t be saved from ${step.expectation.matcher}`,
     );
 }
 

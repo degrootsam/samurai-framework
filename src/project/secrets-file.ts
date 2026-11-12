@@ -10,7 +10,7 @@ const ENVIRONMENT = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 function envFile(projectDir: string, environment: string) {
   // The name ends up in a file name: keep it to plain characters
   if (!ENVIRONMENT.test(environment))
-    throw new Error(`"${environment}" isn't a valid environment name.`);
+    throw new Error(`"${environment}" isn’t a valid environment name.`);
   return path.join(projectDir, `.env.${environment}`);
 }
 
@@ -31,7 +31,7 @@ function formatValue(value: string) {
   if (!value.includes('"') && !value.includes("\\") && !/[\r\n]/.test(value))
     return `"${value}"`;
   throw new Error(
-    "This value has both ' and ` characters (and more), which a .env file can't hold. Set it as a SAMURAI_SECRET_* environment variable instead.",
+    "This value has both ' and ` characters (and more), which a .env file can’t hold. Set it as a SAMURAI_SECRET_* environment variable instead.",
   );
 }
 
@@ -63,9 +63,9 @@ export async function setSecret(
 ) {
   checkName(name);
   if (value === "")
-    throw new Error("A secret can't be empty. Remove it instead.");
+    throw new Error("A secret can’t be empty. Remove it instead.");
   if (/\r|\n/.test(value) && !value.trim())
-    throw new Error("A secret can't be only line breaks.");
+    throw new Error("A secret can’t be only line breaks.");
   const file = envFile(projectDir, environment);
   const text = existsSync(file) ? await readFile(file, "utf8") : "";
   const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");

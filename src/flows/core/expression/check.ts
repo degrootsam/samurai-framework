@@ -57,8 +57,8 @@ export function checkExpression(
       const near = closest(call.name, HELPERS);
       return {
         message: near
-          ? `${call.name}() doesn't exist. Did you mean ${near}()?`
-          : `${call.name}() doesn't exist. Use ${list(HELPERS)}.`,
+          ? `${call.name}() doesn’t exist. Did you mean ${near}()?`
+          : `${call.name}() doesn’t exist. Use ${list(HELPERS)}.`,
         at: call.start,
       };
     }
@@ -73,7 +73,7 @@ export function checkExpression(
     const [root, name, field] = path;
     if (!["env", "vars", "nodes", "run"].includes(root!))
       return {
-        message: `${root} isn't available. Use env., vars., nodes. or run.`,
+        message: `${root} isn’t available. Use env., vars., nodes. or run.`,
         at,
       };
     if (name === undefined)
@@ -82,12 +82,12 @@ export function checkExpression(
         at,
       };
     if (root === "env" && !scope.env.variables.includes(name))
-      return { message: `${name} isn't a variable of ${scope.env.name}`, at };
+      return { message: `${name} isn’t a variable of ${scope.env.name}`, at };
     if (root === "vars" && !scope.vars.includes(name))
-      return { message: `vars.${name} isn't set before this node`, at };
+      return { message: `vars.${name} isn’t set before this node`, at };
     if (root === "run" && !(RUN_FIELDS as readonly string[]).includes(name))
       return {
-        message: `run.${name} doesn't exist. Use ${list(RUN_FIELDS)}`,
+        message: `run.${name} doesn’t exist. Use ${list(RUN_FIELDS)}`,
         at,
       };
     if (root === "nodes") {
@@ -111,7 +111,7 @@ export function checkExpression(
       const fields = [...NODE_FIELDS, ...(scope.outputs?.[name] ?? [])];
       if (field !== undefined && !fields.includes(field))
         return {
-          message: `nodes.${name}.${field} doesn't exist. Use ${list(fields)}`,
+          message: `nodes.${name}.${field} doesn’t exist. Use ${list(fields)}`,
           at,
         };
     }

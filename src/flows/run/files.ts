@@ -29,7 +29,7 @@ export async function readFlow(
   id: string,
 ): Promise<FlowFile> {
   if (!id || /[\\/]/.test(id) || id.startsWith("."))
-    throw new Error(`"${id}" isn't a valid flow id.`);
+    throw new Error(`"${id}" isn’t a valid flow id.`);
   const file = path.join(flowsDir(projectDir), `${id}${FLOW_SUFFIX}`);
   return readFlowPath(file, id);
 }
@@ -44,16 +44,16 @@ export async function readFlowPath(
     text = await readFile(file, "utf8");
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT")
-      throw new Error(`No flow "${id}": ${file} doesn't exist.`);
+      throw new Error(`No flow "${id}": ${file} doesn’t exist.`);
     throw new Error(
-      `Couldn't read the flow "${id}" (${file}): ${(e as Error).message}`,
+      `Couldn’t read the flow "${id}" (${file}): ${(e as Error).message}`,
     );
   }
   try {
     return { ...readFlowFile(JSON.parse(text)), id };
   } catch (e) {
     throw new Error(
-      `Couldn't read the flow "${id}" (${file}): ${(e as Error).message}`,
+      `Couldn’t read the flow "${id}" (${file}): ${(e as Error).message}`,
     );
   }
 }

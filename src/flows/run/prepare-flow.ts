@@ -9,7 +9,7 @@ import type { Handler } from "./handlers/index.js";
 export class ShapeError extends Error {}
 
 export const shapeError = (message: string) =>
-  new ShapeError(`This flow's shape can't run: ${message}`);
+  new ShapeError(`This flow’s shape can’t run: ${message}`);
 
 /** Waits `ms`, or rejects at once when `signal` aborts */
 export const defaultSleep = (ms: number, signal: AbortSignal) =>
@@ -58,7 +58,7 @@ export function assertRunnable(
         (def.shape === "step" || def.shape === "branches") &&
         !handlers[n.kind],
     )
-    .map(({ def }) => `${def!.label} can't run yet.`);
+    .map(({ def }) => `${def!.label} can’t run yet.`);
   if (problems.length)
-    throw new Error(`This flow can't run: ${[...new Set(problems)].join(" ")}`);
+    throw new Error(`This flow can’t run: ${[...new Set(problems)].join(" ")}`);
 }

@@ -190,7 +190,7 @@ async function run(
     if (options.json) io.out(`${JSON.stringify(described, null, 2)}\n`);
     else
       io.err(
-        `${flow.id} can't run:\n${problemLines(io, described)}Nothing was run.\n`,
+        `${flow.id} can’t run:\n${problemLines(io, described)}Nothing was run.\n`,
       );
     return 2;
   };

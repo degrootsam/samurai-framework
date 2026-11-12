@@ -63,14 +63,14 @@ export function stepHandler(step: StepDefinition<any>): Handler {
     if (extra.length)
       return {
         status: "failed",
-        error: `${step.label} returned outputs it doesn't declare: ${extra.join(", ")}.`,
+        error: `${step.label} returned outputs it doesn’t declare: ${extra.join(", ")}.`,
       };
     const allowed = step.writesVar ? getPath(typed, step.writesVar) : undefined;
     const wrongVars = keysOf(result?.vars).filter((k) => k !== allowed);
     if (wrongVars.length)
       return {
         status: "failed",
-        error: `${step.label} wrote variables it doesn't declare: ${wrongVars.join(", ")}.`,
+        error: `${step.label} wrote variables it doesn’t declare: ${wrongVars.join(", ")}.`,
       };
 
     Object.assign(run.context.vars, result?.vars);

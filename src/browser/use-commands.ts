@@ -35,7 +35,7 @@ export class UseUnsupportedError extends UnsupportedOperationError {
 
   constructor(option: string, applied: string[]) {
     super(
-      `use(): ${option} is not supported by the browser${AT_START_ONLY.has(option) ? ` at run time; set it in config use, a group's use or test.use()` : ""}`,
+      `use(): ${option} is not supported by the browser${AT_START_ONLY.has(option) ? ` at run time; set it in config use, a group’s use or test.use()` : ""}`,
     );
     this.name = "UseUnsupportedError";
     this.option = option;
@@ -74,7 +74,7 @@ export function validateRuntimeUse(options: RuntimeUseOptions): void {
   for (const key of Object.keys(options))
     if (!(RUNTIME_OPTIONS as readonly string[]).includes(key))
       throw new TypeError(
-        `use(): ${USE_OPTION_NAMES.includes(key) ? `${key} can only be set before the browser starts: in config use, a group's use or test.use()` : `unknown option "${key}"`}`,
+        `use(): ${USE_OPTION_NAMES.includes(key) ? `${key} can only be set before the browser starts: in config use, a group’s use or test.use()` : `unknown option "${key}"`}`,
       );
 }
 

@@ -53,7 +53,7 @@ export function toFunctionDeclaration(
   // tsx/esbuild (keepNames) wrap named functions in a __name() helper that does not exist in the page
   if (source.includes("__name(")) {
     throw new ScriptSerializationError(
-      "The function's source uses __name(), a helper that tsx and esbuild add around named functions " +
+      "The function’s source uses __name(), a helper that tsx and esbuild add around named functions " +
         "(also an arrow function assigned to a variable) and that does not exist in the page. " +
         "Write the function without inner named functions (pass callbacks inline as anonymous arrow functions), " +
         "or pass it as a string.",

@@ -403,7 +403,7 @@ test("an array of text can't save an output", () => {
       expect(locatorWith(remote(["a"])).locator).toHaveText(["a"], {
         output: "x",
       }),
-    /output can't be saved/,
+    /output can’t be saved/,
   );
 });
 

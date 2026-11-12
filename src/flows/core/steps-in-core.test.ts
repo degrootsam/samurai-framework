@@ -75,7 +75,7 @@ describe("kinds core wasn't built with", () => {
     assert.equal(problemOf("nodes.f1.code == 200", scope), undefined);
     assert.equal(
       problemOf("nodes.f1.body", scope)?.message,
-      "nodes.f1.body doesn't exist. Use status, durationMs, error or code",
+      "nodes.f1.body doesn’t exist. Use status, durationMs, error or code",
     );
   });
 

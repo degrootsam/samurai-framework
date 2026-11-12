@@ -213,7 +213,7 @@ describe("runFlow", () => {
       {},
       { nodes: [ghost] },
     );
-    await assert.rejects(runFlow(h.options), /Ghost can't run yet/);
+    await assert.rejects(runFlow(h.options), /Ghost can’t run yet/);
     assert.deepEqual(h.events, []);
   });
 
@@ -279,7 +279,7 @@ describe("runFlow", () => {
     const summary = await runFlow(h.options);
     assert.equal(
       summary.error,
-      "This flow's shape can't run: start has 2 ways out.",
+      "This flow’s shape can’t run: start has 2 ways out.",
     );
   });
 });

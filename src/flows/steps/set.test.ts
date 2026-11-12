@@ -144,7 +144,7 @@ export default { steps: [defineStep({ kind: "Bad_Kind", label: "x", icon: "code"
     );
     await assert.rejects(
       listSteps({ projectDir: dir }),
-      /isn't a valid step kind/,
+      /isn’t a valid step kind/,
     );
   });
 

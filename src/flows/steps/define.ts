@@ -58,11 +58,11 @@ export function checkStep(def: StepDefinition<any>, where = ""): void {
   const name = `Step "${def.kind}"${where}`;
   if (CLOSED_KINDS.includes(def.kind))
     throw new Error(
-      `${name}: "${def.kind}" is a closed kind; steps can't replace it.`,
+      `${name}: "${def.kind}" is a closed kind; steps can’t replace it.`,
     );
   if (!STEP_KIND.test(def.kind))
     throw new Error(
-      `${name}: "${def.kind}" isn't a valid step kind. Use lowercase letters, digits and -.`,
+      `${name}: "${def.kind}" isn’t a valid step kind. Use lowercase letters, digits and -.`,
     );
   if (!Array.isArray(def.fields))
     throw new Error(`${name}: fields must be a list.`);
@@ -74,7 +74,7 @@ export function checkStep(def: StepDefinition<any>, where = ""): void {
         new RegExp(f.pattern);
       } catch {
         throw new Error(
-          `${name}: field "${f.path}" has a pattern that isn't a valid regular expression.`,
+          `${name}: field "${f.path}" has a pattern that isn’t a valid regular expression.`,
         );
       }
   }
@@ -90,7 +90,7 @@ export function checkStep(def: StepDefinition<any>, where = ""): void {
     !def.fields.some((f) => f.path === def.writesVar)
   )
     throw new Error(
-      `${name}: writesVar "${def.writesVar}" isn't one of its fields.`,
+      `${name}: writesVar "${def.writesVar}" isn’t one of its fields.`,
     );
   if (typeof def.run !== "function")
     throw new Error(`${name}: run must be a function.`);

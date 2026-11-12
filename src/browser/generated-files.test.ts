@@ -76,7 +76,7 @@ describe("generated files", () => {
     ]);
     await assert.rejects(
       resolveFileInputs("files/b.txt", "dropFiles"),
-      new Error("dropFiles(): files/b.txt doesn't exist in the project"),
+      new Error("dropFiles(): files/b.txt doesn’t exist in the project"),
     );
     const absolute = path.join(dir, "nope.txt");
     await assert.rejects(

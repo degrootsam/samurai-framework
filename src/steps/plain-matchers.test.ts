@@ -94,7 +94,7 @@ describe("plain matchers", () => {
           index: 0,
           step,
         }),
-      /output can't be saved from toHaveId/,
+      /output can’t be saved from toHaveId/,
     );
   });
 

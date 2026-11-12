@@ -132,13 +132,13 @@ export function checkFlow(
       problems.push({
         level: "error",
         nodeId: n.id,
-        message: `${title} isn't reachable from Start.`,
+        message: `${title} isn’t reachable from Start.`,
       });
     else if (!toEnd.has(n.id))
       problems.push({
         level: "error",
         nodeId: n.id,
-        message: `${title} doesn't lead to End.`,
+        message: `${title} doesn’t lead to End.`,
       });
     if (!def) continue;
     const names = branchNames(n);
@@ -176,12 +176,12 @@ export function checkFlow(
           ? {
               level: "error",
               nodeId: n.id,
-              message: `${def.label} can't run yet.`,
+              message: `${def.label} can’t run yet.`,
             }
           : {
               level: "warning",
               nodeId: n.id,
-              message: `${def.label} nodes can't run yet. They are skipped.`,
+              message: `${def.label} nodes can’t run yet. They are skipped.`,
             },
       );
     }
@@ -194,7 +194,7 @@ export function checkFlow(
       problems.push({
         level: "error",
         nodeId: n.id,
-        message: `"${n.key}" isn't a valid key. Use lowercase letters, digits and _, starting with a letter.`,
+        message: `"${n.key}" isn’t a valid key. Use lowercase letters, digits and _, starting with a letter.`,
       });
     else if (seen.has(n.key))
       problems.push({

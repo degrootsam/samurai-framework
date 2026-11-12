@@ -69,7 +69,7 @@ export async function addInsertableAction(
           (err) =>
             err instanceof ConfigEditError
               ? fail(
-                  `samurai.config.ts can't be changed automatically. Add ${name} to environments.${ctx.options.environment}.variables yourself.`,
+                  `samurai.config.ts can’t be changed automatically. Add ${name} to environments.${ctx.options.environment}.variables yourself.`,
                 )
               : err instanceof ExistsError || !VARIABLE_NAME.test(name)
                 ? fail(errorText(err), "name")
@@ -155,7 +155,7 @@ async function typeIn(
   } catch {
     // Typing clicks the field, which closes the panel the reply is for: the toast is what the tester sees
     ctx.showToast(
-      saved ? `Saved ${name}, but couldn't type into that field` : TYPE_FAILED,
+      saved ? `Saved ${name}, but couldn’t type into that field` : TYPE_FAILED,
     );
     ctx.push();
     return fail(TYPE_FAILED);

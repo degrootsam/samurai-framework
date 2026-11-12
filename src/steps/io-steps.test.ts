@@ -303,11 +303,11 @@ describe("applyEdit with inputs and outputs", () => {
     for (const op of ["insert", "replace"] as const) {
       assert.throws(
         () => applyEdit(source, { op, test: 0, index: 0, step: negated }),
-        { message: "applyEdit(): output can't be saved from a negated check" },
+        { message: "applyEdit(): output can’t be saved from a negated check" },
       );
       assert.throws(
         () => applyEdit(source, { op, test: 0, index: 0, step: classCheck }),
-        { message: "applyEdit(): output can't be saved from toHaveClass" },
+        { message: "applyEdit(): output can’t be saved from toHaveClass" },
       );
     }
   });

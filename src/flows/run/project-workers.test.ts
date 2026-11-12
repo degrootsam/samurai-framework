@@ -331,7 +331,7 @@ describe("runFlowInProject", () => {
     writeFileSync(path.join(dir, "flows/broken.flow.json"), "{ nope");
     await assert.rejects(
       runFlowInProject({ ...harness().options, flowId: "broken" }),
-      /Couldn't read the flow "broken"/,
+      /Couldn’t read the flow "broken"/,
     );
   });
 });

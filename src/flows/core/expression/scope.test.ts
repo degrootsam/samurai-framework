@@ -139,7 +139,7 @@ describe("scopeAt: a Test node's declared outputs", () => {
   test("without facts a Test node has only the usual fields", () => {
     assert.equal(
       problemOf("nodes.a.o", scopeAt(io, "late", env))?.message,
-      "nodes.a.o doesn't exist. Use status, durationMs or error",
+      "nodes.a.o doesn’t exist. Use status, durationMs or error",
     );
   });
 });

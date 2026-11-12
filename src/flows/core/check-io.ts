@@ -79,7 +79,7 @@ function inputProblems(
   if (groupSet.size)
     at(
       "error",
-      `${check.titleOf(node)}: Group nodes can't set inputs (${[...groupSet].map((x) => `"${x}"`).join(", ")})`,
+      `${check.titleOf(node)}: Group nodes can’t set inputs (${[...groupSet].map((x) => `"${x}"`).join(", ")})`,
     );
   for (const [name, wiring] of Object.entries(
     wiringAt(flow, node.id, { facts: check.facts }),

@@ -55,7 +55,7 @@ function arithmetic(op: string, l: unknown, r: unknown): number | string {
   }
   if (typeof l !== "number" || typeof r !== "number")
     throw new EvaluationError(
-      `Can't use ${op} on ${typeName(typeof l !== "number" ? l : r)}`,
+      `Can’t use ${op} on ${typeName(typeof l !== "number" ? l : r)}`,
     );
   switch (op) {
     case "+":
@@ -128,7 +128,7 @@ export function evaluate(expr: Expr, context: ExpressionContext): unknown {
       case "name":
         if (!(ROOTS as readonly string[]).includes(e.name))
           throw new EvaluationError(
-            `${e.name} isn't available. Use env., vars., nodes. or run.`,
+            `${e.name} isn’t available. Use env., vars., nodes. or run.`,
           );
         return context[e.name as (typeof ROOTS)[number]];
       case "member":
@@ -152,7 +152,7 @@ export function evaluate(expr: Expr, context: ExpressionContext): unknown {
         const fn = Object.prototype.hasOwnProperty.call(helpers, e.callee)
           ? helpers[e.callee as keyof typeof helpers]
           : undefined;
-        if (!fn) throw new EvaluationError(`${e.callee}() doesn't exist`);
+        if (!fn) throw new EvaluationError(`${e.callee}() doesn’t exist`);
         return (fn as (...a: unknown[]) => unknown)(...e.args.map(go));
       }
     }

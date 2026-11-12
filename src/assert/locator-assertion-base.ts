@@ -135,7 +135,7 @@ export class LocatorAssertionBase {
     if (options?.output !== undefined) {
       const call = `expect(locator).${this.negated ? "not." : ""}${matcher}`;
       if (this.negated)
-        throw new Error(`${call}: output can't be saved from a negated check`);
+        throw new Error(`${call}: output can’t be saved from a negated check`);
       const keep = bindOutput(call, options.output);
       save = (actual) => keep(captured(expected, actual!));
     }

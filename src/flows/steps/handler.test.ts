@@ -80,7 +80,7 @@ describe("defineStep", () => {
     );
     assert.throws(
       () => defineStep({ ...base, kind: "Bad_Kind" }),
-      /isn't a valid step kind/,
+      /isn’t a valid step kind/,
     );
     assert.throws(
       () =>
@@ -165,7 +165,7 @@ describe("stepHandler", () => {
     const s = await run(chain(at("x", "sneaky")), [sneaky]);
     assert.equal(
       s.nodes.x!.error,
-      "Sneaky returned outputs it doesn't declare: other.",
+      "Sneaky returned outputs it doesn’t declare: other.",
     );
   });
 

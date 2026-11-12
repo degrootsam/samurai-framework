@@ -105,10 +105,10 @@ test("inputs returns the run's value, else the default", () => {
 test("reading an undeclared input throws", () => {
   const inputs = createInputsFixture({ a: "1" }, { z: "9" });
   assert.throws(() => inputs.z, {
-    message: "inputs.z: not declared, add it to the test's inputs",
+    message: "inputs.z: not declared, add it to the test’s inputs",
   });
   assert.throws(() => createInputsFixture(undefined, undefined).a, {
-    message: "inputs.a: not declared, add it to the test's inputs",
+    message: "inputs.a: not declared, add it to the test’s inputs",
   });
   // Probes of await, JSON and inspect do not throw
   assert.equal((inputs as { then?: unknown }).then, undefined);

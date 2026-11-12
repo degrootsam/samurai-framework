@@ -77,7 +77,7 @@ export function readFlowFile(raw: unknown): FlowFile {
     !Number.isInteger(version) ||
     version < 1
   ) {
-    throw new Error("The flow file's version must be a positive whole number.");
+    throw new Error("The flow file’s version must be a positive whole number.");
   }
   if (version > FLOW_VERSION) {
     throw new Error(

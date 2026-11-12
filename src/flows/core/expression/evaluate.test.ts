@@ -57,7 +57,7 @@ describe("evaluate", () => {
     assert.equal(run("vars.tags.length"), undefined);
     assert.throws(
       () => run("process"),
-      (e: Error) => e.message.includes("process isn't available"),
+      (e: Error) => e.message.includes("process isn’t available"),
     );
   });
   test("syntax errors throw with the parser's message", () => {
@@ -70,7 +70,7 @@ describe("evaluate", () => {
     for (const text of ["constructor()", "toString()", 'hasOwnProperty("a")'])
       assert.throws(
         () => run(text),
-        (e: Error) => e.message.includes("doesn't exist"),
+        (e: Error) => e.message.includes("doesn’t exist"),
       );
     assert.throws(() => run("constructor()"), EvaluationError);
   });

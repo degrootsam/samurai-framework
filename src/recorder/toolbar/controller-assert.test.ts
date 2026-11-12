@@ -225,7 +225,7 @@ describe("ToolbarController pick and assert", () => {
         id: 23,
         result: {
           ok: false,
-          error: "This element can't be identified uniquely",
+          error: "This element can’t be identified uniquely",
         },
       },
     ]);

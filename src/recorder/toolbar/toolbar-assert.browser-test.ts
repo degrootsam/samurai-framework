@@ -297,13 +297,13 @@ test(
     const pick = await waitFor(() => messagesOn(channel, "pick")[0], "pick");
     await reply(pick.data.id as number, {
       ok: false,
-      error: "This element can't be identified uniquely",
+      error: "This element can’t be identified uniquely",
     });
     const shown = await inSandbox<{ text: string; add: boolean }>(`() => ({
     text: ${HOOK}.root.querySelector(".panel").textContent,
     add: Boolean(${HOOK}.root.querySelector('[data-action="assert-add"]')),
   })`);
-    assert.match(shown.text, /This element can't be identified uniquely/);
+    assert.match(shown.text, /This element can’t be identified uniquely/);
     assert.equal(shown.add, false);
   },
 );

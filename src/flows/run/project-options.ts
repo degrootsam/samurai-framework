@@ -9,7 +9,7 @@ import type { SupportedBrowser } from "../../types/browser.js";
 export class FlowCheckError extends Error {
   constructor(public readonly problems: FlowProblem[]) {
     super(
-      `This flow can't run:\n${problems.map((p) => `  - ${p.message}`).join("\n")}`,
+      `This flow can’t run:\n${problems.map((p) => `  - ${p.message}`).join("\n")}`,
     );
     this.name = "FlowCheckError";
   }

@@ -46,7 +46,7 @@ describe("assertRunnable", () => {
   it("throws once for every step or branching kind that has no handler", () => {
     assert.throws(
       () => assertRunnable(flowOf("group", "group", "start"), [], {}),
-      /^Error: This flow can't run: Group can't run yet\.$/,
+      /^Error: This flow can’t run: Group can’t run yet\.$/,
     );
   });
 
@@ -74,6 +74,6 @@ describe("shapeError", () => {
   it("is a ShapeError with the standard prefix", () => {
     const err = shapeError("it has no Start.");
     assert.ok(err instanceof ShapeError);
-    assert.equal(err.message, "This flow's shape can't run: it has no Start.");
+    assert.equal(err.message, "This flow’s shape can’t run: it has no Start.");
   });
 });

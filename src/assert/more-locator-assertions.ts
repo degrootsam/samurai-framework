@@ -69,7 +69,7 @@ export class MoreLocatorAssertions extends LocatorAssertionBase {
   ): Promise<void> {
     if (options?.output !== undefined) {
       const call = `expect(locator).${this.negated ? "not." : ""}${matcher}`;
-      throw new Error(`${call}: output can't be saved from an array of texts`);
+      throw new Error(`${call}: output can’t be saved from an array of texts`);
     }
     return this.assertEventually(
       matcher,

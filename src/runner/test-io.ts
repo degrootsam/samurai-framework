@@ -105,7 +105,7 @@ export function createInputsFixture(
       if (isPassthroughKey(target, key) || has(target, key))
         return Reflect.get(target, key, receiver);
       throw new Error(
-        `inputs.${String(key)}: not declared, add it to the test's inputs`,
+        `inputs.${String(key)}: not declared, add it to the test’s inputs`,
       );
     },
   });

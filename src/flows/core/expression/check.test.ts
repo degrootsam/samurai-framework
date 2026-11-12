@@ -30,18 +30,18 @@ describe("checkExpression", () => {
   test("unknown helper, with a suggestion", () => {
     assert.equal(
       message('startswith(run.environment, "s")'),
-      "startswith() doesn't exist. Did you mean startsWith()?",
+      "startswith() doesn’t exist. Did you mean startsWith()?",
     );
     assert.equal(
       message("foo(1)"),
-      "foo() doesn't exist. Use contains, startsWith, matches, len or exists.",
+      "foo() doesn’t exist. Use contains, startsWith, matches, len or exists.",
     );
     assert.equal(message("len(1, 2)"), "len() takes 1 value");
   });
   test("unknown root", () => {
     assert.equal(
       message("order.id"),
-      "order isn't available. Use env., vars., nodes. or run.",
+      "order isn’t available. Use env., vars., nodes. or run.",
     );
     assert.equal(message("env"), "Use env.<name>");
   });
@@ -61,18 +61,18 @@ describe("checkExpression", () => {
     );
     assert.equal(
       message("nodes.login.stat"),
-      "nodes.login.stat doesn't exist. Use status, durationMs or error",
+      "nodes.login.stat doesn’t exist. Use status, durationMs or error",
     );
   });
   test("variables and environment", () => {
     assert.equal(
       message("vars.total"),
-      "vars.total isn't set before this node",
+      "vars.total isn’t set before this node",
     );
-    assert.equal(message("env.country"), "country isn't a variable of staging");
+    assert.equal(message("env.country"), "country isn’t a variable of staging");
     assert.equal(
       message("run.trigr"),
-      "run.trigr doesn't exist. Use environment, trigger or startedAt",
+      "run.trigr doesn’t exist. Use environment, trigger or startedAt",
     );
   });
 });

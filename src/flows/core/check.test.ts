@@ -159,7 +159,7 @@ describe("checkFlow", () => {
       ...flow,
       edges: flow.edges.filter((e) => e.source !== "start"),
     };
-    assert.ok(messages(cut).some((m) => /isn't reachable from Start/.test(m)));
+    assert.ok(messages(cut).some((m) => /isn’t reachable from Start/.test(m)));
   });
 
   test("a node that does not lead to End says so", () => {
@@ -168,7 +168,7 @@ describe("checkFlow", () => {
       ...flow,
       edges: flow.edges.filter((e) => e.target !== "end"),
     };
-    assert.ok(messages(cut).includes("Test doesn't lead to End."));
+    assert.ok(messages(cut).includes("Test doesn’t lead to End."));
   });
 
   test("a parallel with too few branches is an error", () => {
@@ -205,14 +205,14 @@ describe("checkFlow", () => {
       edges: one.edges.filter((e) => e.source !== "start"),
     };
     assert.ok(
-      messages(cut, { titles }).includes("T-n0 isn't reachable from Start."),
+      messages(cut, { titles }).includes("T-n0 isn’t reachable from Start."),
     );
     const noEnd = {
       ...one,
       edges: one.edges.filter((e) => e.target !== "end"),
     };
     assert.ok(
-      messages(noEnd, { titles }).includes("T-n0 doesn't lead to End."),
+      messages(noEnd, { titles }).includes("T-n0 doesn’t lead to End."),
     );
     const cond = branching("condition", ["true"]);
     assert.ok(
@@ -292,7 +292,7 @@ describe("checkFlow", () => {
     };
     assert.ok(
       messages(bad).includes(
-        `"Bad Key" isn't a valid key. Use lowercase letters, digits and _, starting with a letter.`,
+        `"Bad Key" isn’t a valid key. Use lowercase letters, digits and _, starting with a letter.`,
       ),
     );
     const dup = {
@@ -365,7 +365,7 @@ describe("unsupported kinds", () => {
         {
           level: "warning",
           nodeId: "n0",
-          message: "HTTP request nodes can't run yet. They are skipped.",
+          message: "HTTP request nodes can’t run yet. They are skipped.",
         },
       ],
     );
@@ -382,7 +382,7 @@ describe("unsupported kinds", () => {
         {
           level: "error",
           nodeId: "n0",
-          message: "HTTP request can't run yet.",
+          message: "HTTP request can’t run yet.",
         },
       ],
     );

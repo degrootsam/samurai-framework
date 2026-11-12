@@ -237,7 +237,7 @@ describe("runFlow", () => {
     const summary = await runFlow(h.options);
     match(summary.nodes.cond!, {
       status: "failed",
-      error: "missing isn't a variable of staging",
+      error: "missing isn’t a variable of staging",
     });
   });
 
@@ -250,7 +250,7 @@ describe("runFlow", () => {
     const summary = await runFlow(harness(f).options);
     match(summary.nodes.set!, {
       status: "failed",
-      error: "vars.later isn't set before this node",
+      error: "vars.later isn’t set before this node",
     });
   });
 

@@ -105,7 +105,7 @@ export function fieldProblems(
       value !== "" &&
       !new RegExp(f.pattern).test(value)
     )
-      add(f.patternMessage ?? `${name} doesn't match ${f.pattern}.`);
+      add(f.patternMessage ?? `${name} doesn’t match ${f.pattern}.`);
   }
   return problems;
 }

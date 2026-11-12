@@ -177,8 +177,8 @@ export const VIEWS_PANELS_JS = String.raw`  const unavailable = (info, matcher) 
   };
 
   const newHint = (kind, secret, env, name) => {
-    if (kind === "input") return "Declared in the test's inputs, with this value as its default.";
-    if (!secret) return ["Saved to ", h("code", null, "environments." + env + ".variables"), " in samurai.config.ts. Other environments don't get it — add it there before running against them."];
+    if (kind === "input") return "Declared in the test’s inputs, with this value as its default.";
+    if (!secret) return ["Saved to ", h("code", null, "environments." + env + ".variables"), " in samurai.config.ts. Other environments don’t get it — add it there before running against them."];
     if (!state.secretsIgnored) return h("span", { class: "warn" }, "Add .env." + env + " to .gitignore before committing.");
     return ["Saved as ", h("code", null, "SAMURAI_SECRET_" + (name.trim() || "<NAME>")), " in ", h("code", null, ".env." + env), " (git-ignored)."];
   };

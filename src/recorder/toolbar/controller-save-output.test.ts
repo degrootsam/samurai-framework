@@ -165,7 +165,7 @@ describe("ToolbarController save as output", () => {
     await controller.handle(save(44, "orderId", "Invoice #(\\d+)"));
     assert.deepEqual(lastOf(replies), {
       id: 44,
-      result: { ok: false, error: "pattern doesn't match the element's text" },
+      result: { ok: false, error: "pattern doesn’t match the element’s text" },
     });
     assert.deepEqual(observed, []);
     // A retry with a pattern that matches is accepted
@@ -225,7 +225,7 @@ describe("ToolbarController save as output", () => {
     await controller.handle(save(48, "orderId", "Order #(\\d+)"));
     assert.deepEqual(lastOf(replies), {
       id: 48,
-      result: { ok: false, error: "pattern doesn't match the element's text" },
+      result: { ok: false, error: "pattern doesn’t match the element’s text" },
     });
     await controller.handle(save(48, "orderId", "Order\\s+#(\\d+)"));
     assert.deepEqual(lastOf(replies), { id: 48, result: { ok: true } });

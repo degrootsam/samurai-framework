@@ -88,7 +88,7 @@ test("output on a negated check throws", () => {
         }),
       {
         message:
-          "expect(locator).not.toHaveText: output can't be saved from a negated check",
+          "expect(locator).not.toHaveText: output can’t be saved from a negated check",
       },
     );
   } finally {

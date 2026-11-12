@@ -64,7 +64,7 @@ export async function saveOutputAction(
   const pattern = compile(message.pattern);
   if (pattern && !(pattern instanceof RegExp)) return fail(pattern.error);
   if (pattern && !matchesText(pick.text, pattern, "exact"))
-    return fail("pattern doesn't match the element's text");
+    return fail("pattern doesn’t match the element’s text");
   if (!pattern && pick.text === "") return fail("the element has no text");
   ctx.setPick(undefined);
   ctx.deps.observe({

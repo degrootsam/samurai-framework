@@ -18,7 +18,7 @@ const BROWSERS_USAGE = `Usage:
   samurai browsers install [firefox|chrome|all]  Download the pinned builds (default: all)
   samurai browsers uninstall <name> [--build <id>]
                                                  Remove a build (default: the pinned one)
-  samurai browsers uninstall --unused            Remove builds this framework version doesn't pin
+  samurai browsers uninstall --unused            Remove builds this framework version doesn’t pin
 `;
 
 export function formatBytes(n: number): string {

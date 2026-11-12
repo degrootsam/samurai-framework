@@ -40,7 +40,7 @@ describe("flow files", () => {
   });
 
   it("an id can't leave the flows folder", async () => {
-    await assert.rejects(readFlow(dir, "../x"), /isn't a valid flow id/);
+    await assert.rejects(readFlow(dir, "../x"), /isn’t a valid flow id/);
   });
 
   it("an unreadable file is a clear error naming the flow", async () => {
@@ -48,9 +48,9 @@ describe("flow files", () => {
     try {
       await assert.rejects(
         readFlow(dir, "broken"),
-        /Couldn't read the flow "broken"/,
+        /Couldn’t read the flow "broken"/,
       );
-      await assert.rejects(readFlows(dir), /Couldn't read the flow "broken"/);
+      await assert.rejects(readFlows(dir), /Couldn’t read the flow "broken"/);
     } finally {
       rmSync(path.join(dir, "flows/broken.flow.json"));
     }

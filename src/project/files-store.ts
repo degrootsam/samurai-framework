@@ -111,7 +111,7 @@ export async function storeFile(options: {
     ]);
     if (stored) return stored;
   }
-  throw new Error(`${options.name} can't be stored in ${relative}/`);
+  throw new Error(`${options.name} can’t be stored in ${relative}/`);
 }
 
 /** Whether the project's .gitignore ignores the folder (`files`, `files/`, `/files`, `files/*`, `files/**`) */

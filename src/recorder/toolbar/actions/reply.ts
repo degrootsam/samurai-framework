@@ -1,8 +1,8 @@
 import { IO_NAME, isIoName } from "../../../flows/core/steps.js";
 import type { ActionReply } from "../protocol.js";
 
-export const UNIDENTIFIABLE = "This element can't be identified uniquely";
-export const TYPE_FAILED = "Couldn't type into that field";
+export const UNIDENTIFIABLE = "This element can’t be identified uniquely";
+export const TYPE_FAILED = "Couldn’t type into that field";
 export const NO_ENVIRONMENT = "This recording has no environment";
 export const PAUSED = "Nothing you do now is recorded.";
 

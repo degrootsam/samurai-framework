@@ -16,8 +16,8 @@ Options for run and list:
   --env <name>                Environment to run against (or SAMURAI_ENV)
   --file <spec>               Only this spec file; repeatable
   --grep <text>               Only tests whose full name contains the text
-  --group <name>              Only the tests of this group of the config's groups; repeat it for several
-  --browser <name>            Run in this browser (firefox or chrome) instead of the config's
+  --group <name>              Only the tests of this group of the config’s groups; repeat it for several
+  --browser <name>            Run in this browser (firefox or chrome) instead of the config’s
                               browsers; repeat it for more than one
   --json                      Machine-readable output: JSON lines for run, one array for list
 
@@ -25,10 +25,10 @@ Options for run:
   --timeout <ms>              Time one test may take
   --expect-timeout <ms>       Time actions and assertions retry
   --headless, --no-headless   Run the browser without a window, or with one.
-                              Default: the config's use.headless, else headless when CI is set
+                              Default: the config’s use.headless, else headless when CI is set
   --port <n>                  Browser debugging port (default ${DEFAULT_PORT})
   --workers <n|n%>            Tests that run at the same time, each in a worker process: a number
-                              from 1, or a share of the CPUs like 50%. Default: the config's
+                              from 1, or a share of the CPUs like 50%. Default: the config’s
                               workers (or SAMURAI_WORKERS), else half the CPUs
   --retries <n>               Run a failing test again up to n times, each with a fresh browser
                               (or SAMURAI_RETRIES; default 0)
@@ -37,11 +37,11 @@ Options for run:
                               blocks) go to one shard; an empty shard succeeds
 
 Options for record (also --env, --port, --json; always with a window):
-  --browser <name>            Record in this browser (default: the first of the config's browsers)
+  --browser <name>            Record in this browser (default: the first of the config’s browsers)
   --new <title>               Add a test with this title (creates the spec file if needed)
   --test <name|index>         Record into this test; not needed when the file has one
   --at <n>                    Insert from step n (default: after the last step)
-  --url <url>                 Page to start on (default: the environment's baseURL)
+  --url <url>                 Page to start on (default: the environment’s baseURL)
   Stop with Ctrl+C or by closing the browser window.
 
 Options for plan (also --env, --browser, --port, --headless, --json and the model, limit and
@@ -55,12 +55,12 @@ Options for generate (also --env, --browser, --port, --headless, --json):
   --plan <plan.md>            A plan from samurai plan: the agent follows it and checks each step
   --new <title>               Add a test with this title (creates the file if needed)
   --test <name|index>         Write into this test; not needed when the file has one
-  --continue-at <n>           With --test: replay the test's first n steps, then add the agent's after them
+  --continue-at <n>           With --test: replay the test’s first n steps, then add the agent’s after them
                               (0 = at the start); the later steps stay. Not with --new
-  --url <url>                 Page to start on (default: the environment's baseURL)
+  --url <url>                 Page to start on (default: the environment’s baseURL)
   --model <provider:name>     anthropic, openai or openai-compatible, for example
                               anthropic:claude-sonnet-4-5. Default: SAMURAI_AI_MODEL, then the
-                              config's ai.model. Keys: ANTHROPIC_API_KEY, OPENAI_API_KEY,
+                              config’s ai.model. Keys: ANTHROPIC_API_KEY, OPENAI_API_KEY,
                               SAMURAI_AI_API_KEY (+ SAMURAI_AI_BASE_URL for openai-compatible)
   --max-steps <n>             Most model calls in the run (default 40)
   --yes-origin <origin>       A site the agent may open without asking; repeatable

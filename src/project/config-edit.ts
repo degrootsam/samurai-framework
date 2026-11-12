@@ -63,7 +63,7 @@ function rootObject(sf: ts.SourceFile): ts.ObjectLiteralExpression {
     if (ts.isObjectLiteralExpression(node)) return node;
   }
   throw new ConfigEditError(
-    "samurai.config.ts doesn't export a plain object (defineConfig({ … })), so it can't be edited here.",
+    "samurai.config.ts doesn’t export a plain object (defineConfig({ … })), so it can’t be edited here.",
   );
 }
 
@@ -176,7 +176,7 @@ export function editConfig(
 
     if (prop && !ts.isPropertyAssignment(prop)) {
       throw new ConfigEditError(
-        `"${key}" in samurai.config.ts isn't a plain value (shorthand or spread), so it can't be edited here.`,
+        `"${key}" in samurai.config.ts isn’t a plain value (shorthand or spread), so it can’t be edited here.`,
       );
     }
 
@@ -214,7 +214,7 @@ export function editConfig(
 
     if (!ts.isObjectLiteralExpression(prop.initializer)) {
       throw new ConfigEditError(
-        `"${key}" in samurai.config.ts isn't a plain object, so it can't be edited here.`,
+        `"${key}" in samurai.config.ts isn’t a plain object, so it can’t be edited here.`,
       );
     }
     obj = prop.initializer;
