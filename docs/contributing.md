@@ -141,7 +141,7 @@ Known exceptions to the direction, the places to untangle next: `browser` import
 
 ## Publishing
 
-For the maintainer, in the monorepo. `bunx nx release --skip-publish` (run locally from an up-to-date `main`) picks the version from the conventional commits, updates `package.json` and `CHANGELOG.md`, commits, and pushes the commit and the tag `framework@x.y.z`. The monorepo's `publish.yml` then stages that tag on npm, where it waits for approval, and `mirror-framework.yml` tags the matching commit in the mirror as `vx.y.z`. The mirror's `main` follows the monorepo's `main` on every push.
+For the maintainer, in the monorepo. `bunx nx release --projects=framework --skip-publish` (run locally from an up-to-date `main`) picks the version from the conventional commits, updates `package.json` and `CHANGELOG.md`, commits, and pushes the commit and the tag `framework@x.y.z`. The monorepo's `publish.yml` then stages that tag on npm, where it waits for approval, and `mirror-framework.yml` tags the matching commit in the mirror as `vx.y.z`. The mirror's `main` follows the monorepo's `main` on every push.
 
 `npm pack` (and so a publish) runs the `prepack` script first, which rebuilds `dist/` from the sources in the working tree. A tarball can't carry a `dist/` from an older checkout (0.15.0 shipped without retries that way). A version on npm can't be replaced, only followed by a new one.
 

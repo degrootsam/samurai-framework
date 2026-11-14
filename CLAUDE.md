@@ -39,14 +39,14 @@ Follow these steps, in order, for any change of size. Skip one only when the cha
 Releasing is the owner's call: only on an explicit yes. From an up-to-date `main`, at the repository root:
 
 ```bash
-bunx nx release --skip-publish --dry-run   # review versions, CHANGELOG.md entries, tags, commit message
-bunx nx release --skip-publish             # bump, CHANGELOG.md, commit, tag framework@x.y.z, push, GitLab release
+bunx nx release --projects=framework --skip-publish --dry-run   # review versions, CHANGELOG.md entries, tags, commit message
+bunx nx release --projects=framework --skip-publish             # bump, CHANGELOG.md, commit, tag framework@x.y.z, push, GitLab release
 git push --follow-tags                     # only if nx release's own push failed
 # approve the staged version on npmjs.com (2FA), then:
 npm view @itmetsam/samurai-framework dist-tags
 ```
 
-- Versions come from the conventional commits since the last `framework@*` tag. Before 1.0: `fix` and `feat` bump the patch, `!` or `BREAKING CHANGE` the minor. Add `--projects=framework` to release only this package.
+- Versions come from the conventional commits since the last `framework@*` tag. Before 1.0: `fix` and `feat` bump the patch, `!` or `BREAKING CHANGE` the minor. Always pass `--projects=framework`: a bare `nx release` also releases the other projects of the monorepo.
 - `nx release` pushes the release commit and tags itself (it has to, to create the release; it needs `GITLAB_TOKEN`, a personal access token with the `api` scope, in your environment). The pushed tag runs the `publish` job of the monorepo's CI, which **stages** the version on npm (`npm stage publish`, with a granular token that can only stage). It is not installable until the owner approves it with 2FA: on npmjs.com, avatar menu, Staged Packages, Approve (or `npm stage list @itmetsam/samurai-framework`, then `npm stage approve <stage-id>`; the job's log prints the id). The dist-tag (`latest` or `next`) is fixed when staging and applied on approval. Afterwards check `npm view @itmetsam/samurai-framework dist-tags` and the release.
 - Previews: `bunx nx release prerelease --preid next --projects=framework --skip-publish` tags `x.y.z-next.n`, which goes out on the `next` dist-tag. Never put a preview on `latest`: the app's "update framework" installs `@latest`. (`nx release version` alone refuses this repo's `release.git` config, so use the full command.)
 - First release after the monorepo import only: pass the bump (`bunx nx release patch --projects=framework --skip-publish`). The history since the baseline tag includes the app's pre-import commits, which Nx counts as breaking.
