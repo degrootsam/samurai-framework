@@ -1,3 +1,18 @@
+## 0.22.14 (2026-11-19)
+
+### 🚀 Features
+
+- **framework:** SAMURAI_CHROME_SANDBOX=1 keeps Chrome's own sandbox on
+- **framework:** a secret with no value fails the test with SecretMissingError
+
+### 🩹 Fixes
+
+- **framework:** use typographic apostrophes in user-visible messages
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.13 (2026-11-12)
 
 ### 🚀 Features
