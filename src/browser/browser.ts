@@ -124,6 +124,7 @@ export class Browser {
               defaultLaunchOptions("chrome").profileDir,
             headless:
               launchOptions.headless ?? defaultLaunchOptions("chrome").headless,
+            sandbox: process.env.SAMURAI_CHROME_SANDBOX === "1",
             commandTimeout,
             use: launchOptions.use,
             signal,

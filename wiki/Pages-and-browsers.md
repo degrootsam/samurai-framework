@@ -327,6 +327,7 @@ Put `"chrome"` in `browsers` in `samurai.config.ts` (`browsers: ["chrome"]`, or 
 - `hasTouch` and `javaScriptEnabled` work at run time on Chrome (`page.use()`) and throw `UseUnsupportedError` on Firefox. The `use` options `hasTouch` and `isMobile` are Chrome only too, see [Use options per browser](#use-options-per-browser).
 - A download that finishes under a name that is taken is saved as `name(1).ext`, as on Firefox.
 - `SAMURAI_CHROMEDRIVER_PATH` points a launch at another chromedriver. It must match the major version of the Chrome it starts; with `SAMURAI_CHROME_PATH` or `browserPaths.chrome` set to a different Chrome, set this too.
+- `SAMURAI_CHROME_SANDBOX=1` starts Chrome with its own sandbox on. By default the framework passes `--no-sandbox`, because Chrome refuses to start sandboxed as root and in containers without user namespaces. Set it where Chrome can use its sandbox (a normal user on a normal machine): the browser then has a second wall around it when a page is not trusted. If Chrome then fails to start, unset it.
 - A Chrome that is still running on the project's profile (`browsers/profiles/chrome`, for instance left by a killed run) stops the next launch at once with `Chrome is already running on the profile … (process <pid>)`; close it or end that process. The check reads Chrome's `SingletonLock` link, so it works on Linux and macOS; on Windows the launch still waits for the start timeout.
 
 ### Use options per browser

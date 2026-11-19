@@ -21,6 +21,8 @@ interface ChromeLaunch {
   driverPath: string;
   profileDir: string;
   headless: boolean;
+  /** Keep Chrome's own sandbox on (`SAMURAI_CHROME_SANDBOX=1`). Off by default: Chrome refuses to start sandboxed as root and in containers without user namespaces */
+  sandbox?: boolean | undefined;
   commandTimeout: number | undefined;
   /** The `use` options that are fixed when the browser starts */
   use?: UseOptions | undefined;
@@ -30,8 +32,9 @@ interface ChromeLaunch {
 export const chromeFlags = ({
   headless,
   profileDir,
-}: Pick<ChromeLaunch, "headless" | "profileDir">): string[] => [
-  "--no-sandbox",
+  sandbox,
+}: Pick<ChromeLaunch, "headless" | "profileDir" | "sandbox">): string[] => [
+  ...(sandbox ? [] : ["--no-sandbox"]),
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-search-engine-choice-screen",

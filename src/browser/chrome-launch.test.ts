@@ -36,6 +36,16 @@ describe("chromeFlags", () => {
     );
   });
 
+  it("passes --no-sandbox, unless the sandbox is asked for", () => {
+    assert.ok(chromeFlags(launch).includes("--no-sandbox"));
+    assert.ok(
+      chromeFlags({ ...launch, sandbox: false }).includes("--no-sandbox"),
+    );
+    assert.ok(
+      !chromeFlags({ ...launch, sandbox: true }).includes("--no-sandbox"),
+    );
+  });
+
   it("hides scrollbars when headless, so the viewport is the size asked for, and keeps them when headed", () => {
     assert.ok(chromeFlags(launch).includes("--hide-scrollbars"));
     assert.ok(
