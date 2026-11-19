@@ -20,5 +20,8 @@ export function toTestError(err: unknown): TestError {
     message: err instanceof Error ? err.message : String(err),
     stack: err instanceof Error ? err.stack : undefined,
     type: "error",
+    // The error's own name (`SecretMissingError`), when it has one beyond the plain "Error"
+    ...(err instanceof Error &&
+      err.name !== "Error" && { errorName: err.name }),
   };
 }

@@ -9,12 +9,11 @@ import { isPassthroughKey } from "./variables.js";
 const PREFIX = "SAMURAI_SECRET_";
 const NAME = /^[A-Z][A-Z0-9_]*$/;
 
-export class MissingSecretError extends Error {
+/** Thrown when a test reads a secret that has no value in its environment; where the value comes from is in the wiki ("Environments and secrets") */
+export class SecretMissingError extends Error {
   constructor(name: string, environment: string) {
-    super(
-      `Secret "${name}" is not set (expected env var ${PREFIX}${name} or .env.${environment})`,
-    );
-    this.name = "MissingSecretError";
+    super(`Secret ${name} has no value for ${environment}.`);
+    this.name = "SecretMissingError";
   }
 }
 
@@ -73,7 +72,7 @@ export function createSecretsFixture(
       if (!NAME.test(name))
         throw new Error(`Invalid secret name "${name}" (use UPPER_SNAKE_CASE)`);
       const value = values.get(name);
-      if (value === undefined) throw new MissingSecretError(name, environment);
+      if (value === undefined) throw new SecretMissingError(name, environment);
       return value;
     },
     set: readOnly,

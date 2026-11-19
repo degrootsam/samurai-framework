@@ -349,6 +349,8 @@ interface TestResultBase {
 export interface TestError {
   message: string;
   type: "timeout" | "error" | "assertion";
+  /** The thrown error's name (the test result's own `name` is the test's), when it is not the plain "Error" (for example `SecretMissingError`) */
+  errorName?: string | undefined;
   stack?: string | undefined;
   /** Only for `type: "assertion"` */
   expected?: unknown;

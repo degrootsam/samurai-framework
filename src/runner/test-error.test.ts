@@ -43,3 +43,16 @@ test("thrown strings stay type error", () => {
     type: "error",
   });
 });
+
+test("a named error keeps its name, a plain Error does not get one", () => {
+  class SecretMissingError extends Error {
+    override name = "SecretMissingError";
+  }
+  const named = toTestError(
+    new SecretMissingError("Secret X has no value for dev."),
+  );
+  assert.equal(named.errorName, "SecretMissingError");
+  assert.equal(named.type, "error");
+  assert.equal("errorName" in toTestError(new Error("boom")), false);
+  assert.equal("errorName" in toTestError("text"), false);
+});

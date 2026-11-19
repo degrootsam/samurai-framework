@@ -8,7 +8,7 @@ import { createEnvFixture, UnknownVariableError } from "./variables.js";
 import {
   createSecretsFixture,
   loadSecrets,
-  MissingSecretError,
+  SecretMissingError,
 } from "./secrets.js";
 
 describe("env fixture", () => {
@@ -152,9 +152,9 @@ describe("secrets fixture", () => {
     assert.throws(
       () => secrets.CUSTOMER_PW,
       (err) =>
-        err instanceof MissingSecretError &&
-        err.message ===
-          'Secret "CUSTOMER_PW" is not set (expected env var SAMURAI_SECRET_CUSTOMER_PW or .env.staging)',
+        err instanceof SecretMissingError &&
+        err.name === "SecretMissingError" &&
+        err.message === "Secret CUSTOMER_PW has no value for staging.",
     );
   });
 

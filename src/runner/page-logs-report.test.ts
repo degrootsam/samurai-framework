@@ -97,6 +97,7 @@ describe("judgePageLogs failOnPageError", () => {
       message: "1 uncaught page error(s): TypeError: x",
       stack: verdict.error!.stack,
       type: "error",
+      errorName: "PageErrorsError",
     });
     assert.deepEqual(
       verdict.logs,

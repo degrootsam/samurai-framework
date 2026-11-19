@@ -79,7 +79,7 @@ test("admin login", async ({ page, secrets }) => {
 
 - Names are `UPPER_SNAKE_CASE`. A `SAMURAI_SECRET_` variable with another name is ignored with a warning, and asking for an invalid name throws.
 - An empty value counts as unset.
-- Reading a secret that isn't set throws `Secret "ADMIN_PASSWORD" is not set (expected env var SAMURAI_SECRET_ADMIN_PASSWORD or .env.staging)`.
+- Reading a secret that isn't set fails the test with a `SecretMissingError`: `Secret ADMIN_PASSWORD has no value for staging.` Nothing is checked before the run, so tests that never read it still run. To give it a value, set the environment variable `SAMURAI_SECRET_ADMIN_PASSWORD` or put it in `.env.staging` (an empty value counts as unset).
 - `secrets` is read-only. Printing or serialising it (`console.log(secrets)`, `JSON.stringify(secrets)`) shows `••••` for every value; only reading a property gives the real value.
 - `.env` and `.env.*` are git-ignored; commit only `.env.example`.
 
