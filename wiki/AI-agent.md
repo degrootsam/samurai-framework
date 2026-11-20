@@ -22,6 +22,10 @@ The model is named as `provider:name`:
 | `openai:<name>`            | `@ai-sdk/openai`            | `OPENAI_API_KEY`                                                                                                            |
 | `openai-compatible:<name>` | `@ai-sdk/openai-compatible` | `SAMURAI_AI_BASE_URL` (the endpoint, such as `http://localhost:11434/v1`), and `SAMURAI_AI_API_KEY` if the server wants one |
 
+### A custom endpoint and extra headers
+
+`SAMURAI_AI_BASE_URL` also works for `anthropic` and `openai`: it replaces the provider's default address, for a proxy or gateway that passes the provider's own requests through. Give the base the way the provider's SDK expects it, including `/v1` (the SDK adds `/messages` for Anthropic and `/responses` for OpenAI), for example `https://gateway.example.com/anthropic/v1`. `SAMURAI_AI_HEADERS` is a JSON object of header names to string values sent with every model request, for a gateway that wants `Authorization: Bearer ...` or other headers; a header set there wins over the one the SDK sets itself. A value that is not a JSON object of strings is a configuration error; the values are never printed or logged.
+
 The package is loaded **from your project's `node_modules`**, so the framework does not depend on any provider. A missing package or key is a configuration error that says exactly what to install or set; a key is never printed or logged. The default model, when `--model` is not given, is `SAMURAI_AI_MODEL`, then `ai.model` in [`samurai.config.ts`](Configuration#options) (a `provider:name` string, never a key).
 
 Embedding it in code, you pass the model object yourself (and `modelFromSpec` does the above for you):
