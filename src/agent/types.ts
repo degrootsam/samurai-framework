@@ -3,6 +3,7 @@ import type { ProjectOptions } from "../runner/project.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { AgentLimits } from "./limits.js";
 import type { AgentModel } from "./model.js";
+import type { ModelRefusal } from "./refusal.js";
 import type { PlanSendQuestion } from "./plan/send-question.js";
 
 /** What the agent does, as a stream both the app and the command line render */
@@ -54,6 +55,11 @@ export interface AgentResult {
   summary?: string;
   /** The error text when `reason` is `error` */
   error?: string;
+  /**
+   * With `error`: the model's endpoint (a gateway in front of the model) refused the request with a `{ error, code }` answer:
+   * its HTTP status, `code` and `retry-after` in seconds. Absent for any other failure
+   */
+  refusal?: ModelRefusal;
   /**
    * Set (to `"replay"`) when `reason` is `error` and the run failed while replaying the steps of an existing test
    * (`continueAt`), before the agent wrote anything: the test file was not changed. Absent for every other result,

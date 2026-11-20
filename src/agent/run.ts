@@ -13,6 +13,7 @@ import { runLoop, type RunTally } from "./loop.js";
 import { assertModelObject } from "./model.js";
 import { generateKind } from "./generate-kind.js";
 import { ReplayError } from "./replay.js";
+import { modelRefusal, type ModelRefusal } from "./refusal.js";
 import type { RunKind, RunSink } from "./run-kind.js";
 import { toSdkTools, type AiModule } from "./sdk-tools.js";
 import { AgentController } from "./session.js";
@@ -117,6 +118,7 @@ export function startAgent<
     steps?: S;
     summary?: string;
     error?: string;
+    refusal?: ModelRefusal;
     limit?: "step-limit" | "token-limit";
     /** Set when the replay of the existing steps threw: the step that failed, when the error names one */
     replay?: { step?: number };
@@ -264,6 +266,7 @@ export function startAgent<
       done.error = maskText(
         error instanceof Error ? error.message : String(error),
       );
+      done.refusal = modelRefusal(error);
       return true;
     })
     .then(async (failed) => {
@@ -277,6 +280,7 @@ export function startAgent<
         ...(reason === "finished" && summary !== undefined && { summary }),
         ...(reason === "error" &&
           done.error !== undefined && { error: done.error }),
+        ...(reason === "error" && done.refusal && { refusal: done.refusal }),
         ...(reason === "error" &&
           done.replay && {
             failedIn: "replay" as const,

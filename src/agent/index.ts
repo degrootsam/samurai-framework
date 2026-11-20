@@ -33,6 +33,7 @@ export {
   ModelSetupError,
   modelFromSpec,
 } from "./providers.js";
+export type { ModelRefusal } from "./refusal.js";
 export type {
   AgentEndReason,
   AgentEvent,
