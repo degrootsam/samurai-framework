@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import http, { type IncomingHttpHeaders } from "node:http";
+import { createRequire } from "node:module";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -128,4 +131,120 @@ test("the default model comes from SAMURAI_AI_MODEL first", async () => {
     await defaultModelSpec({ SAMURAI_AI_MODEL: "openai:gpt-x" }),
     "openai:gpt-x",
   );
+});
+
+const GATEWAY_HEADERS = JSON.stringify({
+  authorization: "Bearer member-token-7d2e",
+  "x-samurai-organization": "org-1",
+});
+
+test("SAMURAI_AI_BASE_URL and SAMURAI_AI_HEADERS reach the factory of every provider", async () => {
+  for (const [spec, pkg, factory, keyEnv] of [
+    [
+      "anthropic:m",
+      "@ai-sdk/anthropic",
+      "createAnthropic",
+      "ANTHROPIC_API_KEY",
+    ],
+    ["openai:m", "@ai-sdk/openai", "createOpenAI", "OPENAI_API_KEY"],
+    [
+      "openai-compatible:m",
+      "@ai-sdk/openai-compatible",
+      "createOpenAICompatible",
+      "SAMURAI_AI_API_KEY",
+    ],
+  ] as const) {
+    const model = (await modelFromSpec(spec, {
+      projectDir: project({ [pkg]: factory }),
+      env: {
+        [keyEnv]: KEY,
+        SAMURAI_AI_BASE_URL: "https://gateway.example/p/v1",
+        SAMURAI_AI_HEADERS: GATEWAY_HEADERS,
+      },
+    })) as unknown as {
+      settings: { baseURL: string; headers: Record<string, string> };
+    };
+    assert.equal(model.settings.baseURL, "https://gateway.example/p/v1", spec);
+    assert.deepEqual(model.settings.headers, JSON.parse(GATEWAY_HEADERS), spec);
+  }
+});
+
+test("without a base URL or headers, anthropic and openai get neither", async () => {
+  const model = (await modelFromSpec("anthropic:m", {
+    projectDir: project({ "@ai-sdk/anthropic": "createAnthropic" }),
+    env: { ANTHROPIC_API_KEY: KEY, SAMURAI_AI_HEADERS: "  " },
+  })) as unknown as { settings: object };
+  assert.deepEqual(Object.keys(model.settings), ["apiKey"]);
+});
+
+test("bad SAMURAI_AI_HEADERS is a setup error that never repeats the value", async () => {
+  const dir = project({ "@ai-sdk/anthropic": "createAnthropic" });
+  for (const bad of [
+    "{not json authorization Bearer secret-1",
+    '["Bearer secret-2"]',
+    '"Bearer secret-3"',
+    "null",
+    '{"authorization": 42, "x":"secret-4"}',
+  ])
+    await assert.rejects(
+      modelFromSpec("anthropic:m", {
+        projectDir: dir,
+        env: { ANTHROPIC_API_KEY: KEY, SAMURAI_AI_HEADERS: bad },
+      }),
+      (error: Error) =>
+        error instanceof ModelSetupError &&
+        /SAMURAI_AI_HEADERS must be a JSON object/.test(error.message) &&
+        !/secret-|Bearer|42/.test(error.message),
+    );
+});
+
+/** The real provider package, when a workspace project has it installed (the framework depends on none) */
+function realProviderDir(pkg: string): string | undefined {
+  const dir = path.resolve(
+    import.meta.dirname,
+    "../../../../examples/sandbox-app",
+  );
+  try {
+    createRequire(path.join(dir, "package.json")).resolve(pkg);
+    return dir;
+  } catch {
+    return undefined;
+  }
+}
+
+test("the anthropic SDK sends the gateway path, bearer token and extra headers", async (t) => {
+  const dir = realProviderDir("@ai-sdk/anthropic");
+  if (!dir)
+    return t.skip("@ai-sdk/anthropic is not installed in the workspace");
+  const seen: { url?: string; headers?: IncomingHttpHeaders } = {};
+  const server = http.createServer((req, res) => {
+    seen.url = req.url;
+    seen.headers = req.headers;
+    req.resume();
+    res.statusCode = 500;
+    res.end("{}");
+  });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  try {
+    const { port } = server.address() as AddressInfo;
+    const model = (await modelFromSpec("anthropic:claude-test", {
+      projectDir: dir,
+      env: {
+        ANTHROPIC_API_KEY: KEY,
+        SAMURAI_AI_BASE_URL: `http://127.0.0.1:${port}/anthropic/v1`,
+        SAMURAI_AI_HEADERS: GATEWAY_HEADERS,
+      },
+    })) as unknown as { doGenerate: (o: object) => Promise<unknown> };
+    await model
+      .doGenerate({
+        prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+        maxRetries: 0,
+      })
+      .catch(() => undefined);
+    assert.equal(seen.url, "/anthropic/v1/messages");
+    assert.equal(seen.headers?.authorization, "Bearer member-token-7d2e");
+    assert.equal(seen.headers?.["x-samurai-organization"], "org-1");
+  } finally {
+    server.close();
+  }
 });

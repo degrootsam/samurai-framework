@@ -78,10 +78,36 @@ async function loadProvider(
 }
 
 /**
+ * `SAMURAI_AI_HEADERS`: a JSON object of header names to string values, sent with every model request (for a
+ * gateway that wants `Authorization: Bearer ...` or an organization header). The values are secrets: the
+ * messages here never contain them.
+ */
+function parseHeaders(
+  raw: string | undefined,
+): Record<string, string> | undefined {
+  if (raw === undefined || raw.trim() === "") return undefined;
+  const invalid = new ModelSetupError(
+    'SAMURAI_AI_HEADERS must be a JSON object of header names to string values, for example {"x-example":"value"}',
+  );
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw invalid;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    throw invalid;
+  const entries = Object.entries(parsed);
+  if (entries.some(([, value]) => typeof value !== "string")) throw invalid;
+  return entries.length > 0 ? (parsed as Record<string, string>) : undefined;
+}
+
+/**
  * Builds the model object a `provider:name` pair stands for, with the provider package loaded from the user's
  * project (the framework depends on none). The key comes from the environment (`ANTHROPIC_API_KEY`,
- * `OPENAI_API_KEY`, or `SAMURAI_AI_API_KEY` for `openai-compatible`, whose endpoint is `SAMURAI_AI_BASE_URL`);
- * it is never part of a message.
+ * `OPENAI_API_KEY`, or `SAMURAI_AI_API_KEY` for `openai-compatible`); it is never part of a message.
+ * `SAMURAI_AI_BASE_URL` is the endpoint (required for `openai-compatible`, optional for the others, for example
+ * a gateway) and `SAMURAI_AI_HEADERS` extra request headers (a JSON object).
  */
 export async function modelFromSpec(
   spec: string,
@@ -94,7 +120,8 @@ export async function modelFromSpec(
       `${provider.key.env} is not set; set it to your ${spec.slice(0, spec.indexOf(":"))} API key`,
     );
   const compatible = provider.pkg.endsWith("openai-compatible");
-  const baseURL = env.SAMURAI_AI_BASE_URL;
+  const baseURL = env.SAMURAI_AI_BASE_URL?.trim() || undefined;
+  const headers = parseHeaders(env.SAMURAI_AI_HEADERS);
   if (compatible && !baseURL)
     throw new ModelSetupError(
       "SAMURAI_AI_BASE_URL is not set; set it to the endpoint of your OpenAI-compatible server, for example http://localhost:11434/v1",
@@ -107,7 +134,8 @@ export async function modelFromSpec(
     );
   const made = (create as (settings: object) => unknown)({
     ...(compatible && { name: "openai-compatible" }),
-    ...(baseURL && compatible && { baseURL }),
+    ...(baseURL && { baseURL }),
+    ...(headers && { headers }),
     ...(apiKey && { apiKey }),
   });
   const model =

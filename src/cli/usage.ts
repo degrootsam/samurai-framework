@@ -61,7 +61,8 @@ Options for generate (also --env, --browser, --port, --headless, --json):
   --model <provider:name>     anthropic, openai or openai-compatible, for example
                               anthropic:claude-sonnet-4-5. Default: SAMURAI_AI_MODEL, then the
                               config’s ai.model. Keys: ANTHROPIC_API_KEY, OPENAI_API_KEY,
-                              SAMURAI_AI_API_KEY (+ SAMURAI_AI_BASE_URL for openai-compatible)
+                              SAMURAI_AI_API_KEY. SAMURAI_AI_BASE_URL (required for openai-compatible)
+                              and SAMURAI_AI_HEADERS (a JSON object) work for every provider
   --max-steps <n>             Most model calls in the run (default 40)
   --yes-origin <origin>       A site the agent may open without asking; repeatable
   --secret <NAME>             A secret the agent may type (it never sees the value); repeatable
