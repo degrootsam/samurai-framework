@@ -212,7 +212,12 @@ export function startAgent<
           emit: (event) => controller.emit(event),
           secretOnScreen: false,
         };
-        await kind.guard?.(page, steps);
+        await kind.guard?.(page, steps, {
+          options,
+          ask: (question, choices, send) =>
+            controller.ask(question, choices, send),
+          emit: (event) => controller.emit(event),
+        });
         const system = kind.prompt(
           {
             instructions: instructions.text,

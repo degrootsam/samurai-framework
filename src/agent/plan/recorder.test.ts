@@ -71,11 +71,51 @@ test("observe writes no events and undo removes nothing", () => {
   assert.equal(recorder.undo(3), 0);
 });
 
-test("blocked requests are kept until they are taken, once", () => {
+test("send outcomes are told once; a request not sent goes under Open questions", () => {
+  const { recorder, out } = setup();
+  const url = "http://x.test/password/reset";
+  recorder.sendOutcome({ outcome: "declined", method: "POST", url });
+  recorder.sendOutcome({ outcome: "unasked", method: "PUT", url });
+  recorder.sendOutcome({
+    outcome: "sent",
+    method: "POST",
+    url,
+    status: 200,
+    snippet: "Check your email",
+  });
+  const notes = recorder.takeNotes();
+  assert.equal(notes.length, 3);
+  assert.match(
+    notes[0]!,
+    /not sent: the person did not allow it \(POST \/password\/reset\)/,
+  );
+  assert.match(notes[1]!, /nobody could be asked/);
+  assert.match(
+    notes[2]!,
+    /sent: the person allowed POST \/password\/reset, the app answered 200 "Check your email"/,
+  );
+  assert.deepEqual(recorder.takeNotes(), []);
+  const file = readFileSync(out, "utf8");
+  assert.match(
+    file,
+    /What does the app do after POST \/password\/reset\? Not checked: the person did not allow it\./,
+  );
+  assert.match(
+    file,
+    /after PUT \/password\/reset\? Not checked: nobody could be asked/,
+  );
+  assert.doesNotMatch(file, /answered 200/);
+});
+
+test("settled waits for tracked held requests", async () => {
   const { recorder } = setup();
-  recorder.block("POST /submit");
-  recorder.block("POST /submit");
-  recorder.block("PUT /item");
-  assert.deepEqual(recorder.takeBlocked(), ["POST /submit", "PUT /item"]);
-  assert.deepEqual(recorder.takeBlocked(), []);
+  let release!: () => void;
+  recorder.track(new Promise<void>((resolve) => (release = resolve)));
+  let done = false;
+  const waiting = recorder.settled().then(() => (done = true));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(done, false);
+  release();
+  await waiting;
+  assert.equal(done, true);
 });

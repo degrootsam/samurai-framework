@@ -203,7 +203,7 @@ Keys come from `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or (for `openai-compatible`
 
 ## `samurai plan "<goal>"`
 
-Lets an AI agent explore a page and write a test plan (a Markdown file) without submitting anything: every request that is not a `GET` is blocked while it plans. Read the plan, fix it, then give it to `samurai generate --plan`. The workflow, the plan file format and what the guard does and does not cover are on [AI agent](AI-agent#planning-a-test).
+Lets an AI agent explore a page and write a test plan (a Markdown file) and asks you before it sends a form: every request that is not a `GET` is held until you answer `send` (anything else declines it), and with no terminal to ask nothing is sent. Read the plan, fix it, then give it to `samurai generate --plan`. The workflow, the plan file format and what the guard does and does not cover are on [AI agent](AI-agent#planning-a-test).
 
 ```sh
 samurai plan "register with the Pro plan" --out plans/register.md --url http://localhost:5180/forms --model anthropic:claude-sonnet-4-5

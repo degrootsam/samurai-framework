@@ -4,7 +4,7 @@ import { planKind } from "./plan-kind.js";
 
 /**
  * Starts a planning run: the agent explores the page and writes a Markdown plan into `out` after each step it
- * records. It never submits: every request that is not a GET is stopped. The same events and the same `ended`
+ * records. A request that is not a GET is held and the person is asked first (see `forms`). The same events and the same `ended`
  * event as `runAgent`, plus `plan-step`. Throws at once for a model that is a string.
  */
 export function startPlan(

@@ -2,6 +2,7 @@ import type { Browser } from "../browser/browser.js";
 import type Page from "../browser/page.js";
 import type { PreparedRun } from "../runner/prepare-run.js";
 import type { SupportedBrowser } from "../types/browser.js";
+import type { PlanSendQuestion } from "./plan/send-question.js";
 import type { PromptInput } from "./prompt.js";
 import type { PersonRecording } from "./take-over.js";
 import type { Snapshotter } from "./snapshot.js";
@@ -79,7 +80,20 @@ export interface RunKind<
   /** Names the secrets the written steps read */
   secrets(sink: S): string[];
   /** Runs once the page is open, before the model's first call */
-  guard?(page: Page, sink: S): Promise<void>;
+  guard?(
+    page: Page,
+    sink: S,
+    run: {
+      options: O;
+      /** Asks the person; `send` makes it a question about one held request */
+      ask(
+        question: string,
+        options: string[],
+        send: PlanSendQuestion,
+      ): Promise<string>;
+      emit(event: AgentEvent): void;
+    },
+  ): Promise<void>;
   /** What the person's use of the browser does to the record */
   person(input: {
     page: Page;

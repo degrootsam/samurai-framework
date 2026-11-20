@@ -165,19 +165,20 @@ test(
 );
 
 test(
-  "what the guard blocked is told to the agent with the next answer, once",
+  "what happened to a held request is told to the agent with the next answer, once",
   OPTIONS,
   async () => {
     const run = await setup();
     await run.call("navigate", { url: fx.appOrigin() + "/" });
-    run.plan.block("POST /api/feedback");
+    run.plan.sendOutcome({
+      outcome: "declined",
+      method: "POST",
+      url: "http://x.test/api/feedback",
+    });
     const next = await run.call("snapshot");
     assert.equal(next.ok, true);
-    assert.match(
-      text(next),
-      /blocked: the planner does not submit \(POST \/api\/feedback\)/,
-    );
-    assert.doesNotMatch(text(await run.call("snapshot")), /blocked:/);
+    assert.match(text(next), /not sent: .*\(POST \/api\/feedback\)/);
+    assert.doesNotMatch(text(await run.call("snapshot")), /not sent:/);
   },
 );
 

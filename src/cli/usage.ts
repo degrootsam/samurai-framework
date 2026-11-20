@@ -48,7 +48,8 @@ Options for plan (also --env, --browser, --port, --headless, --json and the mode
 origin options of generate below):
   --out <plan.md>             The plan file to write; written after every step. Without it: <plansDir>/<goal-slug>.plan.md
   --force                     Replace --out when it exists
-  The page is read-only while planning: every request that is not a GET is blocked.
+  Planning asks before it sends a form (any request that is not a GET): answer "send" to allow that one
+  request, anything else to decline. With no terminal to ask, nothing is sent and it goes under Open questions.
 
 Options for generate (also --env, --browser, --port, --headless, --json):
   --file <spec>               The spec file to write into (required, once)

@@ -200,3 +200,19 @@ test("a question without a terminal ends the run unless it is about a site", asy
     /The agent asked "Which plan\?" and nobody can answer/,
   );
 });
+
+test("a held form without a terminal is declined, the run goes on", async () => {
+  const held: AgentEvent = {
+    type: "question",
+    id: "q1",
+    question: "Send POST http://x.test/submit?",
+    options: ["send", "decline"],
+    send: { method: "POST", url: "http://x.test/submit", page: "" },
+  };
+  const agent = fakeAgent([held], result());
+  const outcome = await run(ARGS, agent);
+  assert.equal(outcome.code, 0);
+  assert.equal(agent.seen.stopped, false);
+  assert.deepEqual(agent.seen.answers, [["q1", "decline"]]);
+  assert.match(outcome.err(), /Not sent: .*Open questions/);
+});

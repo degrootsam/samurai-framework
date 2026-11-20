@@ -1,4 +1,5 @@
 import { maskDeep } from "../config/mask.js";
+import type { PlanSendQuestion } from "./plan/send-question.js";
 import type { AgentEvent, AgentResult } from "./types.js";
 
 type Mode = "running" | "paused" | "taken-over";
@@ -168,7 +169,11 @@ export class AgentController {
   }
 
   /** Asks the person; waits without counting against the time limit. Rejects when the run stops */
-  public ask(question: string, options?: string[]): Promise<string> {
+  public ask(
+    question: string,
+    options?: string[],
+    send?: PlanSendQuestion,
+  ): Promise<string> {
     const id = `q${++this.asked}`;
     return new Promise<string>((resolve, reject) => {
       this.questions.set(id, {
@@ -181,6 +186,7 @@ export class AgentController {
         id,
         question,
         ...(options && options.length > 0 && { options }),
+        ...(send && { send }),
       });
     }).finally(() => {
       this.questions.delete(id);

@@ -20,6 +20,13 @@ export {
   type PlanQuestion,
 } from "./plan/plan-file.js";
 export { defaultPlanFile, listPlans } from "./plan/plan-path.js";
+export {
+  PLAN_DECLINE,
+  PLAN_SEND,
+  PLAN_SEND_OPTIONS,
+  type PlanSendOutcome,
+  type PlanSendQuestion,
+} from "./plan/send-question.js";
 export { readPlan } from "./plan/read-plan.js";
 export {
   defaultModelSpec,
@@ -48,7 +55,8 @@ export function runAgent(options: AgentOptions): AgentSession {
 
 /**
  * Starts the planning agent on a goal: it explores the page and writes a Markdown plan into `out`, a step at a
- * time, for `runAgent`'s `plan` option. The page is read-only: every request that is not a GET is stopped. Same
+ * time, for `runAgent`'s `plan` option. A request that is not a GET (a form submit) is held and the person is
+ * asked first, through a `question` event with `send`; with no one to ask it is stopped. Same
  * events and `ended` event as `runAgent`, plus `plan-step`. Needs the optional packages `ai` and `zod`.
  */
 export function runPlan(options: PlanOptions): PlanSession {

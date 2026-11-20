@@ -6,6 +6,7 @@ import { Browser } from "../../browser/browser.js";
 import type Page from "../../browser/page.js";
 import { testBrowser } from "../../testing/test-browser.js";
 import { installPlanGuard } from "./guard.js";
+import type { PlanSendOutcome, PlanSendQuestion } from "./send-question.js";
 
 const OPTIONS = { timeout: 60000 };
 let browser: Browser;
@@ -15,6 +16,9 @@ let base: string;
 const sockets = new Set<Socket>();
 let hits: string[] = [];
 let blocked: string[] = [];
+let outcomes: PlanSendOutcome[] = [];
+const questions: PlanSendQuestion[] = [];
+let answer: (q: PlanSendQuestion) => Promise<string> = async () => "decline";
 
 const FORM = `<!doctype html><title>form</title><body>
 <form id="f" method="post" action="/submit"><input name="a" value="1"><button id="go">Send</button></form>
@@ -44,7 +48,20 @@ before(async () => {
     port: 9611,
     headless: true,
   }));
-  await installPlanGuard(page, (what) => blocked.push(what));
+  await installPlanGuard(
+    page,
+    (outcome) => {
+      outcomes.push(outcome);
+      if (outcome.outcome !== "sent")
+        blocked.push(`${outcome.method} ${new URL(outcome.url).pathname}`);
+    },
+    {
+      ask: (q) => {
+        questions.push(q);
+        return answer(q);
+      },
+    },
+  );
 });
 
 after(async () => {
@@ -57,6 +74,9 @@ after(async () => {
 beforeEach(async () => {
   hits = [];
   blocked = [];
+  outcomes = [];
+  questions.length = 0;
+  answer = async () => "decline";
   await page.navigateTo(`${base}/`);
   hits = [];
 });
@@ -113,4 +133,53 @@ test("GET requests pass: fetch, a GET form and a link", OPTIONS, async () => {
   await page.waitForURL(/\/search\?q=x/);
   assert.deepEqual(blocked, []);
   assert.deepEqual(hits, ["GET /data", "GET /search"]);
+  assert.equal(questions.length, 0, "a GET asked");
+});
+
+test(
+  "an allowed form submit goes out once, with its status reported",
+  OPTIONS,
+  async () => {
+    answer = async () => "send";
+    await page.locator("#go").click();
+    await page.waitForURL(/\/submit/);
+    assert.deepEqual(hits, ["POST /submit"]);
+    assert.equal(questions.length, 1);
+    assert.equal(questions[0]?.method, "POST");
+    assert.equal(questions[0]?.url, `${base}/submit`);
+    assert.equal(questions[0]?.page, `${base}/`);
+    // Best effort: Chrome's page is busy with the navigation, so the label may be missing
+    assert.ok([undefined, "Send"].includes(questions[0]?.label));
+    assert.equal(outcomes[0]?.outcome, "sent");
+    assert.equal(outcomes[0]?.status, 200);
+  },
+);
+
+test("a held request never goes out before the answer", OPTIONS, async () => {
+  let release!: (text: string) => void;
+  answer = () => new Promise<string>((resolve) => (release = resolve));
+  const result = page.evaluate(
+    `fetch("/api/item", { method: "POST", body: "x" }).then(() => "ok", () => "failed")`,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  assert.equal(questions.length, 1);
+  assert.deepEqual(hits, [], "the server saw it while the question was open");
+  release("send");
+  assert.equal(await result, "ok");
+  assert.deepEqual(hits, ["POST /api/item"]);
+});
+
+test("every form asks again: no allow all", OPTIONS, async () => {
+  const replies = ["send", "decline"];
+  answer = async () => replies.shift() ?? "decline";
+  const results = [];
+  for (let i = 0; i < 2; i++)
+    results.push(
+      await page.evaluate(
+        `fetch("/api/n${i}", { method: "POST", body: "x" }).then(() => "ok", () => "failed")`,
+      ),
+    );
+  assert.deepEqual(results, ["ok", "failed"]);
+  assert.equal(questions.length, 2);
+  assert.deepEqual(hits, ["POST /api/n0"]);
 });

@@ -5,7 +5,7 @@ import {
   type PromptInput,
 } from "../prompt.js";
 
-/** The planner's system prompt: explore and describe, never submit, write steps another agent can follow */
+/** The planner's system prompt: explore and describe, ask before sending, write steps another agent can follow */
 export function buildPlanPrompt(input: PromptInput): string {
   const secrets =
     input.secrets.length > 0 ? input.secrets.join(", ") : "none are available";
@@ -25,15 +25,16 @@ export function buildPlanPrompt(input: PromptInput): string {
     `${WRITING_RULES}
 - It also covers seen, notDone and question. A step (step), its text and its expect, is written in full sentences: another agent and the person follow it.`,
 
-    `## You never submit
-- The page you drive is read-only: the framework blocks every request that is not a GET, so a form submit, a save, a delete or a payment does nothing, and the tool answer says blocked. This is so that planning cannot change real data.
-- Fill forms and open pages to see what they do, but do not try to get around the block. Write the click that would submit as "Not done" (notDone) and say what you expect it to do, if the page tells you.
+    `## You ask before you send
+- Loading pages and filling fields is yours to do. A form submit, a save, a delete or a payment, any request that is not a GET, is held by the framework and the person is asked, once per request. There is no "allow all": the next one asks again.
+- Only click such a button when seeing the answer matters for the plan, and put in the call's reason one sentence on why (what you want to see, and anything it may cause, such as an email). The tool answer says sent (with what the app answered) or not sent.
+- When it is not sent (the person said no, or nobody could be asked), the framework writes what you could not check under "Open questions". Do not try again, do not look for another way around, and do not write that step as done. You may say what you expect it to do under notDone, if the page tells you.
 - A link or button that only reads is fine. Nothing here stops a page that changes data with a plain GET, so do not open pages whose names say they delete, log out or buy.`,
 
     `## Tools
 - snapshot: the page as text.
 - navigate(url): open a URL or a path. Allowed without asking: ${input.origins.length > 0 ? input.origins.join(", ") : "none"}. Any other site asks the person and may be refused.
-- act(kind, target, value?): click, fill, select, check, uncheck, hover, dblclick, clear, press. It writes nothing to the plan.
+- act(kind, target, value?, reason?): click, fill, select, check, uncheck, hover, dblclick, clear, press. It writes nothing to the plan.
 - step(text, expect?): write a step you did. Refused when every act or navigate so far is already a step.
 - seen(text), notDone(text): notes for the test writer.
 - question(question, options?): ask the person; it is kept in the plan.

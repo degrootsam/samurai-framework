@@ -47,8 +47,8 @@ const seen = defineTool({
 const notDone = defineTool({
   name: "notDone",
   description:
-    "Note something you did not do or could not see: a step you did not take because it would submit or change " +
-    "data, a state you could not reach, a request that was blocked. The test writer will check these first.",
+    "Note something you did not do or could not see: a step you did not take, a state you could not reach, " +
+    "a request the person did not allow. The test writer will check these first.",
   inputSchema: z.object({ text: z.string().min(1).max(600) }),
   async execute({ text }, context: PlanToolContext) {
     context.plan.notDone(text);
@@ -79,20 +79,43 @@ const MAY_SUBMIT = new Set(["click", "dblclick", "press"]);
 const settle = () =>
   new Promise((resolve) => setTimeout(resolve, SUBMIT_SETTLE_MS));
 
-/** Says what the guard stopped after any call, so the agent writes it down and does not try again */
-function withBlockedNotice(tool: AgentTool, plan: PlanRecorder): AgentTool {
+/**
+ * Waits for held requests to be answered after any call, and tells the agent what happened to them. An `act` may
+ * carry a `reason`, which is what the question about a held request tells the person
+ */
+function withSendNotice(tool: AgentTool, plan: PlanRecorder): AgentTool {
+  const isAct = tool.name === "act";
   return {
     ...tool,
+    ...(isAct && {
+      inputSchema: (tool.inputSchema as z.ZodObject<z.ZodRawShape>).extend({
+        reason: z
+          .string()
+          .max(300)
+          .optional()
+          .describe(
+            "Only when this may send data: why, in one sentence. The person reads it when asked to allow the request",
+          ),
+      }),
+    }),
     async run(args) {
-      const result = await tool.run(args);
-      if (
-        tool.name === "act" &&
-        MAY_SUBMIT.has((args as { kind?: string })?.kind ?? "")
-      )
+      let given = args;
+      if (isAct && typeof args === "object" && args !== null) {
+        const { reason, ...rest } = args as { reason?: unknown };
+        plan.setReason(typeof reason === "string" ? reason : undefined);
+        given = rest;
+      }
+      if (isAct) plan.setLabel(undefined);
+      const result = await tool.run(given);
+      // "Clicked e5 (button "Send")." names the element; the question shows its name
+      if (isAct && result.ok)
+        plan.setLabel(/\(\w[\w ]*? "([^"]{1,80})"\)/.exec(result.message)?.[1]);
+      if (isAct && MAY_SUBMIT.has((given as { kind?: string })?.kind ?? ""))
         await settle();
-      const blocked = plan.takeBlocked();
-      if (blocked.length === 0) return result;
-      const note = `blocked: the planner does not submit (${blocked.join(", ")}); note it with notDone`;
+      await plan.settled();
+      const notes = plan.takeNotes();
+      if (notes.length === 0) return result;
+      const note = notes.join("; ");
       return result.ok
         ? ({ ...result, message: `${result.message} ${note}` } as ToolResult)
         : { ok: false, error: `${result.error} ${note}` };
@@ -103,8 +126,8 @@ function withBlockedNotice(tool: AgentTool, plan: PlanRecorder): AgentTool {
 const ACT_FOR_PLANS =
   "Do one thing to an element of the latest snapshot: click, fill (type text), select (an option of a dropdown), " +
   "check, uncheck, hover, dblclick, clear or press (a key). Nothing is written by act: record it with step once it " +
-  "worked. Requests that change data are blocked, so a submit button does nothing; note it with notDone. " +
-  "Take a new snapshot after the page changes.";
+  "worked. A request that sends data (a form submit) is held and the person is asked first; the answer comes " +
+  "back in this call's result. Say why in reason when the call may send. Take a new snapshot after the page changes.";
 
 /** The planner's tools, bound to a run: the shared ones that read and act, and the ones that write the plan */
 export function createPlanTools(
@@ -121,5 +144,5 @@ export function createPlanTools(
     notDone(bound),
     question(bound),
     finish(context),
-  ].map((tool) => withBlockedNotice(tool, plan));
+  ].map((tool) => withSendNotice(tool, plan));
 }

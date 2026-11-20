@@ -5,9 +5,14 @@ import { installPlanGuard } from "./guard.js";
 import { createPlan } from "./plan-file.js";
 import { buildPlanPrompt } from "./prompt.js";
 import { PlanRecorder } from "./recorder.js";
+import {
+  PLAN_SEND_OPTIONS,
+  sendOutcomeLine,
+  type PlanSendQuestion,
+} from "./send-question.js";
 import { createPlanTools } from "./tools.js";
 
-/** The run of `runPlan`: steps go into a Markdown plan, and the page cannot change data */
+/** The run of `runPlan`: steps go into a Markdown plan, and the page cannot send data until the person says so */
 export const planKind: RunKind<PlanOptions, PlanRecorder> = {
   file: (options) => options.out,
   sink: (options, { baseURL, emit }) =>
@@ -25,7 +30,27 @@ export const planKind: RunKind<PlanOptions, PlanRecorder> = {
   prompt: (input) => buildPlanPrompt(input),
   opening: (options, first) => `Goal: ${options.goal}\n\n${first}`,
   secrets: () => [],
-  guard: (page, plan) => installPlanGuard(page, (what) => plan.block(what)),
+  guard: (page, plan, run) =>
+    installPlanGuard(
+      page,
+      (outcome) => {
+        plan.sendOutcome(outcome);
+        run.emit({ type: "plan", text: sendOutcomeLine(outcome) });
+      },
+      {
+        ...(run.options.forms !== "block" && {
+          ask: (send: PlanSendQuestion) =>
+            run.ask(
+              `Send ${send.method} ${send.url}?`,
+              [...PLAN_SEND_OPTIONS],
+              send,
+            ),
+        }),
+        label: () => plan.currentLabel,
+        reason: () => plan.currentReason,
+        track: (done) => plan.track(done),
+      },
+    ),
   person: ({ snapshots }) => ({
     // The person's clicks write nothing: only the agent writes the plan. It is told the page may have changed
     begin: () => Promise.resolve(),

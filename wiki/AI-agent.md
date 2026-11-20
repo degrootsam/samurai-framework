@@ -185,7 +185,7 @@ Start: http://localhost:5180/forms
 
 ## Not done
 
-- Step 3 was not clicked: the planner never submits. The result was not seen.
+- Step 3 was not clicked: sending the form was not allowed. The result was not seen.
 
 ## Open questions
 
@@ -207,15 +207,23 @@ A plan may start with a YAML **front matter** block (a first line of `---`, a cl
 
 Plan files can be read and written from code with the same format the planner uses, all from `@itmetsam/samurai-framework/agent`: `formatPlan(plan, front?)` renders a `PlanDocument` (`{ title, goal, start, steps: { text, expect? }[], seen, notDone, questions: { text, answer? }[] }`) as Markdown (texts are masked and made one line; an answer is an indented `Answer:` line under its question; an empty list is `- None.`; `front` is a raw front matter block placed first; it throws over `MAX_PLAN_BYTES`, 32 KB), and `parsePlan(formatPlan(plan))` gives the plan back. `splitFrontMatter(text)` returns `{ front, body }`, and `listPlans()` lists the `*.plan.md` files below `plansDir` (relative paths with `/`, sorted). `generate --plan` repeats the answered questions after the plan, telling the agent to use the answers, and lists the unanswered ones as questions it may `ask` instead of guessing.
 
-### The planner never submits
+### The planner asks before it sends
 
-While planning, the page is read-only. The framework stops every request that is not a `GET`, `HEAD` or `OPTIONS` (form submits, `fetch`, XHR, beacons) before it leaves the browser, and the tool answer says `blocked: the planner does not submit (POST /api/feedback)`; the planner then writes it under "Not done". This is enforced by the framework, not left to the model, and was checked on Firefox and Chrome with form submits (click and Enter), `fetch`, XHR and `sendBeacon`: the server saw none of them. A form submit is answered with an empty `204`, so the page stays where it is on both browsers.
+While planning, the planner loads pages and fills fields on its own. A request that is not a `GET`, `HEAD` or `OPTIONS` (form submits, `fetch`, XHR, beacons) is **held** before it leaves the browser and the person is asked, once per request. There is no "allow all": the next form asks again, and a held request is never let through by waiting.
+
+- **Allowed:** that one request goes out. The tool answer tells the planner what came back (`sent: the person allowed POST /password/reset, the app answered 200 "Check your email"`; the text is the visible start of the response, with secrets masked).
+- **Declined**, or **nobody to ask:** nothing is sent (a form submit is answered with an empty `204`, so the page stays where it is). The framework writes what could not be checked under "Open questions" (`What does the app do after POST /password/reset? Not checked: the person did not allow it.`) and tells the planner so; `generate --plan` lists it as a question the agent may ask.
+- In `samurai plan` the question is asked in the terminal: answer `send` to allow it, anything else declines. Without a terminal (CI, `--json`) nothing is asked and nothing is sent.
+
+In code, a held request is a `question` event with a `send` field, a `PlanSendQuestion` (`{ method, url, page, label?, reason? }`; the URLs have no query, `label` is the button's name when it could be found and `reason` is what the planner said it wants to see). Its `options` are `PLAN_SEND_OPTIONS` (`["send", "decline"]`). Answer it with `session.answer(id, PLAN_SEND)` to let that one request go; any other text, `PLAN_DECLINE` included, stops it. A `plan` event (an activity line) reports how it ended, for example `POST /password/reset sent after a yes: 200, "Check your email".` While the question is open the run waits and its time does not count. A consumer that cannot answer questions passes `forms: "block"` to `runPlan`: nothing is asked and every such request is stopped as `unasked`.
+
+This is enforced by the framework, not left to the model, and was checked on Firefox and Chrome with form submits (click and Enter), `fetch`, XHR and `sendBeacon`: the server saw none of them before the answer.
 
 What it does **not** guarantee:
 
 - A `GET` that changes data (a "delete" link, a "log out" URL) goes through. The prompt tells the planner not to open such pages; nothing enforces it.
 - Messages over a WebSocket are not requests the guard sees.
-- A blocked submit hides what comes after it (a result page, a validation message from the server). That part is "Not done" in the plan, and `generate` explores it.
+- A form that is not sent hides what comes after it (a result page, a validation message from the server). That part is under "Open questions" in the plan, and `generate` explores it.
 
 ### Handing the plan to `generate`
 
@@ -260,16 +268,16 @@ A running session (`runAgent` returns it at once) can be controlled:
 
 `session.events` (and the `onEvent` option) carry the same stream for the app and the command line:
 
-| Event       | Holds                                                                                                                                               |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `plan`      | The agent's own words about what it intends                                                                                                         |
-| `tool-call` | The tool and its arguments (secret values removed)                                                                                                  |
-| `step`      | The recorder event, the statement it wrote and the file's new content                                                                               |
-| `replay`    | Continue mode: step `n` of `total` is being replayed, with its statement (nothing is written for it)                                                |
-| `plan-step` | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)                                    |
-| `question`  | An `id`, the question and optional answers                                                                                                          |
-| `usage`     | Tokens of one model call: `inputTokens`, `outputTokens`, `totalTokens`, and `cachedInputTokens` when the provider reports input read from its cache |
-| `ended`     | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens`                              |
+| Event       | Holds                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `plan`      | The agent's own words about what it intends                                                                                                                                                |
+| `tool-call` | The tool and its arguments (secret values removed)                                                                                                                                         |
+| `step`      | The recorder event, the statement it wrote and the file's new content                                                                                                                      |
+| `replay`    | Continue mode: step `n` of `total` is being replayed, with its statement (nothing is written for it)                                                                                       |
+| `plan-step` | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)                                                                           |
+| `question`  | An `id`, the question and optional answers; in a planning run a `send` field when it asks about a held request (see [the planner asks before it sends](#the-planner-asks-before-it-sends)) |
+| `usage`     | Tokens of one model call: `inputTokens`, `outputTokens`, `totalTokens`, and `cachedInputTokens` when the provider reports input read from its cache                                        |
+| `ended`     | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens`                                                                     |
 
 ## Safety rules
 

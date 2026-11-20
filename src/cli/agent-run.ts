@@ -144,6 +144,13 @@ export async function followRun(
             .catch(() => undefined); // the run ended while the question was open
         } else if (originQuestion) {
           session.answer(event.id, "deny");
+        } else if (event.send) {
+          // A held form with nobody to ask: it is not sent, and the plan says what was not checked
+          session.answer(event.id, "decline");
+          if (!json)
+            io.err(
+              `Not sent: ${event.question} Nobody can be asked (stdin is not a terminal); it goes under Open questions in the plan.\n`,
+            );
         } else {
           unanswerable = event.question;
           session.stop();

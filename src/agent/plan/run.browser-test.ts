@@ -107,33 +107,49 @@ const sendPlan = (told: string[]) =>
     { calls: [{ name: "finish", args: { summary: "Planned the form" } }] },
   ] satisfies ScriptedTurn[];
 
+async function planRun(forms: "send" | "decline" | "block") {
+  hits = [];
+  const dir = mkdtempSync(path.join(os.tmpdir(), "plan-run-"));
+  const events: AgentEvent[] = [];
+  const told: string[] = [];
+  const holder: { session?: ReturnType<typeof runPlan> } = {};
+  holder.session = runPlan({
+    ...common(dir),
+    model: scriptedModel(sendPlan(told)),
+    goal: "Send a message",
+    out: "plans/contact.md",
+    ...(forms === "block" && { forms: "block" as const }),
+    onEvent: (event) => {
+      events.push(event);
+      if (event.type === "question" && event.send)
+        queueMicrotask(() => holder.session!.answer(event.id, forms));
+    },
+  });
+  const result = await holder.session.result;
+  const plan = parsePlan(
+    readFileSync(path.join(dir, "plans/contact.md"), "utf8"),
+  );
+  return { result, events, told, plan };
+}
+
 test(
-  "a plan run fills the form, the submit is blocked and the plan says so",
+  "a plan run fills the form, asks before the submit, and a no sends nothing and lands under Open questions",
   OPTIONS,
   async () => {
-    hits = [];
-    const dir = mkdtempSync(path.join(os.tmpdir(), "plan-run-"));
-    const events: AgentEvent[] = [];
-    const told: string[] = [];
-    const session = runPlan({
-      ...common(dir),
-      model: scriptedModel(sendPlan(told)),
-      goal: "Send a message",
-      out: "plans/contact.md",
-      onEvent: (event) => events.push(event),
-    });
-    const result = await session.result;
+    const { result, events, told, plan } = await planRun("decline");
     ended(result as never, "finished");
     assert.equal(result.summary, "Planned the form");
     assert.equal(result.steps, 1);
     endedOnce(events);
     assert.ok(kinds(events).includes("plan-step"));
     assert.equal(kinds(events).includes("step"), false, "no spec step");
-    assert.deepEqual(hits, ["GET /"], "the server never saw the POST");
-
-    const plan = parsePlan(
-      readFileSync(path.join(dir, "plans/contact.md"), "utf8"),
+    const asked = events.filter((e) => e.type === "question");
+    assert.equal(asked.length, 1);
+    const outcome = events.find(
+      (e) => e.type === "plan" && /not sent: the person declined/.test(e.text),
     );
+    assert.ok(outcome, "no activity line about the decline");
+    assert.deepEqual(hits, ["GET /"], "the server never saw the POST");
     assert.equal(plan.goal, "Send a message");
     assert.equal(plan.start, `${origin}/`);
     assert.deepEqual(plan.steps, [
@@ -146,9 +162,48 @@ test(
       'Click "Send" (button) was blocked: it submits.',
     ]);
     assert.match(
-      told.join("\n"),
-      /blocked: the planner does not submit \(POST \/submit\)/,
+      plan.questions.join("\n"),
+      /after POST \/submit\? Not checked: the person did not allow it/,
     );
+    assert.match(
+      told.join("\n"),
+      /not sent: the person did not allow it \(POST \/submit\)/,
+    );
+  },
+);
+
+test(
+  "a plan run sends the form after a yes and tells the agent what came back",
+  OPTIONS,
+  async () => {
+    const { result, events, told, plan } = await planRun("send");
+    ended(result as never, "finished");
+    assert.deepEqual(hits, ["GET /", "POST /submit"]);
+    const sent = events.find(
+      (e) =>
+        e.type === "plan" && /POST \/submit sent after a yes: 200/.test(e.text),
+    );
+    assert.ok(sent, "no activity line about the send");
+    assert.match(
+      told.join("\n"),
+      /sent: the person allowed POST \/submit, the app answered 200 "Thanks"/,
+    );
+    assert.deepEqual(plan.questions, []);
+  },
+);
+
+test(
+  "a plan run with forms block asks nobody and notes it under Open questions",
+  OPTIONS,
+  async () => {
+    const { result, events, plan } = await planRun("block");
+    ended(result as never, "finished");
+    assert.equal(
+      events.some((e) => e.type === "question"),
+      false,
+    );
+    assert.deepEqual(hits, ["GET /"]);
+    assert.match(plan.questions.join("\n"), /nobody could be asked/);
   },
 );
 

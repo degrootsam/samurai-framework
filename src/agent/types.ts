@@ -3,6 +3,7 @@ import type { ProjectOptions } from "../runner/project.js";
 import type { SupportedBrowser } from "../types/browser.js";
 import type { AgentLimits } from "./limits.js";
 import type { AgentModel } from "./model.js";
+import type { PlanSendQuestion } from "./plan/send-question.js";
 
 /** What the agent does, as a stream both the app and the command line render */
 export type AgentEvent =
@@ -12,8 +13,17 @@ export type AgentEvent =
   | { type: "tool-call"; tool: string; args: unknown }
   /** A step was written to the spec: the recorder event, the statement it produced and the file's new content */
   | { type: "step"; event: RecorderEvent; code?: string; source: string }
-  /** The agent needs the person; answer through the session */
-  | { type: "question"; id: string; question: string; options?: string[] }
+  /**
+   * The agent needs the person; answer through the session. With `send` it is a planning run holding a request
+   * that would change data: answer `send` to let that one request go, anything else (`decline`) to stop it
+   */
+  | {
+      type: "question";
+      id: string;
+      question: string;
+      options?: string[];
+      send?: PlanSendQuestion;
+    }
   /** Tokens used by one model call */
   | {
       type: "usage";
@@ -112,12 +122,17 @@ export interface AgentOptions extends BaseAgentOptions {
   planFile?: string;
 }
 
-/** A planning run: explores the page and writes a Markdown plan, never a spec, and never submits */
+/** A planning run: explores the page and writes a Markdown plan, never a spec; it asks before it sends a form */
 export interface PlanOptions extends BaseAgentOptions {
   /** The plan file, absolute or relative to the project folder */
   out: string;
   /** Overwrite `out` when it exists. @default false */
   force?: boolean;
+  /**
+   * What a request that changes data (a form submit) does: `"ask"` holds it and asks the person through the
+   * session (a `question` event with `send`), `"block"` stops it without asking. @default "ask"
+   */
+  forms?: "ask" | "block";
 }
 
 /** How a planning run ended: `file` is the plan, `steps` the plan steps */

@@ -11,14 +11,15 @@ const base = {
   vision: false,
 };
 
-test("the planner prompt says what a plan is for and that nothing is submitted, and why", () => {
+test("the planner prompt says what a plan is for and that the planner asks before it sends, and why", () => {
   const text = buildPlanPrompt(base);
   assert.match(
     text,
     /another agent can follow without the page in front of it/,
   );
-  assert.match(text, /never submit/i);
-  assert.match(text, /blocked/);
+  assert.match(text, /ask before you send/i);
+  assert.match(text, /no "allow all"/);
+  assert.match(text, /Open questions/);
   assert.match(text, /notDone/);
 });
 

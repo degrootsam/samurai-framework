@@ -13,7 +13,7 @@ export type PlanDeps = AgentCommandDeps;
 const USAGE_LINE =
   'Usage: samurai plan "<goal>" [--out <plan.md>] [--force] [--url <url>] [--model <provider:name>] [--max-steps <n>] [--yes-origin <origin>] [--secret <NAME>] [--json]';
 
-/** `samurai plan "<goal>"`: without `--out` the plan goes to `<plansDir>/<slug-of-goal>.plan.md`. Lets the AI agent explore the page and write a test plan, without submitting anything */
+/** `samurai plan "<goal>"`: without `--out` the plan goes to `<plansDir>/<slug-of-goal>.plan.md`. Lets the AI agent explore the page and write a test plan; it asks before it sends a form */
 export async function planCommand(
   parsed: ParsedCommandLine,
   io: Io,
