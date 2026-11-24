@@ -1,3 +1,14 @@
+## 0.22.16 (2026-11-24)
+
+### 🚀 Features
+
+- **framework:** document the agent live view in the wiki
+- **framework:** live view of the agent's page (frame, url and acted events)
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.15 (2026-11-24)
 
 ### 🚀 Features
