@@ -188,6 +188,17 @@ export abstract class PageCore {
   }
 
   /**
+   * Makes this tab the browser's active one and asks the browser to bring its window to the front
+   * (`browsingContext.activate`). A browser may ignore it, for example without a window.
+   */
+  public async bringToFront(): Promise<void> {
+    this.assertOpen();
+    await this.biDiConnector.send("browsingContext.activate", {
+      context: this.id,
+    });
+  }
+
+  /**
    * Closes the tab and releases everything the page registered. Later calls on the page throw "page closed".
    * With `runBeforeUnload` the page's `beforeunload` handlers run first. Closing the browser's last tab may end the browser.
    */

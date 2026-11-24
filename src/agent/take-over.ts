@@ -36,6 +36,8 @@ export function personRecording(input: {
 
   return {
     async begin() {
+      // The person works in the agent's own window: best effort, a browser may refuse (no window, unsupported)
+      await page.bringToFront().catch(() => undefined);
       written.clear();
       recorder = await page.record({
         at: steps.count,

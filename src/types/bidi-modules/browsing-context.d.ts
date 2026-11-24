@@ -86,6 +86,11 @@ export interface BrowsingContextModule {
     params: { context: BrowsingContext; delta: number };
     result: {};
   };
+  /** Makes a top-level browsing context the active tab and asks the browser to bring its window to the front. */
+  "browsingContext.activate": {
+    params: { context: BrowsingContext };
+    result: {};
+  };
   /** Closes a top-level browsing context. */
   "browsingContext.close": {
     params: { context: BrowsingContext; promptUnload?: boolean | undefined };
