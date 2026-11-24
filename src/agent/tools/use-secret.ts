@@ -33,6 +33,13 @@ export const useSecret = defineTool({
       locator: located.spec,
       value: { kind: "secret", name },
     });
+    context.live?.acted({
+      locator: located.locator,
+      label: `filled ${/"(.*)"$/.exec(located.description)?.[0] ?? located.description} with a secret`,
+      ...(events.length > 0 &&
+        context.steps.count !== undefined && { step: context.steps.count }),
+      before: null,
+    });
     if (!located.dotted) context.secretOnScreen = true;
     return {
       ok: true,

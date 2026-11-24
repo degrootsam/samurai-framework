@@ -2,7 +2,8 @@ import type { z } from "zod";
 import type Page from "../../browser/page.js";
 import { maskDeep } from "../../config/mask.js";
 import type { Snapshotter } from "../snapshot.js";
-import type { AgentEvent } from "../types.js";
+import type Locator from "../../locator/locator.js";
+import type { AgentEvent, LiveActedEvent } from "../types.js";
 import type { OriginPolicy } from "./origins.js";
 import type { Observation, RecorderEvent } from "../../recorder/normalise.js";
 
@@ -19,6 +20,23 @@ export interface ToolSink {
   observe(observation: Observation): RecorderEvent[];
   /** Takes the last `count` steps back and returns how many went */
   undo(count: number): number;
+  /** Steps in the run's record now, when it counts them (a spec writer does) */
+  readonly count?: number;
+}
+
+/** What the tools tell the live view of a run that streams one */
+export interface LiveHooks {
+  /** Something is happening on the page: look at it more often for a moment */
+  touch(): void;
+  /** The element's box now (viewport CSS pixels), or null when it has none */
+  boxOf(locator: Locator): Promise<LiveActedEvent["box"] | null>;
+  /** The agent acted on `locator`; `before` is its box from before the action */
+  acted(input: {
+    locator: Locator;
+    label: string;
+    step?: number;
+    before: LiveActedEvent["box"] | null;
+  }): void;
 }
 
 /** What the tools of one run share */
@@ -37,6 +55,8 @@ export interface ToolContext {
   /** Records the agent's closing summary; the loop ends after the call */
   finish(summary: string): void;
   emit(event: AgentEvent): void;
+  /** Set when the run streams a live view */
+  live?: LiveHooks;
   /** A secret was typed into a field the page shows in plain text: screenshots would show it */
   secretOnScreen: boolean;
 }
@@ -85,32 +105,44 @@ export function defineTool<
     description: spec.description,
     inputSchema: spec.inputSchema,
     async run(args) {
-      context.emit({
-        type: "tool-call",
-        tool: spec.name,
-        args: maskDeep(args),
-      });
-      const parsed = spec.inputSchema.safeParse(args);
-      if (!parsed.success) {
-        const problems = parsed.error.issues
-          .map(
-            (issue) =>
-              `${issue.path.join(".") || "arguments"}: ${issue.message}`,
-          )
-          .join("; ");
-        return maskDeep({
-          ok: false,
-          error: `${spec.name}(): invalid arguments (${problems})`,
-        });
-      }
+      context.live?.touch();
       try {
-        return maskDeep(await spec.execute(parsed.data, context));
-      } catch (error) {
-        return maskDeep({
-          ok: false,
-          error: `${spec.name}(): ${shortMessage(error)}`,
-        });
+        return await runChecked(spec, context, args);
+      } finally {
+        context.live?.touch();
       }
     },
   });
+}
+
+async function runChecked<S extends z.ZodType, C extends ToolContext>(
+  spec: ToolSpec<S, C>,
+  context: C,
+  args: unknown,
+): Promise<ToolResult> {
+  context.emit({
+    type: "tool-call",
+    tool: spec.name,
+    args: maskDeep(args),
+  });
+  const parsed = spec.inputSchema.safeParse(args);
+  if (!parsed.success) {
+    const problems = parsed.error.issues
+      .map(
+        (issue) => `${issue.path.join(".") || "arguments"}: ${issue.message}`,
+      )
+      .join("; ");
+    return maskDeep({
+      ok: false,
+      error: `${spec.name}(): invalid arguments (${problems})`,
+    });
+  }
+  try {
+    return maskDeep(await spec.execute(parsed.data, context));
+  } catch (error) {
+    return maskDeep({
+      ok: false,
+      error: `${spec.name}(): ${shortMessage(error)}`,
+    });
+  }
 }

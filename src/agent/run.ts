@@ -7,6 +7,7 @@ import {
 } from "../recorder/session-browser.js";
 import { fixtureCatalog } from "../runner/fixture-registry.js";
 import { withProject } from "../runner/project.js";
+import { LiveView } from "./live-view.js";
 import { loadInstructions } from "./instructions.js";
 import { resolveLimits } from "./limits.js";
 import { runLoop, type RunTally } from "./loop.js";
@@ -146,6 +147,7 @@ export function startAgent<
         signal: controller.signal,
         headless: options.headless ?? false,
       });
+      let live: LiveView | undefined;
       let fixtures: { teardown(): Promise<Error | undefined> } | undefined;
       try {
         deps.onPage?.(page);
@@ -170,6 +172,18 @@ export function startAgent<
         if (options.url !== undefined) await page.goto(options.url);
         else if (settings.baseURL !== undefined)
           await page.navigateTo(settings.baseURL);
+        if (options.liveView) {
+          live = new LiveView(
+            page,
+            {
+              emit: (event) => controller.emit(event),
+              frame: (event) => controller.emitFrame(event),
+              person: () => controller.takenOver,
+            },
+            options.liveView === true ? {} : options.liveView,
+          );
+          live.start();
+        }
         const replayed = await Promise.resolve(
           kind.replay?.(steps, {
             page,
@@ -212,6 +226,7 @@ export function startAgent<
             tally.finished = true;
           },
           emit: (event) => controller.emit(event),
+          ...(live && { live }),
           secretOnScreen: false,
         };
         await kind.guard?.(page, steps, {
@@ -252,6 +267,7 @@ export function startAgent<
         done.text = outcome.text;
         if (outcome.limit) done.limit = outcome.limit;
       } finally {
+        await live?.stop().catch(() => undefined);
         await person.hooks?.dispose().catch(() => undefined);
         await fixtures?.teardown().catch(() => undefined);
         await browser.close().catch(() => undefined);

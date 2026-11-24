@@ -38,7 +38,50 @@ export type AgentEvent =
   | { type: "replay"; n: number; total: number; text: string }
   /** A planning run recorded step `n` of the plan file */
   | { type: "plan-step"; n: number; text: string }
-  | { type: "ended"; result: AgentResult };
+  | { type: "ended"; result: AgentResult }
+  /**
+   * Only with `liveView`: the page as the browser shows it now. Frames are not part of the recorded event log:
+   * `onEvent` gets each one, `session.events` only the newest one a slow reader has not seen yet
+   */
+  | LiveFrameEvent
+  /** Only with `liveView`: the page's address or title changed (sent once at the start too) */
+  | { type: "url"; url: string; title: string; at: number }
+  /** Only with `liveView`: the agent did something to an element; sent right after the action, before the frame that shows its result */
+  | LiveActedEvent;
+
+/** One picture of the page. `width`/`height` and the box of `acted` events are CSS pixels of the viewport; the image is `width` x `devicePixelRatio` pixels wide */
+export interface LiveFrameEvent {
+  type: "frame";
+  mime: "image/jpeg" | "image/png";
+  /** The image, Base64 */
+  data: string;
+  /** The viewport in CSS pixels */
+  width: number;
+  height: number;
+  devicePixelRatio: number;
+  /** Epoch milliseconds when the frame was taken */
+  at: number;
+}
+
+/** The element the agent acted on and what it did */
+export interface LiveActedEvent {
+  type: "acted";
+  /** The element's box in CSS pixels from the viewport's top left, the coordinate space of the frames */
+  box: { x: number; y: number; width: number; height: number };
+  /** For example `clicked "Pay now"`; never holds a typed value */
+  label: string;
+  /** The number of steps in the test after this action wrote its step (absent when it wrote none) */
+  step?: number;
+  at: number;
+}
+
+/** What `liveView` can set */
+export interface LiveViewOptions {
+  /** The most frames per second while the page changes or an action runs. 0.2 to 10. @default 4 */
+  maxFps?: number;
+  /** JPEG quality, 1 to 100 (PNG is the fallback for a browser that cannot do JPEG). @default 60 */
+  quality?: number;
+}
 
 export type AgentEndReason =
   | "finished"
@@ -99,6 +142,12 @@ export interface BaseAgentOptions extends ProjectOptions {
   /** Whether the model takes images, so `screenshot` works. @default false */
   vision?: boolean;
   limits?: Partial<AgentLimits>;
+  /**
+   * Stream what the agent's page looks like: `frame`, `url` and `acted` events. Frames come only while the page
+   * changes, an action runs or the person drives, and a slow consumer misses frames instead of slowing the
+   * agent. `true` takes the defaults. @default false
+   */
+  liveView?: boolean | LiveViewOptions;
   signal?: AbortSignal;
   onEvent?: (event: AgentEvent) => void;
 }

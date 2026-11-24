@@ -99,6 +99,27 @@ function observationFor(
   }
 }
 
+const DID: Record<Kind, string> = {
+  click: "clicked",
+  fill: "filled",
+  select: "selected an option of",
+  check: "checked",
+  uncheck: "unchecked",
+  hover: "hovered",
+  dblclick: "double-clicked",
+  clear: "cleared",
+  press: "pressed",
+};
+
+/** What the live view says was done: the element's name in quotes, never what was typed */
+function actedLabel(kind: Kind, value: string, located: Located): string {
+  const name = /"(.*)"$/.exec(located.description)?.[1];
+  const what = name ? `"${name}"` : located.description;
+  return kind === "press"
+    ? `pressed ${value} in ${what}`
+    : `${DID[kind]} ${what}`;
+}
+
 export const act = defineTool({
   name: "act",
   description:
@@ -132,10 +153,20 @@ export const act = defineTool({
       };
     const text = value ?? "";
     const before = await context.page.url();
+    const boxBefore = context.live
+      ? await context.live.boxOf(located.locator)
+      : null;
     await perform(kind, text, located, context.actionTimeout);
     const problem = await leftAllowedOrigins(context, before);
     if (problem) return { ok: false, error: `act(): ${problem}` };
     const events = context.steps.observe(observationFor(kind, text, located));
+    context.live?.acted({
+      locator: located.locator,
+      label: actedLabel(kind, text, located),
+      ...(events.length > 0 &&
+        context.steps.count !== undefined && { step: context.steps.count }),
+      before: boxBefore,
+    });
     return {
       ok: true,
       message: `${PAST[kind]} ${located.ref} (${located.description}).${writtenText(events)}`,

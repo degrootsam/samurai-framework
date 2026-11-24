@@ -1,6 +1,6 @@
 import { maskDeep } from "../config/mask.js";
 import type { PlanSendQuestion } from "./plan/send-question.js";
-import type { AgentEvent, AgentResult } from "./types.js";
+import type { AgentEvent, AgentResult, LiveFrameEvent } from "./types.js";
 
 type Mode = "running" | "paused" | "taken-over";
 export type AbortReason = "stopped" | "time-limit" | "token-limit";
@@ -31,6 +31,9 @@ export class AgentController {
     { answer(text: string): void; fail(error: Error): void }
   >();
   private asked = 0;
+  /** The newest frame and how many there were: a reader gets the newest one it has not seen, never a backlog */
+  private frame: LiveFrameEvent | undefined;
+  private frames = 0;
   private note: string | undefined;
   private readonly startedAt = Date.now();
   private idleSince: number | undefined;
@@ -55,9 +58,15 @@ export class AgentController {
   }
 
   private async *read(): AsyncGenerator<AgentEvent> {
+    let seen = 0;
     for (let index = 0; ;) {
       while (index < this.log.length) yield this.log[index++]!;
       if (this.closed) return;
+      if (this.frame && this.frames !== seen) {
+        seen = this.frames;
+        yield this.frame;
+        continue;
+      }
       await new Promise<void>((resolve) => {
         const wake = () => {
           this.readers.delete(wake);
@@ -78,6 +87,24 @@ export class AgentController {
       // a failing listener must not stop the run
     }
     for (const wake of [...this.readers]) wake();
+  }
+
+  /** A live view frame: goes to the listener and to readers as the newest picture; it is not kept in the log */
+  public emitFrame(frame: LiveFrameEvent): void {
+    if (this.closed) return;
+    this.frame = frame;
+    this.frames++;
+    try {
+      this.onEvent?.(frame);
+    } catch {
+      // a failing listener must not stop the run
+    }
+    for (const wake of [...this.readers]) wake();
+  }
+
+  /** True while the person has the browser */
+  public get takenOver(): boolean {
+    return this.mode === "taken-over";
   }
 
   /** Emits `ended` once; later calls change nothing */
