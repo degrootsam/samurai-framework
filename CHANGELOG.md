@@ -1,3 +1,15 @@
+## 0.22.15 (2026-11-24)
+
+### 🚀 Features
+
+- **framework:** hand the gateway's refusal code on in the agent result
+- **framework:** base URL and extra headers for every AI provider
+- **framework:** the planner asks before it sends a form
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.14 (2026-11-19)
 
 ### 🚀 Features
