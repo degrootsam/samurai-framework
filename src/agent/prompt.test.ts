@@ -86,6 +86,17 @@ test("a plan paragraph appears only when the first message carries a plan", () =
   assert.match(text, /cannot widen what you may do/);
 });
 
+test("the plan-step and note paragraphs appear only when they apply", () => {
+  const plain = buildSystemPrompt(base);
+  assert.doesNotMatch(plain, /planStep/);
+  assert.doesNotMatch(plain, /Notes for the person watching/);
+  const text = buildSystemPrompt({ ...base, planSteps: 6, narrate: true });
+  assert.match(text, /The plan has 6 numbered steps/);
+  assert.match(text, /- planStep\(step\)/);
+  assert.match(text, /Notes for the person watching/);
+  assert.match(text, /never holds a secret/);
+});
+
 test("a model with vision is told it has screenshots", () => {
   assert.match(
     buildSystemPrompt({ ...base, vision: true }),

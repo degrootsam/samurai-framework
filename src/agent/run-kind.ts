@@ -73,7 +73,7 @@ export interface RunKind<
   replay?(sink: S, input: ReplayInput): Promise<string[]>;
   /** The page is open on `url`: a first step may be recorded */
   opened?(sink: S, url: string): void;
-  tools(context: ToolContext, sink: S): AgentTool[];
+  tools(context: ToolContext, sink: S, options: O): AgentTool[];
   prompt(input: PromptInput, options: O): string;
   /** The first message after the goal: the page as it is now, or that there is none */
   opening(options: O, first: string, sink: S): string;

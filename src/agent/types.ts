@@ -47,7 +47,33 @@ export type AgentEvent =
   /** Only with `liveView`: the page's address or title changed (sent once at the start too) */
   | { type: "url"; url: string; title: string; at: number }
   /** Only with `liveView`: the agent did something to an element; sent right after the action, before the frame that shows its result */
-  | LiveActedEvent;
+  | LiveActedEvent
+  /**
+   * Only in a run that follows a plan (`plan`), and only when the plan's steps can be read: the agent says which
+   * plan step it starts, by calling the `planStep` tool. Not sent twice in a row for the same step, and never for
+   * a number outside the plan
+   */
+  | PlanStepEvent
+  /** Only with `liveView`: the agent's own one-line commentary, from the `note` it gave to a tool call */
+  | NarrationEvent;
+
+/** The agent is on this step of the plan it follows */
+export interface PlanStepEvent {
+  type: "planStep";
+  /** 0-based index into the plan's steps (the plan's step number minus one) */
+  index: number;
+  /** The number of steps in the plan */
+  total: number;
+  at: number;
+}
+
+/** A short sentence the agent wrote about what it saw or will do next; secret values and typed values are removed */
+export interface NarrationEvent {
+  type: "narration";
+  /** One line, at most 160 characters */
+  text: string;
+  at: number;
+}
 
 /** One picture of the page. `width`/`height` and the box of `acted` events are CSS pixels of the viewport; the image is `width` x `devicePixelRatio` pixels wide */
 export interface LiveFrameEvent {
@@ -145,7 +171,8 @@ export interface BaseAgentOptions extends ProjectOptions {
   /**
    * Stream what the agent's page looks like: `frame`, `url` and `acted` events. Frames come only while the page
    * changes, an action runs or the person drives, and a slow consumer misses frames instead of slowing the
-   * agent. `true` takes the defaults. @default false
+   * agent. `true` takes the defaults. It also turns on `narration` events: the tools then take an optional `note`.
+   * @default false
    */
   liveView?: boolean | LiveViewOptions;
   signal?: AbortSignal;

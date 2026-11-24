@@ -43,6 +43,8 @@ export type {
   LiveActedEvent,
   LiveFrameEvent,
   LiveViewOptions,
+  NarrationEvent,
+  PlanStepEvent,
   PlanOptions,
   PlanResult,
   PlanSession,

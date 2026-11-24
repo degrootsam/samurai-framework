@@ -1,6 +1,7 @@
 import {
   DATA_RULES,
   instructionsSection,
+  NARRATION_RULES,
   WRITING_RULES,
   type PromptInput,
 } from "../prompt.js";
@@ -46,6 +47,7 @@ export function buildPlanPrompt(input: PromptInput): string {
 
     DATA_RULES,
   ];
+  if (input.narrate) sections.push(NARRATION_RULES);
   const project = instructionsSection(input.instructions);
   if (project) sections.push(project);
   return sections.join("\n\n");

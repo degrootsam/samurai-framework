@@ -9,6 +9,7 @@ import { ReplayError, replaySteps } from "./replay.js";
 import { stepToSource } from "../steps/emit.js";
 import { personRecording } from "./take-over.js";
 import { createTools } from "./tools/index.js";
+import { planStepCount } from "./plan/step-count.js";
 import type { Step } from "../steps/model.js";
 import type { AgentOptions } from "./types.js";
 
@@ -92,11 +93,13 @@ export const generateKind: RunKind<AgentOptions, StepRecorder> = {
   opened: (steps, url) => {
     if (steps.count === 0) steps.observe({ type: "goto", url });
   },
-  tools: (context) => createTools(context),
+  tools: (context, _steps, options) =>
+    createTools(context, planStepCount(options.plan)),
   prompt: (input, options) =>
     buildSystemPrompt({
       ...input,
       ...(options.plan !== undefined && { hasPlan: true }),
+      planSteps: planStepCount(options.plan),
       ...(options.continueAt !== undefined && { hasContinue: true }),
     }),
   opening: (options, first, steps) => {

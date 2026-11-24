@@ -20,6 +20,7 @@ import { toSdkTools, type AiModule } from "./sdk-tools.js";
 import { AgentController } from "./session.js";
 import { Snapshotter } from "./snapshot.js";
 import { OriginPolicy } from "./tools/origins.js";
+import { withNotes } from "./tools/note.js";
 import type { ToolContext } from "./tools/context.js";
 import type { PersonRecording } from "./take-over.js";
 import type {
@@ -242,6 +243,7 @@ export function startAgent<
             secrets: options.secrets ?? [],
             origins: origins.list(),
             vision: options.vision === true,
+            narrate: Boolean(options.liveView),
           },
           options,
         );
@@ -249,10 +251,18 @@ export function startAgent<
           ? `The browser is open on ${current}. This is the page now:\n\n${maskText((await snapshots.take()).text)}`
           : undefined;
         const first = openingPage === undefined ? NO_PAGE_OPENING : "";
-        const tools = toSdkTools(ai, kind.tools(context, steps), {
-          wait: () => controller.gate(),
-          note: async () => controller.takeNote(),
-        });
+        const tools = toSdkTools(
+          ai,
+          withNotes(
+            kind.tools(context, steps, options),
+            context,
+            Boolean(options.liveView),
+          ),
+          {
+            wait: () => controller.gate(),
+            note: async () => controller.takeNote(),
+          },
+        );
         const outcome = await runLoop({
           ai,
           model: options.model,

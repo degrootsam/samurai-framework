@@ -282,6 +282,8 @@ A running session (`runAgent` returns it at once) can be controlled:
 | `question`              | An `id`, the question and optional answers; in a planning run a `send` field when it asks about a held request (see [the planner asks before it sends](#the-planner-asks-before-it-sends)) |
 | `usage`                 | Tokens of one model call: `inputTokens`, `outputTokens`, `totalTokens`, and `cachedInputTokens` when the provider reports input read from its cache                                        |
 | `frame`, `url`, `acted` | Only with `liveView`: see [Watching the agent](#watching-the-agent-the-live-view)                                                                                                          |
+| `narration`             | Only with `liveView`: `text`, `at`: the agent's own one-line comment, see [Narration](#narration)                                                                                          |
+| `planStep`              | Only when `plan` is given: `index` (0-based), `total`, `at`: the plan step the agent is on, see [Following the plan's steps](#following-the-plans-steps)                                   |
 | `ended`                 | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens`                                                                     |
 
 ### Watching the agent: the live view
@@ -314,6 +316,22 @@ const session = runAgent({
 - **Same for every run.** It works with `runAgent`, with continue mode (`continueAt`; the replayed steps are streamed too) and with `runPlan`. While the person has taken over, the page is streamed as often as allowed, so they see their own work.
 - **Secrets.** A frame is a picture of the page as a window would show it, for the person watching, and goes only to your `onEvent`. It is never given to the model, and the screenshot rules below do not apply to it: a secret typed into a field the page shows in plain text is visible in the frame, as it would be on screen.
 - **Both browsers.** Firefox and Chrome both capture over WebDriver BiDi (`browsingContext.captureScreenshot`); there is no screencast, so the view is a stream of pictures, not video.
+
+### Following the plan's steps
+
+A run that follows a plan (`plan`, `--plan`) can say which plan step it works on. The agent has one more tool, `planStep(step)`, and the system prompt tells it to call it with the plan's own number (1 to the number of steps) when it starts a step. The run sends `{ type: "planStep", index, total, at }` (`index` is 0-based, `total` the plan's step count) on the same stream as the other events, right after that call's `tool-call`. Nothing is guessed from the written steps.
+
+- A number outside the plan, a repeat of the step already reported and a call that is not a whole number are ignored: no event, no error (the tool answers the agent in a sentence). Going back to an earlier step is reported.
+- The tool exists only when the plan text has a `## Steps` section with at least one step. Without a plan, or with a plan that cannot be read, there is no tool and no event. It writes nothing into the test.
+- It is not the planning run's `plan-step` event, which reports a step written to a plan file.
+
+### Narration
+
+With `liveView`, the tools (all but `finish` and `ask`) take an optional `note`: one short sentence the agent writes about what it saw or will do next ("Search returned 3 products; picking the exact title match."). The run sends it as `{ type: "narration", text, at }` just before the call's `tool-call` event, and does not pass it on to the tool. It costs no extra model call.
+
+- Notes are one line and at most 160 characters; a longer one is cut, an empty or non-text one is ignored.
+- Never a secret: the prompt tells the agent so, and the run removes the value of every secret it holds (and, for `act` with `fill`, the typed text) from the note before it is sent.
+- Without `liveView` the tools have no `note` and no `narration` is sent, so existing callers and the command line are unchanged.
 
 ## Safety rules
 
