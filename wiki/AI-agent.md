@@ -272,16 +272,48 @@ A running session (`runAgent` returns it at once) can be controlled:
 
 `session.events` (and the `onEvent` option) carry the same stream for the app and the command line:
 
-| Event       | Holds                                                                                                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `plan`      | The agent's own words about what it intends                                                                                                                                                |
-| `tool-call` | The tool and its arguments (secret values removed)                                                                                                                                         |
-| `step`      | The recorder event, the statement it wrote and the file's new content                                                                                                                      |
-| `replay`    | Continue mode: step `n` of `total` is being replayed, with its statement (nothing is written for it)                                                                                       |
-| `plan-step` | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)                                                                           |
-| `question`  | An `id`, the question and optional answers; in a planning run a `send` field when it asks about a held request (see [the planner asks before it sends](#the-planner-asks-before-it-sends)) |
-| `usage`     | Tokens of one model call: `inputTokens`, `outputTokens`, `totalTokens`, and `cachedInputTokens` when the provider reports input read from its cache                                        |
-| `ended`     | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens`                                                                     |
+| Event                   | Holds                                                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `plan`                  | The agent's own words about what it intends                                                                                                                                                |
+| `tool-call`             | The tool and its arguments (secret values removed)                                                                                                                                         |
+| `step`                  | The recorder event, the statement it wrote and the file's new content                                                                                                                      |
+| `replay`                | Continue mode: step `n` of `total` is being replayed, with its statement (nothing is written for it)                                                                                       |
+| `plan-step`             | `samurai plan` only: the number and text of a step written to the plan file (no `step` events in a planning run)                                                                           |
+| `question`              | An `id`, the question and optional answers; in a planning run a `send` field when it asks about a held request (see [the planner asks before it sends](#the-planner-asks-before-it-sends)) |
+| `usage`                 | Tokens of one model call: `inputTokens`, `outputTokens`, `totalTokens`, and `cachedInputTokens` when the provider reports input read from its cache                                        |
+| `frame`, `url`, `acted` | Only with `liveView`: see [Watching the agent](#watching-the-agent-the-live-view)                                                                                                          |
+| `ended`                 | The result: `reason`, `summary`, `file`, `test`, `steps` (in the test now), `secrets` (names the steps read), `tokens`                                                                     |
+
+### Watching the agent: the live view
+
+The agent drives its own browser. With `liveView` (off by default, so nothing changes for existing callers and the command line) the run also streams what that page looks like, for an app that shows it next to the steps:
+
+```ts
+const session = runAgent({
+  model,
+  goal,
+  file,
+  liveView: true, // or { maxFps: 4, quality: 60 }
+  onEvent: (event) => {
+    if (event.type === "frame") draw(event); // event.mime, event.data (Base64), width, height, devicePixelRatio
+    if (event.type === "acted") ring(event.box, event.label); // clicked "Pay now"
+    if (event.type === "url") showAddress(event.url, event.title);
+  },
+});
+```
+
+| Event   | Holds                                                                                                                                                                                                                                                             |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frame` | `mime` (`image/jpeg`, or `image/png` for a browser that cannot do JPEG), `data` (Base64), `width` and `height` (the viewport in CSS pixels), `devicePixelRatio` (the image is `width` x `devicePixelRatio` pixels) and `at`.                                      |
+| `url`   | `url` and `title` of the page, sent at the start and whenever either changes.                                                                                                                                                                                     |
+| `acted` | `box` (`x`, `y`, `width`, `height`: the element's box in CSS pixels from the viewport's top left, the same space as the frame), `label` (`clicked "Pay now"`; never what was typed), and `step`, the number of steps in the test after the action wrote its step. |
+
+- **Order.** For one action: `tool-call`, then `step` and `acted`, then a `frame` that shows the result (when the picture changed). `url` comes when the address or title changes, usually right before the frame.
+- **Rate.** Frames come only while the page changes, a tool runs or the person has taken over, at most `maxFps` a second (default 4, at most 10), and a picture identical to the last one is not sent. A normal page is 20 to 50 KB as JPEG at `quality` 60 (a 1280 x 720 viewport). A last frame is taken when the run ends.
+- **Slow readers.** Frames are not kept in the event log. `onEvent` gets each one; `session.events` gives a reader the newest frame it has not seen, never a backlog, and none after `ended`. A slow consumer cannot slow the agent: the capture runs next to it.
+- **Same for every run.** It works with `runAgent`, with continue mode (`continueAt`; the replayed steps are streamed too) and with `runPlan`. While the person has taken over, the page is streamed as often as allowed, so they see their own work.
+- **Secrets.** A frame is a picture of the page as a window would show it, for the person watching, and goes only to your `onEvent`. It is never given to the model, and the screenshot rules below do not apply to it: a secret typed into a field the page shows in plain text is visible in the frame, as it would be on screen.
+- **Both browsers.** Firefox and Chrome both capture over WebDriver BiDi (`browsingContext.captureScreenshot`); there is no screencast, so the view is a stream of pictures, not video.
 
 ## Safety rules
 
