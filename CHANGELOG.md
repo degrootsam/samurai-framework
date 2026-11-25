@@ -1,3 +1,14 @@
+## 0.22.17 (2026-11-25)
+
+### 🚀 Features
+
+- **framework:** taking over brings the agent's window to the front
+- **framework:** planStep and narration events for the agent
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.16 (2026-11-24)
 
 ### 🚀 Features
