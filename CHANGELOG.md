@@ -1,3 +1,13 @@
+## 0.22.18 (2026-11-25)
+
+### 🩹 Fixes
+
+- **framework:** a model call asks for at most 16,000 output tokens
+
+### ❤️ Thank You
+
+- Sam
+
 ## 0.22.17 (2026-11-25)
 
 ### 🚀 Features
