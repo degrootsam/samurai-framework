@@ -1,6 +1,6 @@
 import type { ToolSet } from "ai";
 import { isAnthropic, withCacheBreakpoint } from "./cache-control.js";
-import type { AgentLimits } from "./limits.js";
+import { MAX_OUTPUT_TOKENS, type AgentLimits } from "./limits.js";
 import type { AgentModel } from "./model.js";
 import { pruneStalePages } from "./prune-history.js";
 import type { AiModule } from "./sdk-tools.js";
@@ -42,6 +42,7 @@ export async function runLoop(input: LoopInput): Promise<LoopOutcome> {
   const { ai, controller, limits, tally } = input;
   const result = await ai.generateText({
     model: input.model,
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
     system: isAnthropic(input.model)
       ? {
           role: "system" as const,

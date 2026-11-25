@@ -8,6 +8,12 @@ export interface AgentLimits {
   timeoutMs: number;
 }
 
+/**
+ * The most one model call may write. The AI SDK otherwise asks for the model's own maximum (64,000 tokens and more), which a gateway or a
+ * provider account that caps `max_tokens` refuses. One step is a tool call or a few lines; this is far above what the agent writes.
+ */
+export const MAX_OUTPUT_TOKENS = 16_000;
+
 export const DEFAULT_LIMITS: Readonly<AgentLimits> = {
   maxSteps: 40,
   maxTokens: 400_000,

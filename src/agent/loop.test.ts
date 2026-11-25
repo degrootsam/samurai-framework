@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ModelMessage } from "ai";
+import { MAX_OUTPUT_TOKENS } from "./limits.js";
 import { runLoop, type LoopInput } from "./loop.js";
 import { STALE_SNAPSHOT_NOTE } from "./prune-history.js";
 
 type Options = {
+  maxOutputTokens?: number;
   prompt?: unknown;
   system?: unknown;
   messages: { role: string; content: { type: string; text: string }[] }[];
@@ -189,4 +191,11 @@ test("another model keeps the system prompt as a plain string", async () => {
   const { captured, input } = setup();
   await runLoop(input(undefined, { provider: "openai.chat" }));
   assert.equal(captured.options!.system, "sys");
+});
+
+test("a model call asks for a bounded output, not the model's own maximum", async () => {
+  const { captured, input } = setup();
+  await runLoop(input());
+  assert.equal(captured.options?.maxOutputTokens, MAX_OUTPUT_TOKENS);
+  assert.ok(MAX_OUTPUT_TOKENS <= 16_384);
 });
